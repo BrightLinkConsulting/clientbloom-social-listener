@@ -37,6 +37,31 @@ function timeAgo(iso: string): string {
   return `${days}d ago`
 }
 
+// ---- Platform Badge ----
+function PlatformBadge({ platform }: { platform: string }) {
+  const isLinkedIn = platform === 'LinkedIn'
+  return (
+    <span
+      className={`shrink-0 inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+        isLinkedIn
+          ? 'bg-blue-600/20 text-blue-300 ring-1 ring-blue-500/30'
+          : 'bg-indigo-600/20 text-indigo-300 ring-1 ring-indigo-500/30'
+      }`}
+    >
+      {isLinkedIn ? (
+        <svg className="w-2.5 h-2.5" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
+        </svg>
+      ) : (
+        <svg className="w-2.5 h-2.5" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+        </svg>
+      )}
+      {isLinkedIn ? 'LinkedIn' : 'Facebook'}
+    </span>
+  )
+}
+
 // ---- Score Badge ----
 function ScoreBadge({ score }: { score: number }) {
   const tier =
@@ -131,7 +156,7 @@ function PostCard({
     : ''
 
   const preview = text.length > 240 ? text.slice(0, 240) + '…' : text
-  const platformIcon = f['Platform'] === 'LinkedIn' ? '💼' : '📘'
+  const platform = f['Platform'] || 'Facebook'
 
   return (
     <article
@@ -150,7 +175,7 @@ function PostCard({
           <div className="flex items-center gap-2 flex-wrap min-w-0">
             <ScoreBadge score={score} />
             <span className="text-xs text-slate-500">
-              {platformIcon} {f['Group Name']}
+              {f['Group Name']}
             </span>
             {date && (
               <>
@@ -159,14 +184,18 @@ function PostCard({
               </>
             )}
           </div>
-          {isEngaged && (
-            <span className="shrink-0 text-xs text-emerald-500 font-medium flex items-center gap-1">
-              <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-              </svg>
-              Engaged
-            </span>
-          )}
+          {/* Top-right: platform badge + engaged status */}
+          <div className="flex flex-col items-end gap-1 shrink-0">
+            <PlatformBadge platform={platform} />
+            {isEngaged && (
+              <span className="text-xs text-emerald-500 font-medium flex items-center gap-1">
+                <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                </svg>
+                Engaged
+              </span>
+            )}
+          </div>
         </div>
 
         {/* Author */}
@@ -300,7 +329,7 @@ function Nav({ lastScrapedAt }: { lastScrapedAt: string | null }) {
             <div className="flex items-center gap-2">
               <span className="text-xs text-emerald-400 flex items-center gap-1">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                Live · every 3h
+                Live · 2× daily
               </span>
               {lastScrapedAt && (
                 <>
@@ -494,7 +523,7 @@ export default function FeedPage() {
             </p>
             <p className="text-slate-600 text-xs max-w-xs">
               {filter === 'New'
-                ? 'New posts arrive every 3 hours. Check back later.'
+                ? 'Scraper runs at 6 AM and 6 PM PST. Check back later.'
                 : 'Posts you mark will appear here.'}
             </p>
             {lastScrapedAt && (
@@ -503,9 +532,9 @@ export default function FeedPage() {
           </div>
         ) : (
           <>
-            {/* Subtle "auto-refreshes" note */}
+            {/* Subtle refresh note */}
             <p className="text-xs text-slate-700 mb-4 text-right">
-              Auto-refreshes every 5 min · last updated {timeAgo(lastRefreshed.toISOString())}
+              Dashboard checks every 5 min · last updated {timeAgo(lastRefreshed.toISOString())} · Scraper runs 2× daily
             </p>
             <div className="space-y-3">
               {posts.map(post => (
