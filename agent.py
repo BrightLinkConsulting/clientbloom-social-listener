@@ -135,6 +135,40 @@ def fetch_linkedin_icps_from_airtable(airtable_token: str, base_id: str) -> list
         return []
 
 
+def fetch_business_profile_from_airtable(airtable_token: str, base_id: str) -> str:
+    """
+    Fetch the single 'Business Profile' record from Airtable and return it
+    as a formatted string for injection into Claude scoring prompts.
+    Returns empty string if the table doesn't exist or has no data.
+    """
+    import requests as _requests
+    url = f"https://api.airtable.com/v0/{base_id}/Business%20Profile"
+    headers = {"Authorization": f"Bearer {airtable_token}"}
+    try:
+        resp = _requests.get(url, headers=headers, params={"maxRecords": 1}, timeout=10)
+        if resp.status_code == 404:
+            return ""
+        resp.raise_for_status()
+        records = resp.json().get("records", [])
+        if not records:
+            return ""
+        f = records[0].get("fields", {})
+        parts = [
+            f.get("Business Name") and f"Business: {f['Business Name']}",
+            f.get("Industry") and f"Industry: {f['Industry']}",
+            f.get("Ideal Client") and f"Ideal client: {f['Ideal Client']}",
+            f.get("Problem Solved") and f"We solve: {f['Problem Solved']}",
+            f.get("Signal Types") and f"Signals to prioritise: {f['Signal Types']}",
+        ]
+        profile_str = "\n".join(p for p in parts if p)
+        if profile_str:
+            logger.info("Business profile loaded — will be injected into scoring prompts.")
+        return profile_str
+    except Exception as e:
+        logger.warning(f"Could not fetch Business Profile from Airtable: {e}")
+        return ""
+
+
 def normalize_linkedin_profile_post(raw: dict, icp_profile: dict) -> dict:
     """
     Normalize a post from harvestapi/linkedin-profile-posts.
@@ -350,6 +384,11 @@ def run_scraping_cycle(config: dict) -> dict:
         summary["errors"].append(f"Airtable read failed: {str(e)}")
         return summary
 
+    # Step 1b: Fetch business profile for AI context injection
+    airtable_token_env = os.getenv("AIRTABLE_API_TOKEN", "")
+    airtable_base_env  = os.getenv("AIRTABLE_BASE_ID", "")
+    business_profile = fetch_business_profile_from_airtable(airtable_token_env, airtable_base_env)
+
     all_new_posts = []
     icp_posts_for_scoring = []   # scored separately with ICP prompt
 
@@ -512,7 +551,7 @@ def run_scraping_cycle(config: dict) -> dict:
     # Step 5a: Score ICP posts with engagement-opportunity prompt
     if new_icp_posts:
         try:
-            scored_icp = scorer.score_icp_posts_batch(new_icp_posts)
+            scored_icp = scorer.score_icp_posts_batch(new_icp_posts, business_profile=business_profile)
             qualifying_icp = scorer.filter_by_min_score(scored_icp, min_score=min_score)
             logger.info(f"ICP scoring: {len(new_icp_posts)} posts → {len(qualifying_icp)} qualify (score >= {min_score})")
             qualifying.extend(qualifying_icp)
@@ -524,7 +563,7 @@ def run_scraping_cycle(config: dict) -> dict:
     # Step 5b: Score keyword/Facebook posts with pain-signal prompt
     if new_posts:
         try:
-            scored_posts = scorer.score_posts_batch(new_posts)
+            scored_posts = scorer.score_posts_batch(new_posts, business_profile=business_profile)
             qualifying_kw = scorer.filter_by_min_score(scored_posts, min_score=min_score)
             logger.info(f"Scoring: {len(new_posts)} posts → {len(qualifying_kw)} qualify (score >= {min_score})")
             qualifying.extend(qualifying_kw)
