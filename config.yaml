@@ -147,10 +147,23 @@ linkedin_search_terms:
 
 # --- Apify Settings ---
 apify:
+  # LinkedIn ICP profile monitoring (people-first approach)
+  linkedin_profile_actor: "harvestapi/linkedin-profile-posts"
+  max_icp_profiles_per_cycle: 50      # max profiles to scrape per run
+  max_posts_per_icp_profile: 10       # recent posts to pull per profile
+
+  # LinkedIn keyword search (secondary — finds pain signals from non-ICP users)
   linkedin_actor: "apimaestro/linkedin-posts-search-scraper-no-cookies"
+  max_results_linkedin: 50
+
+  # Facebook group scraping
   facebook_actor: "apify/facebook-groups-scraper"
   max_posts_per_facebook_group: 20
-  max_results_linkedin: 50
+
+  # Google-based ICP discovery
+  google_search_actor: "apify/google-search-scraper"
+  max_discovery_profiles: 100         # hard cap on profiles added per discovery run
+
   poll_interval_seconds: 30
   max_poll_attempts: 30       # 15 minutes max — more groups = longer run
 
