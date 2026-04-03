@@ -64,17 +64,57 @@ function PlatformBadge({ platform }: { platform: string }) {
 }
 
 // ---- Score Badge ----
+const SCORE_TIERS = [
+  { min: 8, label: 'High priority',  desc: 'Strong signal — this person has an active pain or question you can genuinely respond to right now.',          action: 'Comment today.' },
+  { min: 6, label: 'Worth engaging', desc: 'Relevant topic, but the opening is softer. A thoughtful comment can still start a real conversation.',         action: 'Comment when you have something specific to say.' },
+  { min: 0, label: 'Weak signal',    desc: 'Topic is in the right area but the post doesn\'t give you a natural entry point. Low value to engage with.', action: 'Skip or save for context.' },
+]
+
 function ScoreBadge({ score }: { score: number }) {
   const tier =
     score >= 8
       ? { ring: 'ring-emerald-500/40', bg: 'bg-emerald-500/10', text: 'text-emerald-400', dot: 'bg-emerald-400' }
       : score >= 6
-      ? { ring: 'ring-amber-500/40', bg: 'bg-amber-500/10', text: 'text-amber-400', dot: 'bg-amber-400' }
-      : { ring: 'ring-blue-500/30', bg: 'bg-blue-500/10', text: 'text-blue-400', dot: 'bg-blue-400' }
+      ? { ring: 'ring-amber-500/40',   bg: 'bg-amber-500/10',   text: 'text-amber-400',   dot: 'bg-amber-400'   }
+      : { ring: 'ring-blue-500/30',    bg: 'bg-blue-500/10',    text: 'text-blue-400',     dot: 'bg-blue-400'    }
+
+  const info = SCORE_TIERS.find(t => score >= t.min)!
+
   return (
-    <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold ring-1 ${tier.ring} ${tier.bg} ${tier.text}`}>
-      <span className={`w-1.5 h-1.5 rounded-full ${tier.dot}`} />
-      {score}/10
+    <div className="relative group">
+      <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold ring-1 cursor-default ${tier.ring} ${tier.bg} ${tier.text}`}>
+        <span className={`w-1.5 h-1.5 rounded-full ${tier.dot}`} />
+        {score}/10
+      </div>
+
+      {/* Tooltip */}
+      <div className="absolute left-0 top-full mt-2 z-30 w-64 pointer-events-none
+                      opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+        <div className="rounded-xl bg-[#1a1d27] border border-slate-700/60 shadow-xl p-3.5 space-y-2">
+          {/* Header row */}
+          <div className="flex items-center justify-between">
+            <span className={`text-xs font-semibold ${tier.text}`}>{info.label}</span>
+            <span className="text-[10px] text-slate-600">AI relevance score</span>
+          </div>
+          {/* Scale */}
+          <div className="flex items-center gap-1">
+            {[1,2,3,4,5,6,7,8,9,10].map(n => (
+              <div
+                key={n}
+                className={`h-1 flex-1 rounded-full transition-colors ${
+                  n <= score
+                    ? score >= 8 ? 'bg-emerald-400' : score >= 6 ? 'bg-amber-400' : 'bg-blue-400'
+                    : 'bg-slate-700'
+                }`}
+              />
+            ))}
+          </div>
+          {/* Description */}
+          <p className="text-xs text-slate-400 leading-relaxed">{info.desc}</p>
+          {/* Action nudge */}
+          <p className={`text-xs font-medium ${tier.text}`}>{info.action}</p>
+        </div>
+      </div>
     </div>
   )
 }
