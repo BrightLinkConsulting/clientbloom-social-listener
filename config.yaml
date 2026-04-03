@@ -147,7 +147,7 @@ linkedin_search_terms:
 
 # --- Apify Settings ---
 apify:
-  linkedin_actor: "harvestapi/linkedin-post-search"
+  linkedin_actor: "apimaestro/linkedin-posts-search-scraper-no-cookies"
   facebook_actor: "apify/facebook-groups-scraper"
   max_posts_per_facebook_group: 20
   max_results_linkedin: 50
