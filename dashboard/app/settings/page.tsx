@@ -362,13 +362,8 @@ function LinkedInTermsSection({ sources, onUpdate }: {
   return (
     <Section
       title="LinkedIn Search Terms"
-      description={`${activeCount} of ${terms.length} terms active · requires Apify paid plan to return results`}
+      description={`${activeCount} of ${terms.length} terms active · keyword search runs 2× daily`}
     >
-      <div className="flex items-center gap-2 mb-4">
-        <span className="text-xs px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20">
-          Paused — free plan limit
-        </span>
-      </div>
 
       {error && (
         <div className="mb-4 px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/20 text-xs text-red-400">
@@ -1031,9 +1026,9 @@ export default function SettingsPage() {
         <Section title="System Status">
           <div className="grid grid-cols-2 gap-3">
             {[
-              { label: 'Scraper', value: 'Every 3 hours', status: 'active' },
-              { label: 'Digest', value: 'Daily 7 AM local', status: 'active' },
-              { label: 'LinkedIn', value: 'Paused (free plan)', status: 'paused' },
+              { label: 'Scraper', value: '6 AM + 6 PM PST', status: 'active' },
+              { label: 'Digest', value: 'Daily 7 AM PST', status: 'active' },
+              { label: 'LinkedIn', value: 'Active (ICP + keyword)', status: 'active' },
               { label: 'Slack channel', value: '#AIOS', status: 'active' },
             ].map((item) => (
               <div key={item.label} className="flex items-center justify-between p-3 rounded-lg bg-slate-800/40 border border-slate-700/30">
