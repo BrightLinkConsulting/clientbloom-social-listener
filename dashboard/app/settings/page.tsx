@@ -152,7 +152,7 @@ function FacebookGroupsSection({ sources, onUpdate }: {
   return (
     <Section
       title="Facebook Groups"
-      description={`${activeCount} of ${groups.length} groups active · scrapes 20 posts per group · runs 2× daily`}
+      description={`${activeCount} of ${groups.length} groups active · scans 20 posts per group · runs 2× daily`}
     >
       {error && (
         <div className="mb-4 px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/20 text-xs text-red-400">
@@ -924,6 +924,158 @@ COMMENT APPROACH RULES:
 - Ask ONE question that continues the conversation
 - 2-3 sentences max. Peer-to-peer tone, not salesperson tone`
 
+// ---- Business Profile Section ----
+const SIGNAL_OPTIONS = [
+  { id: 'asking_for_help', label: 'Publicly asking for tool or service recommendations' },
+  { id: 'frustration', label: 'Expressing frustration with their current solution' },
+  { id: 'announcing_problem', label: 'Announcing a business challenge or problem' },
+  { id: 'growing_team', label: 'Looking to grow, hire, or scale' },
+  { id: 'shopping_alternatives', label: 'Comparing or shopping for alternatives' },
+  { id: 'milestone', label: 'Celebrating a milestone that signals a transition' },
+]
+
+function BusinessProfileSection() {
+  const [profile, setProfile] = useState({
+    businessName: '', industry: '', idealClient: '', problemSolved: '', signalTypes: [] as string[],
+  })
+  const [saved, setSaved] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [loaded, setLoaded] = useState(false)
+
+  useEffect(() => {
+    fetch('/api/business-profile')
+      .then(r => r.json())
+      .then(d => {
+        if (d.profile) {
+          setProfile({
+            businessName: d.profile['Business Name'] || '',
+            industry: d.profile['Industry'] || '',
+            idealClient: d.profile['Ideal Client'] || '',
+            problemSolved: d.profile['Problem Solved'] || '',
+            signalTypes: d.profile['Signal Types']
+              ? d.profile['Signal Types'].split(',').map((s: string) => s.trim()).filter(Boolean)
+              : [],
+          })
+        }
+        setLoaded(true)
+      })
+      .catch(() => setLoaded(true))
+  }, [])
+
+  const handleSave = async () => {
+    setSaving(true)
+    try {
+      await fetch('/api/business-profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(profile),
+      })
+      setSaved(true)
+      setTimeout(() => setSaved(false), 3000)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const toggleSignal = (id: string) =>
+    setProfile(prev => ({
+      ...prev,
+      signalTypes: prev.signalTypes.includes(id)
+        ? prev.signalTypes.filter(s => s !== id)
+        : [...prev.signalTypes, id],
+    }))
+
+  if (!loaded) return null
+
+  return (
+    <Section
+      title="Business Profile"
+      description="Tells the AI who you are and who to listen for. The more specific, the sharper the results."
+    >
+      <div className="space-y-4">
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-xs text-slate-500 mb-1.5">Business name</label>
+            <input
+              value={profile.businessName}
+              onChange={e => setProfile(p => ({ ...p, businessName: e.target.value }))}
+              placeholder="e.g. ClientBloom"
+              className="w-full bg-slate-800/60 border border-slate-700/60 rounded-lg px-3 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50"
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-slate-500 mb-1.5">Industry / niche</label>
+            <input
+              value={profile.industry}
+              onChange={e => setProfile(p => ({ ...p, industry: e.target.value }))}
+              placeholder="e.g. Marketing agency software"
+              className="w-full bg-slate-800/60 border border-slate-700/60 rounded-lg px-3 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50"
+            />
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-xs text-slate-500 mb-1.5">Who is your ideal client?</label>
+          <textarea
+            value={profile.idealClient}
+            onChange={e => setProfile(p => ({ ...p, idealClient: e.target.value }))}
+            rows={2}
+            placeholder="e.g. Marketing agency owners with 10–50 clients who use GoHighLevel and struggle to retain clients."
+            className="w-full bg-slate-800/60 border border-slate-700/60 rounded-lg px-3 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50 resize-none"
+          />
+        </div>
+
+        <div>
+          <label className="block text-xs text-slate-500 mb-1.5">What problem do you solve for them?</label>
+          <textarea
+            value={profile.problemSolved}
+            onChange={e => setProfile(p => ({ ...p, problemSolved: e.target.value }))}
+            rows={2}
+            placeholder="e.g. We help agencies track client health and get early warnings before clients churn."
+            className="w-full bg-slate-800/60 border border-slate-700/60 rounded-lg px-3 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50 resize-none"
+          />
+        </div>
+
+        <div>
+          <label className="block text-xs text-slate-500 mb-2">Signals to listen for</label>
+          <div className="grid grid-cols-2 gap-2">
+            {SIGNAL_OPTIONS.map(s => {
+              const on = profile.signalTypes.includes(s.id)
+              return (
+                <button
+                  key={s.id}
+                  onClick={() => toggleSignal(s.id)}
+                  className={`text-left flex items-start gap-2 px-3 py-2.5 rounded-lg border text-xs transition-all ${
+                    on
+                      ? 'bg-blue-600/10 border-blue-500/30 text-blue-300'
+                      : 'bg-slate-800/40 border-slate-700/40 text-slate-500 hover:border-slate-600 hover:text-slate-400'
+                  }`}
+                >
+                  <div className={`mt-0.5 w-3 h-3 rounded border shrink-0 flex items-center justify-center ${on ? 'bg-blue-500 border-blue-500' : 'border-slate-600'}`}>
+                    {on && <svg className="w-2 h-2 text-white" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>}
+                  </div>
+                  {s.label}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3 pt-1">
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-xs font-medium transition-colors"
+          >
+            {saving ? 'Saving...' : 'Save profile'}
+          </button>
+          {saved && <span className="text-xs text-emerald-400">Saved — AI will use this on the next scan</span>}
+        </div>
+      </div>
+    </Section>
+  )
+}
+
 // ---- Main page ----
 export default function SettingsPage() {
   const [sources, setSources] = useState<Source[]>([])
@@ -949,6 +1101,8 @@ export default function SettingsPage() {
     <div className="min-h-screen bg-[#0a0c10] text-white">
       <Nav />
       <main className="max-w-3xl mx-auto px-5 py-8 space-y-6">
+
+        <BusinessProfileSection />
 
         {loading && (
           <div className="flex items-center justify-center gap-2 py-8 text-slate-500 text-sm">
@@ -1026,7 +1180,7 @@ export default function SettingsPage() {
         <Section title="System Status">
           <div className="grid grid-cols-2 gap-3">
             {[
-              { label: 'Scraper', value: '6 AM + 6 PM PST', status: 'active' },
+              { label: 'Scanner', value: '6 AM + 6 PM PST', status: 'active' },
               { label: 'Digest', value: 'Daily 7 AM PST', status: 'active' },
               { label: 'LinkedIn', value: 'Active (ICP + keyword)', status: 'active' },
               { label: 'Slack channel', value: '#AIOS', status: 'active' },
