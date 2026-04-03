@@ -4,14 +4,15 @@ agent.py — Main orchestrator for the ClientBloom Social Listener.
 Run order per execution:
   1. Load config + credentials
   2. Fetch existing Post IDs from Airtable (dedup baseline)
-  3. Trigger LinkedIn keyword scraping via Apify
-  4. Trigger Facebook group scraping via Apify (one batch, all groups)
-  5. Normalize raw results into standard post format
-  6. Deduplicate against existing IDs
-  7. Score all new posts with Claude (one batched API call)
-  8. Filter by minimum score
-  9. Save qualifying posts to Airtable (batched writes)
- 10. Log run summary
+  3. LinkedIn ICP mode: fetch ICP profiles → get their recent posts → score for engagement opportunity
+  4. LinkedIn keyword mode: keyword search posts (legacy / secondary)
+  5. Facebook group scraping via Apify (one batch, all groups)
+  6. Normalize raw results into standard post format
+  7. Deduplicate against existing IDs
+  8. Score all new posts with Claude (batched API calls)
+  9. Filter by minimum score
+ 10. Save qualifying posts to Airtable (batched writes)
+ 11. Log run summary
 
 The morning digest is a separate run triggered by the schedule.
 """
@@ -92,6 +93,104 @@ def fetch_sources_from_airtable(airtable_token: str, base_id: str) -> dict:
     except Exception as e:
         logger.warning(f"Could not load Sources from Airtable ({e}) — falling back to config.yaml sources")
         return {}
+
+
+def fetch_linkedin_icps_from_airtable(airtable_token: str, base_id: str) -> list:
+    """
+    Fetch all active LinkedIn ICP profiles from the 'LinkedIn ICPs' Airtable table.
+    Returns a list of dicts with keys: id, name, profile_url, job_title, company, industry.
+    """
+    import requests as _requests
+    url = f"https://api.airtable.com/v0/{base_id}/LinkedIn%20ICPs"
+    headers = {"Authorization": f"Bearer {airtable_token}"}
+    try:
+        profiles = []
+        params = {"filterByFormula": "{Active}=1", "pageSize": 100}
+        while True:
+            resp = _requests.get(url, headers=headers, params=params, timeout=15)
+            if resp.status_code == 404:
+                logger.warning("LinkedIn ICPs table not found — skipping ICP scraping")
+                return []
+            resp.raise_for_status()
+            data = resp.json()
+            for r in data.get("records", []):
+                f = r.get("fields", {})
+                profile_url = f.get("Profile URL", "").strip()
+                if profile_url:
+                    profiles.append({
+                        "id": r["id"],
+                        "name": f.get("Name", ""),
+                        "profile_url": profile_url,
+                        "job_title": f.get("Job Title", ""),
+                        "company": f.get("Company", ""),
+                        "industry": f.get("Industry", ""),
+                    })
+            offset = data.get("offset")
+            if not offset:
+                break
+            params["offset"] = offset
+        return profiles
+    except Exception as e:
+        logger.warning(f"Could not fetch LinkedIn ICPs: {e}")
+        return []
+
+
+def normalize_linkedin_profile_post(raw: dict, icp_profile: dict) -> dict:
+    """
+    Normalize a post from harvestapi/linkedin-profile-posts.
+    Fields: content (text), linkedinUrl (post URL), id, author.name,
+            author.info (headline), author.linkedinUrl, postedAt.date,
+            socialContent.shareUrl (canonical share URL).
+
+    icp_profile: the ICP record from Airtable (name, job_title, company, profile_url).
+    We store ICP context in group_name so Claude can use it for scoring.
+    """
+    text = raw.get("content", "")
+    if isinstance(text, dict):
+        text = ""
+    text = str(text).strip()
+
+    # Prefer the canonical shareUrl over the linkedinUrl (cleaner URL)
+    social = raw.get("socialContent") or {}
+    post_url = (
+        social.get("shareUrl") or
+        raw.get("linkedinUrl") or
+        raw.get("url") or ""
+    )
+
+    post_id = str(raw.get("id") or raw.get("entityId") or post_url)
+
+    author = raw.get("author") or {}
+    author_name = author.get("name") or icp_profile.get("name") or "Unknown"
+    author_headline = author.get("info") or ""   # job title/headline from LinkedIn
+    author_url = (
+        author.get("linkedinUrl") or
+        icp_profile.get("profile_url") or ""
+    )
+
+    # Pack ICP context into group_name — shown in dashboard and passed to scorer
+    icp_title = icp_profile.get("job_title") or author_headline
+    icp_company = icp_profile.get("company") or ""
+    icp_label = f"{icp_title} @ {icp_company}" if icp_company else icp_title
+    group_name = f"LinkedIn ICP: {icp_label}" if icp_label else "LinkedIn ICP"
+
+    return {
+        "post_id": f"li_icp_{post_id}",   # prefix prevents collision with search posts
+        "platform": "LinkedIn",
+        "group_name": group_name,
+        "author_name": author_name,
+        "author_profile_url": author_url,
+        "post_text": text[:2000],
+        "post_url": post_url,
+        "keywords_matched": "",
+        "relevance_score": 0,
+        "captured_at": datetime.now(timezone.utc).isoformat(),
+        # Extra ICP context — used by ICP scorer, not stored directly
+        "_icp_name": icp_profile.get("name", ""),
+        "_icp_title": icp_title,
+        "_icp_company": icp_company,
+        "_author_headline": author_headline,
+    }
 
 
 def normalize_linkedin_post(raw: dict) -> dict:
@@ -234,6 +333,7 @@ def run_scraping_cycle(config: dict) -> dict:
 
     summary = {
         "started_at": start_time.isoformat(),
+        "linkedin_icp_raw": 0,
         "linkedin_raw": 0,
         "facebook_raw": 0,
         "after_dedup": 0,
@@ -251,8 +351,60 @@ def run_scraping_cycle(config: dict) -> dict:
         return summary
 
     all_new_posts = []
+    icp_posts_for_scoring = []   # scored separately with ICP prompt
 
-    # Step 2: LinkedIn scraping
+    # Step 2a: LinkedIn ICP profile monitoring
+    try:
+        airtable_token = os.getenv("AIRTABLE_API_TOKEN")
+        airtable_base  = os.getenv("AIRTABLE_BASE_ID")
+        icp_profiles = fetch_linkedin_icps_from_airtable(airtable_token, airtable_base)
+
+        if icp_profiles:
+            max_icp_profiles = apify_cfg.get("max_icp_profiles_per_cycle", 50)
+            profiles_this_cycle = icp_profiles[:max_icp_profiles]
+            profile_urls = [p["profile_url"] for p in profiles_this_cycle]
+            profile_map  = {p["profile_url"]: p for p in profiles_this_cycle}
+
+            logger.info(f"LinkedIn ICP: scraping {len(profiles_this_cycle)} profiles...")
+            icp_input = apify_client.build_linkedin_profile_input(
+                profile_urls=profile_urls,
+                max_posts=apify_cfg.get("max_posts_per_icp_profile", 10)
+            )
+            raw_icp_posts = apify_client.run_actor_and_fetch(
+                actor_id="harvestapi/linkedin-profile-posts",
+                input_data=icp_input,
+                poll_interval=apify_cfg.get("poll_interval_seconds", 30),
+                max_attempts=apify_cfg.get("max_poll_attempts", 20)
+            )
+            logger.info(f"LinkedIn ICP: {len(raw_icp_posts)} raw posts returned")
+            summary["linkedin_icp_raw"] = len(raw_icp_posts)
+
+            for raw in raw_icp_posts:
+                # Match post back to the ICP profile that was queried
+                queried_url = raw.get("query", "")
+                # Normalize queried URL to match our stored format
+                import re as _re
+                match = _re.search(r'linkedin\.com/in/([^/?&\s]+)', queried_url)
+                slug = match.group(1) if match else ""
+                icp_profile = next(
+                    (p for p in profiles_this_cycle if slug and slug in p["profile_url"]),
+                    profiles_this_cycle[0] if profiles_this_cycle else {}
+                )
+                post = normalize_linkedin_profile_post(raw, icp_profile)
+                if post["post_text"] and len(post["post_text"]) >= 30:
+                    icp_posts_for_scoring.append(post)
+
+            logger.info(f"LinkedIn ICP: {len(icp_posts_for_scoring)} posts with content")
+        else:
+            logger.info("LinkedIn ICP: no active profiles configured — skipping")
+            summary["linkedin_icp_raw"] = 0
+
+    except Exception as e:
+        logger.error(f"LinkedIn ICP scraping failed: {e}")
+        summary["errors"].append(f"LinkedIn ICP: {str(e)}")
+        summary["linkedin_icp_raw"] = 0
+
+    # Step 2b: LinkedIn keyword search (secondary — finds posts from non-ICP users)
     # The apimaestro actor takes one searchQuery at a time, so we loop over terms.
     # Cap at MAX_LINKEDIN_TERMS per run to keep Apify costs predictable.
     MAX_LINKEDIN_TERMS = 4
@@ -339,29 +491,42 @@ def run_scraping_cycle(config: dict) -> dict:
         logger.error(f"Facebook scraping failed: {e}")
         summary["errors"].append(f"Facebook: {str(e)}")
 
-    if not all_new_posts:
-        logger.info("No posts retrieved from either platform.")
+    if not all_new_posts and not icp_posts_for_scoring:
+        logger.info("No posts retrieved from any platform.")
         return summary
 
-    # Step 4: Deduplicate
-    new_posts = storage.deduplicate(all_new_posts, existing_ids)
-    summary["after_dedup"] = len(new_posts)
+    # Step 4: Deduplicate both pools against existing IDs
+    new_posts      = storage.deduplicate(all_new_posts,        existing_ids)
+    new_icp_posts  = storage.deduplicate(icp_posts_for_scoring, existing_ids)
+    summary["after_dedup"] = len(new_posts) + len(new_icp_posts)
 
-    if not new_posts:
-        logger.info("All posts were duplicates. Nothing to save.")
-        return summary
+    qualifying = []
 
-    # Step 5: Score with Claude (one batch call)
-    try:
-        scored_posts = scorer.score_posts_batch(new_posts)
-        qualifying = scorer.filter_by_min_score(scored_posts, min_score=min_score)
-        summary["after_scoring"] = len(qualifying)
-        logger.info(f"Scoring: {len(new_posts)} posts → {len(qualifying)} qualify (score >= {min_score})")
-    except Exception as e:
-        logger.error(f"Scoring failed: {e}")
-        summary["errors"].append(f"Scoring: {str(e)}")
-        # Save without scores rather than lose the data
-        qualifying = new_posts
+    # Step 5a: Score ICP posts with engagement-opportunity prompt
+    if new_icp_posts:
+        try:
+            scored_icp = scorer.score_icp_posts_batch(new_icp_posts)
+            qualifying_icp = scorer.filter_by_min_score(scored_icp, min_score=min_score)
+            logger.info(f"ICP scoring: {len(new_icp_posts)} posts → {len(qualifying_icp)} qualify (score >= {min_score})")
+            qualifying.extend(qualifying_icp)
+        except Exception as e:
+            logger.error(f"ICP scoring failed: {e}")
+            summary["errors"].append(f"ICP scoring: {str(e)}")
+            qualifying.extend(new_icp_posts)
+
+    # Step 5b: Score keyword/Facebook posts with pain-signal prompt
+    if new_posts:
+        try:
+            scored_posts = scorer.score_posts_batch(new_posts)
+            qualifying_kw = scorer.filter_by_min_score(scored_posts, min_score=min_score)
+            logger.info(f"Scoring: {len(new_posts)} posts → {len(qualifying_kw)} qualify (score >= {min_score})")
+            qualifying.extend(qualifying_kw)
+        except Exception as e:
+            logger.error(f"Scoring failed: {e}")
+            summary["errors"].append(f"Scoring: {str(e)}")
+            qualifying.extend(new_posts)
+
+    summary["after_scoring"] = len(qualifying)
 
     # Step 6: Save to Airtable
     try:
