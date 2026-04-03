@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 
 // ---- Types ----
 interface Post {
@@ -310,7 +311,7 @@ function PostCard({
 }
 
 // ---- Nav ----
-function Nav({ lastScrapedAt }: { lastScrapedAt: string | null }) {
+function Nav({ lastScannedAt }: { lastScannedAt: string | null }) {
   const [tick, setTick] = useState(0)
 
   // Re-render the "X ago" label every minute
@@ -331,11 +332,11 @@ function Nav({ lastScrapedAt }: { lastScrapedAt: string | null }) {
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                 Live · 2× daily
               </span>
-              {lastScrapedAt && (
+              {lastScannedAt && (
                 <>
                   <span className="text-slate-700 text-xs">·</span>
                   <span className="text-xs text-slate-500">
-                    Last scrape: {timeAgo(lastScrapedAt)}
+                    Last scan: {timeAgo(lastScannedAt)}
                   </span>
                 </>
               )}
@@ -353,6 +354,7 @@ function Nav({ lastScrapedAt }: { lastScrapedAt: string | null }) {
 
 // ---- Main Feed ----
 export default function FeedPage() {
+  const router = useRouter()
   const [posts, setPosts] = useState<Post[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<ActionFilter>('New')
@@ -360,10 +362,32 @@ export default function FeedPage() {
   const [updating, setUpdating] = useState<string | null>(null)
   const [actionCounts, setActionCounts] = useState<Record<string, number>>({})
   const [availableGroups, setAvailableGroups] = useState<string[]>([])
-  const [lastScrapedAt, setLastScrapedAt] = useState<string | null>(null)
+  const [lastScannedAt, setLastScrapedAt] = useState<string | null>(null)
   const [lastRefreshed, setLastRefreshed] = useState<Date>(new Date())
   const [error, setError] = useState<string | null>(null)
   const refreshTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  // First-run: redirect to onboarding if no posts exist and never onboarded
+  useEffect(() => {
+    const onboarded = localStorage.getItem('cb_onboarded')
+    if (!onboarded) {
+      // Give the data a moment to load before deciding
+      const check = setTimeout(async () => {
+        try {
+          const res = await fetch('/api/posts?action=all&limit=5')
+          const data = await res.json()
+          const hasPosts = (data.records?.length || 0) > 0
+          if (!hasPosts) {
+            router.push('/onboarding')
+          } else {
+            // Existing user with posts — mark as onboarded, don't redirect
+            localStorage.setItem('cb_onboarded', 'true')
+          }
+        } catch { /* stay on feed */ }
+      }, 800)
+      return () => clearTimeout(check)
+    }
+  }, [router])
 
   const fetchPosts = useCallback(async (silent = false) => {
     if (!silent) setLoading(true)
@@ -379,7 +403,7 @@ export default function FeedPage() {
       setPosts(data.records || [])
       if (data.actionCounts) setActionCounts(data.actionCounts)
       if (data.availableGroups) setAvailableGroups(data.availableGroups)
-      if (data.lastScrapedAt) setLastScrapedAt(data.lastScrapedAt)
+      if (data.lastScannedAt) setLastScrapedAt(data.lastScannedAt)
       setLastRefreshed(new Date())
     } catch (e: any) {
       setError(e.message)
@@ -445,7 +469,7 @@ export default function FeedPage() {
 
   return (
     <div className="min-h-screen bg-[#0a0c10] text-white">
-      <Nav lastScrapedAt={lastScrapedAt} />
+      <Nav lastScannedAt={lastScannedAt} />
 
       {/* Tab bar + filters */}
       <div className="sticky top-[61px] z-10 bg-[#0a0c10]/95 backdrop-blur-md border-b border-slate-800/60">
@@ -523,18 +547,18 @@ export default function FeedPage() {
             </p>
             <p className="text-slate-600 text-xs max-w-xs">
               {filter === 'New'
-                ? 'Scraper runs at 6 AM and 6 PM PST. Check back later.'
+                ? 'Scanner runs at 6 AM and 6 PM PST. Check back later.'
                 : 'Posts you mark will appear here.'}
             </p>
-            {lastScrapedAt && (
-              <p className="text-slate-700 text-xs">Last scrape: {timeAgo(lastScrapedAt)}</p>
+            {lastScannedAt && (
+              <p className="text-slate-700 text-xs">Last scan: {timeAgo(lastScannedAt)}</p>
             )}
           </div>
         ) : (
           <>
             {/* Subtle refresh note */}
             <p className="text-xs text-slate-700 mb-4 text-right">
-              Dashboard checks every 5 min · last updated {timeAgo(lastRefreshed.toISOString())} · Scraper runs 2× daily
+              Dashboard checks every 5 min · last updated {timeAgo(lastRefreshed.toISOString())} · Scanner runs 2× daily
             </p>
             <div className="space-y-3">
               {posts.map(post => (
