@@ -26,7 +26,7 @@ function Nav() {
             <p className="text-sm font-semibold text-white leading-tight">ClientBloom Listener</p>
             <span className="text-xs text-emerald-400 flex items-center gap-1">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              Live · every 3 hours
+              Live · 2× daily
             </span>
           </div>
         </div>
@@ -152,7 +152,7 @@ function FacebookGroupsSection({ sources, onUpdate }: {
   return (
     <Section
       title="Facebook Groups"
-      description={`${activeCount} of ${groups.length} groups active · scrapes 20 posts per group every 3 hours`}
+      description={`${activeCount} of ${groups.length} groups active · scrapes 20 posts per group · runs 2× daily`}
     >
       {error && (
         <div className="mb-4 px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/20 text-xs text-red-400">
