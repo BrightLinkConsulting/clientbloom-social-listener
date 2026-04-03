@@ -1,0 +1,13 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* v2 — postcss enabled */
+body {
+  background-color: #0a0c10;
+  color: #e2e8f0;
+}
+
+* {
+  box-sizing: border-box;
+}

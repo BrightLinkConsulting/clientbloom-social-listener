@@ -1,0 +1,168 @@
+# ============================================================
+# ClientBloom Social Listener — Configuration
+# Edit keywords and groups here anytime. No code changes needed.
+# ============================================================
+
+client_name: "ClientBloom"
+instance_id: "clientbloom-v1"
+
+# --- Airtable Table Names (must match exactly what you create) ---
+airtable:
+  posts_table: "Captured Posts"
+  groups_table: "Target Groups"
+
+# --- Keywords to match against post content ---
+# GATING RULE: A post must match at least one keyword below to be sent to Claude for scoring.
+# Platform mentions (GHL, SaaS, etc.) are intentionally NOT here — they attract promo spam.
+# Only pain language and active-struggle phrases open the gate.
+keywords:
+  # Core retention & churn pain — someone is actively dealing with a problem
+  primary:
+    - "client retention"
+    - "client churn"
+    - "retain clients"
+    - "keep clients"
+    - "losing clients"
+    - "lost a client"
+    - "clients leaving"
+    - "client turnover"
+    - "customer churn"
+    - "customer retention"
+    - "agency retention"
+    - "client dropped"
+    - "client cancelled"
+    - "cancel their contract"
+    - "clients keep leaving"
+    - "clients aren't sticking"
+    - "clients don't stay"
+    - "high churn"
+    - "reduce churn"
+    - "churn rate"
+
+  # Emotional / friction signals — venting, asking for help, or describing a hard situation
+  pain_signals:
+    - "frustrated with clients"
+    - "client complaints"
+    - "difficult clients"
+    - "unhappy clients"
+    - "client ghosted"
+    - "client won't pay"
+    - "fire a client"
+    - "client is upset"
+    - "client is unhappy"
+    - "client is leaving"
+    - "client at risk"
+    - "client escalation"
+    - "client expectations"
+    - "referrals drying up"
+    - "client lifetime value"
+    - "LTV problem"
+    - "month to month clients"
+    - "losing revenue"
+    - "lost the account"
+    - "client pulled out"
+
+  # Active-process signals — someone building or fixing a retention system
+  process_signals:
+    - "client health score"
+    - "client health"
+    - "customer health score"
+    - "client onboarding"
+    - "client success"
+    - "customer success manager"
+    - "CSM"
+    - "client dashboard"
+    - "client portal"
+    - "client reporting"
+    - "book of business"
+    - "account management systems"
+    - "client communication system"
+
+# --- Facebook Public Groups to Monitor ---
+# All URLs verified public by Mike Walker on 2026-04-02
+facebook_groups:
+  - name: "Agency Growth Insiders"
+    url: "https://www.facebook.com/groups/agencygrowthinsiders/"
+    priority: high
+
+  - name: "Client Success Manager"
+    url: "https://www.facebook.com/groups/clientsuccessmanager/"
+    priority: high
+
+  - name: "GoHighLevel Australia Network"
+    url: "https://www.facebook.com/groups/gohighlevelaustralianetwork/"
+    priority: high
+
+  - name: "GHL Business Launch"
+    url: "https://www.facebook.com/groups/ghlbusinesslaunch/"
+    priority: high
+
+  - name: "Agency Group A"
+    url: "https://www.facebook.com/groups/836557968038332/"
+    priority: high
+
+  - name: "Agency Group B"
+    url: "https://www.facebook.com/groups/246704271135223/"
+    priority: high
+
+  - name: "Agency Group C"
+    url: "https://www.facebook.com/groups/235033122685329/"
+    priority: high
+
+  - name: "Agency Group D"
+    url: "https://www.facebook.com/groups/1067828564643454/"
+    priority: medium
+
+  - name: "Agency Group E"
+    url: "https://www.facebook.com/groups/1844616979220134/"
+    priority: medium
+
+  - name: "Agency Group F"
+    url: "https://www.facebook.com/groups/3831242283822226/"
+    priority: medium
+
+  - name: "Agency Group G"
+    url: "https://www.facebook.com/groups/1007090164050396/"
+    priority: medium
+
+  - name: "Agency Group H"
+    url: "https://www.facebook.com/groups/1611226059654606/"
+    priority: medium
+
+  - name: "Agency Group I"
+    url: "https://www.facebook.com/groups/1499731707484113/"
+    priority: medium
+
+# --- LinkedIn Public Feed Search Terms ---
+# These search LinkedIn's public post index — no login needed
+linkedin_search_terms:
+  - "client retention agency"
+  - "losing clients agency"
+  - "client churn saas"
+  - "agency client management"
+  - "client success agency"
+  - "gohighlevel client"
+  - "agency client retention"
+  - "client experience agency"
+
+# --- Apify Settings ---
+apify:
+  linkedin_actor: "harvestapi/linkedin-post-search"
+  facebook_actor: "apify/facebook-groups-scraper"
+  max_posts_per_facebook_group: 20
+  max_results_linkedin: 50
+  poll_interval_seconds: 30
+  max_poll_attempts: 30       # 15 minutes max — more groups = longer run
+
+# --- Slack Digest Settings ---
+slack:
+  channel_id: "C0AKWT21S1J"
+  channel_name: "AIOS"
+  digest_time_pst: "07:00"
+  max_posts_in_digest: 10     # top N by relevance score
+  min_score_for_digest: 6     # only include posts scoring 6+
+
+# --- Scoring Thresholds ---
+scoring:
+  min_score_to_save: 5        # discard anything below this — 1-4 = not actionable for Joseph
+  high_value_threshold: 8     # "High Value" badge in dashboard
