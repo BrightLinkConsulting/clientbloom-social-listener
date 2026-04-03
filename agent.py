@@ -135,6 +135,40 @@ def fetch_linkedin_icps_from_airtable(airtable_token: str, base_id: str) -> list
         return []
 
 
+def fetch_facebook_keywords_from_airtable(airtable_token: str, base_id: str) -> list:
+    """
+    Fetch active keywords from the 'Facebook Keywords' Airtable table.
+    Returns a flat list of keyword strings. Falls back to empty list on error.
+    """
+    import requests as _requests
+    url = f"https://api.airtable.com/v0/{base_id}/Facebook%20Keywords"
+    headers = {"Authorization": f"Bearer {airtable_token}"}
+    try:
+        keywords = []
+        params = {"filterByFormula": "{Active}=1", "pageSize": 100}
+        while True:
+            resp = _requests.get(url, headers=headers, params=params, timeout=10)
+            if resp.status_code == 404:
+                logger.warning("Facebook Keywords table not found — falling back to config.yaml keywords")
+                return []
+            resp.raise_for_status()
+            data = resp.json()
+            for r in data.get("records", []):
+                kw = r.get("fields", {}).get("Keyword", "").strip()
+                if kw:
+                    keywords.append(kw)
+            offset = data.get("offset")
+            if not offset:
+                break
+            params["offset"] = offset
+        if keywords:
+            logger.info(f"Loaded {len(keywords)} Facebook keywords from Airtable")
+        return keywords
+    except Exception as e:
+        logger.warning(f"Could not fetch Facebook Keywords from Airtable ({e}) — falling back to config.yaml keywords")
+        return []
+
+
 def fetch_business_profile_from_airtable(airtable_token: str, base_id: str) -> str:
     """
     Fetch the single 'Business Profile' record from Airtable and return it
@@ -362,8 +396,17 @@ def run_scraping_cycle(config: dict) -> dict:
 
     posts_table = config["airtable"]["posts_table"]
     apify_cfg = config["apify"]
-    keywords = config["keywords"]
     min_score = config.get("scoring", {}).get("min_score_to_save", 2)
+
+    # Load keywords — prefer Airtable (user-editable), fall back to config.yaml
+    _at_token = os.getenv("AIRTABLE_API_TOKEN", "")
+    _at_base  = os.getenv("AIRTABLE_BASE_ID", "")
+    _dynamic_kws = fetch_facebook_keywords_from_airtable(_at_token, _at_base)
+    if _dynamic_kws:
+        # Reshape flat list into the same dict format tag_keywords_matched expects
+        keywords = {"dynamic": _dynamic_kws}
+    else:
+        keywords = config["keywords"]  # fallback to hardcoded config.yaml keywords
 
     summary = {
         "started_at": start_time.isoformat(),
