@@ -586,7 +586,215 @@ interface IcpProfile {
   industry: string
   active: boolean
   source: string
+  notes: string
+  addedDate: string
   postsFound: number
+}
+
+// ---- Profile Preview Drawer ----
+function ProfileDrawer({
+  profile,
+  allProfiles,
+  onClose,
+  onNavigate,
+  onDelete,
+  onToggle,
+}: {
+  profile: IcpProfile | null
+  allProfiles: IcpProfile[]
+  onClose: () => void
+  onNavigate: (direction: 'prev' | 'next') => void
+  onDelete: (p: IcpProfile) => void
+  onToggle: (p: IcpProfile) => void
+}) {
+  const idx = profile ? allProfiles.findIndex(p => p.id === profile.id) : -1
+  const hasPrev = idx > 0
+  const hasNext = idx < allProfiles.length - 1
+
+  // Keyboard nav
+  useEffect(() => {
+    if (!profile) return
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape')      onClose()
+      if (e.key === 'ArrowUp'   && hasPrev) onNavigate('prev')
+      if (e.key === 'ArrowDown' && hasNext) onNavigate('next')
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [profile, hasPrev, hasNext, onClose, onNavigate])
+
+  if (!profile) return null
+
+  // Parse display name — Google titles often come as "First Last - Title | Company"
+  const dashIdx = profile.name.indexOf(' - ')
+  const displayName = dashIdx > 0 ? profile.name.slice(0, dashIdx) : profile.name
+  const titleFromName = dashIdx > 0 ? profile.name.slice(dashIdx + 3) : ''
+
+  // Initials for avatar
+  const initials = displayName
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w: string) => w[0])
+    .join('')
+    .toUpperCase()
+
+  return (
+    <>
+      {/* Backdrop */}
+      <div
+        className="fixed inset-0 bg-black/50 z-40"
+        onClick={onClose}
+      />
+
+      {/* Drawer */}
+      <div className="fixed top-0 right-0 h-full w-[340px] bg-[#0d1017] border-l border-slate-700/50 z-50 flex flex-col shadow-2xl overflow-y-auto">
+
+        {/* Header */}
+        <div className="px-5 pt-5 pb-4 border-b border-slate-800/60 flex items-start gap-3">
+          {/* Avatar */}
+          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-600/40 to-purple-600/40 border border-slate-700/50 flex items-center justify-center text-sm font-semibold text-white shrink-0">
+            {initials || '?'}
+          </div>
+
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h3 className="text-sm font-semibold text-white leading-tight truncate">{displayName}</h3>
+              {profile.source === 'discovered' && (
+                <span className="text-xs px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/20 shrink-0">
+                  discovered
+                </span>
+              )}
+            </div>
+            {(titleFromName || profile.jobTitle || profile.company) && (
+              <p className="text-xs text-slate-400 mt-0.5 leading-snug line-clamp-2">
+                {titleFromName || [profile.jobTitle, profile.company].filter(Boolean).join(' · ')}
+              </p>
+            )}
+          </div>
+
+          {/* Close */}
+          <button onClick={onClose} className="shrink-0 text-slate-600 hover:text-white transition-colors p-1 -mr-1 -mt-1">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="flex-1 px-5 py-4 space-y-4">
+
+          {/* Google snippet / notes */}
+          {profile.notes && (
+            <div className="rounded-xl bg-slate-800/40 border border-slate-700/30 px-4 py-3">
+              <p className="text-xs text-slate-500 font-medium uppercase tracking-wider mb-1.5">About</p>
+              <p className="text-xs text-slate-300 leading-relaxed">{profile.notes}</p>
+            </div>
+          )}
+
+          {/* Metadata grid */}
+          <div className="grid grid-cols-2 gap-3">
+            {profile.jobTitle && (
+              <div className="rounded-xl bg-slate-800/40 border border-slate-700/30 px-3 py-2.5">
+                <p className="text-xs text-slate-600 mb-0.5">Title</p>
+                <p className="text-xs text-slate-300 font-medium leading-snug">{profile.jobTitle}</p>
+              </div>
+            )}
+            {profile.company && (
+              <div className="rounded-xl bg-slate-800/40 border border-slate-700/30 px-3 py-2.5">
+                <p className="text-xs text-slate-600 mb-0.5">Company</p>
+                <p className="text-xs text-slate-300 font-medium leading-snug">{profile.company}</p>
+              </div>
+            )}
+            {profile.addedDate && (
+              <div className="rounded-xl bg-slate-800/40 border border-slate-700/30 px-3 py-2.5">
+                <p className="text-xs text-slate-600 mb-0.5">Added</p>
+                <p className="text-xs text-slate-300 font-medium">{profile.addedDate}</p>
+              </div>
+            )}
+            {profile.postsFound > 0 && (
+              <div className="rounded-xl bg-slate-800/40 border border-slate-700/30 px-3 py-2.5">
+                <p className="text-xs text-slate-600 mb-0.5">Posts found</p>
+                <p className="text-xs text-slate-300 font-medium">{profile.postsFound}</p>
+              </div>
+            )}
+          </div>
+
+          {/* Monitoring status */}
+          <div className="flex items-center justify-between rounded-xl bg-slate-800/40 border border-slate-700/30 px-4 py-3">
+            <div>
+              <p className="text-xs font-medium text-slate-300">Monitoring</p>
+              <p className="text-xs text-slate-600 mt-0.5">{profile.active ? 'Posts from this profile are being scanned' : 'Paused — not included in scans'}</p>
+            </div>
+            <button
+              onClick={() => onToggle(profile)}
+              className={`relative shrink-0 w-8 h-4 rounded-full transition-colors ${profile.active ? 'bg-blue-600' : 'bg-slate-700'}`}
+            >
+              <span className={`absolute top-0.5 left-0 w-3 h-3 rounded-full bg-white shadow transition-transform ${profile.active ? 'translate-x-4' : 'translate-x-0.5'}`} />
+            </button>
+          </div>
+
+        </div>
+
+        {/* Footer actions */}
+        <div className="px-5 pb-5 pt-3 border-t border-slate-800/60 space-y-2">
+          <a
+            href={profile.profileUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center justify-center gap-2 w-full text-xs px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-medium transition-colors"
+          >
+            View on LinkedIn
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+            </svg>
+          </a>
+
+          <div className="flex gap-2">
+            {/* Prev / Next */}
+            <button
+              onClick={() => onNavigate('prev')}
+              disabled={!hasPrev}
+              title="Previous profile (↑)"
+              className="flex-1 text-xs py-2 rounded-xl border border-slate-700/50 text-slate-400 hover:text-white hover:border-slate-600 disabled:opacity-30 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-1.5"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+              </svg>
+              Prev
+            </button>
+            <button
+              onClick={() => onNavigate('next')}
+              disabled={!hasNext}
+              title="Next profile (↓)"
+              className="flex-1 text-xs py-2 rounded-xl border border-slate-700/50 text-slate-400 hover:text-white hover:border-slate-600 disabled:opacity-30 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-1.5"
+            >
+              Next
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+
+            {/* Remove */}
+            <button
+              onClick={() => { onDelete(profile); onClose() }}
+              title="Remove from pool"
+              className="text-xs py-2 px-3 rounded-xl border border-red-500/20 text-red-400/70 hover:text-red-400 hover:border-red-500/40 transition-colors"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+            </button>
+          </div>
+
+          {/* Position indicator */}
+          <p className="text-center text-xs text-slate-700 pt-1">
+            {idx + 1} of {allProfiles.length} · ↑↓ to navigate · Esc to close
+          </p>
+        </div>
+      </div>
+    </>
+  )
 }
 
 const ICP_JOB_TITLES = [
@@ -602,6 +810,9 @@ function LinkedInICPSection() {
   const [toggling, setToggling]       = useState<string | null>(null)
   const [deleting, setDeleting]       = useState<string | null>(null)
   const [error, setError]             = useState('')
+
+  // Profile drawer
+  const [selectedProfile, setSelectedProfile] = useState<IcpProfile | null>(null)
 
   // Manual add form
   const [showAdd, setShowAdd]         = useState(false)
@@ -653,8 +864,8 @@ function LinkedInICPSection() {
     }
   }
 
-  const handleDelete = async (p: IcpProfile) => {
-    if (!confirm(`Remove "${p.name}" from your ICP pool?`)) return
+  const handleDelete = async (p: IcpProfile, skipConfirm = false) => {
+    if (!skipConfirm && !confirm(`Remove "${p.name}" from your ICP pool?`)) return
     setDeleting(p.id)
     try {
       const resp = await fetch(`/api/linkedin-icps/${p.id}`, { method: 'DELETE' })
@@ -720,6 +931,15 @@ function LinkedInICPSection() {
     }
   }
 
+  const handleDrawerNavigate = (direction: 'prev' | 'next') => {
+    if (!selectedProfile) return
+    const idx = profiles.findIndex(p => p.id === selectedProfile.id)
+    const nextIdx = direction === 'prev' ? idx - 1 : idx + 1
+    if (nextIdx >= 0 && nextIdx < profiles.length) {
+      setSelectedProfile(profiles[nextIdx])
+    }
+  }
+
   const addDiscTitle = () => {
     const t = discTitleInput.trim()
     if (t && !discTitles.includes(t)) setDiscTitles([...discTitles, t])
@@ -775,14 +995,12 @@ function LinkedInICPSection() {
               {/* Profile info */}
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <a
-                    href={p.profileUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-xs font-medium text-white hover:text-blue-400 transition-colors truncate"
+                  <button
+                    onClick={() => setSelectedProfile(p)}
+                    className="text-xs font-medium text-white hover:text-blue-400 transition-colors truncate text-left"
                   >
                     {p.name || p.profileUrl}
-                  </a>
+                  </button>
                   {p.source === 'discovered' && (
                     <span className="text-xs px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/20">
                       discovered
@@ -1009,6 +1227,16 @@ function LinkedInICPSection() {
           </div>
         </div>
       )}
+
+      {/* Profile preview drawer */}
+      <ProfileDrawer
+        profile={selectedProfile}
+        allProfiles={profiles}
+        onClose={() => setSelectedProfile(null)}
+        onNavigate={handleDrawerNavigate}
+        onDelete={(p) => { handleDelete(p, true) }}
+        onToggle={(p) => { handleToggle(p) }}
+      />
     </Section>
   )
 }
