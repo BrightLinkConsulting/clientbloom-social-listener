@@ -294,51 +294,49 @@ function FacebookGroupsSection({ sources, onUpdate }: {
 // ---- LinkedIn Terms: preset suggestion bank ----
 const TERM_SUGGESTIONS = [
   {
-    label: 'Frustration / Pain',
-    color: 'red',
-    terms: [
-      'struggling with clients',
-      'losing clients',
-      'client churn',
-      'clients leaving',
-      'frustrated with retention',
-      'client cancellations',
-      'hard to retain clients',
-    ],
-  },
-  {
-    label: 'Seeking Advice',
+    label: 'Topics your ICP discusses',
     color: 'blue',
     terms: [
-      'how do you handle clients',
-      'looking for recommendations',
-      'what tools do you use',
-      'can anyone recommend',
-      'best software for',
-      'agency owners advice',
+      'client retention',
+      'client success',
+      'client management',
+      'account management',
+      'client onboarding',
+      'agency operations',
     ],
   },
   {
-    label: 'Switching / Evaluating',
-    color: 'amber',
-    terms: [
-      'switching from',
-      'alternatives to',
-      'replacing our current',
-      'shopping for tools',
-      'comparing options',
-      'moving away from',
-    ],
-  },
-  {
-    label: 'Growth / Transition',
+    label: 'Advice & recommendations',
     color: 'emerald',
     terms: [
-      'scaling our agency',
-      'growing the team',
-      'new client onboarding',
+      'looking for recommendations',
+      'what tools do you use',
+      'how do you handle',
+      'anyone tried',
+      'lessons learned',
+      'what worked for us',
+    ],
+  },
+  {
+    label: 'Tool & vendor decisions',
+    color: 'amber',
+    terms: [
+      'switching to',
+      'just switched',
+      'we moved to',
+      'we replaced',
+      'we decided to use',
+    ],
+  },
+  {
+    label: 'Growth & team signals',
+    color: 'red',
+    terms: [
+      'scaling the agency',
+      'growing our team',
       'just hired',
-      'expanding services',
+      'new client win',
+      'expanding our services',
     ],
   },
 ]
@@ -434,9 +432,9 @@ function LinkedInTermsSection({ sources, onUpdate }: {
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
         <div className="space-y-1">
-          <p className="text-xs font-medium text-slate-300">How search terms work</p>
+          <p className="text-xs font-medium text-slate-300">How search terms work on LinkedIn</p>
           <p className="text-xs text-slate-500 leading-relaxed">
-            Each term is a 2–5 word phrase LinkedIn searches for in post text. Think about the exact words your ideal client would type when venting about a problem or asking for help — not industry jargon, but how they actually talk. Specific phrases find better posts than single words.
+            LinkedIn isn't a place people vent — it's a professional network where everyone presents their best self. Search terms here are topics your ideal clients talk about, not their pain words. Think subject matter and role-specific language. Fewer, more targeted terms outperform a long list — 4 to 6 strong terms will find better posts than 15 broad ones.
           </p>
         </div>
       </div>
@@ -492,7 +490,7 @@ function LinkedInTermsSection({ sources, onUpdate }: {
             <p className="text-xs font-semibold text-slate-300">Suggested terms — click any to add</p>
             <button onClick={() => setShowSuggestions(false)} className="text-xs text-slate-600 hover:text-slate-400 transition-colors">Done</button>
           </div>
-          <p className="text-xs text-slate-600 -mt-2">These are starting points. Replace industry-generic words with the specific language your buyers actually use.</p>
+          <p className="text-xs text-slate-600 -mt-2">These are starting points. Swap the generic words for the specific topics your buyers actually post about on LinkedIn.</p>
           {TERM_SUGGESTIONS.map(group => (
             <div key={group.label}>
               <p className="text-xs text-slate-500 font-medium mb-2">{group.label}</p>
@@ -523,11 +521,11 @@ function LinkedInTermsSection({ sources, onUpdate }: {
       {/* Custom add input */}
       {showAdd && (
         <div className="mb-4 space-y-2">
-          <p className="text-xs text-slate-500">Enter a 2–5 word phrase that describes your buyer's pain or question. Avoid single words — they're too broad.</p>
+          <p className="text-xs text-slate-500">Enter a 2–4 word topic or phrase your ideal client would post about on LinkedIn. Avoid single words — they pull too much noise.</p>
           <div className="flex items-center gap-2">
             <input
               type="text"
-              placeholder='e.g. "clients not renewing" or "agency losing accounts"'
+              placeholder='e.g. "client success strategy" or "agency account management"'
               value={newTerm}
               onChange={e => setNewTerm(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && addTerm(newTerm)}
