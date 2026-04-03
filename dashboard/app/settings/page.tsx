@@ -291,20 +291,82 @@ function FacebookGroupsSection({ sources, onUpdate }: {
   )
 }
 
+// ---- LinkedIn Terms: preset suggestion bank ----
+const TERM_SUGGESTIONS = [
+  {
+    label: 'Frustration / Pain',
+    color: 'red',
+    terms: [
+      'struggling with clients',
+      'losing clients',
+      'client churn',
+      'clients leaving',
+      'frustrated with retention',
+      'client cancellations',
+      'hard to retain clients',
+    ],
+  },
+  {
+    label: 'Seeking Advice',
+    color: 'blue',
+    terms: [
+      'how do you handle clients',
+      'looking for recommendations',
+      'what tools do you use',
+      'can anyone recommend',
+      'best software for',
+      'agency owners advice',
+    ],
+  },
+  {
+    label: 'Switching / Evaluating',
+    color: 'amber',
+    terms: [
+      'switching from',
+      'alternatives to',
+      'replacing our current',
+      'shopping for tools',
+      'comparing options',
+      'moving away from',
+    ],
+  },
+  {
+    label: 'Growth / Transition',
+    color: 'emerald',
+    terms: [
+      'scaling our agency',
+      'growing the team',
+      'new client onboarding',
+      'just hired',
+      'expanding services',
+    ],
+  },
+]
+
+const colorMap: Record<string, string> = {
+  red:     'bg-red-500/10 border-red-500/20 text-red-400 hover:bg-red-500/20',
+  blue:    'bg-blue-500/10 border-blue-500/20 text-blue-400 hover:bg-blue-500/20',
+  amber:   'bg-amber-500/10 border-amber-500/20 text-amber-400 hover:bg-amber-500/20',
+  emerald: 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20',
+}
+
 // ---- LinkedIn Terms Section ----
 function LinkedInTermsSection({ sources, onUpdate }: {
   sources: Source[]
   onUpdate: () => void
 }) {
   const [showAdd, setShowAdd] = useState(false)
+  const [showSuggestions, setShowSuggestions] = useState(false)
   const [newTerm, setNewTerm] = useState('')
   const [adding, setAdding] = useState(false)
+  const [addingPreset, setAddingPreset] = useState<string | null>(null)
   const [deleting, setDeleting] = useState<string | null>(null)
   const [toggling, setToggling] = useState<string | null>(null)
   const [error, setError] = useState('')
 
   const terms = sources.filter(s => s.type === 'linkedin_term')
   const activeCount = terms.filter(t => t.active).length
+  const existingValues = new Set(terms.map(t => t.value.toLowerCase()))
 
   const handleToggle = async (source: Source) => {
     setToggling(source.id)
@@ -337,25 +399,27 @@ function LinkedInTermsSection({ sources, onUpdate }: {
     }
   }
 
-  const handleAdd = async () => {
-    const term = newTerm.trim()
-    if (!term) { setError('Enter a search term.'); return }
-    setAdding(true)
+  const addTerm = async (term: string, isPreset = false) => {
+    const t = term.trim()
+    if (!t) { setError('Enter a search term.'); return }
+    if (existingValues.has(t.toLowerCase())) return
+    if (isPreset) setAddingPreset(t)
+    else setAdding(true)
     setError('')
     try {
       const resp = await fetch('/api/sources', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: term, type: 'linkedin_term', value: term, priority: 'high' }),
+        body: JSON.stringify({ name: t, type: 'linkedin_term', value: t, priority: 'high' }),
       })
       if (!resp.ok) throw new Error(await resp.text())
-      setNewTerm('')
-      setShowAdd(false)
+      if (!isPreset) { setNewTerm(''); setShowAdd(false) }
       onUpdate()
     } catch (e: any) {
       setError(e.message)
     } finally {
       setAdding(false)
+      setAddingPreset(null)
     }
   }
 
@@ -364,81 +428,152 @@ function LinkedInTermsSection({ sources, onUpdate }: {
       title="LinkedIn Search Terms"
       description={`${activeCount} of ${terms.length} terms active · keyword search runs 2× daily`}
     >
+      {/* How it works tip */}
+      <div className="mb-5 flex gap-3 px-3.5 py-3 rounded-xl bg-slate-800/50 border border-slate-700/40">
+        <svg className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        <div className="space-y-1">
+          <p className="text-xs font-medium text-slate-300">How search terms work</p>
+          <p className="text-xs text-slate-500 leading-relaxed">
+            Each term is a 2–5 word phrase LinkedIn searches for in post text. Think about the exact words your ideal client would type when venting about a problem or asking for help — not industry jargon, but how they actually talk. Specific phrases find better posts than single words.
+          </p>
+        </div>
+      </div>
 
       {error && (
-        <div className="mb-4 px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/20 text-xs text-red-400">
+        <div className="mb-4 px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/20 text-xs text-red-400 flex items-center justify-between">
           {error}
-          <button onClick={() => setError('')} className="ml-2 opacity-60 hover:opacity-100">x</button>
+          <button onClick={() => setError('')} className="ml-2 opacity-60 hover:opacity-100">×</button>
         </div>
       )}
 
-      <div className="flex flex-wrap gap-2 mb-4">
-        {terms.map((t) => (
-          <div
-            key={t.id}
-            className={`flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border transition-all ${
-              t.active
-                ? 'bg-slate-800 text-slate-300 border-slate-700/50'
-                : 'bg-slate-900/50 text-slate-600 border-slate-800/50'
-            }`}
-          >
-            <button
-              onClick={() => handleToggle(t)}
-              disabled={toggling === t.id}
-              title={t.active ? 'Pause' : 'Resume'}
-              className="hover:text-white transition-colors leading-none"
+      {/* Active terms */}
+      {terms.length > 0 && (
+        <div className="flex flex-wrap gap-2 mb-5">
+          {terms.map((t) => (
+            <div
+              key={t.id}
+              className={`flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border transition-all ${
+                t.active
+                  ? 'bg-slate-800 text-slate-300 border-slate-700/50'
+                  : 'bg-slate-900/50 text-slate-600 border-slate-800/50'
+              }`}
             >
-              {toggling === t.id ? <Spinner /> : (t.active ? '●' : '○')}
+              <button
+                onClick={() => handleToggle(t)}
+                disabled={toggling === t.id}
+                title={t.active ? 'Pause' : 'Resume'}
+                className="hover:text-white transition-colors leading-none"
+              >
+                {toggling === t.id ? <Spinner /> : (t.active ? '●' : '○')}
+              </button>
+              <span style={{ textDecoration: t.active ? 'none' : 'line-through' }}>{t.value}</span>
+              <button
+                onClick={() => handleDelete(t)}
+                disabled={deleting === t.id}
+                className="ml-0.5 text-slate-600 hover:text-red-400 transition-colors leading-none"
+              >
+                {deleting === t.id ? <Spinner /> : '×'}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {terms.length === 0 && (
+        <p className="text-xs text-slate-600 mb-5">No search terms yet — add some below to start finding posts.</p>
+      )}
+
+      {/* Suggestions panel */}
+      {showSuggestions && (
+        <div className="mb-5 rounded-xl border border-slate-700/40 bg-slate-900/60 p-4 space-y-4">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-semibold text-slate-300">Suggested terms — click any to add</p>
+            <button onClick={() => setShowSuggestions(false)} className="text-xs text-slate-600 hover:text-slate-400 transition-colors">Done</button>
+          </div>
+          <p className="text-xs text-slate-600 -mt-2">These are starting points. Replace industry-generic words with the specific language your buyers actually use.</p>
+          {TERM_SUGGESTIONS.map(group => (
+            <div key={group.label}>
+              <p className="text-xs text-slate-500 font-medium mb-2">{group.label}</p>
+              <div className="flex flex-wrap gap-1.5">
+                {group.terms.map(term => {
+                  const already = existingValues.has(term.toLowerCase())
+                  return (
+                    <button
+                      key={term}
+                      onClick={() => !already && addTerm(term, true)}
+                      disabled={already || addingPreset === term}
+                      className={`text-xs px-2.5 py-1 rounded-full border transition-all ${
+                        already
+                          ? 'bg-slate-800/30 border-slate-700/30 text-slate-600 cursor-default line-through'
+                          : `${colorMap[group.color]} border cursor-pointer`
+                      }`}
+                    >
+                      {addingPreset === term ? '...' : already ? term : `+ ${term}`}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Custom add input */}
+      {showAdd && (
+        <div className="mb-4 space-y-2">
+          <p className="text-xs text-slate-500">Enter a 2–5 word phrase that describes your buyer's pain or question. Avoid single words — they're too broad.</p>
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              placeholder='e.g. "clients not renewing" or "agency losing accounts"'
+              value={newTerm}
+              onChange={e => setNewTerm(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && addTerm(newTerm)}
+              autoFocus
+              maxLength={60}
+              className="flex-1 text-sm bg-slate-800/80 border border-slate-700/50 rounded-lg px-3 py-2 text-slate-200 placeholder-slate-600 focus:outline-none focus:border-blue-500/50"
+            />
+            <button
+              onClick={() => { setShowAdd(false); setNewTerm(''); setError('') }}
+              className="text-xs px-3 py-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-700/50 transition-colors"
+            >
+              Cancel
             </button>
-            <span style={{ textDecoration: t.active ? 'none' : 'line-through' }}>{t.value}</span>
             <button
-              onClick={() => handleDelete(t)}
-              disabled={deleting === t.id}
-              className="ml-0.5 text-slate-600 hover:text-red-400 transition-colors leading-none"
+              onClick={() => addTerm(newTerm)}
+              disabled={adding}
+              className="text-xs px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-medium transition-colors disabled:opacity-50 flex items-center gap-1.5"
             >
-              {deleting === t.id ? <Spinner /> : 'x'}
+              {adding && <Spinner />}
+              Add
             </button>
           </div>
-        ))}
-      </div>
-
-      {showAdd ? (
-        <div className="flex items-center gap-2">
-          <input
-            type="text"
-            placeholder='e.g. "agency client churn"'
-            value={newTerm}
-            onChange={e => setNewTerm(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && handleAdd()}
-            autoFocus
-            className="flex-1 text-sm bg-slate-800/80 border border-slate-700/50 rounded-lg px-3 py-2 text-slate-200 placeholder-slate-600 focus:outline-none focus:border-blue-500/50"
-          />
-          <button
-            onClick={() => { setShowAdd(false); setNewTerm(''); setError('') }}
-            className="text-xs px-3 py-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-700/50 transition-colors"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleAdd}
-            disabled={adding}
-            className="text-xs px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-medium transition-colors disabled:opacity-50 flex items-center gap-1.5"
-          >
-            {adding && <Spinner />}
-            Add
-          </button>
         </div>
-      ) : (
+      )}
+
+      {/* Action buttons */}
+      <div className="flex items-center gap-3">
         <button
-          onClick={() => setShowAdd(true)}
-          className="flex items-center gap-2 text-xs text-slate-500 hover:text-slate-300 transition-colors"
+          onClick={() => { setShowSuggestions(v => !v); setShowAdd(false) }}
+          className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-slate-700/50 text-slate-400 hover:text-white hover:border-slate-600 transition-colors"
+        >
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.347.346A3.51 3.51 0 0114.5 18H9.5a3.51 3.51 0 01-2.471-1.024l-.347-.346z" />
+          </svg>
+          Browse suggestions
+        </button>
+        <button
+          onClick={() => { setShowAdd(v => !v); setShowSuggestions(false) }}
+          className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-300 transition-colors"
         >
           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
           </svg>
-          Add Search Term
+          Add custom term
         </button>
-      )}
+      </div>
     </Section>
   )
 }
