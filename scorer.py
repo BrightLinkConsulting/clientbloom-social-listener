@@ -65,16 +65,28 @@ POSTS TO ANALYZE:
 BATCH_SIZE = 25  # safe ceiling — keeps response well under 4096 tokens
 
 
-def _build_prompt(base_prompt: str, posts_json_str: str, business_profile: str = "") -> str:
-    """Prepend business profile context to a prompt template if provided."""
-    filled = base_prompt.replace("{posts_json}", posts_json_str)
+def _build_prompt(base_prompt: str, posts_json_str: str, business_profile: str = "", custom_prompt: str = "") -> str:
+    """
+    Build the final scoring prompt.
+    - If custom_prompt is set, it replaces base_prompt entirely.
+    - business_profile is prepended as a context block when provided.
+    - Posts JSON is appended at the end with a standard header.
+    """
+    active_prompt = custom_prompt.strip() if custom_prompt.strip() else base_prompt
+
+    if "{posts_json}" in active_prompt:
+        filled = active_prompt.replace("{posts_json}", posts_json_str)
+    else:
+        # Custom prompts may not have the placeholder — append posts as a block
+        filled = active_prompt.rstrip() + f"\n\nPOSTS TO ANALYZE:\n{posts_json_str}"
+
     if business_profile:
         header = f"BUSINESS CONTEXT (use this to calibrate scoring and comment angles):\n{business_profile}\n\n"
         filled = header + filled
     return filled
 
 
-def _score_single_batch(client, posts: list, index_offset: int = 0, business_profile: str = "") -> dict:
+def _score_single_batch(client, posts: list, index_offset: int = 0, business_profile: str = "", custom_prompt: str = "") -> dict:
     """
     Score one batch of posts. Returns a score_map keyed by absolute post index.
     """
@@ -89,7 +101,7 @@ def _score_single_batch(client, posts: list, index_offset: int = 0, business_pro
         for i, p in enumerate(posts)
     ]
 
-    prompt = _build_prompt(SCORE_PROMPT, json.dumps(posts_for_scoring, indent=2), business_profile)
+    prompt = _build_prompt(SCORE_PROMPT, json.dumps(posts_for_scoring, indent=2), business_profile, custom_prompt)
 
     message = client.messages.create(
         model="claude-sonnet-4-6",
@@ -113,7 +125,7 @@ def _score_single_batch(client, posts: list, index_offset: int = 0, business_pro
     return {r["post_index"]: r for r in scored_results}
 
 
-def score_posts_batch(posts: list, business_profile: str = "") -> list:
+def score_posts_batch(posts: list, business_profile: str = "", custom_prompt: str = "") -> list:
     """
     Score all posts in batches of BATCH_SIZE to avoid token/parse limits.
     Returns the original posts with score and comment_approach added.
@@ -133,7 +145,9 @@ def score_posts_batch(posts: list, business_profile: str = "") -> list:
     client = anthropic.Anthropic(api_key=api_key)
 
     logger.info(f"Scoring {len(posts)} posts in batches of {BATCH_SIZE}...")
-    if business_profile:
+    if custom_prompt:
+        logger.info("Custom scoring prompt active — using saved prompt from Airtable.")
+    elif business_profile:
         logger.info("Business profile context will be injected into scoring prompts.")
 
     full_score_map = {}
@@ -141,7 +155,7 @@ def score_posts_batch(posts: list, business_profile: str = "") -> list:
         batch = posts[batch_start:batch_start + BATCH_SIZE]
         logger.info(f"Scoring batch {batch_start // BATCH_SIZE + 1}: posts {batch_start}-{batch_start + len(batch) - 1}")
         try:
-            batch_map = _score_single_batch(client, batch, index_offset=batch_start, business_profile=business_profile)
+            batch_map = _score_single_batch(client, batch, index_offset=batch_start, business_profile=business_profile, custom_prompt=custom_prompt)
             full_score_map.update(batch_map)
         except Exception as e:
             logger.error(f"Batch {batch_start // BATCH_SIZE + 1} failed: {e}")
@@ -232,7 +246,7 @@ POSTS TO ANALYZE:
 """
 
 
-def score_icp_posts_batch(posts: list, business_profile: str = "") -> list:
+def score_icp_posts_batch(posts: list, business_profile: str = "", custom_prompt: str = "") -> list:
     """
     Score ICP LinkedIn posts using the engagement-opportunity prompt.
     Strips internal _icp_* fields before returning (they were for scoring context only).
@@ -269,7 +283,7 @@ def score_icp_posts_batch(posts: list, business_profile: str = "") -> list:
             for i, p in enumerate(batch)
         ]
 
-        prompt = _build_prompt(ICP_SCORE_PROMPT, json.dumps(posts_for_scoring, indent=2), business_profile)
+        prompt = _build_prompt(ICP_SCORE_PROMPT, json.dumps(posts_for_scoring, indent=2), business_profile, custom_prompt)
 
         try:
             message = client.messages.create(
