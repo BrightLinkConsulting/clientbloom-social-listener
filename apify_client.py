@@ -112,10 +112,14 @@ def run_actor_and_fetch(actor_id: str, input_data: dict, poll_interval: int = 30
 # --- Actor input builders ---
 
 def build_linkedin_input(search_terms: list, max_results: int = 50) -> dict:
-    """Build the input payload for harvestapi/linkedin-post-search actor."""
+    """
+    Build the input payload for harvestapi/linkedin-post-search actor.
+    Actor uses 'maxPosts' (not 'maxResults') — confirmed from run log
+    which said 'maxPosts is not set, defaulting to 100'.
+    """
     return {
         "searchTerms": search_terms,
-        "maxResults": max_results,
+        "maxPosts": max_results,
         "proxy": {
             "useApifyProxy": True
         }
@@ -129,7 +133,7 @@ def build_facebook_input(group_urls: list, max_posts: int = 30) -> dict:
     """
     return {
         "startUrls": [{"url": url} for url in group_urls],
-        "maxPosts": max_posts,
+        "resultsLimit": max_posts,
         "maxComments": 0,
         "scrapeAbout": False,
         "proxy": {
