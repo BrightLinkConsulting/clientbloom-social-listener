@@ -150,3 +150,137 @@ def score_posts_batch(posts: list) -> list:
 def filter_by_min_score(posts: list, min_score: int = 2) -> list:
     """Remove posts that scored below the minimum threshold."""
     return [p for p in posts if p.get("relevance_score", 0) >= min_score]
+
+
+# ---------------------------------------------------------------------------
+# ICP Engagement Scoring — people-first LinkedIn monitoring
+# ---------------------------------------------------------------------------
+
+ICP_SCORE_PROMPT = """You are a relationship intelligence analyst supporting Joseph, a sales rep at ClientBloom.ai — an AI-powered client retention platform built for marketing agencies and SaaS companies.
+
+Joseph's LinkedIn strategy is different from cold outreach. He monitors a curated list of ideal customer profiles (ICPs) — agency owners, agency CEOs, client success leaders, and marketing operators. When one of them posts ANYTHING, Joseph looks for a natural, authentic reason to comment and start a relationship. He is not selling. He is becoming a familiar, valuable face in their feed.
+
+Your job: score each ICP post on whether it gives Joseph a credible, non-salesy reason to leave a comment that would genuinely start a conversation.
+
+ABOUT THE ICP:
+Each post includes the author's name, job title, and company in the "group_name" field (e.g., "LinkedIn ICP: Agency Owner @ Growth Marketing Co"). Use this context when writing the comment approach.
+
+WHAT MAKES A HIGH-SCORE POST (7-10):
+- Author asks a question (any topic) — Joseph can answer and build rapport
+- Author shares a struggle, frustration, or challenge — Joseph can empathize specifically
+- Author announces a milestone (new client, team growth, new service) — Joseph can celebrate and ask a follow-up
+- Author shares a strong opinion or controversial take — Joseph can thoughtfully agree/disagree
+- Author shares a case study or win — Joseph can ask about the process behind it
+- Topic is directly related to client management, retention, agency operations, or team building
+
+WHAT MAKES A LOW-SCORE POST (2-4):
+- Pure broadcast: sharing a news article with no personal commentary
+- Generic motivational quote or platitude
+- Job posting with no personal narrative
+- Promotional content about their own services (no invitation to engage)
+- Reshare of someone else's content with no added perspective
+
+WHAT SCORES 1:
+- Clearly automated or bot-like content
+- Completely off-topic (sports, politics, personal life with no business angle)
+- Content so generic there is no personalized hook Joseph could use
+
+SCORING SCALE:
+- 9-10: Strong natural opening. Joseph has something specific and genuine to say.
+- 7-8: Good opening. A thoughtful comment would land well.
+- 5-6: Weak hook. Possible, but the comment would feel forced or generic.
+- 2-4: No natural entry point. Post doesn't invite engagement.
+- 1: Skip entirely.
+
+COMMENT APPROACH RULES (write for posts scoring 5+):
+- Never mention ClientBloom or pitch anything — this is relationship-building only.
+- Reference something SPECIFIC from their post — not a generic "great post!"
+- Keep it to 2 sentences max. Peer tone. Sound like someone in the same world.
+- Ask ONE follow-up question OR make one observation that invites a reply.
+- Use the author's title/company context to make it feel personalized.
+
+Return ONLY a JSON array. No markdown, no explanation.
+
+[
+  {{
+    "post_index": 0,
+    "score": 8,
+    "score_reason": "Agency CEO asking how other owners handle scope creep with retainer clients — direct question, clear invitation to engage, topic adjacent to retention",
+    "comment_approach": "Scope creep on retainers usually comes down to what was defined (or not) at onboarding. How specific are your SOWs right now — like, do clients know exactly what's in and out of scope before month one starts?"
+  }},
+  ...
+]
+
+POSTS TO ANALYZE:
+{posts_json}
+"""
+
+
+def score_icp_posts_batch(posts: list) -> list:
+    """
+    Score ICP LinkedIn posts using the engagement-opportunity prompt.
+    Strips internal _icp_* fields before returning (they were for scoring context only).
+    """
+    if not posts:
+        return []
+
+    api_key = os.getenv("ANTHROPIC_API_KEY")
+    if not api_key:
+        raise ValueError("ANTHROPIC_API_KEY not set in environment")
+
+    client = anthropic.Anthropic(api_key=api_key)
+
+    logger.info(f"ICP scoring {len(posts)} posts in batches of {BATCH_SIZE}...")
+
+    full_score_map = {}
+    for batch_start in range(0, len(posts), BATCH_SIZE):
+        batch = posts[batch_start:batch_start + BATCH_SIZE]
+        posts_for_scoring = [
+            {
+                "post_index": batch_start + i,
+                "platform": p.get("platform", "LinkedIn"),
+                "group_name": p.get("group_name", ""),   # contains "LinkedIn ICP: Title @ Company"
+                "author_name": p.get("author_name", ""),
+                "author_headline": p.get("_author_headline", ""),
+                "icp_job_title": p.get("_icp_title", ""),
+                "icp_company": p.get("_icp_company", ""),
+                "post_text": p.get("post_text", "")[:500]
+            }
+            for i, p in enumerate(batch)
+        ]
+
+        prompt = ICP_SCORE_PROMPT.replace("{posts_json}", json.dumps(posts_for_scoring, indent=2))
+
+        try:
+            message = client.messages.create(
+                model="claude-sonnet-4-6",
+                max_tokens=4096,
+                messages=[{"role": "user", "content": prompt}]
+            )
+            raw_response = message.content[0].text.strip()
+            try:
+                scored_results = json.loads(raw_response)
+            except json.JSONDecodeError:
+                import re
+                match = re.search(r'\[.*\]', raw_response, re.DOTALL)
+                scored_results = json.loads(match.group()) if match else []
+
+            for r in scored_results:
+                full_score_map[r["post_index"]] = r
+
+        except Exception as e:
+            logger.error(f"ICP batch {batch_start // BATCH_SIZE + 1} failed: {e}")
+
+    # Merge scores back, strip internal ICP context fields
+    enriched = []
+    for i, post in enumerate(posts):
+        result = full_score_map.get(i, {})
+        clean = {k: v for k, v in post.items() if not k.startswith("_")}
+        clean["relevance_score"]  = result.get("score", 0)
+        clean["score_reason"]     = result.get("score_reason", "")
+        clean["comment_approach"] = result.get("comment_approach", "")
+        enriched.append(clean)
+
+    scored_count = sum(1 for p in enriched if p.get("relevance_score", 0) > 0)
+    logger.info(f"ICP scoring complete. {scored_count}/{len(enriched)} posts received scores.")
+    return enriched
