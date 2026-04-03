@@ -1013,25 +1013,263 @@ function LinkedInICPSection() {
   )
 }
 
-// ---- Static data ----
-const KEYWORDS = {
-  'Retention & Churn': [
-    'client retention', 'client churn', 'retain clients', 'keep clients', 'losing clients',
-    'lost a client', 'clients leaving', 'client turnover', 'customer churn', 'customer retention',
-    'agency retention', 'client dropped', 'client cancelled', 'cancel their contract',
-    'clients keep leaving', "clients aren't sticking", 'high churn', 'reduce churn', 'churn rate',
-  ],
-  'Emotional / Friction': [
-    'frustrated with clients', 'client complaints', 'difficult clients', 'unhappy clients',
-    'client ghosted', "client won't pay", 'fire a client', 'client is upset', 'client is unhappy',
-    'client is leaving', 'client at risk', 'client escalation', 'referrals drying up',
-    'client lifetime value', 'LTV problem', 'lost the account',
-  ],
-  'Process / Systems': [
-    'client health score', 'client health', 'customer health score', 'client onboarding',
-    'client success', 'customer success manager', 'CSM', 'client dashboard',
-    'client portal', 'client reporting', 'book of business', 'account management systems',
-  ],
+// ---- Facebook Keywords Section ----
+interface FbKeyword {
+  id: string
+  keyword: string
+  category: string
+  active: boolean
+}
+
+const FB_KEYWORD_SUGGESTIONS = [
+  { label: 'Retention & Churn',    terms: ['client retention', 'client churn', 'losing clients', 'lost a client', 'clients leaving', 'customer churn', 'reduce churn', 'churn rate'] },
+  { label: 'Emotional / Friction', terms: ['frustrated with clients', 'difficult clients', 'unhappy clients', 'client ghosted', 'client at risk', 'client escalation', 'lost the account'] },
+  { label: 'Process / Systems',    terms: ['client health score', 'client health', 'client onboarding', 'client success', 'client dashboard', 'client reporting', 'book of business'] },
+]
+
+function FacebookKeywordsSection() {
+  const [keywords, setKeywords]   = useState<FbKeyword[]>([])
+  const [loading, setLoading]     = useState(true)
+  const [showSuggestions, setShowSuggestions] = useState(false)
+  const [showAdd, setShowAdd]     = useState(false)
+  const [newKw, setNewKw]         = useState('')
+  const [adding, setAdding]       = useState(false)
+  const [addingPreset, setAddingPreset] = useState<string | null>(null)
+  const [toggling, setToggling]   = useState<string | null>(null)
+  const [deleting, setDeleting]   = useState<string | null>(null)
+  const [error, setError]         = useState('')
+
+  const fetchKeywords = useCallback(async () => {
+    try {
+      const resp = await fetch('/api/facebook-keywords')
+      const data = await resp.json()
+      setKeywords(data.keywords || [])
+    } catch { /* stay silent */ } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => { fetchKeywords() }, [fetchKeywords])
+
+  const existingSet = new Set(keywords.map(k => k.keyword.toLowerCase()))
+  const activeCount = keywords.filter(k => k.active).length
+
+  const addKeyword = async (kw: string, isPreset = false) => {
+    const term = kw.trim()
+    if (!term || existingSet.has(term.toLowerCase())) return
+    if (isPreset) setAddingPreset(term); else setAdding(true)
+    setError('')
+    try {
+      const resp = await fetch('/api/facebook-keywords', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ keyword: term }),
+      })
+      if (!resp.ok) throw new Error(await resp.text())
+      if (!isPreset) { setNewKw(''); setShowAdd(false) }
+      await fetchKeywords()
+    } catch (e: any) {
+      setError(e.message)
+    } finally {
+      setAdding(false)
+      setAddingPreset(null)
+    }
+  }
+
+  const toggleKeyword = async (kw: FbKeyword) => {
+    setToggling(kw.id)
+    try {
+      await fetch('/api/facebook-keywords', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: kw.id, active: !kw.active }),
+      })
+      await fetchKeywords()
+    } catch (e: any) {
+      setError(e.message)
+    } finally {
+      setToggling(null)
+    }
+  }
+
+  const deleteKeyword = async (kw: FbKeyword) => {
+    if (!confirm(`Remove "${kw.keyword}"?`)) return
+    setDeleting(kw.id)
+    try {
+      await fetch('/api/facebook-keywords', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: kw.id }),
+      })
+      await fetchKeywords()
+    } catch (e: any) {
+      setError(e.message)
+    } finally {
+      setDeleting(null)
+    }
+  }
+
+  if (loading) return null
+
+  // Group active keywords by category for display
+  const byCategory: Record<string, FbKeyword[]> = {}
+  keywords.forEach(k => {
+    const cat = k.category || 'Other'
+    if (!byCategory[cat]) byCategory[cat] = []
+    byCategory[cat].push(k)
+  })
+
+  return (
+    <Section
+      title="Facebook Post Filter"
+      description={`${activeCount} of ${keywords.length} keywords active · a Facebook post must match at least one to reach the AI for scoring`}
+    >
+      {/* Tip */}
+      <div className="mb-5 flex gap-3 px-3.5 py-3 rounded-xl bg-slate-800/50 border border-slate-700/40">
+        <svg className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        <p className="text-xs text-slate-500 leading-relaxed">
+          These keywords pre-filter Facebook group posts before the AI scores them — keeping costs down and noise out. Add phrases your buyers actually use when they talk about the problems you solve. <span className="text-slate-400">Example: "client churn" or "losing clients."</span>
+        </p>
+      </div>
+
+      {error && (
+        <div className="mb-4 px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/20 text-xs text-red-400 flex items-center justify-between">
+          {error}
+          <button onClick={() => setError('')} className="ml-2 opacity-60 hover:opacity-100">×</button>
+        </div>
+      )}
+
+      {/* Keywords grouped by category */}
+      {Object.entries(byCategory).map(([cat, kws]) => (
+        <div key={cat} className="mb-4">
+          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">{cat}</p>
+          <div className="flex flex-wrap gap-2">
+            {kws.map(k => (
+              <div
+                key={k.id}
+                className={`flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border transition-all ${
+                  k.active
+                    ? 'bg-slate-800 text-slate-300 border-slate-700/50'
+                    : 'bg-slate-900/50 text-slate-600 border-slate-800/50'
+                }`}
+              >
+                <button
+                  onClick={() => toggleKeyword(k)}
+                  disabled={toggling === k.id}
+                  title={k.active ? 'Pause' : 'Resume'}
+                  className="hover:text-white transition-colors leading-none"
+                >
+                  {toggling === k.id ? <Spinner /> : (k.active ? '●' : '○')}
+                </button>
+                <span style={{ textDecoration: k.active ? 'none' : 'line-through' }}>{k.keyword}</span>
+                <button
+                  onClick={() => deleteKeyword(k)}
+                  disabled={deleting === k.id}
+                  className="ml-0.5 text-slate-600 hover:text-red-400 transition-colors leading-none"
+                >
+                  {deleting === k.id ? <Spinner /> : '×'}
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+
+      {keywords.length === 0 && (
+        <p className="text-xs text-slate-600 mb-4">No keywords yet — add some below.</p>
+      )}
+
+      {/* Suggestions panel */}
+      {showSuggestions && (
+        <div className="mb-5 rounded-xl border border-slate-700/40 bg-slate-900/60 p-4 space-y-4">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-semibold text-slate-300">Suggested keywords — click any to add</p>
+            <button onClick={() => setShowSuggestions(false)} className="text-xs text-slate-600 hover:text-slate-400 transition-colors">Done</button>
+          </div>
+          {FB_KEYWORD_SUGGESTIONS.map(group => (
+            <div key={group.label}>
+              <p className="text-xs text-slate-500 font-medium mb-2">{group.label}</p>
+              <div className="flex flex-wrap gap-1.5">
+                {group.terms.map(term => {
+                  const already = existingSet.has(term.toLowerCase())
+                  return (
+                    <button
+                      key={term}
+                      onClick={() => !already && addKeyword(term, true)}
+                      disabled={already || addingPreset === term}
+                      className={`text-xs px-2.5 py-1 rounded-full border transition-all ${
+                        already
+                          ? 'bg-slate-800/30 border-slate-700/30 text-slate-600 cursor-default line-through'
+                          : 'bg-blue-500/10 border-blue-500/20 text-blue-400 hover:bg-blue-500/20 cursor-pointer'
+                      }`}
+                    >
+                      {addingPreset === term ? '...' : already ? term : `+ ${term}`}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Custom add input */}
+      {showAdd && (
+        <div className="mb-4 space-y-2">
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              placeholder='e.g. "agency client management" or "losing accounts"'
+              value={newKw}
+              onChange={e => setNewKw(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && addKeyword(newKw)}
+              autoFocus
+              maxLength={60}
+              className="flex-1 text-sm bg-slate-800/80 border border-slate-700/50 rounded-lg px-3 py-2 text-slate-200 placeholder-slate-600 focus:outline-none focus:border-blue-500/50"
+            />
+            <button
+              onClick={() => { setShowAdd(false); setNewKw(''); setError('') }}
+              className="text-xs px-3 py-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-700/50 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={() => addKeyword(newKw)}
+              disabled={adding}
+              className="text-xs px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-medium transition-colors disabled:opacity-50 flex items-center gap-1.5"
+            >
+              {adding && <Spinner />}
+              Add
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Action buttons */}
+      <div className="flex items-center gap-3 pt-1">
+        <button
+          onClick={() => { setShowSuggestions(v => !v); setShowAdd(false) }}
+          className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-slate-700/50 text-slate-400 hover:text-white hover:border-slate-600 transition-colors"
+        >
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.347.346A3.51 3.51 0 0114.5 18H9.5a3.51 3.51 0 01-2.471-1.024l-.347-.346z" />
+          </svg>
+          Browse suggestions
+        </button>
+        <button
+          onClick={() => { setShowAdd(v => !v); setShowSuggestions(false) }}
+          className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-300 transition-colors"
+        >
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+          </svg>
+          Add custom keyword
+        </button>
+      </div>
+    </Section>
+  )
 }
 
 const SCORING_PROMPT = `You are a sales intelligence analyst supporting Joseph, a sales rep at ClientBloom.ai — an AI-powered client retention platform built specifically for marketing agencies and SaaS companies.
@@ -1290,25 +1528,7 @@ export default function SettingsPage() {
           </div>
         </Section>
 
-        <Section
-          title="Keyword Gate"
-          description="A post must match at least one of these to reach Claude for scoring. Platform names are excluded to avoid promo spam."
-        >
-          <div className="space-y-5">
-            {Object.entries(KEYWORDS).map(([category, words]) => (
-              <div key={category}>
-                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">{category}</p>
-                <div className="flex flex-wrap gap-1.5">
-                  {words.map((word) => (
-                    <span key={word} className="text-xs px-2.5 py-1 rounded-full bg-slate-800/70 text-slate-400 border border-slate-700/50">
-                      {word}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        </Section>
+        <FacebookKeywordsSection />
 
         <Section title="System Status">
           <div className="grid grid-cols-2 gap-3">
