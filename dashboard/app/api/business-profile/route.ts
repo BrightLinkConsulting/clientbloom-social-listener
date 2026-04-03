@@ -43,6 +43,10 @@ export async function POST(req: Request) {
         : body.signalTypes || '',
       'Updated At': new Date().toISOString(),
     }
+    // Only include Scoring Prompt if explicitly provided
+    if (typeof body.scoringPrompt === 'string') {
+      fields['Scoring Prompt'] = body.scoringPrompt
+    }
 
     const existing = await at('?maxRecords=1')
     const rec = existing.records?.[0]
