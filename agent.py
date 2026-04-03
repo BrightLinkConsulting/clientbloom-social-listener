@@ -285,9 +285,14 @@ def run_scraping_cycle(config: dict) -> dict:
         for raw in all_raw_linkedin:
             post = normalize_linkedin_post(raw)
             if post["post_text"] and len(post["post_text"]) >= 50:
+                # LinkedIn: the search query already acts as the keyword filter.
+                # LinkedIn's algorithm returns semantically relevant posts that
+                # often don't contain the exact keyword phrases (they may say
+                # "hold onto accounts" rather than "client retention"). Running
+                # the literal keyword gate here would drop nearly everything.
+                # Tag keywords for display/tracking purposes only — don't gate on it.
                 post = tag_keywords_matched(post, keywords)
-                if post["keywords_matched"]:  # only score posts with at least one keyword hit
-                    all_new_posts.append(post)
+                all_new_posts.append(post)
 
     except Exception as e:
         logger.error(f"LinkedIn scraping failed: {e}")
