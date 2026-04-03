@@ -995,20 +995,20 @@ function BusinessProfileSection() {
       <div className="space-y-4">
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-xs text-slate-500 mb-1.5">Business name</label>
+            <label className="block text-xs text-slate-500 mb-1.5">Your business name</label>
             <input
               value={profile.businessName}
               onChange={e => setProfile(p => ({ ...p, businessName: e.target.value }))}
-              placeholder="e.g. ClientBloom"
+              placeholder="Your business name"
               className="w-full bg-slate-800/60 border border-slate-700/60 rounded-lg px-3 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50"
             />
           </div>
           <div>
-            <label className="block text-xs text-slate-500 mb-1.5">Industry / niche</label>
+            <label className="block text-xs text-slate-500 mb-1.5">Your industry / niche</label>
             <input
               value={profile.industry}
               onChange={e => setProfile(p => ({ ...p, industry: e.target.value }))}
-              placeholder="e.g. Marketing agency software"
+              placeholder="e.g. SaaS, marketing services, recruiting..."
               className="w-full bg-slate-800/60 border border-slate-700/60 rounded-lg px-3 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50"
             />
           </div>
