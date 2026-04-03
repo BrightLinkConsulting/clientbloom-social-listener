@@ -111,15 +111,16 @@ def run_actor_and_fetch(actor_id: str, input_data: dict, poll_interval: int = 30
 
 # --- Actor input builders ---
 
-def build_linkedin_input(search_terms: list, max_results: int = 50) -> dict:
+def build_linkedin_input(search_query: str, max_results: int = 50) -> dict:
     """
-    Build the input payload for harvestapi/linkedin-post-search actor.
-    Actor uses 'maxPosts' (not 'maxResults') — confirmed from run log
-    which said 'maxPosts is not set, defaulting to 100'.
+    Build the input payload for apimaestro/linkedin-posts-search-scraper-no-cookies.
+    This actor takes a single searchQuery string (not an array) and returns
+    up to `limit` posts sorted by relevance. Agent loops per search term.
     """
     return {
-        "searchTerms": search_terms,
-        "maxPosts": max_results,
+        "searchQuery": search_query,
+        "limit": max_results,
+        "sort_type": "relevance",
         "proxy": {
             "useApifyProxy": True
         }
