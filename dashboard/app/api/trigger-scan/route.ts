@@ -39,10 +39,7 @@ async function runApifyActor(actorId: string, input: object, waitSecs = 45) {
 }
 
 // ── Claude scoring helper ────────────────────────────────────────────────────
-async function scorePosts(posts: any[], businessProfile: string) {
-  if (!posts.length || !ANTHROPIC_KEY) return posts.map(p => ({ ...p, score: 5, reason: '' }))
-
-  const prompt = `${businessProfile ? `BUSINESS CONTEXT:\n${businessProfile}\n\n` : ''}You are a social listening AI. Score each post for engagement opportunity (1-10).
+const DEFAULT_SCAN_PROMPT = `You are a social listening AI. Score each post for engagement opportunity (1-10).
 
 9-10: Strong natural opening — question, struggle, or milestone where you can add genuine value
 7-8: Good opening — relevant context you can thoughtfully reference
@@ -54,7 +51,25 @@ Return JSON array: [{"post_id":"...", "score": N, "reason": "...", "comment_appr
 Keep comment_approach to 2 sentences max — peer tone, specific reference, one follow-up question.
 
 Posts:
-${JSON.stringify(posts.map(p => ({ post_id: p.id || p.postId, text: (p.text || p.content || '').slice(0, 500), author: p.authorName || p.author?.name || '' })))}`
+{posts_json}`
+
+async function scorePosts(posts: any[], businessProfile: string, customPrompt = '') {
+  if (!posts.length || !ANTHROPIC_KEY) return posts.map(p => ({ ...p, score: 5, reason: '' }))
+
+  const postsJson = JSON.stringify(posts.map(p => ({
+    post_id: p.id || p.postId,
+    text: (p.text || p.content || '').slice(0, 500),
+    author: p.authorName || p.author?.name || '',
+  })))
+
+  const basePrompt = customPrompt.trim() || DEFAULT_SCAN_PROMPT
+  const activePrompt = basePrompt.includes('{posts_json}')
+    ? basePrompt.replace('{posts_json}', postsJson)
+    : basePrompt + `\n\nPosts:\n${postsJson}`
+
+  const prompt = businessProfile
+    ? `BUSINESS CONTEXT:\n${businessProfile}\n\n${activePrompt}`
+    : activePrompt
 
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -100,6 +115,7 @@ export async function POST() {
       profile['Problem Solved'] && `We solve: ${profile['Problem Solved']}`,
       profile['Signal Types'] && `Looking for: ${profile['Signal Types']}`,
     ].filter(Boolean).join('\n') : ''
+    const customPrompt = (profile?.['Scoring Prompt'] || '').trim()
 
     // 2. Fetch ICP profiles from Airtable (first scan: limit to 3 profiles, 5 posts each)
     const icpData = await atFetch('LinkedIn ICPs', '?filterByFormula={Active}=1&maxRecords=3')
@@ -160,7 +176,7 @@ export async function POST() {
     }
 
     // 3. Score all posts
-    const scored = await scorePosts(allPosts, businessContext)
+    const scored = await scorePosts(allPosts, businessContext, customPrompt)
     const qualifying = scored.filter(p => p.score >= 5)
 
     // 4. Save qualifying posts to Airtable (Posts table)
