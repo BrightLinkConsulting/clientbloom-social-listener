@@ -448,6 +448,443 @@ function LinkedInTermsSection({ sources, onUpdate }: {
   )
 }
 
+// ---- LinkedIn ICP Section ----
+interface IcpProfile {
+  id: string
+  name: string
+  profileUrl: string
+  jobTitle: string
+  company: string
+  industry: string
+  active: boolean
+  source: string
+  postsFound: number
+}
+
+const ICP_JOB_TITLES = [
+  'Agency Owner', 'Agency CEO', 'Agency Founder', 'Marketing Agency Owner',
+  'Digital Agency Owner', 'White Label Agency', 'GoHighLevel Agency',
+  'Head of Customer Success', 'VP of Customer Success', 'Director of Customer Success',
+  'Customer Success Manager', 'Client Success Manager', 'Account Manager',
+]
+
+function LinkedInICPSection() {
+  const [profiles, setProfiles]       = useState<IcpProfile[]>([])
+  const [loading, setLoading]         = useState(true)
+  const [toggling, setToggling]       = useState<string | null>(null)
+  const [deleting, setDeleting]       = useState<string | null>(null)
+  const [error, setError]             = useState('')
+
+  // Manual add form
+  const [showAdd, setShowAdd]         = useState(false)
+  const [newUrl, setNewUrl]           = useState('')
+  const [newName, setNewName]         = useState('')
+  const [newTitle, setNewTitle]       = useState('')
+  const [newCompany, setNewCompany]   = useState('')
+  const [adding, setAdding]           = useState(false)
+
+  // Discovery panel
+  const [showDiscover, setShowDiscover] = useState(false)
+  const [discTitles, setDiscTitles]     = useState<string[]>(['Agency Owner', 'Agency CEO'])
+  const [discKeywords, setDiscKeywords] = useState<string[]>(['GoHighLevel', 'marketing agency'])
+  const [discMax, setDiscMax]           = useState(50)
+  const [discTitleInput, setDiscTitleInput] = useState('')
+  const [discKwInput, setDiscKwInput]       = useState('')
+  const [discovering, setDiscovering]       = useState(false)
+  const [discResult, setDiscResult]         = useState<string>('')
+
+  const fetchProfiles = useCallback(async () => {
+    try {
+      const resp = await fetch('/api/linkedin-icps')
+      if (!resp.ok) throw new Error('Failed to load ICP profiles')
+      const data = await resp.json()
+      setProfiles(data.profiles || [])
+    } catch (e: any) {
+      setError(e.message)
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => { fetchProfiles() }, [fetchProfiles])
+
+  const handleToggle = async (p: IcpProfile) => {
+    setToggling(p.id)
+    try {
+      const resp = await fetch(`/api/linkedin-icps/${p.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ active: !p.active }),
+      })
+      if (!resp.ok) throw new Error(await resp.text())
+      await fetchProfiles()
+    } catch (e: any) {
+      setError(e.message)
+    } finally {
+      setToggling(null)
+    }
+  }
+
+  const handleDelete = async (p: IcpProfile) => {
+    if (!confirm(`Remove "${p.name}" from your ICP pool?`)) return
+    setDeleting(p.id)
+    try {
+      const resp = await fetch(`/api/linkedin-icps/${p.id}`, { method: 'DELETE' })
+      if (!resp.ok) throw new Error(await resp.text())
+      await fetchProfiles()
+    } catch (e: any) {
+      setError(e.message)
+    } finally {
+      setDeleting(null)
+    }
+  }
+
+  const handleAddManual = async () => {
+    if (!newUrl.trim()) { setError('LinkedIn profile URL is required.'); return }
+    if (!newUrl.includes('linkedin.com/in/')) {
+      setError('Must be a LinkedIn profile URL (linkedin.com/in/...)')
+      return
+    }
+    setAdding(true)
+    setError('')
+    try {
+      const resp = await fetch('/api/linkedin-icps', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name:       newName.trim() || newUrl.trim(),
+          profileUrl: newUrl.trim(),
+          jobTitle:   newTitle.trim(),
+          company:    newCompany.trim(),
+          source:     'manual',
+        }),
+      })
+      if (!resp.ok) throw new Error(await resp.text())
+      setNewUrl(''); setNewName(''); setNewTitle(''); setNewCompany('')
+      setShowAdd(false)
+      await fetchProfiles()
+    } catch (e: any) {
+      setError(e.message)
+    } finally {
+      setAdding(false)
+    }
+  }
+
+  const handleDiscover = async () => {
+    if (!discTitles.length) { setError('Add at least one job title to search.'); return }
+    setDiscovering(true)
+    setDiscResult('')
+    setError('')
+    try {
+      const resp = await fetch('/api/linkedin-icps/discover', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jobTitles: discTitles, keywords: discKeywords, maxProfiles: discMax }),
+      })
+      const data = await resp.json()
+      if (!resp.ok) throw new Error(data.error || 'Discovery failed')
+      setDiscResult(`Found ${data.added} new profiles (${data.skipped} already in pool)`)
+      await fetchProfiles()
+    } catch (e: any) {
+      setError(e.message)
+    } finally {
+      setDiscovering(false)
+    }
+  }
+
+  const addDiscTitle = () => {
+    const t = discTitleInput.trim()
+    if (t && !discTitles.includes(t)) setDiscTitles([...discTitles, t])
+    setDiscTitleInput('')
+  }
+  const addDiscKw = () => {
+    const k = discKwInput.trim()
+    if (k && !discKeywords.includes(k)) setDiscKeywords([...discKeywords, k])
+    setDiscKwInput('')
+  }
+
+  const active = profiles.filter(p => p.active).length
+  const total  = profiles.length
+
+  return (
+    <Section
+      title="LinkedIn ICP Pool"
+      description={`${active} of ${total} profiles being monitored · posts scored for engagement opportunity`}
+    >
+      {error && (
+        <div className="mb-4 px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/20 text-xs text-red-400 flex items-start justify-between gap-2">
+          <span>{error}</span>
+          <button onClick={() => setError('')} className="shrink-0 opacity-60 hover:opacity-100">×</button>
+        </div>
+      )}
+
+      {loading ? (
+        <div className="flex items-center gap-2 text-xs text-slate-500"><Spinner />Loading profiles...</div>
+      ) : profiles.length === 0 ? (
+        <p className="text-xs text-slate-500 mb-4">No profiles yet. Add manually or use Discover to find ICPs automatically.</p>
+      ) : (
+        <div className="space-y-2 mb-4">
+          {profiles.map(p => (
+            <div
+              key={p.id}
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-all ${
+                p.active ? 'bg-slate-800/60 border-slate-700/50' : 'bg-slate-900/40 border-slate-800/40 opacity-60'
+              }`}
+            >
+              {/* Toggle */}
+              <button
+                onClick={() => handleToggle(p)}
+                disabled={toggling === p.id}
+                title={p.active ? 'Pause monitoring' : 'Resume monitoring'}
+                className={`relative shrink-0 w-8 h-4 rounded-full transition-colors ${p.active ? 'bg-blue-600' : 'bg-slate-700'}`}
+              >
+                {toggling === p.id
+                  ? <span className="absolute inset-0 flex items-center justify-center"><Spinner /></span>
+                  : <span className={`absolute top-0.5 left-0 w-3 h-3 rounded-full bg-white shadow transition-transform ${p.active ? 'translate-x-4' : 'translate-x-0.5'}`} />
+                }
+              </button>
+
+              {/* Profile info */}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <a
+                    href={p.profileUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs font-medium text-white hover:text-blue-400 transition-colors truncate"
+                  >
+                    {p.name || p.profileUrl}
+                  </a>
+                  {p.source === 'discovered' && (
+                    <span className="text-xs px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/20">
+                      discovered
+                    </span>
+                  )}
+                </div>
+                {(p.jobTitle || p.company) && (
+                  <p className="text-xs text-slate-500 mt-0.5 truncate">
+                    {[p.jobTitle, p.company].filter(Boolean).join(' · ')}
+                  </p>
+                )}
+              </div>
+
+              {/* Delete */}
+              <button
+                onClick={() => handleDelete(p)}
+                disabled={deleting === p.id}
+                className="shrink-0 text-slate-600 hover:text-red-400 transition-colors p-1"
+                title="Remove from pool"
+              >
+                {deleting === p.id
+                  ? <Spinner />
+                  : <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                }
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Action buttons */}
+      <div className="flex gap-2 mb-4">
+        <button
+          onClick={() => { setShowAdd(!showAdd); setShowDiscover(false) }}
+          className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-slate-700/60 bg-slate-800/60 text-slate-300 hover:text-white hover:border-slate-600 transition-colors"
+        >
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+          </svg>
+          Add Profile
+        </button>
+        <button
+          onClick={() => { setShowDiscover(!showDiscover); setShowAdd(false) }}
+          className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-blue-500/30 bg-blue-600/10 text-blue-400 hover:bg-blue-600/20 hover:text-blue-300 transition-colors"
+        >
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+          Discover ICPs
+        </button>
+      </div>
+
+      {/* Manual Add Form */}
+      {showAdd && (
+        <div className="rounded-xl border border-slate-700/50 bg-slate-900/60 p-4 mb-4 space-y-3">
+          <p className="text-xs font-semibold text-slate-300">Add Profile Manually</p>
+          <input
+            type="url"
+            placeholder="https://www.linkedin.com/in/username/"
+            value={newUrl}
+            onChange={e => setNewUrl(e.target.value)}
+            className="w-full bg-slate-800/80 border border-slate-700/50 rounded-lg px-3 py-2 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50"
+          />
+          <div className="grid grid-cols-3 gap-2">
+            <input
+              type="text"
+              placeholder="Full name"
+              value={newName}
+              onChange={e => setNewName(e.target.value)}
+              className="bg-slate-800/80 border border-slate-700/50 rounded-lg px-3 py-2 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50"
+            />
+            <input
+              type="text"
+              placeholder="Job title"
+              value={newTitle}
+              onChange={e => setNewTitle(e.target.value)}
+              className="bg-slate-800/80 border border-slate-700/50 rounded-lg px-3 py-2 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50"
+            />
+            <input
+              type="text"
+              placeholder="Company"
+              value={newCompany}
+              onChange={e => setNewCompany(e.target.value)}
+              className="bg-slate-800/80 border border-slate-700/50 rounded-lg px-3 py-2 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50"
+            />
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={handleAddManual}
+              disabled={adding}
+              className="flex items-center gap-1.5 text-xs px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-medium transition-colors disabled:opacity-50"
+            >
+              {adding && <Spinner />}
+              Add to Pool
+            </button>
+            <button
+              onClick={() => setShowAdd(false)}
+              className="text-xs px-3 py-2 rounded-lg border border-slate-700/50 text-slate-400 hover:text-white transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Discovery Panel */}
+      {showDiscover && (
+        <div className="rounded-xl border border-blue-500/20 bg-blue-600/5 p-4 space-y-4">
+          <div>
+            <p className="text-xs font-semibold text-slate-300 mb-1">Discover ICPs</p>
+            <p className="text-xs text-slate-500">
+              Searches Google for LinkedIn profiles matching your criteria. No LinkedIn login required.
+            </p>
+          </div>
+
+          {/* Job Titles */}
+          <div>
+            <p className="text-xs text-slate-400 mb-2 font-medium">Job Titles <span className="text-slate-600 font-normal">(required)</span></p>
+            <div className="flex flex-wrap gap-1.5 mb-2">
+              {discTitles.map(t => (
+                <span key={t} className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700/50">
+                  {t}
+                  <button onClick={() => setDiscTitles(discTitles.filter(x => x !== t))} className="text-slate-600 hover:text-red-400 ml-0.5">×</button>
+                </span>
+              ))}
+            </div>
+            {/* Quick-add buttons from preset list */}
+            <div className="flex flex-wrap gap-1 mb-2">
+              {ICP_JOB_TITLES.filter(t => !discTitles.includes(t)).slice(0, 8).map(t => (
+                <button
+                  key={t}
+                  onClick={() => setDiscTitles([...discTitles, t])}
+                  className="text-xs px-2 py-0.5 rounded-full bg-slate-900/60 border border-slate-700/40 text-slate-500 hover:text-slate-300 hover:border-slate-600 transition-colors"
+                >
+                  + {t}
+                </button>
+              ))}
+            </div>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                placeholder="Custom job title..."
+                value={discTitleInput}
+                onChange={e => setDiscTitleInput(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && addDiscTitle()}
+                className="flex-1 bg-slate-800/80 border border-slate-700/50 rounded-lg px-3 py-1.5 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50"
+              />
+              <button onClick={addDiscTitle} className="text-xs px-3 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-300 transition-colors">
+                Add
+              </button>
+            </div>
+          </div>
+
+          {/* Narrowing Keywords */}
+          <div>
+            <p className="text-xs text-slate-400 mb-2 font-medium">Narrowing Keywords <span className="text-slate-600 font-normal">(optional, but recommended)</span></p>
+            <p className="text-xs text-slate-600 mb-2">Helps filter broad titles like "CEO" down to the right people.</p>
+            <div className="flex flex-wrap gap-1.5 mb-2">
+              {discKeywords.map(k => (
+                <span key={k} className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700/50">
+                  {k}
+                  <button onClick={() => setDiscKeywords(discKeywords.filter(x => x !== k))} className="text-slate-600 hover:text-red-400 ml-0.5">×</button>
+                </span>
+              ))}
+            </div>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                placeholder="e.g. GoHighLevel, white label, SaaS..."
+                value={discKwInput}
+                onChange={e => setDiscKwInput(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && addDiscKw()}
+                className="flex-1 bg-slate-800/80 border border-slate-700/50 rounded-lg px-3 py-1.5 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50"
+              />
+              <button onClick={addDiscKw} className="text-xs px-3 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-300 transition-colors">
+                Add
+              </button>
+            </div>
+          </div>
+
+          {/* Max profiles */}
+          <div>
+            <p className="text-xs text-slate-400 mb-2 font-medium">Max Profiles to Add</p>
+            <div className="flex gap-2">
+              {[25, 50, 100, 200].map(n => (
+                <button
+                  key={n}
+                  onClick={() => setDiscMax(n)}
+                  className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${
+                    discMax === n
+                      ? 'bg-blue-600/20 border-blue-500/40 text-blue-400'
+                      : 'border-slate-700/50 bg-slate-800/60 text-slate-400 hover:text-white'
+                  }`}
+                >
+                  {n}
+                </button>
+              ))}
+            </div>
+            <p className="text-xs text-slate-600 mt-1">Hard cap prevents runaway Apify usage with overly broad terms.</p>
+          </div>
+
+          {discResult && (
+            <div className="px-3 py-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-400">
+              {discResult}
+            </div>
+          )}
+
+          <div className="flex gap-2">
+            <button
+              onClick={handleDiscover}
+              disabled={discovering || !discTitles.length}
+              className="flex items-center gap-1.5 text-xs px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-medium transition-colors disabled:opacity-50"
+            >
+              {discovering ? <><Spinner /> Searching...</> : 'Run Discovery'}
+            </button>
+            <button
+              onClick={() => { setShowDiscover(false); setDiscResult('') }}
+              className="text-xs px-3 py-2 rounded-lg border border-slate-700/50 text-slate-400 hover:text-white transition-colors"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
+    </Section>
+  )
+}
+
 // ---- Static data ----
 const KEYWORDS = {
   'Retention & Churn': [
@@ -538,6 +975,8 @@ export default function SettingsPage() {
         {!loading && !loadError && (
           <LinkedInTermsSection sources={sources} onUpdate={fetchSources} />
         )}
+
+        <LinkedInICPSection />
 
         <Section
           title="Scoring Thresholds"
