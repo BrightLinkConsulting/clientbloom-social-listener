@@ -111,6 +111,22 @@ def run_actor_and_fetch(actor_id: str, input_data: dict, poll_interval: int = 30
 
 # --- Actor input builders ---
 
+def build_linkedin_profile_input(profile_urls: list, max_posts: int = 10) -> dict:
+    """
+    Build input for harvestapi/linkedin-profile-posts.
+    Fetches recent posts from a list of specific LinkedIn profiles.
+    No cookies or auth required — reads public posts only.
+    """
+    return {
+        "profileUrls": profile_urls,
+        "maxPosts": max_posts,
+        "proxy": {"useApifyProxy": True},
+        "scrapeReactions": False,
+        "scrapeComments": False,
+        "includeReposts": True,
+    }
+
+
 def build_linkedin_input(search_query: str, max_results: int = 50) -> dict:
     """
     Build the input payload for apimaestro/linkedin-posts-search-scraper-no-cookies.
