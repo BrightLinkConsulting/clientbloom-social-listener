@@ -432,9 +432,9 @@ function LinkedInTermsSection({ sources, onUpdate }: {
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
         <div className="space-y-1">
-          <p className="text-xs font-medium text-slate-300">How search terms work on LinkedIn</p>
+          <p className="text-xs font-medium text-slate-300">What to enter here</p>
           <p className="text-xs text-slate-500 leading-relaxed">
-            LinkedIn isn't a place people vent — it's a professional network where everyone presents their best self. Search terms here are topics your ideal clients talk about, not their pain words. Think subject matter and role-specific language. Fewer, more targeted terms outperform a long list — 4 to 6 strong terms will find better posts than 15 broad ones.
+            Use 2–4 word phrases that describe the topics your ideal clients post about — their role, their work, their industry challenges. Fewer focused terms get better results than a long list. <span className="text-slate-400">Example: if you sell to marketing agency owners, terms like "client retention" or "agency operations" will surface the right conversations.</span>
           </p>
         </div>
       </div>
