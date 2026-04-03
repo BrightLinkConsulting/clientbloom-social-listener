@@ -65,7 +65,16 @@ POSTS TO ANALYZE:
 BATCH_SIZE = 25  # safe ceiling — keeps response well under 4096 tokens
 
 
-def _score_single_batch(client, posts: list, index_offset: int = 0) -> dict:
+def _build_prompt(base_prompt: str, posts_json_str: str, business_profile: str = "") -> str:
+    """Prepend business profile context to a prompt template if provided."""
+    filled = base_prompt.replace("{posts_json}", posts_json_str)
+    if business_profile:
+        header = f"BUSINESS CONTEXT (use this to calibrate scoring and comment angles):\n{business_profile}\n\n"
+        filled = header + filled
+    return filled
+
+
+def _score_single_batch(client, posts: list, index_offset: int = 0, business_profile: str = "") -> dict:
     """
     Score one batch of posts. Returns a score_map keyed by absolute post index.
     """
@@ -80,7 +89,7 @@ def _score_single_batch(client, posts: list, index_offset: int = 0) -> dict:
         for i, p in enumerate(posts)
     ]
 
-    prompt = SCORE_PROMPT.replace("{posts_json}", json.dumps(posts_for_scoring, indent=2))
+    prompt = _build_prompt(SCORE_PROMPT, json.dumps(posts_for_scoring, indent=2), business_profile)
 
     message = client.messages.create(
         model="claude-sonnet-4-6",
@@ -104,10 +113,15 @@ def _score_single_batch(client, posts: list, index_offset: int = 0) -> dict:
     return {r["post_index"]: r for r in scored_results}
 
 
-def score_posts_batch(posts: list) -> list:
+def score_posts_batch(posts: list, business_profile: str = "") -> list:
     """
     Score all posts in batches of BATCH_SIZE to avoid token/parse limits.
     Returns the original posts with score and comment_approach added.
+
+    Args:
+        posts: list of post dicts
+        business_profile: optional multi-line string describing the tenant's business context.
+                          Fetched from Airtable 'Business Profile' table by agent.py and passed here.
     """
     if not posts:
         return []
@@ -119,13 +133,15 @@ def score_posts_batch(posts: list) -> list:
     client = anthropic.Anthropic(api_key=api_key)
 
     logger.info(f"Scoring {len(posts)} posts in batches of {BATCH_SIZE}...")
+    if business_profile:
+        logger.info("Business profile context will be injected into scoring prompts.")
 
     full_score_map = {}
     for batch_start in range(0, len(posts), BATCH_SIZE):
         batch = posts[batch_start:batch_start + BATCH_SIZE]
         logger.info(f"Scoring batch {batch_start // BATCH_SIZE + 1}: posts {batch_start}-{batch_start + len(batch) - 1}")
         try:
-            batch_map = _score_single_batch(client, batch, index_offset=batch_start)
+            batch_map = _score_single_batch(client, batch, index_offset=batch_start, business_profile=business_profile)
             full_score_map.update(batch_map)
         except Exception as e:
             logger.error(f"Batch {batch_start // BATCH_SIZE + 1} failed: {e}")
@@ -216,10 +232,14 @@ POSTS TO ANALYZE:
 """
 
 
-def score_icp_posts_batch(posts: list) -> list:
+def score_icp_posts_batch(posts: list, business_profile: str = "") -> list:
     """
     Score ICP LinkedIn posts using the engagement-opportunity prompt.
     Strips internal _icp_* fields before returning (they were for scoring context only).
+
+    Args:
+        posts: list of ICP post dicts
+        business_profile: optional multi-line string describing the tenant's business context.
     """
     if not posts:
         return []
@@ -249,7 +269,7 @@ def score_icp_posts_batch(posts: list) -> list:
             for i, p in enumerate(batch)
         ]
 
-        prompt = ICP_SCORE_PROMPT.replace("{posts_json}", json.dumps(posts_for_scoring, indent=2))
+        prompt = _build_prompt(ICP_SCORE_PROMPT, json.dumps(posts_for_scoring, indent=2), business_profile)
 
         try:
             message = client.messages.create(
