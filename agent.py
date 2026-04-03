@@ -379,15 +379,22 @@ def run_scraping_cycle(config: dict) -> dict:
             logger.info(f"LinkedIn ICP: {len(raw_icp_posts)} raw posts returned")
             summary["linkedin_icp_raw"] = len(raw_icp_posts)
 
+            import re as _re
             for raw in raw_icp_posts:
-                # Match post back to the ICP profile that was queried
-                queried_url = raw.get("query", "")
-                # Normalize queried URL to match our stored format
-                import re as _re
+                # Match post back to the ICP profile that was queried.
+                # The 'query' field from harvestapi is the profile URL that triggered this post.
+                queried_url = str(raw.get("query") or "")
                 match = _re.search(r'linkedin\.com/in/([^/?&\s]+)', queried_url)
-                slug = match.group(1) if match else ""
+                slug = match.group(1).lower() if match else ""
+
+                # Also try matching via the post author's publicIdentifier
+                author = raw.get("author") or {}
+                author_id = str(author.get("publicIdentifier") or author.get("universalName") or "").lower()
+
                 icp_profile = next(
-                    (p for p in profiles_this_cycle if slug and slug in p["profile_url"]),
+                    (p for p in profiles_this_cycle
+                     if (slug and slug in p["profile_url"].lower())
+                     or (author_id and author_id in p["profile_url"].lower())),
                     profiles_this_cycle[0] if profiles_this_cycle else {}
                 )
                 post = normalize_linkedin_profile_post(raw, icp_profile)
