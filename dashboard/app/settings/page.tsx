@@ -1447,6 +1447,219 @@ function BusinessProfileSection() {
   )
 }
 
+// ---- Scoring Prompt Builder ----
+function ScoringPromptSection() {
+  const [mode, setMode]               = useState<'build' | 'edit'>('build')
+  const [idealClient, setIdealClient] = useState('')
+  const [problemSolved, setProblem]   = useState('')
+  const [highValue, setHighValue]     = useState('')
+  const [lowValue, setLowValue]       = useState('')
+  const [commentStyle, setCommentStyle] = useState('')
+  const [generating, setGenerating]   = useState(false)
+  const [prompt, setPrompt]           = useState('')
+  const [saving, setSaving]           = useState(false)
+  const [saved, setSaved]             = useState(false)
+  const [hasCustom, setHasCustom]     = useState(false)
+  const [loaded, setLoaded]           = useState(false)
+  const [genError, setGenError]       = useState('')
+
+  useEffect(() => {
+    fetch('/api/business-profile')
+      .then(r => r.json())
+      .then(d => {
+        const p = d.profile?.['Scoring Prompt'] || ''
+        if (p) { setPrompt(p); setHasCustom(true); setMode('edit') }
+        // Pre-fill builder from saved Business Profile if present
+        setIdealClient(d.profile?.['Ideal Client'] || '')
+        setProblem(d.profile?.['Problem Solved'] || '')
+      })
+      .catch(() => {})
+      .finally(() => setLoaded(true))
+  }, [])
+
+  const handleGenerate = async () => {
+    if (!idealClient.trim() || !problemSolved.trim()) {
+      setGenError('Fill in at least the first two fields to generate a prompt.')
+      return
+    }
+    setGenError('')
+    setGenerating(true)
+    try {
+      const resp = await fetch('/api/generate-prompt', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ idealClient, problemSolved, highValueSignals: highValue, lowValueSignals: lowValue, commentStyle }),
+      })
+      const data = await resp.json()
+      if (data.error) throw new Error(data.error)
+      setPrompt(data.prompt)
+      setMode('edit')
+    } catch (e: any) {
+      setGenError(e.message)
+    } finally {
+      setGenerating(false)
+    }
+  }
+
+  const handleSave = async () => {
+    setSaving(true)
+    try {
+      await fetch('/api/business-profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ scoringPrompt: prompt }),
+      })
+      setHasCustom(true)
+      setSaved(true)
+      setTimeout(() => setSaved(false), 3000)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (!loaded) return null
+
+  const inputCls = "w-full bg-slate-800/60 border border-slate-700/60 rounded-lg px-3 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50 resize-none"
+
+  return (
+    <Section
+      title="Scoring Prompt"
+      description="The AI reads this before evaluating every post. A well-written prompt is what separates a useful tool from a noisy one."
+    >
+      {/* Mode switcher */}
+      <div className="flex items-center gap-1 mb-5 p-1 rounded-lg bg-slate-900/60 border border-slate-700/40 w-fit">
+        <button
+          onClick={() => setMode('build')}
+          className={`text-xs px-3 py-1.5 rounded-md font-medium transition-colors ${mode === 'build' ? 'bg-blue-600 text-white' : 'text-slate-500 hover:text-slate-300'}`}
+        >
+          ✦ Prompt builder
+        </button>
+        <button
+          onClick={() => setMode('edit')}
+          className={`text-xs px-3 py-1.5 rounded-md font-medium transition-colors ${mode === 'edit' ? 'bg-slate-700 text-white' : 'text-slate-500 hover:text-slate-300'}`}
+        >
+          Edit directly
+        </button>
+      </div>
+
+      {/* ── Build mode ── */}
+      {mode === 'build' && (
+        <div className="space-y-4">
+          <p className="text-xs text-slate-500 leading-relaxed">
+            Answer these questions and the AI will write a high-quality scoring prompt for you. The more specific you are, the better your results.
+          </p>
+
+          <div>
+            <label className="block text-xs font-medium text-slate-400 mb-1.5">
+              1. Who is your ideal client? <span className="text-slate-600 font-normal">(role, industry, company size)</span>
+            </label>
+            <textarea rows={2} value={idealClient} onChange={e => setIdealClient(e.target.value)}
+              placeholder="e.g. Marketing agency owners with 10–50 clients who use GoHighLevel and struggle to keep clients long-term."
+              className={inputCls} />
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-slate-400 mb-1.5">
+              2. What problem do you solve for them?
+            </label>
+            <textarea rows={2} value={problemSolved} onChange={e => setProblem(e.target.value)}
+              placeholder="e.g. We help agencies track client health and catch early warning signs before a client decides to leave."
+              className={inputCls} />
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-slate-400 mb-1.5">
+              3. What does a high-value post look like? <span className="text-slate-600 font-normal">(optional — AI will infer if blank)</span>
+            </label>
+            <textarea rows={2} value={highValue} onChange={e => setHighValue(e.target.value)}
+              placeholder="e.g. Someone venting about losing a client, asking how others handle retention, or looking for a system to track client health."
+              className={inputCls} />
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-slate-400 mb-1.5">
+              4. What should be filtered out? <span className="text-slate-600 font-normal">(optional)</span>
+            </label>
+            <textarea rows={2} value={lowValue} onChange={e => setLowValue(e.target.value)}
+              placeholder="e.g. Promotional posts, educational tips, people selling their own services, general business advice with no specific pain."
+              className={inputCls} />
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-slate-400 mb-1.5">
+              5. How should comment suggestions read? <span className="text-slate-600 font-normal">(optional)</span>
+            </label>
+            <textarea rows={2} value={commentStyle} onChange={e => setCommentStyle(e.target.value)}
+              placeholder="e.g. Peer-to-peer tone, 2–3 sentences, ask one question, never pitch or mention the product."
+              className={inputCls} />
+          </div>
+
+          {genError && (
+            <p className="text-xs text-red-400">{genError}</p>
+          )}
+
+          <button
+            onClick={handleGenerate}
+            disabled={generating}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-sm font-medium transition-colors"
+          >
+            {generating ? (
+              <><Spinner /> Generating prompt...</>
+            ) : (
+              <><span>✦</span> Generate prompt</>
+            )}
+          </button>
+        </div>
+      )}
+
+      {/* ── Edit mode ── */}
+      {mode === 'edit' && (
+        <div className="space-y-3">
+          {!hasCustom && (
+            <div className="flex gap-2.5 px-3.5 py-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-400">
+              <svg className="w-4 h-4 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+              </svg>
+              No custom prompt saved yet — the default prompt is active. Use the builder or write your own below, then save.
+            </div>
+          )}
+          {hasCustom && (
+            <div className="flex gap-2.5 px-3.5 py-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-400">
+              <svg className="w-4 h-4 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              Custom prompt active — this is what the AI uses to score every post.
+            </div>
+          )}
+          <textarea
+            rows={20}
+            value={prompt}
+            onChange={e => setPrompt(e.target.value)}
+            placeholder="Paste or write a scoring prompt here, or use the builder to generate one."
+            className="w-full bg-slate-900/80 border border-slate-700/40 rounded-xl px-4 py-3 text-xs text-slate-300 font-mono leading-relaxed focus:outline-none focus:border-blue-500/40 resize-none"
+          />
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleSave}
+              disabled={saving || !prompt.trim()}
+              className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-xs font-medium transition-colors"
+            >
+              {saving ? 'Saving...' : 'Save prompt'}
+            </button>
+            {saved && <span className="text-xs text-emerald-400">Saved — AI will use this on the next scan</span>}
+            <button
+              onClick={() => setMode('build')}
+              className="ml-auto text-xs text-slate-600 hover:text-slate-400 transition-colors"
+            >
+              Back to builder
+            </button>
+          </div>
+        </div>
+      )}
+    </Section>
+  )
+}
+
 // ---- Tab definitions ----
 const TABS = [
   { id: 'profile',  label: 'Profile'      },
@@ -1556,13 +1769,13 @@ export default function SettingsPage() {
           <>
             <Section
               title="Scoring Thresholds"
-              description="Posts below the save threshold are discarded. Posts below the digest threshold are saved but not sent to Slack."
+              description="Every post gets an AI score from 1–10. These thresholds control what happens with it."
             >
               <div className="grid grid-cols-3 gap-4">
                 {[
-                  { label: 'Min score to save',    value: '5 / 10', note: 'Posts below this are dropped' },
-                  { label: 'Min score for digest', value: '6 / 10', note: 'Posts shown in Slack'         },
-                  { label: 'High-value threshold', value: '8 / 10', note: 'Shown with priority badge'    },
+                  { label: 'Min score to save',    value: '5 / 10', note: 'Posts below this are dropped entirely — you never see them.' },
+                  { label: 'Min score for digest', value: '6 / 10', note: 'Posts at this score or above appear in your daily Slack digest.'  },
+                  { label: 'High-value threshold', value: '8 / 10', note: 'Posts here get the green priority badge — engage with these first.'    },
                 ].map((item) => (
                   <div key={item.label} className="rounded-xl bg-slate-800/50 border border-slate-700/50 p-4">
                     <p className="text-xs text-slate-500 mb-1">{item.label}</p>
@@ -1573,16 +1786,7 @@ export default function SettingsPage() {
               </div>
             </Section>
 
-            <Section
-              title="Agent Intelligence"
-              description="The instructions Claude uses to score each post and generate comment angles."
-            >
-              <div className="rounded-xl bg-slate-900/80 border border-slate-700/40 p-4">
-                <pre className="text-xs text-slate-400 leading-relaxed whitespace-pre-wrap font-mono">
-                  {SCORING_PROMPT}
-                </pre>
-              </div>
-            </Section>
+            <ScoringPromptSection />
           </>
         )}
 
