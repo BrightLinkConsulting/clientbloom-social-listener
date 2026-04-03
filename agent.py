@@ -97,26 +97,35 @@ def fetch_sources_from_airtable(airtable_token: str, base_id: str) -> dict:
 def normalize_linkedin_post(raw: dict) -> dict:
     """
     Normalize a LinkedIn post from Apify's output schema into our standard format.
-    Apify's LinkedIn scraper field names vary by version — we handle multiple possibilities.
+    Handles both harvestapi (camelCase) and apimaestro (snake_case) field names.
+    apimaestro fields: activity_id, post_url, text, full_urn, author.name,
+                       author.profile_url, author.headline
     """
     text = (
         raw.get("text") or
         raw.get("description") or
         raw.get("content") or
         raw.get("commentary") or ""
-    ).strip()
+    )
+    # 'content' on apimaestro is a nested dict (linked content preview) — skip it if so
+    if isinstance(text, dict):
+        text = ""
+    text = str(text).strip()
 
     post_url = (
+        raw.get("post_url") or        # apimaestro (snake_case)
         raw.get("url") or
         raw.get("postUrl") or
         raw.get("shareUrl") or ""
     )
 
     post_id = (
+        raw.get("activity_id") or     # apimaestro
+        raw.get("full_urn") or        # apimaestro fallback
         raw.get("id") or
         raw.get("postId") or
         raw.get("urn") or
-        post_url  # fall back to URL as ID
+        post_url
     )
 
     author = raw.get("author") or {}
@@ -127,7 +136,9 @@ def normalize_linkedin_post(raw: dict) -> dict:
     )
     author_url = (
         raw.get("authorUrl") or
-        (author.get("profileUrl") if isinstance(author, dict) else "") or ""
+        (author.get("profile_url") if isinstance(author, dict) else "") or  # apimaestro
+        (author.get("profileUrl") if isinstance(author, dict) else "") or   # harvestapi
+        ""
     )
 
     return {
@@ -242,22 +253,36 @@ def run_scraping_cycle(config: dict) -> dict:
     all_new_posts = []
 
     # Step 2: LinkedIn scraping
+    # The apimaestro actor takes one searchQuery at a time, so we loop over terms.
+    # Cap at MAX_LINKEDIN_TERMS per run to keep Apify costs predictable.
+    MAX_LINKEDIN_TERMS = 4
     try:
-        logger.info("Starting LinkedIn scraping...")
-        linkedin_input = apify_client.build_linkedin_input(
-            search_terms=config.get("linkedin_search_terms", []),
-            max_results=apify_cfg.get("max_results_linkedin", 50)
-        )
-        raw_linkedin = apify_client.run_actor_and_fetch(
-            actor_id=apify_cfg["linkedin_actor"],
-            input_data=linkedin_input,
-            poll_interval=apify_cfg.get("poll_interval_seconds", 30),
-            max_attempts=apify_cfg.get("max_poll_attempts", 20)
-        )
-        summary["linkedin_raw"] = len(raw_linkedin)
-        logger.info(f"LinkedIn: {len(raw_linkedin)} raw posts returned")
+        search_terms = config.get("linkedin_search_terms", [])[:MAX_LINKEDIN_TERMS]
+        max_per_term = apify_cfg.get("max_results_linkedin", 50)
+        all_raw_linkedin = []
 
-        for raw in raw_linkedin:
+        for term in search_terms:
+            logger.info(f"LinkedIn scraping: '{term}'...")
+            try:
+                linkedin_input = apify_client.build_linkedin_input(
+                    search_query=term,
+                    max_results=max_per_term
+                )
+                raw_posts = apify_client.run_actor_and_fetch(
+                    actor_id=apify_cfg["linkedin_actor"],
+                    input_data=linkedin_input,
+                    poll_interval=apify_cfg.get("poll_interval_seconds", 30),
+                    max_attempts=apify_cfg.get("max_poll_attempts", 20)
+                )
+                logger.info(f"LinkedIn '{term}': {len(raw_posts)} posts")
+                all_raw_linkedin.extend(raw_posts)
+            except Exception as term_err:
+                logger.warning(f"LinkedIn term '{term}' failed: {term_err}")
+
+        summary["linkedin_raw"] = len(all_raw_linkedin)
+        logger.info(f"LinkedIn total: {len(all_raw_linkedin)} raw posts across {len(search_terms)} terms")
+
+        for raw in all_raw_linkedin:
             post = normalize_linkedin_post(raw)
             if post["post_text"] and len(post["post_text"]) >= 50:
                 post = tag_keywords_matched(post, keywords)
