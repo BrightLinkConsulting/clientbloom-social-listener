@@ -814,6 +814,11 @@ function LinkedInICPSection() {
   // Profile drawer
   const [selectedProfile, setSelectedProfile] = useState<IcpProfile | null>(null)
 
+  // Search + pagination
+  const [searchQuery, setSearchQuery] = useState('')
+  const [currentPage, setCurrentPage] = useState(0)
+  const PAGE_SIZE = 25
+
   // Manual add form
   const [showAdd, setShowAdd]         = useState(false)
   const [newUrl, setNewUrl]           = useState('')
@@ -951,8 +956,20 @@ function LinkedInICPSection() {
     setDiscKwInput('')
   }
 
-  const active = profiles.filter(p => p.active).length
-  const total  = profiles.length
+  const active   = profiles.filter(p => p.active).length
+  const total    = profiles.length
+  const q        = searchQuery.trim().toLowerCase()
+  const filtered = q
+    ? profiles.filter(p =>
+        p.name.toLowerCase().includes(q) ||
+        p.jobTitle.toLowerCase().includes(q) ||
+        p.company.toLowerCase().includes(q) ||
+        p.notes.toLowerCase().includes(q)
+      )
+    : profiles
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  const safePage   = Math.min(currentPage, totalPages - 1)
+  const paged      = filtered.slice(safePage * PAGE_SIZE, (safePage + 1) * PAGE_SIZE)
 
   return (
     <Section
@@ -971,66 +988,132 @@ function LinkedInICPSection() {
       ) : profiles.length === 0 ? (
         <p className="text-xs text-slate-500 mb-4">No profiles yet. Add manually or use Discover to find ICPs automatically.</p>
       ) : (
-        <div className="space-y-2 mb-4">
-          {profiles.map(p => (
-            <div
-              key={p.id}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-all ${
-                p.active ? 'bg-slate-800/60 border-slate-700/50' : 'bg-slate-900/40 border-slate-800/40 opacity-60'
-              }`}
-            >
-              {/* Toggle */}
+        <>
+          {/* Search bar */}
+          <div className="relative mb-3">
+            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            <input
+              type="text"
+              placeholder={`Search ${total} profiles...`}
+              value={searchQuery}
+              onChange={e => { setSearchQuery(e.target.value); setCurrentPage(0) }}
+              className="w-full bg-slate-800/60 border border-slate-700/50 rounded-xl pl-9 pr-8 py-2 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50 transition-colors"
+            />
+            {searchQuery && (
               <button
-                onClick={() => handleToggle(p)}
-                disabled={toggling === p.id}
-                title={p.active ? 'Pause monitoring' : 'Resume monitoring'}
-                className={`relative shrink-0 w-8 h-4 rounded-full transition-colors ${p.active ? 'bg-blue-600' : 'bg-slate-700'}`}
+                onClick={() => { setSearchQuery(''); setCurrentPage(0) }}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-600 hover:text-slate-400 transition-colors"
               >
-                {toggling === p.id
-                  ? <span className="absolute inset-0 flex items-center justify-center"><Spinner /></span>
-                  : <span className={`absolute top-0.5 left-0 w-3 h-3 rounded-full bg-white shadow transition-transform ${p.active ? 'translate-x-4' : 'translate-x-0.5'}`} />
-                }
+                ×
               </button>
+            )}
+          </div>
 
-              {/* Profile info */}
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
+          {/* Search result count */}
+          {q && (
+            <p className="text-xs text-slate-600 mb-2">
+              {filtered.length === 0 ? 'No matches' : `${filtered.length} match${filtered.length !== 1 ? 'es' : ''}`}
+            </p>
+          )}
+
+          {/* Profile list */}
+          <div className="space-y-2 mb-3">
+            {paged.length === 0 && q ? (
+              <p className="text-xs text-slate-500 py-3 text-center">No profiles match "{searchQuery}"</p>
+            ) : (
+              paged.map(p => (
+                <div
+                  key={p.id}
+                  className={`flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-all ${
+                    p.active ? 'bg-slate-800/60 border-slate-700/50' : 'bg-slate-900/40 border-slate-800/40 opacity-60'
+                  }`}
+                >
+                  {/* Toggle */}
                   <button
-                    onClick={() => setSelectedProfile(p)}
-                    className="text-xs font-medium text-white hover:text-blue-400 transition-colors truncate text-left"
+                    onClick={() => handleToggle(p)}
+                    disabled={toggling === p.id}
+                    title={p.active ? 'Pause monitoring' : 'Resume monitoring'}
+                    className={`relative shrink-0 w-8 h-4 rounded-full transition-colors ${p.active ? 'bg-blue-600' : 'bg-slate-700'}`}
                   >
-                    {p.name || p.profileUrl}
+                    {toggling === p.id
+                      ? <span className="absolute inset-0 flex items-center justify-center"><Spinner /></span>
+                      : <span className={`absolute top-0.5 left-0 w-3 h-3 rounded-full bg-white shadow transition-transform ${p.active ? 'translate-x-4' : 'translate-x-0.5'}`} />
+                    }
                   </button>
-                  {p.source === 'discovered' && (
-                    <span className="text-xs px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/20">
-                      discovered
-                    </span>
-                  )}
-                </div>
-                {(p.jobTitle || p.company) && (
-                  <p className="text-xs text-slate-500 mt-0.5 truncate">
-                    {[p.jobTitle, p.company].filter(Boolean).join(' · ')}
-                  </p>
-                )}
-              </div>
 
-              {/* Delete */}
+                  {/* Profile info */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <button
+                        onClick={() => setSelectedProfile(p)}
+                        className="text-xs font-medium text-white hover:text-blue-400 transition-colors truncate text-left"
+                      >
+                        {p.name || p.profileUrl}
+                      </button>
+                      {p.source === 'discovered' && (
+                        <span className="text-xs px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/20">
+                          discovered
+                        </span>
+                      )}
+                    </div>
+                    {(p.jobTitle || p.company) && (
+                      <p className="text-xs text-slate-500 mt-0.5 truncate">
+                        {[p.jobTitle, p.company].filter(Boolean).join(' · ')}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Delete */}
+                  <button
+                    onClick={() => handleDelete(p)}
+                    disabled={deleting === p.id}
+                    className="shrink-0 text-slate-600 hover:text-red-400 transition-colors p-1"
+                    title="Remove from pool"
+                  >
+                    {deleting === p.id
+                      ? <Spinner />
+                      : <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    }
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between mb-3 px-1">
               <button
-                onClick={() => handleDelete(p)}
-                disabled={deleting === p.id}
-                className="shrink-0 text-slate-600 hover:text-red-400 transition-colors p-1"
-                title="Remove from pool"
+                onClick={() => setCurrentPage(p => Math.max(0, p - 1))}
+                disabled={safePage === 0}
+                className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-lg border border-slate-700/50 text-slate-400 hover:text-white hover:border-slate-600 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
               >
-                {deleting === p.id
-                  ? <Spinner />
-                  : <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                }
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                </svg>
+                Prev
+              </button>
+              <span className="text-xs text-slate-600">
+                Page {safePage + 1} of {totalPages}
+                <span className="text-slate-700"> · {filtered.length} total</span>
+              </span>
+              <button
+                onClick={() => setCurrentPage(p => Math.min(totalPages - 1, p + 1))}
+                disabled={safePage >= totalPages - 1}
+                className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-lg border border-slate-700/50 text-slate-400 hover:text-white hover:border-slate-600 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              >
+                Next
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
               </button>
             </div>
-          ))}
-        </div>
+          )}
+        </>
       )}
 
       {/* Action buttons */}
