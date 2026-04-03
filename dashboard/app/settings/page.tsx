@@ -1447,10 +1447,21 @@ function BusinessProfileSection() {
   )
 }
 
+// ---- Tab definitions ----
+const TABS = [
+  { id: 'profile',  label: 'Profile'      },
+  { id: 'facebook', label: 'Facebook'     },
+  { id: 'linkedin', label: 'LinkedIn'     },
+  { id: 'ai',       label: 'AI & Scoring' },
+  { id: 'system',   label: 'System'       },
+] as const
+type TabId = typeof TABS[number]['id']
+
 // ---- Main page ----
 export default function SettingsPage() {
-  const [sources, setSources] = useState<Source[]>([])
-  const [loading, setLoading] = useState(true)
+  const [activeTab, setActiveTab] = useState<TabId>('profile')
+  const [sources, setSources]     = useState<Source[]>([])
+  const [loading, setLoading]     = useState(true)
   const [loadError, setLoadError] = useState('')
 
   const fetchSources = useCallback(async () => {
@@ -1471,83 +1482,131 @@ export default function SettingsPage() {
   return (
     <div className="min-h-screen bg-[#0a0c10] text-white">
       <Nav />
+
+      {/* Tab bar */}
+      <div className="sticky top-[57px] z-10 bg-[#0a0c10]/95 backdrop-blur-md border-b border-slate-800/80">
+        <div className="max-w-3xl mx-auto px-5">
+          <div className="flex items-center gap-1 overflow-x-auto scrollbar-none py-1">
+            {TABS.map(tab => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`shrink-0 text-xs font-medium px-4 py-2 rounded-lg transition-colors ${
+                  activeTab === tab.id
+                    ? 'bg-slate-800 text-white'
+                    : 'text-slate-500 hover:text-slate-300 hover:bg-slate-800/50'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
       <main className="max-w-3xl mx-auto px-5 py-8 space-y-6">
 
-        <BusinessProfileSection />
-
-        {loading && (
-          <div className="flex items-center justify-center gap-2 py-8 text-slate-500 text-sm">
-            <Spinner />
-            Loading sources...
-          </div>
+        {/* ── Profile ── */}
+        {activeTab === 'profile' && (
+          <BusinessProfileSection />
         )}
 
-        {loadError && (
-          <div className="px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/20 text-sm text-red-400">
-            {loadError}
-          </div>
-        )}
-
-        {!loading && !loadError && (
-          <FacebookGroupsSection sources={sources} onUpdate={fetchSources} />
-        )}
-
-        {!loading && !loadError && (
-          <LinkedInTermsSection sources={sources} onUpdate={fetchSources} />
-        )}
-
-        <LinkedInICPSection />
-
-        <Section
-          title="Scoring Thresholds"
-          description="Posts below the save threshold are discarded. Posts below the digest threshold are saved but not sent to Slack."
-        >
-          <div className="grid grid-cols-3 gap-4">
-            {[
-              { label: 'Min score to save', value: '5 / 10', note: 'Posts below this are dropped' },
-              { label: 'Min score for digest', value: '6 / 10', note: 'Posts shown in Slack' },
-              { label: 'High-value threshold', value: '8 / 10', note: 'Shown with priority badge' },
-            ].map((item) => (
-              <div key={item.label} className="rounded-xl bg-slate-800/50 border border-slate-700/50 p-4">
-                <p className="text-xs text-slate-500 mb-1">{item.label}</p>
-                <p className="text-xl font-bold text-white">{item.value}</p>
-                <p className="text-xs text-slate-600 mt-1">{item.note}</p>
+        {/* ── Facebook ── */}
+        {activeTab === 'facebook' && (
+          <>
+            {loading && (
+              <div className="flex items-center justify-center gap-2 py-8 text-slate-500 text-sm">
+                <Spinner /> Loading sources...
               </div>
-            ))}
-          </div>
-        </Section>
+            )}
+            {loadError && (
+              <div className="px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/20 text-sm text-red-400">
+                {loadError}
+              </div>
+            )}
+            {!loading && !loadError && (
+              <FacebookGroupsSection sources={sources} onUpdate={fetchSources} />
+            )}
+            <FacebookKeywordsSection />
+          </>
+        )}
 
-        <Section
-          title="Agent Intelligence"
-          description="The instructions Claude uses to score each post and generate comment angles."
-        >
-          <div className="rounded-xl bg-slate-900/80 border border-slate-700/40 p-4">
-            <pre className="text-xs text-slate-400 leading-relaxed whitespace-pre-wrap font-mono">
-              {SCORING_PROMPT}
-            </pre>
-          </div>
-        </Section>
+        {/* ── LinkedIn ── */}
+        {activeTab === 'linkedin' && (
+          <>
+            {loading && (
+              <div className="flex items-center justify-center gap-2 py-8 text-slate-500 text-sm">
+                <Spinner /> Loading sources...
+              </div>
+            )}
+            {loadError && (
+              <div className="px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/20 text-sm text-red-400">
+                {loadError}
+              </div>
+            )}
+            {!loading && !loadError && (
+              <LinkedInTermsSection sources={sources} onUpdate={fetchSources} />
+            )}
+            <LinkedInICPSection />
+          </>
+        )}
 
-        <FacebookKeywordsSection />
+        {/* ── AI & Scoring ── */}
+        {activeTab === 'ai' && (
+          <>
+            <Section
+              title="Scoring Thresholds"
+              description="Posts below the save threshold are discarded. Posts below the digest threshold are saved but not sent to Slack."
+            >
+              <div className="grid grid-cols-3 gap-4">
+                {[
+                  { label: 'Min score to save',    value: '5 / 10', note: 'Posts below this are dropped' },
+                  { label: 'Min score for digest', value: '6 / 10', note: 'Posts shown in Slack'         },
+                  { label: 'High-value threshold', value: '8 / 10', note: 'Shown with priority badge'    },
+                ].map((item) => (
+                  <div key={item.label} className="rounded-xl bg-slate-800/50 border border-slate-700/50 p-4">
+                    <p className="text-xs text-slate-500 mb-1">{item.label}</p>
+                    <p className="text-xl font-bold text-white">{item.value}</p>
+                    <p className="text-xs text-slate-600 mt-1">{item.note}</p>
+                  </div>
+                ))}
+              </div>
+            </Section>
 
-        <Section title="System Status">
-          <div className="grid grid-cols-2 gap-3">
-            {[
-              { label: 'Scanner', value: '6 AM + 6 PM PST', status: 'active' },
-              { label: 'Digest', value: 'Daily 7 AM PST', status: 'active' },
-              { label: 'LinkedIn', value: 'Active (ICP + keyword)', status: 'active' },
-              { label: 'Slack channel', value: '#AIOS', status: 'active' },
-            ].map((item) => (
-              <div key={item.label} className="flex items-center justify-between p-3 rounded-lg bg-slate-800/40 border border-slate-700/30">
-                <div>
-                  <p className="text-xs text-slate-500">{item.label}</p>
-                  <p className="text-sm text-slate-200 font-medium">{item.value}</p>
+            <Section
+              title="Agent Intelligence"
+              description="The instructions Claude uses to score each post and generate comment angles."
+            >
+              <div className="rounded-xl bg-slate-900/80 border border-slate-700/40 p-4">
+                <pre className="text-xs text-slate-400 leading-relaxed whitespace-pre-wrap font-mono">
+                  {SCORING_PROMPT}
+                </pre>
+              </div>
+            </Section>
+          </>
+        )}
+
+        {/* ── System ── */}
+        {activeTab === 'system' && (
+          <Section title="System Status">
+            <div className="grid grid-cols-2 gap-3">
+              {[
+                { label: 'Scanner',      value: '6 AM + 6 PM PST',       status: 'active' },
+                { label: 'Digest',       value: 'Daily 7 AM PST',         status: 'active' },
+                { label: 'LinkedIn',     value: 'Active (ICP + keyword)', status: 'active' },
+                { label: 'Slack channel',value: '#AIOS',                  status: 'active' },
+              ].map((item) => (
+                <div key={item.label} className="flex items-center justify-between p-3 rounded-lg bg-slate-800/40 border border-slate-700/30">
+                  <div>
+                    <p className="text-xs text-slate-500">{item.label}</p>
+                    <p className="text-sm text-slate-200 font-medium">{item.value}</p>
+                  </div>
+                  <span className={`w-2 h-2 rounded-full ${item.status === 'active' ? 'bg-emerald-400' : 'bg-amber-400'}`} />
                 </div>
-                <span className={`w-2 h-2 rounded-full ${item.status === 'active' ? 'bg-emerald-400' : 'bg-amber-400'}`} />
-              </div>
-            ))}
-          </div>
-        </Section>
+              ))}
+            </div>
+          </Section>
+        )}
 
       </main>
     </div>
