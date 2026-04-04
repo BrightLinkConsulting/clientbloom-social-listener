@@ -2,8 +2,8 @@
  * POST /api/admin/grant-access
  *
  * Admin-only. Creates a Complimentary plan tenant and sends a welcome
- * email with login credentials via Resend. No Airtable credentials required
- * at creation time — the user can connect their own base in Settings.
+ * email with login credentials via Resend. The account is fully configured
+ * by the platform — no action required from the user after signing in.
  */
 
 import { NextResponse } from 'next/server'
@@ -109,8 +109,7 @@ export async function POST(req: Request) {
             </tr>
           </table>
           <p style="font-size:13px;color:#555;margin:0 0 20px;line-height:1.6">
-            After signing in, head to <strong>Settings</strong> to connect your Airtable base and
-            configure your keyword sources. Your scan will start automatically.
+            Your account is fully set up — just sign in and you're ready to go.
           </p>
           <a href="${BASE_URL_SITE}/sign-in"
              style="display:inline-block;background:#4F6BFF;color:#fff;font-weight:600;padding:11px 24px;border-radius:8px;text-decoration:none;font-size:14px">

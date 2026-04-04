@@ -438,7 +438,7 @@ function GrantAccessModal({
             </div>
             <div className="bg-[#0a0c10] border border-slate-800 rounded-lg px-4 py-3 text-xs text-slate-400">
               A temporary password will be auto-generated and emailed to the user.
-              They can connect their Airtable base in Settings after signing in.
+              Their account is fully configured — they can log in and start using Scout right away.
             </div>
             {error && <p className="text-red-400 text-sm">{error}</p>}
             <div className="flex gap-3 justify-end pt-1">
