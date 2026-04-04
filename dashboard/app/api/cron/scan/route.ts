@@ -10,6 +10,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { runScanForTenant } from '@/lib/scan'
+import { sendScanAlert } from '@/lib/notify'
 
 // 300s max: cron may run multiple tenants sequentially; each scan ~30-40s
 export const maxDuration = 300
@@ -62,10 +63,25 @@ export async function GET(req: NextRequest) {
   // Run scans sequentially to avoid hammering Apify rate limits
   const results = []
   for (const tenant of tenants) {
+    const tenantStart = Date.now()
     console.log(`[cron/scan] Scanning tenant ${tenant.tenantId} (${tenant.email})`)
     const result = await runScanForTenant(tenant.tenantId)
     results.push(result)
     console.log(`[cron/scan] ${tenant.email}: ${result.postsFound} posts saved, ${result.error || 'ok'}`)
+
+    // Alert when the scan pipeline itself produced nothing or errored.
+    // We do NOT alert when posts were scanned but scored below threshold —
+    // that is normal filtering behavior, not a signal of breakage.
+    if (result.error || result.scanned === 0) {
+      await sendScanAlert({
+        tenantId:   tenant.tenantId,
+        email:      tenant.email,
+        error:      result.error,
+        scanned:    result.scanned,
+        scanSource: result.scanSource,
+        elapsed:    `${((Date.now() - tenantStart) / 1000).toFixed(1)}s`,
+      })
+    }
   }
 
   const totalFound   = results.reduce((sum, r) => sum + r.postsFound, 0)
