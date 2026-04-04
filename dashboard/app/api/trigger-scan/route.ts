@@ -9,7 +9,9 @@ import { NextResponse } from 'next/server'
 import { getTenantConfig, tenantError } from '@/lib/tenant'
 import { runScanForTenant } from '@/lib/scan'
 
-export const maxDuration = 60
+// 90s: LinkedIn+Facebook run in parallel (~30s) + scoring + Airtable saves
+// Previously 60s was being exceeded when both ran sequentially
+export const maxDuration = 90
 
 export async function POST() {
   const tenant = await getTenantConfig()

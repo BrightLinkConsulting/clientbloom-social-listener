@@ -11,6 +11,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { runScanForTenant } from '@/lib/scan'
 
+// 300s max: cron may run multiple tenants sequentially; each scan ~30-40s
+export const maxDuration = 300
+
 const PLATFORM_TOKEN = process.env.PLATFORM_AIRTABLE_TOKEN   || ''
 const PLATFORM_BASE  = process.env.PLATFORM_AIRTABLE_BASE_ID || ''
 

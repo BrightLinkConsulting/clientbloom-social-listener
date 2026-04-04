@@ -118,16 +118,19 @@ async function scanFacebookGroups(apifyToken: string, groupUrls: string[], keywo
 
   console.log(`[scan] Facebook: scanning ${groupUrls.length} group(s)`)
 
+  // maxPosts intentionally kept low (5) so the actor finishes well under the
+  // 30-second window we allocate when running parallel with LinkedIn.
+  // Higher values were causing 55s timeouts on every run and burning Apify budget.
   const items = await runApifyActor(
     apifyToken,
     'apify/facebook-groups-scraper',
     {
       startUrls:   groupUrls.map(url => ({ url })),
-      maxPosts:    20,
+      maxPosts:    5,
       maxComments: 0,
       proxy:       { useApifyProxy: true },
     },
-    55,
+    30,
   )
 
   if (!Array.isArray(items) || !items.length) {
@@ -236,52 +239,64 @@ export async function runScanForTenant(tenantId: string): Promise<ScanResult> {
       fallbackTerm = industry || idealClient || ''
     }
 
-    // ── LinkedIn scan ──────────────────────────────────────────────────────────
-    let linkedinPosts: any[] = []
-    let linkedinSource = ''
+    // ── LinkedIn + Facebook scans run in PARALLEL ──────────────────────────────
+    // Running sequentially (LinkedIn 7s + Facebook 55s) exceeded the 60s
+    // maxDuration on both routes. Parallel execution keeps total wall-clock
+    // time to ~30s (Facebook now the bottleneck at 30s max).
 
-    if (icpProfiles.length > 0) {
-      linkedinSource = 'icp_profiles'
-      console.log(`[scan] LinkedIn: scanning ${icpProfiles.length} ICP profile(s)`)
-      const items = await runApifyActor(APIFY_TOKEN, 'harvestapi/linkedin-profile-posts', {
-        profileUrls: icpProfiles, maxPosts: 5,
-        proxy: { useApifyProxy: true }, scrapeReactions: false, scrapeComments: false,
-      })
-      linkedinPosts = (Array.isArray(items) ? items : []).map((raw: any) => ({
-        id:         raw.id || raw.linkedinUrl || String(Math.random()),
-        postId:     raw.id || raw.linkedinUrl,
-        text:       raw.content || '',
-        content:    raw.content || '',
-        authorName: raw.author?.name || '',
-        authorUrl:  raw.author?.linkedinUrl || raw.socialContent?.authorUrl || '',
-        postUrl:    raw.socialContent?.shareUrl || raw.linkedinUrl || '',
-        platform:   'LinkedIn',
-        groupName:  `LinkedIn ICP: ${raw.author?.name || 'Profile'}`,
-        capturedAt: new Date().toISOString(),
-      }))
-    } else if (linkedinTerms.length > 0 || fallbackTerm) {
-      linkedinSource = 'keyword_search'
-      const searchTerm = linkedinTerms[0] || fallbackTerm
-      console.log(`[scan] LinkedIn: keyword search for "${searchTerm}"`)
-      const items = await runApifyActor(APIFY_TOKEN, 'apimaestro/linkedin-posts-search-scraper-no-cookies', {
-        searchQuery: searchTerm, limit: 15, sort_type: 'relevance',
-      })
-      linkedinPosts = (Array.isArray(items) ? items : []).map((raw: any) => ({
-        id:         raw.id || raw.postUrl || String(Math.random()),
-        postId:     raw.id || raw.postUrl,
-        text:       raw.text || raw.content || '',
-        content:    raw.text || raw.content || '',
-        authorName: raw.authorName || raw.author?.name || '',
-        authorUrl:  raw.authorProfileUrl || '',
-        postUrl:    raw.postUrl || raw.url || '',
-        platform:   'LinkedIn',
-        groupName:  `LinkedIn: ${searchTerm}`,
-        capturedAt: new Date().toISOString(),
-      }))
+    async function runLinkedIn(): Promise<{ posts: any[]; source: string }> {
+      if (icpProfiles.length > 0) {
+        console.log(`[scan] LinkedIn: scanning ${icpProfiles.length} ICP profile(s)`)
+        const items = await runApifyActor(APIFY_TOKEN, 'harvestapi/linkedin-profile-posts', {
+          profileUrls: icpProfiles, maxPosts: 5,
+          proxy: { useApifyProxy: true }, scrapeReactions: false, scrapeComments: false,
+        })
+        return {
+          source: 'icp_profiles',
+          posts:  (Array.isArray(items) ? items : []).map((raw: any) => ({
+            id:         raw.id || raw.linkedinUrl || String(Math.random()),
+            postId:     raw.id || raw.linkedinUrl,
+            text:       raw.content || '',
+            content:    raw.content || '',
+            authorName: raw.author?.name || '',
+            authorUrl:  raw.author?.linkedinUrl || raw.socialContent?.authorUrl || '',
+            postUrl:    raw.socialContent?.shareUrl || raw.linkedinUrl || '',
+            platform:   'LinkedIn',
+            groupName:  `LinkedIn ICP: ${raw.author?.name || 'Profile'}`,
+            capturedAt: new Date().toISOString(),
+          })),
+        }
+      } else if (linkedinTerms.length > 0 || fallbackTerm) {
+        const searchTerm = linkedinTerms[0] || fallbackTerm
+        console.log(`[scan] LinkedIn: keyword search for "${searchTerm}"`)
+        const items = await runApifyActor(APIFY_TOKEN, 'apimaestro/linkedin-posts-search-scraper-no-cookies', {
+          searchQuery: searchTerm, limit: 15, sort_type: 'relevance',
+        })
+        return {
+          source: 'keyword_search',
+          posts:  (Array.isArray(items) ? items : []).map((raw: any) => ({
+            id:         raw.id || raw.postUrl || String(Math.random()),
+            postId:     raw.id || raw.postUrl,
+            text:       raw.text || raw.content || '',
+            content:    raw.text || raw.content || '',
+            authorName: raw.authorName || raw.author?.name || '',
+            authorUrl:  raw.authorProfileUrl || '',
+            postUrl:    raw.postUrl || raw.url || '',
+            platform:   'LinkedIn',
+            groupName:  `LinkedIn: ${searchTerm}`,
+            capturedAt: new Date().toISOString(),
+          })),
+        }
+      }
+      return { posts: [], source: '' }
     }
 
-    // ── Facebook scan ──────────────────────────────────────────────────────────
-    const facebookPosts = await scanFacebookGroups(APIFY_TOKEN, facebookGroups, fbKeywords)
+    const [linkedinResult, facebookPosts] = await Promise.all([
+      runLinkedIn(),
+      scanFacebookGroups(APIFY_TOKEN, facebookGroups, fbKeywords),
+    ])
+    const linkedinPosts  = linkedinResult.posts
+    const linkedinSource = linkedinResult.source
 
     // ── Combine ────────────────────────────────────────────────────────────────
     const allPosts = [...linkedinPosts, ...facebookPosts]
