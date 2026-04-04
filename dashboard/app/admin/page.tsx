@@ -355,7 +355,7 @@ function DeleteModal({
   )
 }
 
-// ── Grant Free Access modal ────────────────────────────────────────────────────
+// ── Grant 14-Day Trial modal ───────────────────────────────────────────────────
 function GrantAccessModal({
   onClose,
   onSuccess,
@@ -394,8 +394,8 @@ function GrantAccessModal({
       <div className="relative bg-[#0f1117] border border-slate-700 rounded-2xl shadow-2xl w-full max-w-md p-6">
         <div className="flex items-center justify-between mb-5">
           <div>
-            <h3 className="text-white font-semibold">Grant Free Access</h3>
-            <p className="text-xs text-slate-400 mt-0.5">Creates a Complimentary plan account and sends login credentials</p>
+            <h3 className="text-white font-semibold">Grant 14-Day Trial</h3>
+            <p className="text-xs text-slate-400 mt-0.5">Creates a fully provisioned trial account — no setup required on their end</p>
           </div>
           <button onClick={onClose} className="text-slate-500 hover:text-slate-300 p-1">
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -411,8 +411,8 @@ function GrantAccessModal({
                 <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
               </svg>
             </div>
-            <p className="text-white font-medium mb-1">Account created!</p>
-            <p className="text-slate-400 text-sm">Welcome email sent to <strong className="text-slate-200">{form.email}</strong></p>
+            <p className="text-white font-medium mb-1">Trial account created!</p>
+            <p className="text-slate-400 text-sm">14-day trial welcome email sent to <strong className="text-slate-200">{form.email}</strong></p>
             {warn && <p className="text-amber-400 text-xs mt-2">{warn}</p>}
             <button onClick={onClose} className="mt-4 text-sm text-[#4F6BFF] hover:underline">Close</button>
           </div>
@@ -443,13 +443,13 @@ function GrantAccessModal({
               <input
                 type="text" value={form.note}
                 onChange={e => setForm(f => ({ ...f, note: e.target.value }))}
-                placeholder="e.g. Enjoy Scout on us!"
+                placeholder="e.g. Enjoy your free trial!"
                 className="w-full bg-[#161b27] border border-slate-700 rounded-lg px-3 py-2 text-slate-100 text-sm placeholder-slate-500 focus:outline-none focus:border-[#4F6BFF]"
               />
             </div>
-            <div className="bg-[#0a0c10] border border-slate-800 rounded-lg px-4 py-3 text-xs text-slate-400">
-              A temporary password will be auto-generated and emailed to the user.
-              Their account is fully configured — they can log in and start using Scout right away.
+            <div className="bg-blue-950/30 border border-blue-800/30 rounded-lg px-4 py-3 text-xs text-blue-300 space-y-1">
+              <p className="font-medium">What gets created automatically:</p>
+              <p className="text-blue-400/80">Full account provisioning · 14-day trial clock starts on first login · Temporary password emailed · Onboarding wizard runs on first login</p>
             </div>
             {error && <p className="text-red-400 text-sm">{error}</p>}
             <div className="flex gap-3 justify-end pt-1">
@@ -459,7 +459,7 @@ function GrantAccessModal({
               <button type="submit" disabled={saving}
                 className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 text-white font-medium px-5 py-2 rounded-lg text-sm transition-colors"
               >
-                {saving ? 'Creating…' : 'Create & send welcome email'}
+                {saving ? 'Creating…' : 'Grant trial & send welcome email'}
               </button>
             </div>
           </form>
@@ -502,6 +502,11 @@ export default function AdminPage() {
 
   // Task 4: Grant free access
   const [showFreeAccess, setShowFreeAccess] = useState(false)
+
+  // Search + filter
+  const [searchQuery,   setSearchQuery]   = useState('')
+  const [filterPlan,    setFilterPlan]    = useState('all')
+  const [filterStatus,  setFilterStatus]  = useState('all')
 
   const [form, setForm] = useState({
     email:          '',
@@ -873,9 +878,12 @@ export default function AdminPage() {
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => { setShowFreeAccess(true); setError(''); setSuccess('') }}
-                  className="bg-emerald-700 hover:bg-emerald-600 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
+                  className="bg-emerald-700 hover:bg-emerald-600 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors flex items-center gap-1.5"
                 >
-                  Grant Free Access
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  Grant 14-Day Trial
                 </button>
                 <button
                   onClick={() => { setShowForm(!showForm); setError(''); setSuccess('') }}
@@ -981,6 +989,61 @@ export default function AdminPage() {
               </div>
             )}
 
+            {/* Search + filter bar */}
+            {!loading && tenants.length > 0 && (
+              <div className="flex flex-wrap items-center gap-2">
+                {/* Search */}
+                <div className="relative flex-1 min-w-[200px]">
+                  <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={e => setSearchQuery(e.target.value)}
+                    placeholder="Search company or email…"
+                    className="w-full bg-[#0f1117] border border-slate-700/60 rounded-lg pl-8 pr-3 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-[#4F6BFF]/60"
+                  />
+                </div>
+
+                {/* Plan filter */}
+                <select
+                  value={filterPlan}
+                  onChange={e => setFilterPlan(e.target.value)}
+                  className="bg-[#0f1117] border border-slate-700/60 rounded-lg px-3 py-2 text-sm text-slate-300 focus:outline-none focus:border-[#4F6BFF]/60"
+                >
+                  <option value="all">All plans</option>
+                  {Array.from(new Set(tenants.map(t => t.plan).filter(Boolean))).sort().map(p => (
+                    <option key={p} value={p}>{p}</option>
+                  ))}
+                </select>
+
+                {/* Status filter */}
+                <select
+                  value={filterStatus}
+                  onChange={e => setFilterStatus(e.target.value)}
+                  className="bg-[#0f1117] border border-slate-700/60 rounded-lg px-3 py-2 text-sm text-slate-300 focus:outline-none focus:border-[#4F6BFF]/60"
+                >
+                  <option value="all">All statuses</option>
+                  <option value="Active">Active</option>
+                  <option value="Suspended">Suspended</option>
+                </select>
+
+                {/* Clear filters */}
+                {(searchQuery || filterPlan !== 'all' || filterStatus !== 'all') && (
+                  <button
+                    onClick={() => { setSearchQuery(''); setFilterPlan('all'); setFilterStatus('all') }}
+                    className="text-xs text-slate-500 hover:text-slate-300 transition-colors flex items-center gap-1"
+                  >
+                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                    Clear
+                  </button>
+                )}
+              </div>
+            )}
+
             {/* Tenant list */}
             {loading ? (
               <div className="text-center py-16 text-slate-500">Loading tenants…</div>
@@ -988,8 +1051,21 @@ export default function AdminPage() {
               <div className="text-center py-16">
                 <p className="text-slate-400 text-sm">No tenants yet.</p>
               </div>
-            ) : (
+            ) : (() => {
+              const q = searchQuery.toLowerCase()
+              const filtered = tenants.filter(t => {
+                const matchesSearch = !q
+                  || t.companyName?.toLowerCase().includes(q)
+                  || t.email?.toLowerCase().includes(q)
+                const matchesPlan   = filterPlan   === 'all' || t.plan === filterPlan
+                const matchesStatus = filterStatus === 'all' || t.status === filterStatus
+                return matchesSearch && matchesPlan && matchesStatus
+              })
+              return (
               <div className="bg-[#0f1117] border border-slate-800 rounded-xl overflow-hidden">
+                {filtered.length === 0 ? (
+                  <div className="text-center py-10 text-slate-500 text-sm">No tenants match your filters.</div>
+                ) : (
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-slate-800">
@@ -1002,9 +1078,9 @@ export default function AdminPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {tenants.map((t, i) => (
+                    {filtered.map((t, i) => (
                       <>
-                        <tr key={t.id} className={`${i < tenants.length - 1 || expandedApify === t.id ? 'border-b border-slate-800/50' : ''}`}>
+                        <tr key={t.id} className={`${i < filtered.length - 1 || expandedApify === t.id ? 'border-b border-slate-800/50' : ''}`}>
 
                           {/* Company — inline editable */}
                           <td className="px-5 py-3">
@@ -1074,61 +1150,109 @@ export default function AdminPage() {
 
                           {/* Actions */}
                           <td className="px-4 py-3 pr-5">
-                            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                              {/* Suspend/Activate */}
+                            <div className="flex items-center gap-1">
+                              {/* Suspend / Activate */}
                               <button
                                 onClick={() => handleStatusToggle(t)}
-                                className="text-xs text-slate-400 hover:text-slate-200 transition-colors underline underline-offset-2"
+                                title={t.status === 'Active' ? 'Suspend account' : 'Reactivate account'}
+                                className={`inline-flex items-center gap-1 text-[11px] font-medium px-2 py-1 rounded-md border transition-colors ${
+                                  t.status === 'Active'
+                                    ? 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-amber-900/30 hover:border-amber-700/40 hover:text-amber-400'
+                                    : 'bg-emerald-900/20 border-emerald-700/40 text-emerald-400 hover:bg-emerald-900/40'
+                                }`}
                               >
-                                {t.status === 'Active' ? 'Suspend' : 'Activate'}
+                                {t.status === 'Active' ? (
+                                  <>
+                                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                                    </svg>
+                                    Suspend
+                                  </>
+                                ) : (
+                                  <>
+                                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                    Activate
+                                  </>
+                                )}
                               </button>
-                              <span className="text-slate-700 text-xs">·</span>
 
                               {/* Apify */}
                               <button
                                 onClick={() => setExpandedApify(expandedApify === t.id ? null : t.id)}
-                                className={`text-xs transition-colors underline underline-offset-2 ${
-                                  expandedApify === t.id ? 'text-[#4F6BFF]' : 'text-slate-400 hover:text-[#4F6BFF]'
+                                title="Manage Apify scanning pool"
+                                className={`inline-flex items-center gap-1 text-[11px] font-medium px-2 py-1 rounded-md border transition-colors ${
+                                  expandedApify === t.id
+                                    ? 'bg-[#4F6BFF]/20 border-[#4F6BFF]/40 text-[#4F6BFF]'
+                                    : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-[#4F6BFF]/10 hover:border-[#4F6BFF]/30 hover:text-[#4F6BFF]'
                                 }`}
                               >
+                                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14M12 5l7 7-7 7" />
+                                </svg>
                                 Apify
                               </button>
-                              <span className="text-slate-700 text-xs">·</span>
-
-                              {/* Reset password */}
-                              <button
-                                onClick={() => handleSendReset(t)}
-                                disabled={resetingId === t.id}
-                                className="text-xs text-slate-400 hover:text-amber-400 transition-colors underline underline-offset-2 disabled:opacity-50"
-                              >
-                                {resetingId === t.id ? 'Sending…' : 'Reset PW'}
-                              </button>
-                              <span className="text-slate-700 text-xs">·</span>
 
                               {/* Feed-only toggle */}
                               <button
                                 onClick={() => handleFeedOnlyToggle(t)}
-                                className={`text-xs transition-colors underline underline-offset-2 ${
-                                  t.isFeedOnly ? 'text-amber-400 hover:text-slate-400' : 'text-slate-400 hover:text-amber-400'
+                                title={t.isFeedOnly ? 'Remove feed-only restriction (grant full access)' : 'Restrict to feed-only access'}
+                                className={`inline-flex items-center gap-1 text-[11px] font-medium px-2 py-1 rounded-md border transition-colors ${
+                                  t.isFeedOnly
+                                    ? 'bg-amber-900/30 border-amber-700/40 text-amber-400 hover:bg-slate-800 hover:border-slate-700 hover:text-slate-400'
+                                    : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-amber-900/20 hover:border-amber-700/30 hover:text-amber-400'
                                 }`}
-                                title={t.isFeedOnly ? 'Remove feed-only restriction' : 'Restrict to feed-only access'}
                               >
+                                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d={t.isFeedOnly
+                                    ? "M15 12a3 3 0 11-6 0 3 3 0 016 0z M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+                                    : "M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"
+                                  } />
+                                </svg>
                                 {t.isFeedOnly ? 'Full access' : 'Feed only'}
                               </button>
-                              <span className="text-slate-700 text-xs">·</span>
+
+                              {/* Reset PW */}
+                              <button
+                                onClick={() => handleSendReset(t)}
+                                disabled={resetingId === t.id}
+                                title="Send password reset email"
+                                className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-1 rounded-md border bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700 hover:text-slate-200 transition-colors disabled:opacity-40"
+                              >
+                                {resetingId === t.id ? (
+                                  <>
+                                    <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                    </svg>
+                                    Sending
+                                  </>
+                                ) : (
+                                  <>
+                                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                                    </svg>
+                                    Reset PW
+                                  </>
+                                )}
+                              </button>
 
                               {/* Delete */}
                               <button
                                 onClick={() => setDeleteTarget(t)}
-                                className="text-xs text-slate-400 hover:text-red-400 transition-colors underline underline-offset-2"
+                                title="Delete tenant"
+                                className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-1 rounded-md border bg-slate-800 border-slate-700 text-slate-400 hover:bg-red-900/20 hover:border-red-700/40 hover:text-red-400 transition-colors"
                               >
+                                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
                                 Delete
                               </button>
                             </div>
 
                             {/* Inline feedback for reset */}
                             {resetMsg[t.id] && (
-                              <p className={`text-[11px] mt-1 ${
+                              <p className={`text-[11px] mt-1.5 ${
                                 resetMsg[t.id] === 'Email sent!'
                                   ? 'text-emerald-400'
                                   : 'text-red-400'
@@ -1151,8 +1275,10 @@ export default function AdminPage() {
                     ))}
                   </tbody>
                 </table>
+                )}
               </div>
-            )}
+            )
+            })()}
 
           </div>
         )}
