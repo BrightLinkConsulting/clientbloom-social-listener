@@ -20,6 +20,12 @@ function ClientBloomMark({ size = 28 }: { size?: number }) {
 }
 
 // ---- Types ----
+interface ReplyLogEntry {
+  text: string
+  by:   string   // email of who wrote it
+  at:   string   // ISO timestamp
+}
+
 interface Post {
   id: string
   fields: {
@@ -39,9 +45,24 @@ interface Post {
     'Engagement Status': string
     'Notes': string
     'Notes Updated At': string
+    'Notes Updated By': string   // email of last note saver
+    'Engaged By': string         // email of who clicked Engage
+    'Reply Log': string          // JSON array of ReplyLogEntry
     'CRM Contact ID': string
     'CRM Pushed At': string
   }
+}
+
+// Parse the Reply Log JSON field safely
+function parseReplyLog(raw: string): ReplyLogEntry[] {
+  if (!raw) return []
+  try { return JSON.parse(raw) } catch { return [] }
+}
+
+// Short display name from email: "mike@brightlink.com" → "mike"
+function displayName(email: string): string {
+  if (!email) return ''
+  return email.split('@')[0]
 }
 
 type ActionFilter = 'New' | 'Engaged' | 'Replied' | 'Skipped' | 'all'
@@ -193,21 +214,27 @@ function PostCard({
   onAction,
   updating,
   crmType,
+  userEmail,
 }: {
   post: Post
   onAction: (id: string, action: string) => void
   updating: boolean
   crmType: string
+  userEmail: string
 }) {
-  const [expanded,   setExpanded]   = useState(false)
-  const [angleOpen,  setAngleOpen]  = useState(false)
-  const [notes,      setNotes]      = useState(post.fields['Notes'] || '')
-  const [notesSaved, setNotesSaved] = useState(false)
-  const [notesDirty, setNotesDirty] = useState(false)
-  const [notesTs,    setNotesTs]    = useState(post.fields['Notes Updated At'] || '')
-  const [crmPushing, setCrmPushing] = useState(false)
-  const [crmPushed,  setCrmPushed]  = useState(!!post.fields['CRM Pushed At'])
-  const [crmError,   setCrmError]   = useState('')
+  const [expanded,        setExpanded]        = useState(false)
+  const [angleOpen,       setAngleOpen]       = useState(false)
+  const [notes,           setNotes]           = useState(post.fields['Notes'] || '')
+  const [notesSaved,      setNotesSaved]      = useState(false)
+  const [notesDirty,      setNotesDirty]      = useState(false)
+  const [notesTs,         setNotesTs]         = useState(post.fields['Notes Updated At'] || '')
+  const [notesBy,         setNotesBy]         = useState(post.fields['Notes Updated By'] || '')
+  const [replyLog,        setReplyLog]        = useState<ReplyLogEntry[]>(parseReplyLog(post.fields['Reply Log']))
+  const [replyEntry,      setReplyEntry]      = useState('')
+  const [replyEntrySaving, setReplyEntrySaving] = useState(false)
+  const [crmPushing,      setCrmPushing]      = useState(false)
+  const [crmPushed,       setCrmPushed]       = useState(!!post.fields['CRM Pushed At'])
+  const [crmError,        setCrmError]        = useState('')
 
   const f              = post.fields
   const text           = f['Post Text'] || ''
@@ -237,14 +264,39 @@ function PostCard({
       await fetch(`/api/posts/${post.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ notes }),
+        body: JSON.stringify({ notes }),  // server reads email from session
       })
       const now = new Date().toISOString()
       setNotesTs(now)
+      setNotesBy(userEmail)
       setNotesSaved(true)
       setNotesDirty(false)
       setTimeout(() => setNotesSaved(false), 3000)
     } catch { /* non-fatal */ }
+  }
+
+  const handleAddReplyEntry = async () => {
+    if (!replyEntry.trim()) return
+    setReplyEntrySaving(true)
+    try {
+      const resp = await fetch(`/api/posts/${post.id}`, {
+        method:  'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ appendReplyLog: replyEntry.trim() }),
+      })
+      if (resp.ok) {
+        const data = await resp.json()
+        const newEntry: ReplyLogEntry = {
+          text: replyEntry.trim(),
+          by:   userEmail,
+          at:   new Date().toISOString(),
+        }
+        setReplyLog(prev => [...prev, newEntry])
+        setReplyEntry('')
+      }
+    } catch { /* non-fatal */ } finally {
+      setReplyEntrySaving(false)
+    }
   }
 
   const handleCrmPush = async () => {
@@ -389,39 +441,93 @@ function PostCard({
         {isActiveEngage && (
           <div className="mt-3 pt-3 border-t border-slate-700/40 space-y-3">
 
-            {/* Notes textarea */}
-            <div>
-              <p className="text-xs text-slate-500 font-medium mb-1.5">Your notes</p>
-              <textarea
-                value={notes}
-                onChange={e => { setNotes(e.target.value); setNotesDirty(true); setNotesSaved(false) }}
-                placeholder="What did you comment? Did they respond? Next step…"
-                rows={2}
-                className="w-full bg-slate-800/50 border border-slate-700/40 rounded-xl px-3 py-2 text-xs text-slate-300 placeholder-slate-600 focus:outline-none focus:border-blue-500/40 resize-none leading-relaxed"
-              />
-              <div className="flex items-center justify-between mt-1.5">
-                {/* Timestamp */}
-                <span className="text-xs text-slate-700">
-                  {notesSaved
-                    ? '✓ Saved just now'
-                    : notesTs
-                    ? `Last saved ${new Date(notesTs).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}`
-                    : ''}
-                </span>
-                {/* Save button — only active when dirty */}
-                <button
-                  onClick={handleNotesSave}
-                  disabled={!notesDirty}
-                  className={`text-xs px-3 py-1 rounded-lg transition-colors ${
-                    notesDirty
-                      ? 'bg-blue-600 hover:bg-blue-500 text-white'
-                      : 'bg-slate-800/60 text-slate-600 cursor-default'
-                  }`}
-                >
-                  Save note
-                </button>
+            {/* ── Engaged state: single editable note ── */}
+            {isEngaged && (
+              <div>
+                <p className="text-xs text-slate-500 font-medium mb-1.5">Your notes</p>
+                <textarea
+                  value={notes}
+                  onChange={e => { setNotes(e.target.value); setNotesDirty(true); setNotesSaved(false) }}
+                  placeholder="What did you comment? Did they respond? Next step…"
+                  rows={2}
+                  className="w-full bg-slate-800/50 border border-slate-700/40 rounded-xl px-3 py-2 text-xs text-slate-300 placeholder-slate-600 focus:outline-none focus:border-blue-500/40 resize-none leading-relaxed"
+                />
+                <div className="flex items-center justify-between mt-1.5">
+                  {/* Timestamp + attribution */}
+                  <span className="text-xs text-slate-700">
+                    {notesSaved
+                      ? `✓ Saved by ${displayName(userEmail)}`
+                      : notesTs
+                      ? `Saved ${new Date(notesTs).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}${notesBy ? ` · ${displayName(notesBy)}` : ''}`
+                      : ''}
+                  </span>
+                  <button
+                    onClick={handleNotesSave}
+                    disabled={!notesDirty}
+                    className={`text-xs px-3 py-1 rounded-lg transition-colors ${
+                      notesDirty
+                        ? 'bg-blue-600 hover:bg-blue-500 text-white'
+                        : 'bg-slate-800/60 text-slate-600 cursor-default'
+                    }`}
+                  >
+                    Save note
+                  </button>
+                </div>
               </div>
-            </div>
+            )}
+
+            {/* ── Replied state: append-only activity log ── */}
+            {isReplied && (
+              <div>
+                <p className="text-xs text-slate-500 font-medium mb-2">Activity log</p>
+
+                {/* Existing plain note migrated as first entry (if no log yet) */}
+                {replyLog.length === 0 && notes && (
+                  <div className="mb-2 rounded-xl bg-slate-800/40 border border-slate-700/30 px-3 py-2.5">
+                    <p className="text-xs text-slate-300 leading-relaxed whitespace-pre-wrap">{notes}</p>
+                    {notesTs && (
+                      <p className="text-xs text-slate-600 mt-1.5">
+                        {new Date(notesTs).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                        {notesBy ? ` · ${displayName(notesBy)}` : ''}
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {/* Log entries */}
+                {replyLog.map((entry, i) => (
+                  <div key={i} className="mb-2 rounded-xl bg-slate-800/40 border border-slate-700/30 px-3 py-2.5">
+                    <p className="text-xs text-slate-300 leading-relaxed whitespace-pre-wrap">{entry.text}</p>
+                    <p className="text-xs text-slate-600 mt-1.5">
+                      {new Date(entry.at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                      {entry.by ? ` · ${displayName(entry.by)}` : ''}
+                    </p>
+                  </div>
+                ))}
+
+                {/* New entry input */}
+                <textarea
+                  value={replyEntry}
+                  onChange={e => setReplyEntry(e.target.value)}
+                  placeholder="Add a note — what happened next? Who responded?"
+                  rows={2}
+                  className="w-full bg-slate-800/50 border border-slate-700/40 rounded-xl px-3 py-2 text-xs text-slate-300 placeholder-slate-600 focus:outline-none focus:border-blue-500/40 resize-none leading-relaxed"
+                />
+                <div className="flex justify-end mt-1.5">
+                  <button
+                    onClick={handleAddReplyEntry}
+                    disabled={replyEntrySaving || !replyEntry.trim()}
+                    className={`text-xs px-3 py-1 rounded-lg transition-colors ${
+                      replyEntry.trim()
+                        ? 'bg-blue-600 hover:bg-blue-500 text-white'
+                        : 'bg-slate-800/60 text-slate-600 cursor-default'
+                    }`}
+                  >
+                    {replyEntrySaving ? 'Adding…' : 'Add note'}
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* CRM push error */}
             {crmError && (
@@ -931,6 +1037,7 @@ function FeedPage() {
                   onAction={handleAction}
                   updating={updating === post.id}
                   crmType={crmType}
+                  userEmail={(session?.user as any)?.email || ''}
                 />
               ))}
             </div>
