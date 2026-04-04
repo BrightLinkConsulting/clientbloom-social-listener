@@ -1971,6 +1971,282 @@ function ScoringPromptSection() {
   )
 }
 
+// ---- System Status Section ----
+function SystemStatusSection() {
+  const [slackChannel, setSlackChannel] = useState('')
+  const [slackLoaded,  setSlackLoaded]  = useState(false)
+
+  useEffect(() => {
+    fetch('/api/slack-settings')
+      .then(r => r.json())
+      .then(d => {
+        setSlackChannel(d.slackChannelName || d.slackChannelId || '')
+        setSlackLoaded(true)
+      })
+      .catch(() => setSlackLoaded(true))
+  }, [])
+
+  const slackConfigured = slackLoaded && !!slackChannel
+
+  const items = [
+    {
+      label:  'Scanner',
+      value:  'Runs at 6 AM + 6 PM PST',
+      detail: 'Scrapes Facebook groups and LinkedIn ICPs for new posts',
+      status: 'active' as const,
+    },
+    {
+      label:  'Facebook',
+      value:  'Active — groups monitored',
+      detail: 'Posts keyword-matched and scored before entering your feed',
+      status: 'active' as const,
+    },
+    {
+      label:  'LinkedIn',
+      value:  'Active — ICP + keyword',
+      detail: 'Posts from your ICP pool scored for engagement opportunity',
+      status: 'active' as const,
+    },
+    {
+      label:  'Daily Digest',
+      value:  'Sent to Slack at 7 AM PST',
+      detail: 'AI-written summary of top posts with comment angles — requires Slack to be connected below',
+      status: slackConfigured ? 'active' as const : 'warning' as const,
+    },
+    {
+      label:  'Slack',
+      value:  slackLoaded ? (slackChannel ? `#${slackChannel.replace(/^#/, '')}` : 'Not connected') : '…',
+      detail: slackConfigured
+        ? 'Digest and alerts are being delivered to this channel'
+        : 'Connect Slack below — the daily digest won\'t send until this is set up',
+      status: slackConfigured ? 'active' as const : 'warning' as const,
+    },
+  ]
+
+  return (
+    <Section title="System Status" description="Live overview of all connected services">
+      <div className="grid grid-cols-2 gap-3">
+        {items.map(item => (
+          <div
+            key={item.label}
+            className={`p-3 rounded-lg border ${
+              item.status === 'warning'
+                ? 'bg-amber-500/5 border-amber-500/20'
+                : 'bg-slate-800/40 border-slate-700/30'
+            }`}
+          >
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <p className="text-xs text-slate-500 mb-0.5">{item.label}</p>
+                <p className={`text-sm font-medium ${item.status === 'warning' ? 'text-amber-400' : 'text-slate-200'}`}>
+                  {item.value}
+                </p>
+                <p className="text-xs text-slate-600 mt-1 leading-snug">{item.detail}</p>
+              </div>
+              <span className={`shrink-0 w-2 h-2 rounded-full mt-1 ${
+                item.status === 'warning' ? 'bg-amber-400' : 'bg-emerald-400'
+              }`} />
+            </div>
+          </div>
+        ))}
+      </div>
+    </Section>
+  )
+}
+
+// ---- Slack Integration Section ----
+const SLACK_STEPS = [
+  'Go to api.slack.com/apps and click "Create New App" → "From scratch".',
+  'Name it "ClientBloom Listener" and pick your Slack workspace.',
+  'In the left menu click "OAuth & Permissions". Under "Bot Token Scopes" add: chat:write and channels:read.',
+  'Scroll up and click "Install to Workspace" → Allow.',
+  'Copy the "Bot OAuth Token" that starts with xoxb- and paste it below.',
+  'Invite the bot to your channel in Slack: type /invite @ClientBloom Listener in the channel.',
+  'Paste the channel name (without #) into the Channel Name field below.',
+]
+
+function SlackIntegrationSection() {
+  const [botToken,     setBotToken]     = useState('')
+  const [channelId,    setChannelId]    = useState('')
+  const [channelName,  setChannelName]  = useState('')
+  const [showToken,    setShowToken]    = useState(false)
+  const [loading,      setLoading]      = useState(true)
+  const [saving,       setSaving]       = useState(false)
+  const [testing,      setTesting]      = useState(false)
+  const [testResult,   setTestResult]   = useState<{ ok: boolean; msg: string } | null>(null)
+  const [saved,        setSaved]        = useState(false)
+  const [error,        setError]        = useState('')
+
+  useEffect(() => {
+    fetch('/api/slack-settings')
+      .then(r => r.json())
+      .then(d => {
+        setBotToken(d.slackBotToken    || '')
+        setChannelId(d.slackChannelId  || '')
+        setChannelName(d.slackChannelName || '')
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }, [])
+
+  const handleSave = async () => {
+    setSaving(true); setError(''); setSaved(false)
+    try {
+      const resp = await fetch('/api/slack-settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ slackBotToken: botToken, slackChannelId: channelId, slackChannelName: channelName }),
+      })
+      if (!resp.ok) throw new Error(await resp.text())
+      setSaved(true)
+      setTimeout(() => setSaved(false), 3000)
+    } catch (e: any) {
+      setError(e.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleTest = async () => {
+    if (!botToken.trim()) { setTestResult({ ok: false, msg: 'Paste your Bot Token first.' }); return }
+    setTesting(true); setTestResult(null)
+    try {
+      const r = await fetch('https://slack.com/api/auth.test', {
+        headers: { 'Authorization': `Bearer ${botToken}` },
+      })
+      const data = await r.json()
+      if (data.ok) {
+        setTestResult({ ok: true, msg: `Connected as @${data.bot_id || 'bot'} in workspace "${data.team}".` })
+      } else {
+        setTestResult({ ok: false, msg: `Slack returned: ${data.error}. Double-check the token.` })
+      }
+    } catch {
+      setTestResult({ ok: false, msg: 'Request failed — may be a CORS issue. Save and check your digest to verify.' })
+    } finally {
+      setTesting(false)
+    }
+  }
+
+  if (loading) return null
+
+  const isConfigured = !!botToken && !!channelName
+
+  return (
+    <Section
+      title="Slack Integration"
+      description="The daily digest and scan alerts are delivered via Slack. Required for the digest to work."
+    >
+      {error && (
+        <div className="mb-4 px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/20 text-xs text-red-400 flex justify-between">
+          <span>{error}</span><button onClick={() => setError('')}>×</button>
+        </div>
+      )}
+
+      {/* Status badge */}
+      <div className={`mb-4 flex items-center gap-2 text-xs px-3 py-2 rounded-lg ${
+        isConfigured
+          ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-400'
+          : 'bg-amber-500/10 border border-amber-500/20 text-amber-400'
+      }`}>
+        <span className={`w-1.5 h-1.5 rounded-full ${isConfigured ? 'bg-emerald-400' : 'bg-amber-400'}`} />
+        {isConfigured
+          ? `Connected · Daily digest goes to #${channelName.replace(/^#/, '')}`
+          : 'Not connected — the daily digest will not send until Slack is set up'}
+      </div>
+
+      {/* Setup instructions */}
+      <div className="rounded-xl bg-slate-900/60 border border-slate-700/40 p-4 mb-4">
+        <p className="text-xs font-semibold text-slate-300 mb-2">How to connect Slack</p>
+        <ol className="space-y-1.5">
+          {SLACK_STEPS.map((step, i) => (
+            <li key={i} className="flex gap-2 text-xs text-slate-500 leading-relaxed">
+              <span className="shrink-0 w-4 h-4 rounded-full bg-slate-800 border border-slate-700/50 flex items-center justify-center text-[10px] text-slate-600 mt-0.5">
+                {i + 1}
+              </span>
+              {step}
+            </li>
+          ))}
+        </ol>
+      </div>
+
+      <div className="space-y-3">
+        {/* Bot Token */}
+        <div>
+          <p className="text-xs text-slate-400 font-medium mb-1.5">Bot OAuth Token</p>
+          <div className="relative">
+            <input
+              type={showToken ? 'text' : 'password'}
+              value={botToken}
+              onChange={e => { setBotToken(e.target.value); setTestResult(null) }}
+              placeholder="xoxb-..."
+              className="w-full bg-slate-800/80 border border-slate-700/50 rounded-xl px-3 py-2 pr-10 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50 font-mono"
+            />
+            <button
+              onClick={() => setShowToken(!showToken)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-600 hover:text-slate-400 transition-colors text-xs"
+            >
+              {showToken ? 'hide' : 'show'}
+            </button>
+          </div>
+        </div>
+
+        {/* Channel */}
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <p className="text-xs text-slate-400 font-medium mb-1.5">Channel Name <span className="text-slate-600 font-normal">(without #)</span></p>
+            <input
+              type="text"
+              value={channelName}
+              onChange={e => setChannelName(e.target.value.replace(/^#/, ''))}
+              placeholder="general"
+              className="w-full bg-slate-800/80 border border-slate-700/50 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50"
+            />
+          </div>
+          <div>
+            <p className="text-xs text-slate-400 font-medium mb-1.5">Channel ID <span className="text-slate-600 font-normal">(optional)</span></p>
+            <input
+              type="text"
+              value={channelId}
+              onChange={e => setChannelId(e.target.value)}
+              placeholder="C0XXXXXXXX"
+              className="w-full bg-slate-800/80 border border-slate-700/50 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50 font-mono"
+            />
+          </div>
+        </div>
+
+        {/* Test result */}
+        {testResult && (
+          <div className={`px-3 py-2 rounded-lg text-xs ${
+            testResult.ok
+              ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-400'
+              : 'bg-amber-500/10 border border-amber-500/20 text-amber-400'
+          }`}>
+            {testResult.ok ? '✓ ' : '⚠ '}{testResult.msg}
+          </div>
+        )}
+
+        {/* Actions */}
+        <div className="flex gap-2">
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="flex items-center gap-1.5 text-xs px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-medium transition-colors disabled:opacity-50"
+          >
+            {saving ? <><Spinner /> Saving…</> : saved ? '✓ Saved' : 'Save'}
+          </button>
+          <button
+            onClick={handleTest}
+            disabled={testing || !botToken.trim()}
+            className="text-xs px-3 py-2 rounded-lg border border-slate-700/50 text-slate-400 hover:text-white hover:border-slate-600 disabled:opacity-50 transition-colors"
+          >
+            {testing ? 'Testing…' : 'Test Connection'}
+          </button>
+        </div>
+      </div>
+    </Section>
+  )
+}
+
 // ---- CRM Integration Section ----
 const CRM_INSTRUCTIONS: Record<string, { title: string; steps: string[] }> = {
   GoHighLevel: {
@@ -2342,24 +2618,8 @@ export default function SettingsPage() {
         {/* ── System ── */}
         {activeTab === 'system' && (
           <div className="space-y-4">
-            <Section title="System Status">
-              <div className="grid grid-cols-2 gap-3">
-                {[
-                  { label: 'Scanner',      value: '6 AM + 6 PM PST',       status: 'active' },
-                  { label: 'Digest',       value: 'Daily 7 AM PST',         status: 'active' },
-                  { label: 'LinkedIn',     value: 'Active (ICP + keyword)', status: 'active' },
-                  { label: 'Slack channel',value: '#AIOS',                  status: 'active' },
-                ].map((item) => (
-                  <div key={item.label} className="flex items-center justify-between p-3 rounded-lg bg-slate-800/40 border border-slate-700/30">
-                    <div>
-                      <p className="text-xs text-slate-500">{item.label}</p>
-                      <p className="text-sm text-slate-200 font-medium">{item.value}</p>
-                    </div>
-                    <span className={`w-2 h-2 rounded-full ${item.status === 'active' ? 'bg-emerald-400' : 'bg-amber-400'}`} />
-                  </div>
-                ))}
-              </div>
-            </Section>
+            <SystemStatusSection />
+            <SlackIntegrationSection />
             <CRMIntegrationSection />
           </div>
         )}
