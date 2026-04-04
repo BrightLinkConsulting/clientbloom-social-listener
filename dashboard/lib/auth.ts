@@ -82,6 +82,8 @@ export const authOptions: NextAuthOptions = {
             isAdmin:        fields['Is Admin']            ?? false,
             isFeedOnly:     fields['Is Feed Only']        ?? false,
             tenantId:       fields['Tenant ID']           || 'owner',
+            plan:           fields['Plan']                || '',
+            trialEndsAt:    fields['Trial Ends At']       || null,
           }
         }
 
@@ -121,6 +123,8 @@ export const authOptions: NextAuthOptions = {
         token.isAdmin        = (user as any).isAdmin
         token.isFeedOnly     = (user as any).isFeedOnly ?? false
         token.tenantId       = (user as any).tenantId || 'owner'
+        token.plan           = (user as any).plan || ''
+        token.trialEndsAt    = (user as any).trialEndsAt || null
       }
       return token
     },
@@ -133,6 +137,8 @@ export const authOptions: NextAuthOptions = {
         ;(session.user as any).isAdmin        = token.isAdmin
         ;(session.user as any).isFeedOnly     = token.isFeedOnly ?? false
         ;(session.user as any).tenantId       = token.tenantId || 'owner'
+        ;(session.user as any).plan           = token.plan || ''
+        ;(session.user as any).trialEndsAt    = token.trialEndsAt || null
       }
       return session
     },

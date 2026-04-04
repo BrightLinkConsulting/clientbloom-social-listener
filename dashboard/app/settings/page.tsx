@@ -2591,10 +2591,17 @@ export default function SettingsPage() {
   const settingsRouter = useRouter()
 
   // Feed-only users cannot access Settings — redirect to Feed
+  // Trial-expired users are redirected to upgrade page
   useEffect(() => {
     if (sessionStatus === 'loading') return
     const u = session?.user as any
-    if (u?.isFeedOnly) settingsRouter.replace('/')
+    if (u?.isFeedOnly) { settingsRouter.replace('/'); return }
+    const trialEndsAt = u?.trialEndsAt || null
+    const plan        = u?.plan || ''
+    const isPaidPlan  = plan === 'Scout $79' || plan === 'Owner'
+    if (trialEndsAt && !isPaidPlan && new Date() > new Date(trialEndsAt)) {
+      settingsRouter.replace('/upgrade')
+    }
   }, [session, sessionStatus, settingsRouter])
 
   const [activeTab, setActiveTab] = useState<TabId>('profile')

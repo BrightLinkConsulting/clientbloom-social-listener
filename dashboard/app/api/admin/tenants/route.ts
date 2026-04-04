@@ -73,6 +73,7 @@ export async function GET() {
       isFeedOnly:     r.fields['Is Feed Only']        ?? false,
       plan:           r.fields['Plan']                || '',
       createdAt:      r.fields['Created At']          || '',
+      trialEndsAt:    r.fields['Trial Ends At']       || null,
     }))
 
     return NextResponse.json({ tenants })

@@ -648,9 +648,36 @@ export default function RootPage() {
   return <FeedPage />
 }
 
+// ---- Trial Banner ----
+function TrialBanner({ daysLeft }: { daysLeft: number }) {
+  const urgent = daysLeft <= 3
+  return (
+    <div className={`border-b ${urgent ? 'bg-amber-950/50 border-amber-700/40' : 'bg-blue-950/40 border-blue-800/30'}`}>
+      <div className="max-w-3xl mx-auto px-5 py-2.5 flex items-center justify-between gap-4">
+        <p className={`text-xs font-medium ${urgent ? 'text-amber-300' : 'text-blue-300'}`}>
+          {urgent
+            ? `⚠️ Your free trial ends in ${daysLeft} day${daysLeft === 1 ? '' : 's'} — your captured leads will be locked.`
+            : `🎉 Free trial: ${daysLeft} day${daysLeft === 1 ? '' : 's'} remaining`}
+        </p>
+        <a
+          href="/upgrade"
+          className={`shrink-0 text-xs font-semibold px-3 py-1 rounded-lg transition-colors ${
+            urgent
+              ? 'bg-amber-500 hover:bg-amber-400 text-black'
+              : 'bg-blue-600 hover:bg-blue-500 text-white'
+          }`}
+        >
+          Subscribe now →
+        </a>
+      </div>
+    </div>
+  )
+}
+
 // ---- Main Feed ----
 function FeedPage() {
   const router = useRouter()
+  const { data: session } = useSession()
   const [posts, setPosts] = useState<Post[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<ActionFilter>('New')
@@ -663,6 +690,21 @@ function FeedPage() {
   const [error, setError] = useState<string | null>(null)
   const [crmType, setCrmType] = useState('None')
   const refreshTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  // ── Trial expiry check ──────────────────────────────────────────────────────
+  const user         = session?.user as any
+  const trialEndsAt  = user?.trialEndsAt || null
+  const plan         = user?.plan || ''
+  const isPaidPlan   = plan === 'Scout $79' || plan === 'Owner'
+  const trialExpired = !!trialEndsAt && !isPaidPlan && new Date() > new Date(trialEndsAt)
+  const daysLeft     = trialEndsAt ? Math.ceil((new Date(trialEndsAt).getTime() - Date.now()) / 86400000) : null
+  const isActiveTrial = !!trialEndsAt && !trialExpired && !isPaidPlan
+
+  useEffect(() => {
+    if (trialExpired) {
+      router.replace('/upgrade')
+    }
+  }, [trialExpired, router])
 
   // First-run: redirect to onboarding if no posts exist and never onboarded
   useEffect(() => {
@@ -777,6 +819,7 @@ function FeedPage() {
   return (
     <div className="min-h-screen bg-[#0a0c10] text-white">
       <Nav lastScannedAt={lastScannedAt} />
+      {isActiveTrial && daysLeft !== null && <TrialBanner daysLeft={daysLeft} />}
 
       {/* Tab bar + filters */}
       <div className="sticky top-[61px] z-10 bg-[#0a0c10]/95 backdrop-blur-md border-b border-slate-800/60">

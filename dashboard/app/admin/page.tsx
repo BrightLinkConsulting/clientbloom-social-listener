@@ -23,6 +23,17 @@ interface Tenant {
   isFeedOnly:     boolean
   plan:           string
   createdAt:      string
+  trialEndsAt:    string | null
+}
+
+function trialBadge(trialEndsAt: string | null) {
+  if (!trialEndsAt) return null
+  const daysLeft = Math.ceil((new Date(trialEndsAt).getTime() - Date.now()) / 86400000)
+  if (daysLeft <= 0) {
+    return <span className="text-[10px] bg-red-900/30 text-red-400 px-1.5 py-0.5 rounded font-medium border border-red-800/30">Trial expired</span>
+  }
+  const color = daysLeft <= 3 ? 'bg-amber-900/30 text-amber-400 border-amber-800/30' : 'bg-blue-900/30 text-blue-400 border-blue-800/30'
+  return <span className={`text-[10px] ${color} px-1.5 py-0.5 rounded font-medium border`}>{daysLeft}d left</span>
 }
 
 interface StatsData {
@@ -1033,6 +1044,7 @@ export default function AdminPage() {
                                     {t.isFeedOnly && (
                                       <span className="text-[10px] bg-amber-900/30 text-amber-400 px-1.5 py-0.5 rounded font-medium border border-amber-800/30">Feed only</span>
                                     )}
+                                    {trialBadge(t.trialEndsAt)}
                                   </div>
                                 </div>
                               )}
