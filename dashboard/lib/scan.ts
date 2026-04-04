@@ -244,7 +244,7 @@ export async function runScanForTenant(tenantId: string): Promise<ScanResult> {
     // maxDuration on both routes. Parallel execution keeps total wall-clock
     // time to ~30s (Facebook now the bottleneck at 30s max).
 
-    async function runLinkedIn(): Promise<{ posts: any[]; source: string }> {
+    const runLinkedIn = async (): Promise<{ posts: any[]; source: string }> => {
       if (icpProfiles.length > 0) {
         console.log(`[scan] LinkedIn: scanning ${icpProfiles.length} ICP profile(s)`)
         const items = await runApifyActor(APIFY_TOKEN, 'harvestapi/linkedin-profile-posts', {
