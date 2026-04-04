@@ -964,38 +964,41 @@ function FeedPage() {
       {/* Tab bar + filters */}
       <div className="sticky top-[61px] z-10 bg-[#0a0c10]/95 backdrop-blur-md border-b border-slate-800/60">
         <div className="max-w-3xl mx-auto px-5">
-          <div className="flex items-center gap-0 overflow-x-auto">
-            {tabs.map(tab => {
-              const count = tabCounts[tab.id]
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => setFilter(tab.id)}
-                  className={`shrink-0 px-4 py-2.5 text-xs font-medium border-b-2 transition-colors ${
-                    filter === tab.id
-                      ? 'border-blue-500 text-white'
-                      : 'border-transparent text-slate-500 hover:text-slate-400'
-                  }`}
-                >
-                  {tab.label}
-                  {count !== undefined && count > 0 && (
-                    <span className={`ml-1.5 px-1.5 py-0.5 rounded-full text-xs ${
-                      filter === tab.id ? 'bg-blue-500/20 text-blue-300' : 'bg-slate-800 text-slate-500'
-                    }`}>
-                      {count}
-                    </span>
-                  )}
-                </button>
-              )
-            })}
+          <div className="flex items-center">
+            {/* Tabs — scrollable, never clips the controls */}
+            <div className="flex-1 overflow-x-auto flex items-center gap-0 scrollbar-none">
+              {tabs.map(tab => {
+                const count = tabCounts[tab.id]
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={() => setFilter(tab.id)}
+                    className={`shrink-0 px-4 py-2.5 text-xs font-medium border-b-2 transition-colors ${
+                      filter === tab.id
+                        ? 'border-blue-500 text-white'
+                        : 'border-transparent text-slate-500 hover:text-slate-400'
+                    }`}
+                  >
+                    {tab.label}
+                    {count !== undefined && count > 0 && (
+                      <span className={`ml-1.5 px-1.5 py-0.5 rounded-full text-xs ${
+                        filter === tab.id ? 'bg-blue-500/20 text-blue-300' : 'bg-slate-800 text-slate-500'
+                      }`}>
+                        {count}
+                      </span>
+                    )}
+                  </button>
+                )
+              })}
+            </div>
 
-            <div className="ml-auto flex items-center gap-2 py-1.5 shrink-0">
-              {/* Group filter */}
+            {/* Controls — always visible, never scrolls away */}
+            <div className="shrink-0 flex items-center gap-2 pl-3 py-1.5 border-l border-slate-800/60">
               {availableGroups.length > 0 && (
                 <select
                   value={groupFilter}
                   onChange={e => setGroupFilter(e.target.value)}
-                  className="text-xs bg-slate-800/80 border border-slate-700/60 rounded-lg px-2.5 py-1 text-slate-400 focus:outline-none focus:border-blue-500/50 max-w-[160px] truncate"
+                  className="text-xs bg-slate-800/80 border border-slate-700/60 rounded-lg px-2.5 py-1 text-slate-400 focus:outline-none focus:border-blue-500/50 max-w-[140px] truncate"
                 >
                   <option value="all">All groups</option>
                   {availableGroups.map(g => (
@@ -1003,7 +1006,6 @@ function FeedPage() {
                   ))}
                 </select>
               )}
-
               <button
                 onClick={() => fetchPosts()}
                 className="text-xs px-3 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 transition-colors whitespace-nowrap"
