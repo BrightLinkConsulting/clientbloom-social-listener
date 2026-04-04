@@ -65,7 +65,7 @@ function displayName(email: string): string {
   return email.split('@')[0]
 }
 
-type ActionFilter = 'New' | 'Engaged' | 'Replied' | 'Skipped' | 'all'
+type ActionFilter = 'New' | 'Engaged' | 'Replied' | 'Skipped' | 'CRM' | 'all'
 
 // ---- Helpers ----
 function timeAgo(iso: string): string {
@@ -320,6 +320,8 @@ function PostCard({
       const data = await resp.json()
       if (!resp.ok) throw new Error(data.error || 'CRM push failed')
       setCrmPushed(true)
+      // Move the post to the "In CRM" tab — removes it from Replied view
+      onAction(post.id, 'CRM')
     } catch (e: any) {
       setCrmError(e.message)
     } finally {
@@ -526,12 +528,56 @@ function PostCard({
                     {replyEntrySaving ? 'Adding…' : 'Add note'}
                   </button>
                 </div>
-              </div>
-            )}
 
-            {/* CRM push error */}
-            {crmError && (
-              <p className="text-xs text-red-400">{crmError} — <a href="/settings" className="underline">check CRM settings</a></p>
+                {/* CRM push — only in Replied state */}
+                <div className="mt-3 pt-3 border-t border-slate-700/30">
+                  {crmType && crmType !== 'None' ? (
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={handleCrmPush}
+                        disabled={crmPushing || crmPushed}
+                        className={`text-xs px-4 py-2 rounded-lg border font-medium transition-colors flex items-center gap-2 ${
+                          crmPushed
+                            ? 'border-emerald-500/30 text-emerald-400/70 cursor-default bg-emerald-500/5'
+                            : 'border-blue-500/40 bg-blue-600/10 text-blue-300 hover:bg-blue-600/20 disabled:opacity-50'
+                        }`}
+                      >
+                        {crmPushing ? (
+                          <>
+                            <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                            </svg>
+                            Adding to {crmType}…
+                          </>
+                        ) : crmPushed ? (
+                          <>✓ Added to {crmType}</>
+                        ) : (
+                          <>
+                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                            </svg>
+                            Add to {crmType} pipeline
+                          </>
+                        )}
+                      </button>
+                      {!crmPushed && (
+                        <p className="text-xs text-slate-600">Pushes contact + notes and moves this post to your In CRM tab.</p>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-slate-600">
+                      Want to push this contact to your CRM?{' '}
+                      <a href="/settings?tab=system" className="text-slate-500 underline underline-offset-2 hover:text-slate-300 transition-colors">
+                        Connect GHL or HubSpot in Settings → System.
+                      </a>
+                    </p>
+                  )}
+                  {crmError && (
+                    <p className="text-xs text-red-400 mt-2">{crmError} — <a href="/settings" className="underline">check CRM settings</a></p>
+                  )}
+                </div>
+              </div>
             )}
           </div>
         )}
@@ -597,33 +643,6 @@ function PostCard({
               className="text-xs px-3 py-1.5 rounded-lg border border-slate-700/50 text-slate-600 hover:text-slate-400 transition-colors"
             >
               Archive
-            </button>
-          )}
-
-          {/* CRM push button — visible when engaged or replied and CRM is configured */}
-          {isActiveEngage && crmType && crmType !== 'None' && (
-            <button
-              onClick={handleCrmPush}
-              disabled={crmPushing}
-              className={`ml-auto text-xs px-3 py-1.5 rounded-lg border transition-colors flex items-center gap-1.5 ${
-                crmPushed
-                  ? 'border-emerald-500/30 text-emerald-500/70 cursor-default'
-                  : 'border-slate-600/50 text-slate-400 hover:text-white hover:border-slate-500 disabled:opacity-50'
-              }`}
-            >
-              {crmPushing ? (
-                <>
-                  <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                  </svg>
-                  Pushing…
-                </>
-              ) : crmPushed ? (
-                <>✓ In {crmType}</>
-              ) : (
-                <>Push to {crmType}</>
-              )}
             </button>
           )}
 
@@ -925,6 +944,7 @@ function FeedPage() {
     { id: 'Engaged', label: 'Engaged'  },
     { id: 'Replied', label: 'Replied'  },
     { id: 'Skipped', label: 'Skipped'  },
+    { id: 'CRM',     label: 'In CRM'   },
     { id: 'all',     label: 'All'      },
   ]
 
@@ -933,6 +953,7 @@ function FeedPage() {
     Engaged: actionCounts['Engaged'],
     Replied: actionCounts['Replied'],
     Skipped: actionCounts['Skipped'],
+    CRM:     actionCounts['CRM'],
   }
 
   return (
@@ -1009,14 +1030,21 @@ function FeedPage() {
         ) : posts.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-24 text-center gap-3">
             <div className="text-4xl">
-              {filter === 'New' ? '🎉' : filter === 'Engaged' ? '📋' : filter === 'Replied' ? '💬' : '🗃️'}
+              {filter === 'New' ? '🎉' : filter === 'Engaged' ? '📋' : filter === 'Replied' ? '💬' : filter === 'CRM' ? '✅' : '🗃️'}
             </div>
             <p className="text-slate-300 text-sm font-medium">
-              {filter === 'New' ? 'Inbox zero — all caught up' : filter === 'Engaged' ? 'No engaged posts yet' : filter === 'Replied' ? 'No replies yet' : filter === 'Skipped' ? 'Nothing skipped' : 'No posts found'}
+              {filter === 'New' ? 'Inbox zero — all caught up'
+                : filter === 'Engaged' ? 'No engaged posts yet'
+                : filter === 'Replied' ? 'No replies yet'
+                : filter === 'Skipped' ? 'Nothing skipped'
+                : filter === 'CRM' ? 'Pipeline is clear'
+                : 'No posts found'}
             </p>
             <p className="text-slate-600 text-xs max-w-xs">
               {filter === 'New'
                 ? 'Scanner runs at 6 AM and 6 PM PST. Check back later.'
+                : filter === 'CRM'
+                ? 'Posts pushed to your CRM will appear here for reference.'
                 : 'Posts you mark will appear here.'}
             </p>
             {lastScannedAt && (
@@ -1027,7 +1055,7 @@ function FeedPage() {
           <>
             {/* Subtle refresh note */}
             <p className="text-xs text-slate-700 mb-4 text-right">
-              Dashboard checks every 5 min · last updated {timeAgo(lastRefreshed.toISOString())} · Scanner runs 2× daily
+              Scout checks every 5 min · last updated {timeAgo(lastRefreshed.toISOString())} · Scanner runs 2× daily
             </p>
             <div className="space-y-3">
               {posts.map(post => (

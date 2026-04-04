@@ -141,11 +141,13 @@ export async function POST(req: Request) {
     else if (crmType === 'HubSpot')     result = await pushToHubSpot(crmKey, body)
     else return NextResponse.json({ error: `Unknown CRM type: ${crmType}` }, { status: 400 })
 
-    // Write CRM contact ID back to the post record
+    // Write CRM contact ID back to the post record and move it to the "In CRM" tab
     if (recordId && result.contactId) {
       await airtableUpdate('Captured Posts', recordId, {
-        'CRM Contact ID': result.contactId,
-        'CRM Pushed At':  new Date().toISOString(),
+        'CRM Contact ID':    result.contactId,
+        'CRM Pushed At':     new Date().toISOString(),
+        'Action':            'CRM',
+        'Engagement Status': '',
       }).catch(() => {})
     }
 

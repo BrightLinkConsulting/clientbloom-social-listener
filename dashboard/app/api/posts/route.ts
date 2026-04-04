@@ -101,7 +101,7 @@ export async function GET(request: NextRequest) {
     sourcesResp.ok ? sourcesResp.json() : Promise.resolve({ records: [] }),
   ])
 
-  const actionCounts: Record<string, number> = { New: 0, Engaged: 0, Replied: 0, Skipped: 0, Archived: 0 }
+  const actionCounts: Record<string, number> = { New: 0, Engaged: 0, Replied: 0, Skipped: 0, CRM: 0, Archived: 0 }
   let lastScrapedAt: string | null = null
 
   for (const record of metaData.records || []) {

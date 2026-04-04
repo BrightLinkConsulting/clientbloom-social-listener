@@ -27,7 +27,7 @@ export async function PATCH(
   const body = await request.json()
   const { action, notes, appendReplyLog, crmContactId, crmPushedAt } = body
 
-  const coreActions = ['New', 'Engaged', 'Skipped']
+  const coreActions = ['New', 'Engaged', 'Skipped', 'CRM']
   const subStatuses = ['Replied', 'Archived']
   const allActions  = [...coreActions, ...subStatuses]
 
