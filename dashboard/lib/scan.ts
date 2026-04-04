@@ -23,7 +23,11 @@ const DEFAULT_SCAN_PROMPT = `You are a social listening AI. Score each post for 
 1: Skip — irrelevant
 
 Return JSON array: [{"post_id":"...", "score": N, "reason": "...", "comment_approach": "..."}]
-Keep comment_approach to 2 sentences max — peer tone, specific reference, one follow-up question.
+
+comment_approach must be the actual comment text, written in first person, ready to copy and paste directly onto the post. Do NOT describe what to say — write the comment itself. 2-3 sentences max. Peer tone. Reference something specific from the post. End with a genuine question.
+
+Example of WRONG format: "Ask about the governance gaps they're seeing in AI deployment."
+Example of RIGHT format: "The shift from risk manager to AI strategy advisor is real — I'm seeing the same thing across our client base. GCs are now shaping decisions that used to sit exclusively with the CTO. What governance gaps are you seeing most often as you step into that role?"
 
 Posts:
 {posts_json}`
