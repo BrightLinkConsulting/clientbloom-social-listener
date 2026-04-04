@@ -10,6 +10,19 @@ import Link from 'next/link'
 
 const CHECKOUT_URL = '/api/checkout' // Stripe checkout redirect
 
+/** ClientBloom logo mark — SVG recreation of the 5-petal bloom icon */
+function ClientBloomMark({ size = 28 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <ellipse cx="50" cy="21" rx="24" ry="13" fill="#F7B731" />
+      <ellipse cx="20" cy="52" rx="13" ry="25" fill="#E91E8C" />
+      <ellipse cx="80" cy="52" rx="13" ry="25" fill="#00B96B" />
+      <ellipse cx="50" cy="79" rx="24" ry="13" fill="#7C3AED" />
+      <circle cx="50" cy="50" r="13" fill="#7C3AED" />
+    </svg>
+  )
+}
+
 export default function LandingPage() {
   const [faqOpen, setFaqOpen] = useState<number | null>(null)
 
@@ -20,8 +33,8 @@ export default function LandingPage() {
       <nav className="fixed top-0 left-0 right-0 z-50 border-b border-white/5 bg-[#080a0f]/90 backdrop-blur-md">
         <div className="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <div className="w-7 h-7 rounded-lg bg-[#4F6BFF] flex items-center justify-center text-white font-bold text-xs">CB</div>
-            <span className="text-white font-semibold tracking-tight">Scout <span className="text-slate-500 font-normal text-sm">by ClientBloom</span></span>
+            <ClientBloomMark size={28} />
+            <span className="text-white font-bold tracking-tight">Scout <span className="text-slate-400 font-normal text-sm">by ClientBloom</span></span>
           </div>
           <div className="flex items-center gap-4">
             <a href="#how-it-works" className="text-slate-400 hover:text-slate-200 text-sm transition-colors hidden md:block">How it works</a>
@@ -523,7 +536,7 @@ export default function LandingPage() {
       <footer className="border-t border-slate-800/50 py-8 px-6">
         <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
-            <div className="w-5 h-5 rounded bg-[#4F6BFF] flex items-center justify-center text-white font-bold text-[9px]">CB</div>
+            <ClientBloomMark size={20} />
             <span className="text-slate-500 text-sm">Scout by ClientBloom.ai</span>
           </div>
           <div className="flex items-center gap-6">

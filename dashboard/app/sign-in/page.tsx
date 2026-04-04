@@ -4,6 +4,37 @@ import { useState, FormEvent } from 'react'
 import { signIn } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 
+/** ClientBloom logo mark — SVG recreation of the 5-petal bloom icon */
+function ClientBloomMark({ size = 40 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+      {/* Top oval — gold */}
+      <ellipse cx="50" cy="21" rx="24" ry="13" fill="#F7B731" />
+      {/* Left oval — pink/magenta */}
+      <ellipse cx="20" cy="52" rx="13" ry="25" fill="#E91E8C" />
+      {/* Right oval — green */}
+      <ellipse cx="80" cy="52" rx="13" ry="25" fill="#00B96B" />
+      {/* Bottom oval — purple */}
+      <ellipse cx="50" cy="79" rx="24" ry="13" fill="#7C3AED" />
+      {/* Center circle — purple */}
+      <circle cx="50" cy="50" r="13" fill="#7C3AED" />
+    </svg>
+  )
+}
+
+/** Compact wordmark: icon + "Scout" + "by ClientBloom" */
+function ScoutWordmark({ iconSize = 36 }: { iconSize?: number }) {
+  return (
+    <div className="inline-flex items-center gap-3">
+      <ClientBloomMark size={iconSize} />
+      <div className="text-left">
+        <div className="text-white font-bold text-xl tracking-tight leading-none">Scout</div>
+        <div className="text-slate-400 text-xs font-medium tracking-wide mt-0.5">by ClientBloom</div>
+      </div>
+    </div>
+  )
+}
+
 export default function SignInPage() {
   const router   = useRouter()
   const [email,    setEmail]    = useState('')
@@ -37,62 +68,65 @@ export default function SignInPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0a0c10] flex items-center justify-center px-4">
-      <div className="w-full max-w-sm">
+    <div className="min-h-screen bg-[#080a0f] flex flex-col items-center justify-center px-4">
 
-        {/* Logo / wordmark */}
+      {/* Background glow */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-[#4F6BFF]/5 rounded-full blur-3xl" />
+      </div>
+
+      <div className="w-full max-w-sm relative">
+
+        {/* Wordmark */}
         <div className="text-center mb-10">
-          <div className="inline-flex items-center gap-2 mb-3">
-            <div className="w-8 h-8 rounded-lg bg-[#4F6BFF] flex items-center justify-center text-white font-bold text-sm">
-              CB
-            </div>
-            <span className="text-white font-semibold text-lg tracking-tight">ClientBloom</span>
-          </div>
-          <p className="text-slate-400 text-sm">Market Intelligence Dashboard</p>
+          <ScoutWordmark iconSize={44} />
         </div>
 
-        {/* Card */}
-        <div className="bg-[#0f1117] border border-slate-800 rounded-2xl p-8">
-          <h1 className="text-white font-semibold text-xl mb-1">Sign in</h1>
-          <p className="text-slate-400 text-sm mb-6">Enter your credentials to access your dashboard.</p>
+        {/* Sign-in card */}
+        <div className="bg-[#0f1117] border border-slate-800 rounded-2xl p-8 shadow-2xl shadow-black/40">
+
+          {/* Card header */}
+          <div className="flex items-center gap-2 mb-6">
+            <ClientBloomMark size={20} />
+            <span className="text-slate-400 text-sm font-medium">Market Intelligence Dashboard</span>
+          </div>
+
+          <h1 className="text-white font-bold text-2xl mb-1 tracking-tight">Welcome back</h1>
+          <p className="text-slate-500 text-sm mb-7">Sign in to access your intelligence feed.</p>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-slate-300 text-sm font-medium mb-1.5">
-                Email
-              </label>
+              <label className="block text-slate-300 text-sm font-medium mb-1.5">Email</label>
               <input
                 type="email"
                 required
                 value={email}
                 onChange={e => setEmail(e.target.value)}
                 placeholder="you@company.com"
-                className="w-full bg-[#161b27] border border-slate-700 rounded-lg px-3.5 py-2.5
-                           text-slate-100 placeholder-slate-500 text-sm
-                           focus:outline-none focus:border-[#4F6BFF] focus:ring-1 focus:ring-[#4F6BFF]
-                           transition-colors"
+                className="w-full bg-[#161b27] border border-slate-700/80 rounded-xl px-4 py-3
+                           text-slate-100 placeholder-slate-600 text-sm
+                           focus:outline-none focus:border-[#4F6BFF] focus:ring-1 focus:ring-[#4F6BFF]/50
+                           transition-all"
               />
             </div>
 
             <div>
-              <label className="block text-slate-300 text-sm font-medium mb-1.5">
-                Password
-              </label>
+              <label className="block text-slate-300 text-sm font-medium mb-1.5">Password</label>
               <input
                 type="password"
                 required
                 value={password}
                 onChange={e => setPassword(e.target.value)}
                 placeholder="••••••••"
-                className="w-full bg-[#161b27] border border-slate-700 rounded-lg px-3.5 py-2.5
-                           text-slate-100 placeholder-slate-500 text-sm
-                           focus:outline-none focus:border-[#4F6BFF] focus:ring-1 focus:ring-[#4F6BFF]
-                           transition-colors"
+                className="w-full bg-[#161b27] border border-slate-700/80 rounded-xl px-4 py-3
+                           text-slate-100 placeholder-slate-600 text-sm
+                           focus:outline-none focus:border-[#4F6BFF] focus:ring-1 focus:ring-[#4F6BFF]/50
+                           transition-all"
               />
             </div>
 
             {error && (
-              <div className="bg-red-900/20 border border-red-800/50 rounded-lg px-3.5 py-2.5">
+              <div className="bg-red-900/20 border border-red-800/40 rounded-xl px-4 py-3">
                 <p className="text-red-400 text-sm">{error}</p>
               </div>
             )}
@@ -100,9 +134,11 @@ export default function SignInPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-[#4F6BFF] hover:bg-[#3D57F5] disabled:opacity-60
-                         text-white font-medium rounded-lg py-2.5 text-sm
-                         transition-colors flex items-center justify-center gap-2 mt-2"
+              className="w-full bg-[#4F6BFF] hover:bg-[#3D57F5] active:bg-[#3347E0]
+                         disabled:opacity-50 disabled:cursor-not-allowed
+                         text-white font-semibold rounded-xl py-3 text-sm mt-1
+                         transition-all hover:shadow-lg hover:shadow-[#4F6BFF]/25
+                         flex items-center justify-center gap-2"
             >
               {loading ? (
                 <>
@@ -119,9 +155,12 @@ export default function SignInPage() {
           </form>
         </div>
 
-        <p className="text-center text-slate-600 text-xs mt-6">
-          Powered by ClientBloom.ai — Market Intelligence
-        </p>
+        {/* Footer */}
+        <div className="flex items-center justify-center gap-2 mt-8">
+          <ClientBloomMark size={16} />
+          <span className="text-slate-600 text-xs">ClientBloom.ai &copy; 2026</span>
+        </div>
+
       </div>
     </div>
   )
