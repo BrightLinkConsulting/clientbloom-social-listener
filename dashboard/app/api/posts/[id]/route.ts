@@ -59,7 +59,8 @@ export async function PATCH(
   }
 
   if (notes !== undefined) {
-    fields['Notes'] = notes
+    fields['Notes']            = notes
+    fields['Notes Updated At'] = new Date().toISOString()
   }
 
   if (crmContactId !== undefined) fields['CRM Contact ID'] = crmContactId
