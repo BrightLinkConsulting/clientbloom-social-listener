@@ -1971,6 +1971,244 @@ function ScoringPromptSection() {
   )
 }
 
+// ---- CRM Integration Section ----
+const CRM_INSTRUCTIONS: Record<string, { title: string; steps: string[] }> = {
+  GoHighLevel: {
+    title: 'How to get your GoHighLevel API key',
+    steps: [
+      'Log into GoHighLevel and go to your sub-account (not the agency account).',
+      'Click Settings (gear icon) → Integrations → API Key.',
+      'Copy the Location API Key — this is what you paste below.',
+      'The key should start with "eyJ..." or be a long alphanumeric string.',
+      'Each sub-account has its own key. Make sure you copy from the right one.',
+    ],
+  },
+  HubSpot: {
+    title: 'How to get your HubSpot Private App token',
+    steps: [
+      'Log into HubSpot and go to Settings (gear icon) → Integrations → Private Apps.',
+      'Click "Create a private app" and give it a name (e.g. "ClientBloom").',
+      'Under Scopes, enable: crm.objects.contacts.write, crm.objects.notes.write.',
+      'Click "Create app" and copy the access token shown.',
+      'Paste that token below — it starts with "pat-na1-..." or similar.',
+    ],
+  },
+}
+
+function CRMIntegrationSection() {
+  const [crmType,       setCrmType]       = useState('None')
+  const [crmApiKey,     setCrmApiKey]     = useState('')
+  const [crmPipelineId, setCrmPipelineId] = useState('')
+  const [showKey,       setShowKey]       = useState(false)
+  const [loading,       setLoading]       = useState(true)
+  const [saving,        setSaving]        = useState(false)
+  const [testing,       setTesting]       = useState(false)
+  const [testResult,    setTestResult]    = useState<{ ok: boolean; msg: string } | null>(null)
+  const [saved,         setSaved]         = useState(false)
+  const [error,         setError]         = useState('')
+
+  useEffect(() => {
+    fetch('/api/crm-settings')
+      .then(r => r.json())
+      .then(d => {
+        setCrmType(d.crmType       || 'None')
+        setCrmApiKey(d.crmApiKey   || '')
+        setCrmPipelineId(d.crmPipelineId || '')
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }, [])
+
+  const handleSave = async () => {
+    setSaving(true)
+    setError('')
+    setSaved(false)
+    try {
+      const resp = await fetch('/api/crm-settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ crmType, crmApiKey, crmPipelineId }),
+      })
+      if (!resp.ok) throw new Error(await resp.text())
+      setSaved(true)
+      setTimeout(() => setSaved(false), 3000)
+    } catch (e: any) {
+      setError(e.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleTest = async () => {
+    if (!crmApiKey.trim()) { setTestResult({ ok: false, msg: 'Paste your API key first.' }); return }
+    setTesting(true)
+    setTestResult(null)
+    try {
+      // Test by calling a lightweight endpoint on the CRM
+      if (crmType === 'GoHighLevel') {
+        const r = await fetch('https://services.leadconnectorhq.com/locations/lookup', {
+          headers: { 'Authorization': `Bearer ${crmApiKey}`, 'Version': '2021-07-28' },
+        })
+        setTestResult(r.ok || r.status === 404
+          ? { ok: true,  msg: 'Connected — API key is valid.' }
+          : { ok: false, msg: `GHL returned ${r.status}. Double-check the key.` }
+        )
+      } else if (crmType === 'HubSpot') {
+        const r = await fetch('https://api.hubapi.com/crm/v3/objects/contacts?limit=1', {
+          headers: { 'Authorization': `Bearer ${crmApiKey}` },
+        })
+        setTestResult(r.ok
+          ? { ok: true,  msg: 'Connected — HubSpot access confirmed.' }
+          : { ok: false, msg: `HubSpot returned ${r.status}. Check scopes and token.` }
+        )
+      }
+    } catch {
+      setTestResult({ ok: false, msg: 'Request failed — could be a CORS issue. Try saving and using the Push button on the feed to verify.' })
+    } finally {
+      setTesting(false)
+    }
+  }
+
+  const instructions = crmType !== 'None' ? CRM_INSTRUCTIONS[crmType] : null
+
+  if (loading) return null
+
+  return (
+    <Section
+      title="CRM Integration"
+      description="Push engaged contacts directly into your CRM with one click from the feed."
+    >
+      {error && (
+        <div className="mb-4 px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/20 text-xs text-red-400 flex justify-between">
+          <span>{error}</span>
+          <button onClick={() => setError('')}>×</button>
+        </div>
+      )}
+
+      {/* CRM selector */}
+      <div className="mb-4">
+        <p className="text-xs text-slate-400 font-medium mb-2">CRM Platform</p>
+        <div className="flex gap-2">
+          {['None', 'GoHighLevel', 'HubSpot'].map(opt => (
+            <button
+              key={opt}
+              onClick={() => { setCrmType(opt); setTestResult(null) }}
+              className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${
+                crmType === opt
+                  ? 'bg-blue-600/20 border-blue-500/40 text-blue-400'
+                  : 'border-slate-700/50 bg-slate-800/60 text-slate-400 hover:text-white'
+              }`}
+            >
+              {opt}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {crmType !== 'None' && (
+        <div className="space-y-4">
+          {/* Instructions */}
+          {instructions && (
+            <div className="rounded-xl bg-slate-900/60 border border-slate-700/40 p-4">
+              <p className="text-xs font-semibold text-slate-300 mb-2">{instructions.title}</p>
+              <ol className="space-y-1.5">
+                {instructions.steps.map((step, i) => (
+                  <li key={i} className="flex gap-2 text-xs text-slate-500 leading-relaxed">
+                    <span className="shrink-0 w-4 h-4 rounded-full bg-slate-800 border border-slate-700/50 flex items-center justify-center text-[10px] text-slate-600 mt-0.5">
+                      {i + 1}
+                    </span>
+                    {step}
+                  </li>
+                ))}
+              </ol>
+            </div>
+          )}
+
+          {/* API Key field */}
+          <div>
+            <p className="text-xs text-slate-400 font-medium mb-1.5">
+              {crmType === 'GoHighLevel' ? 'Location API Key' : 'Private App Token'}
+            </p>
+            <div className="relative">
+              <input
+                type={showKey ? 'text' : 'password'}
+                value={crmApiKey}
+                onChange={e => { setCrmApiKey(e.target.value); setTestResult(null) }}
+                placeholder={crmType === 'GoHighLevel' ? 'eyJ...' : 'pat-na1-...'}
+                className="w-full bg-slate-800/80 border border-slate-700/50 rounded-xl px-3 py-2 pr-10 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50 font-mono"
+              />
+              <button
+                onClick={() => setShowKey(!showKey)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-600 hover:text-slate-400 transition-colors text-xs"
+              >
+                {showKey ? 'hide' : 'show'}
+              </button>
+            </div>
+          </div>
+
+          {/* Pipeline ID — GHL only */}
+          {crmType === 'GoHighLevel' && (
+            <div>
+              <p className="text-xs text-slate-400 font-medium mb-1">Pipeline ID <span className="text-slate-600 font-normal">(optional)</span></p>
+              <p className="text-xs text-slate-600 mb-1.5">Found in GHL → Pipelines → click a pipeline → copy the ID from the URL.</p>
+              <input
+                type="text"
+                value={crmPipelineId}
+                onChange={e => setCrmPipelineId(e.target.value)}
+                placeholder="pipeline_xxxxxxxx"
+                className="w-full bg-slate-800/80 border border-slate-700/50 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50 font-mono"
+              />
+            </div>
+          )}
+
+          {/* Test result */}
+          {testResult && (
+            <div className={`px-3 py-2 rounded-lg text-xs ${
+              testResult.ok
+                ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-400'
+                : 'bg-amber-500/10 border border-amber-500/20 text-amber-400'
+            }`}>
+              {testResult.ok ? '✓ ' : '⚠ '}{testResult.msg}
+            </div>
+          )}
+
+          {/* Actions */}
+          <div className="flex gap-2">
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className="flex items-center gap-1.5 text-xs px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-medium transition-colors disabled:opacity-50"
+            >
+              {saving ? <><Spinner /> Saving…</> : saved ? '✓ Saved' : 'Save'}
+            </button>
+            <button
+              onClick={handleTest}
+              disabled={testing || !crmApiKey.trim()}
+              className="text-xs px-3 py-2 rounded-lg border border-slate-700/50 text-slate-400 hover:text-white hover:border-slate-600 disabled:opacity-50 transition-colors"
+            >
+              {testing ? 'Testing…' : 'Test Connection'}
+            </button>
+          </div>
+
+          {/* What happens when you push */}
+          <div className="rounded-xl bg-slate-900/40 border border-slate-700/30 px-4 py-3">
+            <p className="text-xs font-medium text-slate-400 mb-1">What gets pushed</p>
+            <p className="text-xs text-slate-600 leading-relaxed">
+              Clicking "Push to {crmType}" on an engaged post creates a contact with the author's name, adds a note with their post snippet, your engagement notes, and a link back to the post. Duplicate contacts are handled gracefully — GHL upserts by identity, HubSpot creates a new record.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {crmType === 'None' && (
+        <p className="text-xs text-slate-600">
+          Select a CRM above to connect your account and enable one-click contact creation from the feed.
+        </p>
+      )}
+    </Section>
+  )
+}
+
 // ---- Tab definitions ----
 const TABS = [
   { id: 'profile',  label: 'Profile'      },
@@ -2103,24 +2341,27 @@ export default function SettingsPage() {
 
         {/* ── System ── */}
         {activeTab === 'system' && (
-          <Section title="System Status">
-            <div className="grid grid-cols-2 gap-3">
-              {[
-                { label: 'Scanner',      value: '6 AM + 6 PM PST',       status: 'active' },
-                { label: 'Digest',       value: 'Daily 7 AM PST',         status: 'active' },
-                { label: 'LinkedIn',     value: 'Active (ICP + keyword)', status: 'active' },
-                { label: 'Slack channel',value: '#AIOS',                  status: 'active' },
-              ].map((item) => (
-                <div key={item.label} className="flex items-center justify-between p-3 rounded-lg bg-slate-800/40 border border-slate-700/30">
-                  <div>
-                    <p className="text-xs text-slate-500">{item.label}</p>
-                    <p className="text-sm text-slate-200 font-medium">{item.value}</p>
+          <div className="space-y-4">
+            <Section title="System Status">
+              <div className="grid grid-cols-2 gap-3">
+                {[
+                  { label: 'Scanner',      value: '6 AM + 6 PM PST',       status: 'active' },
+                  { label: 'Digest',       value: 'Daily 7 AM PST',         status: 'active' },
+                  { label: 'LinkedIn',     value: 'Active (ICP + keyword)', status: 'active' },
+                  { label: 'Slack channel',value: '#AIOS',                  status: 'active' },
+                ].map((item) => (
+                  <div key={item.label} className="flex items-center justify-between p-3 rounded-lg bg-slate-800/40 border border-slate-700/30">
+                    <div>
+                      <p className="text-xs text-slate-500">{item.label}</p>
+                      <p className="text-sm text-slate-200 font-medium">{item.value}</p>
+                    </div>
+                    <span className={`w-2 h-2 rounded-full ${item.status === 'active' ? 'bg-emerald-400' : 'bg-amber-400'}`} />
                   </div>
-                  <span className={`w-2 h-2 rounded-full ${item.status === 'active' ? 'bg-emerald-400' : 'bg-amber-400'}`} />
-                </div>
-              ))}
-            </div>
-          </Section>
+                ))}
+              </div>
+            </Section>
+            <CRMIntegrationSection />
+          </div>
         )}
 
       </main>
