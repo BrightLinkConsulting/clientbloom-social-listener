@@ -3,6 +3,19 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 
+// ---- ClientBloom bloom mark ----
+function ClientBloomMark({ size = 32 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <ellipse cx="50" cy="21" rx="24" ry="13" fill="#F7B731" />
+      <ellipse cx="20" cy="52" rx="13" ry="25" fill="#E91E8C" />
+      <ellipse cx="80" cy="52" rx="13" ry="25" fill="#00B96B" />
+      <ellipse cx="50" cy="79" rx="24" ry="13" fill="#7C3AED" />
+      <circle cx="50" cy="50" r="13" fill="#7C3AED" />
+    </svg>
+  )
+}
+
 const SIGNALS = [
   { id: 'asking_for_help', label: 'Publicly asking for tool or service recommendations' },
   { id: 'frustration', label: 'Expressing frustration with their current solution' },
@@ -400,10 +413,10 @@ export default function OnboardingPage() {
       <div className="w-full max-w-[520px]">
         {/* Header */}
         <div className="flex items-center gap-3 mb-10">
-          <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white font-bold text-xs shrink-0">CB</div>
+          <ClientBloomMark size={32} />
           <div>
-            <p className="text-sm font-semibold text-white leading-tight">ClientBloom Listener</p>
-            <p className="text-xs text-slate-500">Market intelligence · setup</p>
+            <p className="text-sm font-semibold text-white leading-tight">Scout <span className="text-slate-500 font-normal">by ClientBloom</span></p>
+            <p className="text-xs text-slate-500">ICP listener · setup</p>
           </div>
         </div>
 
