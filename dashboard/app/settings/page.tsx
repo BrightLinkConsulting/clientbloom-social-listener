@@ -2115,16 +2115,18 @@ const SLACK_STEPS = [
 ]
 
 function SlackIntegrationSection() {
-  const [botToken,     setBotToken]     = useState('')
-  const [channelId,    setChannelId]    = useState('')
-  const [channelName,  setChannelName]  = useState('')
-  const [showToken,    setShowToken]    = useState(false)
-  const [loading,      setLoading]      = useState(true)
-  const [saving,       setSaving]       = useState(false)
-  const [testing,      setTesting]      = useState(false)
-  const [testResult,   setTestResult]   = useState<{ ok: boolean; msg: string } | null>(null)
-  const [saved,        setSaved]        = useState(false)
-  const [error,        setError]        = useState('')
+  const [botToken,      setBotToken]      = useState('')
+  const [channelId,     setChannelId]     = useState('')
+  const [channelName,   setChannelName]   = useState('')
+  const [showToken,     setShowToken]     = useState(false)
+  const [loading,       setLoading]       = useState(true)
+  const [saving,        setSaving]        = useState(false)
+  const [testing,       setTesting]       = useState(false)
+  const [testResult,    setTestResult]    = useState<{ ok: boolean; msg: string } | null>(null)
+  const [saved,         setSaved]         = useState(false)
+  const [error,         setError]         = useState('')
+  const [sendingDigest, setSendingDigest] = useState(false)
+  const [digestResult,  setDigestResult]  = useState<{ ok: boolean; msg: string } | null>(null)
 
   useEffect(() => {
     fetch('/api/slack-settings')
@@ -2175,6 +2177,23 @@ function SlackIntegrationSection() {
       setTestResult({ ok: false, msg: 'Request failed — check your network connection and try again.' })
     } finally {
       setTesting(false)
+    }
+  }
+
+  const handleSendDigest = async () => {
+    setSendingDigest(true); setDigestResult(null)
+    try {
+      const r = await fetch('/api/trigger-digest', { method: 'POST' })
+      const data = await r.json()
+      if (r.ok) {
+        setDigestResult({ ok: true, msg: data.message || 'Digest sent successfully.' })
+      } else {
+        setDigestResult({ ok: false, msg: data.error || 'Failed to send digest.' })
+      }
+    } catch {
+      setDigestResult({ ok: false, msg: 'Request failed — check your network connection.' })
+    } finally {
+      setSendingDigest(false)
     }
   }
 
@@ -2276,8 +2295,19 @@ function SlackIntegrationSection() {
           </div>
         )}
 
+        {/* Digest result */}
+        {digestResult && (
+          <div className={`px-3 py-2 rounded-lg text-xs ${
+            digestResult.ok
+              ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-400'
+              : 'bg-amber-500/10 border border-amber-500/20 text-amber-400'
+          }`}>
+            {digestResult.ok ? '✓ ' : '⚠ '}{digestResult.msg}
+          </div>
+        )}
+
         {/* Actions */}
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <button
             onClick={handleSave}
             disabled={saving}
@@ -2291,6 +2321,14 @@ function SlackIntegrationSection() {
             className="text-xs px-3 py-2 rounded-lg border border-slate-700/50 text-slate-400 hover:text-white hover:border-slate-600 disabled:opacity-50 transition-colors"
           >
             {testing ? 'Testing…' : 'Test Connection'}
+          </button>
+          <button
+            onClick={handleSendDigest}
+            disabled={sendingDigest || !botToken.trim() || !channelId.trim()}
+            className="text-xs px-3 py-2 rounded-lg border border-slate-700/50 text-slate-400 hover:text-white hover:border-slate-600 disabled:opacity-50 transition-colors"
+            title="Send the daily digest to Slack right now"
+          >
+            {sendingDigest ? 'Sending…' : '📨 Send Test Digest'}
           </button>
         </div>
       </div>

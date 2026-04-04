@@ -1,4 +1,19 @@
 {
   "buildCommand": "next build",
-  "outputDirectory": ".next"
+  "outputDirectory": ".next",
+  "framework": "nextjs",
+  "crons": [
+    {
+      "path": "/api/cron/scan",
+      "schedule": "0 13 * * *"
+    },
+    {
+      "path": "/api/cron/scan",
+      "schedule": "0 1 * * *"
+    },
+    {
+      "path": "/api/cron/digest",
+      "schedule": "0 15 * * *"
+    }
+  ]
 }
