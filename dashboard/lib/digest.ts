@@ -44,20 +44,63 @@ async function getSlackConfig(tenantId: string): Promise<{ botToken: string; cha
   }
 }
 
+/**
+ * Paginate through all Airtable records matching a formula.
+ * Airtable caps each response at 100 — without this, counts silently truncate.
+ */
+async function fetchAllRecords(table: string, params: URLSearchParams): Promise<any[]> {
+  const records: any[] = []
+  let offset: string | undefined
+
+  do {
+    if (offset) params.set('offset', offset)
+    else params.delete('offset')
+
+    const r = await fetch(
+      `${AIRTABLE_BASE}/${SHARED_BASE}/${encodeURIComponent(table)}?${params}`,
+      { headers: { Authorization: `Bearer ${PROV_TOKEN}` } }
+    )
+    const data = await r.json()
+    records.push(...(data.records || []))
+    offset = data.offset
+  } while (offset)
+
+  return records
+}
+
+/**
+ * Returns midnight today in PDT/PST as an ISO string.
+ * PDT = UTC-7 (Mar–Nov), PST = UTC-8 (Nov–Mar).
+ * Using a fixed UTC-7 offset is safe for the 7 AM PDT cron window.
+ */
+function todayMidnightUTC(): string {
+  const now = new Date()
+  // LA is UTC-7 during PDT (most of the year when digest runs)
+  const laOffsetHours = 7
+  const midnightUTC = new Date(Date.UTC(
+    now.getUTCFullYear(),
+    now.getUTCMonth(),
+    // if current UTC time is before 7 AM (i.e., still "yesterday" in LA), use yesterday's date
+    now.getUTCHours() < laOffsetHours ? now.getUTCDate() - 1 : now.getUTCDate(),
+    laOffsetHours, 0, 0, 0  // 07:00 UTC = midnight PDT
+  ))
+  return midnightUTC.toISOString()
+}
+
 interface BriefStats {
-  newToday:    number   // posts captured in last 26h scoring ≥5
-  linkedin:    number   // breakdown by platform
-  facebook:    number
-  topScore:    number   // highest score among today's posts
-  totalActive: number   // all-time unarchived, not yet replied
-  totalEngaged: number  // all-time engaged
-  totalReplied: number  // all-time replied
+  newToday:     number
+  linkedin:     number
+  facebook:     number
+  topScore:     number
+  totalActive:  number
+  totalEngaged: number
+  totalReplied: number
 }
 
 async function getBriefStats(tenantId: string): Promise<BriefStats> {
-  const since = new Date(Date.now() - 26 * 60 * 60 * 1000).toISOString()
+  const since = todayMidnightUTC()
 
-  // Query 1 — today's new posts
+  // Query 1 — today's new posts (since midnight PDT, paginated)
   const todayParams = new URLSearchParams({
     filterByFormula: `AND(
       ${tenantFilter(tenantId)},
@@ -70,7 +113,7 @@ async function getBriefStats(tenantId: string): Promise<BriefStats> {
     pageSize: '100',
   })
 
-  // Query 2 — pipeline action counts (all-time, not archived)
+  // Query 2 — full pipeline (paginated — critical for accurate totals)
   const pipelineParams = new URLSearchParams({
     filterByFormula: `AND(
       ${tenantFilter(tenantId)},
@@ -81,21 +124,11 @@ async function getBriefStats(tenantId: string): Promise<BriefStats> {
     pageSize: '100',
   })
 
-  const [todayResp, pipelineResp] = await Promise.all([
-    fetch(`${AIRTABLE_BASE}/${SHARED_BASE}/Captured%20Posts?${todayParams}`, {
-      headers: { Authorization: `Bearer ${PROV_TOKEN}` },
-    }),
-    fetch(`${AIRTABLE_BASE}/${SHARED_BASE}/Captured%20Posts?${pipelineParams}`, {
-      headers: { Authorization: `Bearer ${PROV_TOKEN}` },
-    }),
+  const [todayPosts, pipelinePosts] = await Promise.all([
+    fetchAllRecords('Captured Posts', todayParams),
+    fetchAllRecords('Captured Posts', pipelineParams),
   ])
 
-  const [todayData, pipelineData] = await Promise.all([
-    todayResp.json(),
-    pipelineResp.json(),
-  ])
-
-  const todayPosts = todayData.records || []
   let linkedin = 0, facebook = 0, topScore = 0
   for (const r of todayPosts) {
     const platform = (r.fields?.['Platform'] || '').toLowerCase()
@@ -106,16 +139,12 @@ async function getBriefStats(tenantId: string): Promise<BriefStats> {
   }
 
   let totalActive = 0, totalEngaged = 0, totalReplied = 0
-  for (const r of pipelineData.records || []) {
+  for (const r of pipelinePosts) {
     const action = r.fields?.['Action'] || 'New'
     const status = r.fields?.['Engagement Status'] || ''
-    if (status === 'replied') {
-      totalReplied++
-    } else if (action === 'Engaged') {
-      totalEngaged++
-    } else {
-      totalActive++
-    }
+    if (status === 'replied')   totalReplied++
+    else if (action === 'Engaged') totalEngaged++
+    else totalActive++
   }
 
   return {
@@ -140,19 +169,17 @@ function formatDate(): string {
 function buildBriefBlocks(stats: BriefStats): { blocks: object[]; fallback: string } {
   const { newToday, linkedin, facebook, topScore, totalActive, totalEngaged, totalReplied } = stats
 
-  // Platform breakdown line — only show if we actually have posts
   const platformLine = newToday > 0
     ? `↳ ${linkedin} LinkedIn  ·  ${facebook} Facebook${topScore >= 7 ? `  ·  top score *${topScore}/10*` : ''}`
     : null
 
-  // Pipeline line
   const pipelineTotal = totalActive + totalEngaged + totalReplied
-  const pipelineLine = pipelineTotal > 0
+  const pipelineLine  = pipelineTotal > 0
     ? `*${pipelineTotal} leads* in your pipeline  ·  ${totalEngaged} engaged  ·  ${totalReplied} replied`
     : null
 
   const newLeadsText = newToday > 0
-    ? `*${newToday} new lead${newToday !== 1 ? 's'  : ''}* added to your feed today`
+    ? `*${newToday} new lead${newToday !== 1 ? 's' : ''}* added to your feed today`
     : `No new leads matched your filters today — your sources are still running`
 
   const fallback = newToday > 0
@@ -160,26 +187,17 @@ function buildBriefBlocks(stats: BriefStats): { blocks: object[]; fallback: stri
     : `Scout: No new leads today. ${pipelineTotal} in pipeline.`
 
   const blocks: object[] = [
-    // Header
     {
       type: 'section',
-      text: {
-        type: 'mrkdwn',
-        text: `🔍 *Scout Daily Brief*  ·  ${formatDate()}`,
-      },
+      text: { type: 'mrkdwn', text: `🔍 *Scout Daily Brief*  ·  ${formatDate()}` },
     },
     { type: 'divider' },
-    // Today's count
     {
       type: 'section',
-      text: {
-        type: 'mrkdwn',
-        text: [newLeadsText, platformLine].filter(Boolean).join('\n'),
-      },
+      text: { type: 'mrkdwn', text: [newLeadsText, platformLine].filter(Boolean).join('\n') },
     },
   ]
 
-  // Pipeline stats — only show if there's something to show
   if (pipelineLine) {
     blocks.push({
       type: 'context',
@@ -187,7 +205,6 @@ function buildBriefBlocks(stats: BriefStats): { blocks: object[]; fallback: stri
     })
   }
 
-  // CTA
   blocks.push({ type: 'divider' })
   blocks.push({
     type: 'actions',
@@ -212,7 +229,6 @@ export async function sendDailyDigest(tenantId: string): Promise<DigestResult> {
 
   const stats = await getBriefStats(tenantId)
   const { blocks, fallback } = buildBriefBlocks(stats)
-
   const result = await postSlackMessage(slack.botToken, slack.channelId, fallback, blocks)
 
   return {
