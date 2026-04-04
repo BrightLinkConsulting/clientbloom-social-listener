@@ -80,6 +80,7 @@ export const authOptions: NextAuthOptions = {
             airtableToken:  fields['Airtable API Token']  || '',
             airtableBaseId: fields['Airtable Base ID']    || '',
             isAdmin:        fields['Is Admin']            ?? false,
+            isFeedOnly:     fields['Is Feed Only']        ?? false,
             tenantId:       fields['Tenant ID']           || 'owner',
           }
         }
@@ -118,6 +119,7 @@ export const authOptions: NextAuthOptions = {
         token.airtableToken  = (user as any).airtableToken
         token.airtableBaseId = (user as any).airtableBaseId
         token.isAdmin        = (user as any).isAdmin
+        token.isFeedOnly     = (user as any).isFeedOnly ?? false
         token.tenantId       = (user as any).tenantId || 'owner'
       }
       return token
@@ -129,6 +131,7 @@ export const authOptions: NextAuthOptions = {
         ;(session.user as any).airtableToken  = token.airtableToken
         ;(session.user as any).airtableBaseId = token.airtableBaseId
         ;(session.user as any).isAdmin        = token.isAdmin
+        ;(session.user as any).isFeedOnly     = token.isFeedOnly ?? false
         ;(session.user as any).tenantId       = token.tenantId || 'owner'
       }
       return session

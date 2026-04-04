@@ -551,8 +551,11 @@ function UserMenu() {
             <div className="px-3.5 py-2.5 border-b border-slate-800">
               <p className="text-slate-200 text-xs font-medium truncate">{user?.name || 'Account'}</p>
               <p className="text-slate-500 text-xs truncate">{user?.email}</p>
+              {user?.isFeedOnly && (
+                <p className="text-[10px] text-amber-400 mt-0.5">Feed-only access</p>
+              )}
             </div>
-            {user?.isAdmin && (
+            {user?.isAdmin && !user?.isFeedOnly && (
               <Link
                 href="/admin"
                 onClick={() => setOpen(false)}
@@ -571,6 +574,18 @@ function UserMenu() {
         </>
       )}
     </div>
+  )
+}
+
+// ---- Settings link hidden for feed-only users ----
+function NavSettingsLink() {
+  const { data: session } = useSession()
+  const user = session?.user as any
+  if (user?.isFeedOnly) return null
+  return (
+    <Link href="/settings" className="text-xs px-3 py-1.5 rounded-lg font-medium text-slate-400 hover:text-white hover:bg-slate-800/60 transition-colors">
+      Settings
+    </Link>
   )
 }
 
@@ -609,7 +624,7 @@ function Nav({ lastScannedAt }: { lastScannedAt: string | null }) {
         </div>
         <nav className="flex items-center gap-1">
           <Link href="/" className="text-xs px-3 py-1.5 rounded-lg font-medium bg-slate-800 text-white transition-colors">Feed</Link>
-          <Link href="/settings" className="text-xs px-3 py-1.5 rounded-lg font-medium text-slate-400 hover:text-white hover:bg-slate-800/60 transition-colors">Settings</Link>
+          <NavSettingsLink />
           <UserMenu />
         </nav>
       </div>

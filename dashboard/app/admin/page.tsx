@@ -20,6 +20,7 @@ interface Tenant {
   hasApifyKey:    boolean
   status:         string
   isAdmin:        boolean
+  isFeedOnly:     boolean
   plan:           string
   createdAt:      string
 }
@@ -35,13 +36,25 @@ interface StatsData {
   activity:       { id: string; type: string; time: number; email: string }[]
 }
 
+interface UsageRecord {
+  id:          string
+  email:       string
+  companyName: string
+  plan:        string
+  status:      string
+  postCount:   number | null
+  lastScan:    string | null
+  estCost:     number | null
+  error?:      string
+}
+
 // ── Helpers ────────────────────────────────────────────────────────────────────
 function eventLabel(type: string) {
   switch (type) {
-    case 'checkout.session.completed':    return { label: 'New subscriber',       color: 'text-emerald-400', dot: 'bg-emerald-400' }
-    case 'invoice.payment_succeeded':     return { label: 'Payment succeeded',    color: 'text-emerald-400', dot: 'bg-emerald-400' }
-    case 'invoice.payment_failed':        return { label: 'Payment failed',       color: 'text-amber-400',   dot: 'bg-amber-400'   }
-    case 'customer.subscription.deleted': return { label: 'Subscription canceled', color: 'text-red-400',   dot: 'bg-red-400'     }
+    case 'checkout.session.completed':    return { label: 'New subscriber',        color: 'text-emerald-400', dot: 'bg-emerald-400' }
+    case 'invoice.payment_succeeded':     return { label: 'Payment succeeded',     color: 'text-emerald-400', dot: 'bg-emerald-400' }
+    case 'invoice.payment_failed':        return { label: 'Payment failed',        color: 'text-amber-400',   dot: 'bg-amber-400'   }
+    case 'customer.subscription.deleted': return { label: 'Subscription canceled', color: 'text-red-400',     dot: 'bg-red-400'     }
     default: return { label: type, color: 'text-slate-400', dot: 'bg-slate-400' }
   }
 }
@@ -53,6 +66,15 @@ function timeAgo(unix: number): string {
   if (mins < 60) return `${mins}m ago`
   const hrs = Math.floor(mins / 60)
   if (hrs < 24)  return `${hrs}h ago`
+  return `${Math.floor(hrs / 24)}d ago`
+}
+
+function scanAgo(iso: string | null): string {
+  if (!iso) return '—'
+  const diff = Date.now() - new Date(iso).getTime()
+  const hrs = Math.floor(diff / 3600000)
+  if (hrs < 1)  return 'just now'
+  if (hrs < 24) return `${hrs}h ago`
   return `${Math.floor(hrs / 24)}d ago`
 }
 
@@ -142,7 +164,7 @@ function ApifyPanel({
 
   return (
     <tr>
-      <td colSpan={7} className="p-0">
+      <td colSpan={8} className="p-0">
         <div className="mx-4 mb-4 rounded-xl border border-slate-700 bg-[#0d1017] overflow-hidden">
 
           {/* Panel header */}
@@ -264,21 +286,211 @@ function ApifyPanel({
   )
 }
 
+// ── Delete confirmation modal ──────────────────────────────────────────────────
+function DeleteModal({
+  tenant,
+  onConfirm,
+  onCancel,
+  loading,
+}: {
+  tenant: Tenant
+  onConfirm: () => void
+  onCancel:  () => void
+  loading:   boolean
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onCancel} />
+      <div className="relative bg-[#0f1117] border border-slate-700 rounded-2xl shadow-2xl w-full max-w-md p-6">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-10 h-10 rounded-xl bg-red-900/30 flex items-center justify-center">
+            <svg className="w-5 h-5 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+            </svg>
+          </div>
+          <div>
+            <h3 className="text-white font-semibold">Delete tenant</h3>
+            <p className="text-xs text-slate-400">This action cannot be undone</p>
+          </div>
+        </div>
+        <p className="text-sm text-slate-300 mb-2">
+          You are about to permanently delete the tenant account for:
+        </p>
+        <div className="bg-[#0a0c10] border border-slate-800 rounded-lg px-4 py-3 mb-5">
+          <p className="text-white font-medium text-sm">{tenant.companyName || tenant.email}</p>
+          <p className="text-slate-500 text-xs">{tenant.email}</p>
+        </div>
+        <p className="text-xs text-slate-500 mb-5">
+          Their Airtable base and captured posts are <strong className="text-slate-300">not</strong> deleted — only the Scout login record is removed.
+        </p>
+        <div className="flex gap-3 justify-end">
+          <button
+            onClick={onCancel}
+            disabled={loading}
+            className="px-4 py-2 text-sm text-slate-400 hover:text-slate-200 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={loading}
+            className="bg-red-600 hover:bg-red-500 disabled:opacity-60 text-white font-medium px-5 py-2 rounded-lg text-sm transition-colors"
+          >
+            {loading ? 'Deleting…' : 'Yes, delete tenant'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Grant Free Access modal ────────────────────────────────────────────────────
+function GrantAccessModal({
+  onClose,
+  onSuccess,
+}: {
+  onClose:   () => void
+  onSuccess: () => void
+}) {
+  const [form, setForm] = useState({ email: '', companyName: '', note: '' })
+  const [saving, setSaving]   = useState(false)
+  const [error,  setError]    = useState('')
+  const [done,   setDone]     = useState(false)
+  const [warn,   setWarn]     = useState('')
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!form.email.trim()) return
+    setSaving(true); setError(''); setWarn('')
+    try {
+      const resp = await fetch('/api/admin/grant-access', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form),
+      })
+      const data = await resp.json()
+      if (!resp.ok) { setError(data.error || 'Failed'); return }
+      if (data.emailWarning) setWarn(data.emailWarning)
+      setDone(true)
+      onSuccess()
+    } catch { setError('Network error') }
+    finally { setSaving(false) }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative bg-[#0f1117] border border-slate-700 rounded-2xl shadow-2xl w-full max-w-md p-6">
+        <div className="flex items-center justify-between mb-5">
+          <div>
+            <h3 className="text-white font-semibold">Grant Free Access</h3>
+            <p className="text-xs text-slate-400 mt-0.5">Creates a Complimentary plan account and sends login credentials</p>
+          </div>
+          <button onClick={onClose} className="text-slate-500 hover:text-slate-300 p-1">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        {done ? (
+          <div className="text-center py-6">
+            <div className="w-12 h-12 rounded-full bg-emerald-900/30 flex items-center justify-center mx-auto mb-3">
+              <svg className="w-6 h-6 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <p className="text-white font-medium mb-1">Account created!</p>
+            <p className="text-slate-400 text-sm">Welcome email sent to <strong className="text-slate-200">{form.email}</strong></p>
+            {warn && <p className="text-amber-400 text-xs mt-2">{warn}</p>}
+            <button onClick={onClose} className="mt-4 text-sm text-[#4F6BFF] hover:underline">Close</button>
+          </div>
+        ) : (
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-slate-300 text-xs font-medium mb-1">Email *</label>
+              <input
+                type="email" required value={form.email}
+                onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
+                placeholder="user@company.com"
+                className="w-full bg-[#161b27] border border-slate-700 rounded-lg px-3 py-2 text-slate-100 text-sm placeholder-slate-500 focus:outline-none focus:border-[#4F6BFF]"
+              />
+            </div>
+            <div>
+              <label className="block text-slate-300 text-xs font-medium mb-1">Company Name</label>
+              <input
+                type="text" value={form.companyName}
+                onChange={e => setForm(f => ({ ...f, companyName: e.target.value }))}
+                placeholder="Acme Corp"
+                className="w-full bg-[#161b27] border border-slate-700 rounded-lg px-3 py-2 text-slate-100 text-sm placeholder-slate-500 focus:outline-none focus:border-[#4F6BFF]"
+              />
+            </div>
+            <div>
+              <label className="block text-slate-300 text-xs font-medium mb-1">
+                Personal note <span className="text-slate-500 font-normal">(shown in welcome email)</span>
+              </label>
+              <input
+                type="text" value={form.note}
+                onChange={e => setForm(f => ({ ...f, note: e.target.value }))}
+                placeholder="e.g. Enjoy Scout on us!"
+                className="w-full bg-[#161b27] border border-slate-700 rounded-lg px-3 py-2 text-slate-100 text-sm placeholder-slate-500 focus:outline-none focus:border-[#4F6BFF]"
+              />
+            </div>
+            <div className="bg-[#0a0c10] border border-slate-800 rounded-lg px-4 py-3 text-xs text-slate-400">
+              A temporary password will be auto-generated and emailed to the user.
+              They can connect their Airtable base in Settings after signing in.
+            </div>
+            {error && <p className="text-red-400 text-sm">{error}</p>}
+            <div className="flex gap-3 justify-end pt-1">
+              <button type="button" onClick={onClose} className="px-4 py-2 text-sm text-slate-400 hover:text-slate-200 transition-colors">
+                Cancel
+              </button>
+              <button type="submit" disabled={saving}
+                className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 text-white font-medium px-5 py-2 rounded-lg text-sm transition-colors"
+              >
+                {saving ? 'Creating…' : 'Create & send welcome email'}
+              </button>
+            </div>
+          </form>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ── Main page ──────────────────────────────────────────────────────────────────
 export default function AdminPage() {
   const { data: session, status } = useSession()
   const router = useRouter()
 
-  const [tenants,       setTenants]       = useState<Tenant[]>([])
-  const [stats,         setStats]         = useState<StatsData | null>(null)
-  const [loading,       setLoading]       = useState(true)
-  const [statsLoad,     setStatsLoad]     = useState(true)
-  const [error,         setError]         = useState('')
-  const [showForm,      setShowForm]      = useState(false)
-  const [saving,        setSaving]        = useState(false)
-  const [success,       setSuccess]       = useState('')
-  const [tab,           setTab]           = useState<'overview' | 'tenants'>('overview')
-  const [expandedApify, setExpandedApify] = useState<string | null>(null)
+  const [tenants,          setTenants]          = useState<Tenant[]>([])
+  const [stats,            setStats]            = useState<StatsData | null>(null)
+  const [usageData,        setUsageData]        = useState<UsageRecord[]>([])
+  const [loading,          setLoading]          = useState(true)
+  const [statsLoad,        setStatsLoad]        = useState(true)
+  const [usageLoad,        setUsageLoad]        = useState(false)
+  const [error,            setError]            = useState('')
+  const [showForm,         setShowForm]         = useState(false)
+  const [saving,           setSaving]           = useState(false)
+  const [success,          setSuccess]          = useState('')
+  const [tab,              setTab]              = useState<'overview' | 'tenants' | 'usage'>('overview')
+  const [expandedApify,    setExpandedApify]    = useState<string | null>(null)
+
+  // Task 1: Inline company name editing
+  const [editingCompanyId,  setEditingCompanyId]  = useState<string | null>(null)
+  const [editingCompanyVal, setEditingCompanyVal] = useState('')
+  const [savingCompany,     setSavingCompany]     = useState(false)
+
+  // Task 2: Delete confirmation
+  const [deleteTarget,   setDeleteTarget]   = useState<Tenant | null>(null)
+  const [deletingId,     setDeletingId]     = useState<string | null>(null)
+
+  // Task 3: Password reset
+  const [resetingId,     setResetingId]     = useState<string | null>(null)
+  const [resetMsg,       setResetMsg]       = useState<Record<string, string>>({})
+
+  // Task 4: Grant free access
+  const [showFreeAccess, setShowFreeAccess] = useState(false)
 
   const [form, setForm] = useState({
     email:          '',
@@ -317,6 +529,24 @@ export default function AdminPage() {
     finally { setStatsLoad(false) }
   }
 
+  async function fetchUsage() {
+    setUsageLoad(true)
+    try {
+      const resp = await fetch('/api/admin/usage')
+      if (resp.ok) {
+        const data = await resp.json()
+        setUsageData(data.usage || [])
+      }
+    } catch {}
+    finally { setUsageLoad(false) }
+  }
+
+  useEffect(() => {
+    if (tab === 'usage' && usageData.length === 0 && !usageLoad) {
+      fetchUsage()
+    }
+  }, [tab]) // eslint-disable-line
+
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault(); setSaving(true); setSuccess(''); setError('')
     try {
@@ -345,6 +575,80 @@ export default function AdminPage() {
     } catch {}
   }
 
+  // Task 1: Save inline company name edit
+  async function handleCompanySave(tenant: Tenant) {
+    const newName = editingCompanyVal.trim()
+    if (!newName || newName === tenant.companyName) {
+      setEditingCompanyId(null); return
+    }
+    setSavingCompany(true)
+    try {
+      const resp = await fetch('/api/admin/tenants', {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: tenant.id, companyName: newName }),
+      })
+      if (resp.ok) {
+        setTenants(ts => ts.map(t => t.id === tenant.id ? { ...t, companyName: newName } : t))
+      }
+    } catch {}
+    finally { setSavingCompany(false); setEditingCompanyId(null) }
+  }
+
+  // Task 2: Delete tenant
+  async function handleDelete() {
+    if (!deleteTarget) return
+    setDeletingId(deleteTarget.id)
+    try {
+      const resp = await fetch('/api/admin/tenants', {
+        method: 'DELETE', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: deleteTarget.id }),
+      })
+      if (resp.ok) {
+        setTenants(ts => ts.filter(t => t.id !== deleteTarget.id))
+        fetchStats()
+        setSuccess(`Tenant "${deleteTarget.companyName || deleteTarget.email}" deleted.`)
+      } else {
+        const d = await resp.json()
+        setError(d.error || 'Delete failed')
+      }
+    } catch { setError('Network error') }
+    finally { setDeletingId(null); setDeleteTarget(null) }
+  }
+
+  // Task 3: Send password reset email
+  async function handleSendReset(tenant: Tenant) {
+    setResetingId(tenant.id)
+    setResetMsg(m => ({ ...m, [tenant.id]: '' }))
+    try {
+      const resp = await fetch('/api/admin/send-reset', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: tenant.id, email: tenant.email, companyName: tenant.companyName }),
+      })
+      const data = await resp.json()
+      if (resp.ok) {
+        setResetMsg(m => ({ ...m, [tenant.id]: 'Email sent!' }))
+        setTimeout(() => setResetMsg(m => ({ ...m, [tenant.id]: '' })), 4000)
+      } else {
+        setResetMsg(m => ({ ...m, [tenant.id]: data.error || 'Failed' }))
+      }
+    } catch { setResetMsg(m => ({ ...m, [tenant.id]: 'Network error' })) }
+    finally { setResetingId(null) }
+  }
+
+  // Task 6: Toggle feed-only role
+  async function handleFeedOnlyToggle(tenant: Tenant) {
+    const newVal = !tenant.isFeedOnly
+    try {
+      const resp = await fetch('/api/admin/tenants', {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: tenant.id, isFeedOnly: newVal }),
+      })
+      if (resp.ok) {
+        setTenants(ts => ts.map(t => t.id === tenant.id ? { ...t, isFeedOnly: newVal } : t))
+      }
+    } catch {}
+  }
+
   if (status === 'loading') {
     return <div className="min-h-screen bg-[#0a0c10] flex items-center justify-center"><p className="text-slate-400">Loading…</p></div>
   }
@@ -353,6 +657,24 @@ export default function AdminPage() {
 
   return (
     <div className="min-h-screen bg-[#0a0c10] text-slate-200">
+
+      {/* Delete confirmation modal */}
+      {deleteTarget && (
+        <DeleteModal
+          tenant={deleteTarget}
+          onConfirm={handleDelete}
+          onCancel={() => setDeleteTarget(null)}
+          loading={!!deletingId}
+        />
+      )}
+
+      {/* Grant free access modal */}
+      {showFreeAccess && (
+        <GrantAccessModal
+          onClose={() => setShowFreeAccess(false)}
+          onSuccess={() => { fetchTenants(); fetchStats() }}
+        />
+      )}
 
       {/* Header */}
       <header className="border-b border-slate-800 px-6 py-4 flex items-center justify-between sticky top-0 z-30 bg-[#0a0c10]/95 backdrop-blur">
@@ -389,7 +711,7 @@ export default function AdminPage() {
       {/* Tab nav */}
       <div className="border-b border-slate-800 px-6">
         <div className="flex gap-1 max-w-5xl mx-auto">
-          {(['overview', 'tenants'] as const).map(t => (
+          {(['overview', 'tenants', 'usage'] as const).map(t => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -428,7 +750,7 @@ export default function AdminPage() {
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <StatCard label="MRR" value={`$${stats.mrr.toLocaleString()}`} sub={`$${stats.arr.toLocaleString()}/yr run rate`} accent />
                 <StatCard label="Active subscribers" value={String(stats.activeCount)} sub={`${stats.totalTenants} total accounts`} />
-                <StatCard label="Suspended" value={String(stats.suspendedCount)} sub="Access disabled" />
+                <StatCard label="Suspended" value={String(stats.suspendedCount)} sub="Access blocked at login" />
                 <StatCard label="Revenue / sub" value="$79" sub="per month, flat" />
               </div>
             ) : null}
@@ -487,6 +809,23 @@ export default function AdminPage() {
               </div>
             )}
 
+            {/* Suspend enforcement note (Task 7) */}
+            <div className="bg-[#0f1117] border border-slate-800 rounded-xl p-5 flex items-start gap-4">
+              <div className="w-8 h-8 rounded-lg bg-emerald-900/20 flex items-center justify-center shrink-0">
+                <svg className="w-4 h-4 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
+                </svg>
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-white mb-1">Suspend is enforced at login</p>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  When you suspend a tenant, their account is blocked in the authentication layer — they cannot sign in even if they know their password.
+                  Active sessions are not immediately invalidated (JWT-based), but will expire within the session TTL.
+                  To instantly cut access, suspend the account in the Tenants tab.
+                </p>
+              </div>
+            </div>
+
             {stats?.source === 'stub' && (
               <div className="bg-[#4F6BFF]/5 border border-[#4F6BFF]/20 rounded-xl p-5 flex items-start gap-4">
                 <div className="w-8 h-8 rounded-lg bg-[#4F6BFF]/20 flex items-center justify-center shrink-0">
@@ -517,15 +856,23 @@ export default function AdminPage() {
               <div>
                 <h1 className="text-xl font-semibold text-white">Tenants</h1>
                 <p className="text-slate-400 text-sm mt-0.5">
-                  Manage accounts, scanning pools, and Apify configuration.
+                  Manage accounts, scanning pools, roles, and access.
                 </p>
               </div>
-              <button
-                onClick={() => { setShowForm(!showForm); setError(''); setSuccess('') }}
-                className="bg-[#4F6BFF] hover:bg-[#3D57F5] text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
-              >
-                {showForm ? 'Cancel' : '+ Add Tenant'}
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => { setShowFreeAccess(true); setError(''); setSuccess('') }}
+                  className="bg-emerald-700 hover:bg-emerald-600 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
+                >
+                  Grant Free Access
+                </button>
+                <button
+                  onClick={() => { setShowForm(!showForm); setError(''); setSuccess('') }}
+                  className="bg-[#4F6BFF] hover:bg-[#3D57F5] text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
+                >
+                  {showForm ? 'Cancel' : '+ Add Tenant'}
+                </button>
+              </div>
             </div>
 
             {error && (
@@ -636,37 +983,70 @@ export default function AdminPage() {
                   <thead>
                     <tr className="border-b border-slate-800">
                       <th className="text-left text-slate-400 font-medium px-5 py-3">Company</th>
-                      <th className="text-left text-slate-400 font-medium px-5 py-3">Email</th>
-                      <th className="text-left text-slate-400 font-medium px-5 py-3">Plan</th>
-                      <th className="text-left text-slate-400 font-medium px-5 py-3">Status</th>
-                      <th className="text-left text-slate-400 font-medium px-5 py-3">Apify</th>
-                      <th className="text-left text-slate-400 font-medium px-5 py-3 pr-5">Actions</th>
+                      <th className="text-left text-slate-400 font-medium px-4 py-3">Email</th>
+                      <th className="text-left text-slate-400 font-medium px-4 py-3">Plan</th>
+                      <th className="text-left text-slate-400 font-medium px-4 py-3">Status</th>
+                      <th className="text-left text-slate-400 font-medium px-4 py-3">Apify</th>
+                      <th className="text-left text-slate-400 font-medium px-4 py-3 pr-5">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
                     {tenants.map((t, i) => (
                       <>
-                        <tr key={t.id} className={i < tenants.length - 1 || expandedApify === t.id ? 'border-b border-slate-800/50' : ''}>
-                          {/* Company */}
-                          <td className="px-5 py-3.5">
+                        <tr key={t.id} className={`${i < tenants.length - 1 || expandedApify === t.id ? 'border-b border-slate-800/50' : ''}`}>
+
+                          {/* Company — inline editable */}
+                          <td className="px-5 py-3">
                             <div className="flex items-center gap-2">
-                              <div className="w-7 h-7 rounded-lg bg-[#1a2235] border border-slate-700 flex items-center justify-center text-xs font-bold text-slate-300">
+                              <div className="w-7 h-7 rounded-lg bg-[#1a2235] border border-slate-700 flex items-center justify-center text-xs font-bold text-slate-300 shrink-0">
                                 {t.companyName?.charAt(0)?.toUpperCase() || '?'}
                               </div>
-                              <div>
-                                <p className="text-slate-200 font-medium">{t.companyName || '—'}</p>
-                                {t.isAdmin && (
-                                  <span className="text-[10px] bg-[#4F6BFF]/20 text-[#4F6BFF] px-1.5 py-0.5 rounded font-medium">Admin</span>
-                                )}
-                              </div>
+                              {editingCompanyId === t.id ? (
+                                <input
+                                  autoFocus
+                                  value={editingCompanyVal}
+                                  onChange={e => setEditingCompanyVal(e.target.value)}
+                                  onBlur={() => handleCompanySave(t)}
+                                  onKeyDown={e => {
+                                    if (e.key === 'Enter') handleCompanySave(t)
+                                    if (e.key === 'Escape') setEditingCompanyId(null)
+                                  }}
+                                  disabled={savingCompany}
+                                  className="bg-[#161b27] border border-[#4F6BFF] rounded px-2 py-0.5 text-slate-100 text-sm focus:outline-none w-32"
+                                />
+                              ) : (
+                                <div>
+                                  <button
+                                    onClick={() => { setEditingCompanyId(t.id); setEditingCompanyVal(t.companyName) }}
+                                    className="text-slate-200 font-medium text-left hover:text-[#4F6BFF] transition-colors group flex items-center gap-1"
+                                    title="Click to edit"
+                                  >
+                                    {t.companyName || '—'}
+                                    <svg className="w-3 h-3 text-slate-600 group-hover:text-[#4F6BFF] opacity-0 group-hover:opacity-100 transition-all" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                                    </svg>
+                                  </button>
+                                  <div className="flex items-center gap-1 mt-0.5">
+                                    {t.isAdmin && (
+                                      <span className="text-[10px] bg-[#4F6BFF]/20 text-[#4F6BFF] px-1.5 py-0.5 rounded font-medium">Admin</span>
+                                    )}
+                                    {t.isFeedOnly && (
+                                      <span className="text-[10px] bg-amber-900/30 text-amber-400 px-1.5 py-0.5 rounded font-medium border border-amber-800/30">Feed only</span>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
                             </div>
                           </td>
+
                           {/* Email */}
-                          <td className="px-5 py-3.5 text-slate-400 text-xs">{t.email}</td>
+                          <td className="px-4 py-3 text-slate-400 text-xs">{t.email}</td>
+
                           {/* Plan */}
-                          <td className="px-5 py-3.5 text-slate-400">{t.plan || '—'}</td>
+                          <td className="px-4 py-3 text-slate-400 text-xs">{t.plan || '—'}</td>
+
                           {/* Status */}
-                          <td className="px-5 py-3.5">
+                          <td className="px-4 py-3">
                             <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium ${
                               t.status === 'Active' ? 'bg-green-900/30 text-green-400' : 'bg-red-900/30 text-red-400'
                             }`}>
@@ -674,31 +1054,76 @@ export default function AdminPage() {
                               {t.status}
                             </span>
                           </td>
+
                           {/* Apify pool badge */}
-                          <td className="px-5 py-3.5">
+                          <td className="px-4 py-3">
                             <ApifyPoolBadge hasKey={t.hasApifyKey} />
                           </td>
+
                           {/* Actions */}
-                          <td className="px-5 py-3.5 pr-5">
-                            <div className="flex items-center gap-3">
+                          <td className="px-4 py-3 pr-5">
+                            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                              {/* Suspend/Activate */}
                               <button
                                 onClick={() => handleStatusToggle(t)}
                                 className="text-xs text-slate-400 hover:text-slate-200 transition-colors underline underline-offset-2"
                               >
                                 {t.status === 'Active' ? 'Suspend' : 'Activate'}
                               </button>
-                              <span className="text-slate-700">·</span>
+                              <span className="text-slate-700 text-xs">·</span>
+
+                              {/* Apify */}
                               <button
                                 onClick={() => setExpandedApify(expandedApify === t.id ? null : t.id)}
                                 className={`text-xs transition-colors underline underline-offset-2 ${
-                                  expandedApify === t.id
-                                    ? 'text-[#4F6BFF]'
-                                    : 'text-slate-400 hover:text-[#4F6BFF]'
+                                  expandedApify === t.id ? 'text-[#4F6BFF]' : 'text-slate-400 hover:text-[#4F6BFF]'
                                 }`}
                               >
                                 Apify
                               </button>
+                              <span className="text-slate-700 text-xs">·</span>
+
+                              {/* Reset password */}
+                              <button
+                                onClick={() => handleSendReset(t)}
+                                disabled={resetingId === t.id}
+                                className="text-xs text-slate-400 hover:text-amber-400 transition-colors underline underline-offset-2 disabled:opacity-50"
+                              >
+                                {resetingId === t.id ? 'Sending…' : 'Reset PW'}
+                              </button>
+                              <span className="text-slate-700 text-xs">·</span>
+
+                              {/* Feed-only toggle */}
+                              <button
+                                onClick={() => handleFeedOnlyToggle(t)}
+                                className={`text-xs transition-colors underline underline-offset-2 ${
+                                  t.isFeedOnly ? 'text-amber-400 hover:text-slate-400' : 'text-slate-400 hover:text-amber-400'
+                                }`}
+                                title={t.isFeedOnly ? 'Remove feed-only restriction' : 'Restrict to feed-only access'}
+                              >
+                                {t.isFeedOnly ? 'Full access' : 'Feed only'}
+                              </button>
+                              <span className="text-slate-700 text-xs">·</span>
+
+                              {/* Delete */}
+                              <button
+                                onClick={() => setDeleteTarget(t)}
+                                className="text-xs text-slate-400 hover:text-red-400 transition-colors underline underline-offset-2"
+                              >
+                                Delete
+                              </button>
                             </div>
+
+                            {/* Inline feedback for reset */}
+                            {resetMsg[t.id] && (
+                              <p className={`text-[11px] mt-1 ${
+                                resetMsg[t.id] === 'Email sent!'
+                                  ? 'text-emerald-400'
+                                  : 'text-red-400'
+                              }`}>
+                                {resetMsg[t.id]}
+                              </p>
+                            )}
                           </td>
                         </tr>
 
@@ -713,6 +1138,122 @@ export default function AdminPage() {
                       </>
                     ))}
                   </tbody>
+                </table>
+              </div>
+            )}
+
+          </div>
+        )}
+
+        {/* ── Usage tab ── */}
+        {tab === 'usage' && (
+          <div className="space-y-6">
+
+            <div className="flex items-center justify-between">
+              <div>
+                <h1 className="text-xl font-semibold text-white">Usage</h1>
+                <p className="text-slate-400 text-sm mt-0.5">
+                  Per-tenant post counts and estimated Apify cost.
+                </p>
+              </div>
+              <button
+                onClick={fetchUsage}
+                disabled={usageLoad}
+                className="text-sm text-slate-400 hover:text-slate-200 transition-colors flex items-center gap-1.5"
+              >
+                <svg className={`w-4 h-4 ${usageLoad ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                Refresh
+              </button>
+            </div>
+
+            <div className="bg-[#0a0c10] border border-amber-800/30 rounded-lg px-4 py-3 text-xs text-amber-300">
+              Cost estimates use ~$0.002/post (Apify starter tier). Actual costs vary by actor and usage tier.
+            </div>
+
+            {usageLoad ? (
+              <div className="space-y-2">
+                {[1,2,3].map(i => (
+                  <div key={i} className="bg-[#0f1117] border border-slate-800 rounded-xl p-4 animate-pulse">
+                    <div className="h-3 bg-slate-800 rounded w-1/3 mb-2" />
+                    <div className="h-2 bg-slate-800 rounded w-1/4" />
+                  </div>
+                ))}
+              </div>
+            ) : usageData.length === 0 ? (
+              <div className="text-center py-16 text-slate-500 text-sm">No usage data loaded yet.</div>
+            ) : (
+              <div className="bg-[#0f1117] border border-slate-800 rounded-xl overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-slate-800">
+                      <th className="text-left text-slate-400 font-medium px-5 py-3">Tenant</th>
+                      <th className="text-left text-slate-400 font-medium px-4 py-3">Plan</th>
+                      <th className="text-left text-slate-400 font-medium px-4 py-3">Status</th>
+                      <th className="text-right text-slate-400 font-medium px-4 py-3">Posts captured</th>
+                      <th className="text-right text-slate-400 font-medium px-4 py-3">Last scan</th>
+                      <th className="text-right text-slate-400 font-medium px-5 py-3">Est. cost</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {usageData.map((u, i) => (
+                      <tr key={u.id} className={i < usageData.length - 1 ? 'border-b border-slate-800/50' : ''}>
+                        <td className="px-5 py-3.5">
+                          <p className="text-slate-200 font-medium">{u.companyName || '—'}</p>
+                          <p className="text-slate-500 text-xs">{u.email}</p>
+                        </td>
+                        <td className="px-4 py-3.5 text-slate-400 text-xs">{u.plan || '—'}</td>
+                        <td className="px-4 py-3.5">
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
+                            u.status === 'Active' ? 'bg-green-900/30 text-green-400' : 'bg-red-900/30 text-red-400'
+                          }`}>
+                            <span className={`w-1 h-1 rounded-full ${u.status === 'Active' ? 'bg-green-400' : 'bg-red-400'}`} />
+                            {u.status}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3.5 text-right">
+                          {u.error === 'no_credentials' ? (
+                            <span className="text-slate-600 text-xs">No credentials</span>
+                          ) : u.error ? (
+                            <span className="text-amber-500 text-xs" title={u.error}>Error</span>
+                          ) : u.postCount === null ? (
+                            <span className="text-slate-600 text-xs">—</span>
+                          ) : (
+                            <span className="text-slate-200 font-medium tabular-nums">
+                              {u.postCount >= 500 ? '500+' : u.postCount.toLocaleString()}
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3.5 text-right text-slate-400 text-xs">
+                          {scanAgo(u.lastScan)}
+                        </td>
+                        <td className="px-5 py-3.5 text-right">
+                          {u.estCost === null ? (
+                            <span className="text-slate-600 text-xs">—</span>
+                          ) : (
+                            <span className="text-slate-300 text-xs tabular-nums">
+                              ~${u.estCost.toFixed(2)}
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  {usageData.length > 0 && (
+                    <tfoot>
+                      <tr className="border-t border-slate-700">
+                        <td colSpan={3} className="px-5 py-3 text-xs text-slate-500 font-medium">Totals</td>
+                        <td className="px-4 py-3 text-right text-slate-300 font-semibold text-sm tabular-nums">
+                          {usageData.reduce((s, u) => s + (u.postCount || 0), 0).toLocaleString()}
+                        </td>
+                        <td className="px-4 py-3" />
+                        <td className="px-5 py-3 text-right text-slate-300 font-semibold text-sm tabular-nums">
+                          ~${usageData.reduce((s, u) => s + (u.estCost || 0), 0).toFixed(2)}
+                        </td>
+                      </tr>
+                    </tfoot>
+                  )}
                 </table>
               </div>
             )}

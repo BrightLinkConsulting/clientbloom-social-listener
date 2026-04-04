@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { useState, useEffect, useCallback } from 'react'
 import { useSession, signOut } from 'next-auth/react'
 
@@ -2586,6 +2587,16 @@ type TabId = typeof TABS[number]['id']
 
 // ---- Main page ----
 export default function SettingsPage() {
+  const { data: session, status: sessionStatus } = useSession()
+  const settingsRouter = useRouter()
+
+  // Feed-only users cannot access Settings — redirect to Feed
+  useEffect(() => {
+    if (sessionStatus === 'loading') return
+    const u = session?.user as any
+    if (u?.isFeedOnly) settingsRouter.replace('/')
+  }, [session, sessionStatus, settingsRouter])
+
   const [activeTab, setActiveTab] = useState<TabId>('profile')
   const [sources, setSources]     = useState<Source[]>([])
   const [loading, setLoading]     = useState(true)

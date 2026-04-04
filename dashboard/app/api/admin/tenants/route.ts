@@ -4,9 +4,10 @@
  * Admin-only tenant management API.
  * Requires the requester to be signed in AND have isAdmin=true in their session.
  *
- * GET  — list all tenants from Platform Airtable
- * POST — create a new tenant (hashes password server-side)
- * PATCH — update tenant (status, company name, base ID, token)
+ * GET    — list all tenants from Platform Airtable
+ * POST   — create a new tenant (hashes password server-side)
+ * PATCH  — update tenant (status, company name, base ID, token, role, etc.)
+ * DELETE — permanently delete a tenant record
  */
 
 import { NextResponse } from 'next/server'
@@ -69,6 +70,7 @@ export async function GET() {
       hasApifyKey:    !!(r.fields['Apify API Key']),
       status:         r.fields['Status']              || 'Active',
       isAdmin:        r.fields['Is Admin']            ?? false,
+      isFeedOnly:     r.fields['Is Feed Only']        ?? false,
       plan:           r.fields['Plan']                || '',
       createdAt:      r.fields['Created At']          || '',
     }))
@@ -93,9 +95,9 @@ export async function POST(req: Request) {
   try {
     const { email, password, companyName, airtableBaseId, airtableToken, plan, isAdmin } = await req.json()
 
-    if (!email || !password || !airtableBaseId || !airtableToken) {
+    if (!email || !password) {
       return NextResponse.json(
-        { error: 'email, password, airtableBaseId, and airtableToken are required.' },
+        { error: 'email and password are required.' },
         { status: 400 }
       )
     }
@@ -103,16 +105,16 @@ export async function POST(req: Request) {
     const passwordHash = await bcrypt.hash(password, 12)
 
     const fields: Record<string, any> = {
-      'Email':               email.toLowerCase(),
-      'Password Hash':       passwordHash,
-      'Company Name':        companyName || email,
-      'Airtable Base ID':    airtableBaseId.trim(),
-      'Airtable API Token':  airtableToken.trim(),
-      'Status':              'Active',
-      'Created At':          new Date().toISOString().split('T')[0],
+      'Email':         email.toLowerCase(),
+      'Password Hash': passwordHash,
+      'Company Name':  companyName || email,
+      'Status':        'Active',
+      'Created At':    new Date().toISOString().split('T')[0],
     }
-    if (plan)             fields['Plan']     = plan
-    if (isAdmin === true) fields['Is Admin'] = true
+    if (airtableBaseId?.trim()) fields['Airtable Base ID']   = airtableBaseId.trim()
+    if (airtableToken?.trim())  fields['Airtable API Token'] = airtableToken.trim()
+    if (plan)                   fields['Plan']               = plan
+    if (isAdmin === true)       fields['Is Admin']           = true
 
     const resp = await fetch(BASE_URL(), {
       method: 'POST',
@@ -130,7 +132,7 @@ export async function POST(req: Request) {
         id:             r.id,
         email:          r.fields['Email'],
         companyName:    r.fields['Company Name'],
-        airtableBaseId: r.fields['Airtable Base ID'],
+        airtableBaseId: r.fields['Airtable Base ID'] || '',
         status:         r.fields['Status'],
         isAdmin:        r.fields['Is Admin'] ?? false,
       }
@@ -152,7 +154,10 @@ export async function PATCH(req: Request) {
   }
 
   try {
-    const { id, status, companyName, airtableBaseId, airtableToken, password, plan, isAdmin, apifyKey } = await req.json()
+    const {
+      id, status, companyName, airtableBaseId, airtableToken,
+      password, plan, isAdmin, isFeedOnly, apifyKey,
+    } = await req.json()
 
     if (!id) return NextResponse.json({ error: 'id is required.' }, { status: 400 })
 
@@ -163,6 +168,7 @@ export async function PATCH(req: Request) {
     if (airtableToken  !== undefined) fields['Airtable API Token']  = airtableToken
     if (plan           !== undefined) fields['Plan']                = plan
     if (isAdmin        !== undefined) fields['Is Admin']            = isAdmin
+    if (isFeedOnly     !== undefined) fields['Is Feed Only']        = isFeedOnly
     // apifyKey: empty string = clear (revert to shared pool), truthy string = set custom key
     if (apifyKey !== undefined) fields['Apify API Key'] = apifyKey || null
 
@@ -183,6 +189,33 @@ export async function PATCH(req: Request) {
 
     if (!resp.ok) return NextResponse.json({ error: await resp.text() }, { status: resp.status })
 
+    return NextResponse.json({ ok: true })
+  } catch (e: any) {
+    return NextResponse.json({ error: e.message }, { status: 500 })
+  }
+}
+
+// ── DELETE — remove a tenant ──────────────────────────────────────────────────
+export async function DELETE(req: Request) {
+  const tenant = await getTenantConfig()
+  if (!tenant) return tenantError()
+  if (!tenant.isAdmin) {
+    return NextResponse.json({ error: 'Admin access required.' }, { status: 403 })
+  }
+  if (!isPlatformConfigured()) {
+    return NextResponse.json({ error: 'Platform Airtable not configured.' }, { status: 500 })
+  }
+
+  try {
+    const { id } = await req.json()
+    if (!id) return NextResponse.json({ error: 'id is required.' }, { status: 400 })
+
+    const resp = await fetch(`${BASE_URL()}/${id}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${PLATFORM_TOKEN}` },
+    })
+
+    if (!resp.ok) return NextResponse.json({ error: await resp.text() }, { status: resp.status })
     return NextResponse.json({ ok: true })
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 })
