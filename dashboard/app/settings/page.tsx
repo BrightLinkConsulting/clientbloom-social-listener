@@ -2074,14 +2074,6 @@ function SystemStatusSection() {
       detail: 'AI-written summary of top posts with comment angles — requires Slack to be connected below',
       status: slackConfigured ? 'active' as const : 'warning' as const,
     },
-    {
-      label:  'Slack',
-      value:  slackLoaded ? (slackHasToken ? (slackChannel ? `#${slackChannel.replace(/^#/, '')}` : 'Connected') : 'Not connected') : '…',
-      detail: slackConfigured
-        ? 'Digest and alerts are being delivered to this channel'
-        : 'Connect Slack below — the daily digest won\'t send until this is set up',
-      status: slackConfigured ? 'active' as const : 'warning' as const,
-    },
   ]
 
   return (
