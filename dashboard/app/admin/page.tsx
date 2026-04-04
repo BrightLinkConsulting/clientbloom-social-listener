@@ -26,6 +26,22 @@ interface Tenant {
   trialEndsAt:    string | null
 }
 
+function PlanBadge({ plan }: { plan: string }) {
+  if (!plan) return <span className="text-slate-600 text-xs">—</span>
+  const styles: Record<string, string> = {
+    'Owner':     'bg-amber-900/30 text-amber-300 border-amber-700/40',
+    'Scout $79': 'bg-emerald-900/30 text-emerald-300 border-emerald-700/40',
+    'Scout $49': 'bg-emerald-900/30 text-emerald-300 border-emerald-700/40',
+    'Trial':     'bg-blue-900/30 text-blue-300 border-blue-700/40',
+  }
+  const cls = styles[plan] || 'bg-slate-800 text-slate-400 border-slate-700'
+  return (
+    <span className={`inline-flex items-center text-[11px] font-medium px-2 py-0.5 rounded-md border whitespace-nowrap ${cls}`}>
+      {plan}
+    </span>
+  )
+}
+
 function trialBadge(trialEndsAt: string | null) {
   if (!trialEndsAt) return null
   const daysLeft = Math.ceil((new Date(trialEndsAt).getTime() - Date.now()) / 86400000)
@@ -725,8 +741,8 @@ export default function AdminPage() {
       </header>
 
       {/* Tab nav */}
-      <div className="border-b border-slate-800 px-6">
-        <div className="flex gap-1 max-w-5xl mx-auto">
+      <div className="border-b border-slate-800 px-8">
+        <div className="flex gap-1 max-w-[1440px] mx-auto">
           {(['overview', 'tenants', 'usage'] as const).map(t => (
             <button
               key={t}
@@ -741,7 +757,7 @@ export default function AdminPage() {
         </div>
       </div>
 
-      <div className="max-w-5xl mx-auto px-6 py-8">
+      <div className="max-w-[1440px] mx-auto px-8 py-8">
 
         {/* ── Overview tab ── */}
         {tab === 'overview' && (
@@ -1068,24 +1084,24 @@ export default function AdminPage() {
                 ) : (
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b border-slate-800">
-                      <th className="text-left text-slate-400 font-medium px-5 py-3">Company</th>
-                      <th className="text-left text-slate-400 font-medium px-4 py-3">Email</th>
-                      <th className="text-left text-slate-400 font-medium px-4 py-3">Plan</th>
-                      <th className="text-left text-slate-400 font-medium px-4 py-3">Status</th>
-                      <th className="text-left text-slate-400 font-medium px-4 py-3">Apify</th>
-                      <th className="text-left text-slate-400 font-medium px-4 py-3 pr-5">Actions</th>
+                    <tr className="border-b border-slate-800/80 bg-[#0d0f15]">
+                      <th className="text-left text-[11px] font-semibold text-slate-500 uppercase tracking-wider px-6 py-3.5">Company</th>
+                      <th className="text-left text-[11px] font-semibold text-slate-500 uppercase tracking-wider px-4 py-3.5">Email</th>
+                      <th className="text-left text-[11px] font-semibold text-slate-500 uppercase tracking-wider px-4 py-3.5">Plan</th>
+                      <th className="text-left text-[11px] font-semibold text-slate-500 uppercase tracking-wider px-4 py-3.5">Status</th>
+                      <th className="text-right text-[11px] font-semibold text-slate-500 uppercase tracking-wider px-6 py-3.5">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
                     {filtered.map((t, i) => (
                       <>
-                        <tr key={t.id} className={`${i < filtered.length - 1 || expandedApify === t.id ? 'border-b border-slate-800/50' : ''}`}>
+                        <tr key={t.id} className={`group transition-colors hover:bg-slate-800/20 ${i < filtered.length - 1 || expandedApify === t.id ? 'border-b border-slate-800/50' : ''}`}>
 
                           {/* Company — inline editable */}
-                          <td className="px-5 py-3">
-                            <div className="flex items-center gap-2">
-                              <div className="w-7 h-7 rounded-lg bg-[#1a2235] border border-slate-700 flex items-center justify-center text-xs font-bold text-slate-300 shrink-0">
+                          <td className="px-6 py-4">
+                            <div className="flex items-center gap-3">
+                              {/* Avatar */}
+                              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#4F6BFF]/30 to-[#1a2235] border border-slate-700/80 flex items-center justify-center text-sm font-bold text-slate-200 shrink-0 shadow-sm">
                                 {t.companyName?.charAt(0)?.toUpperCase() || '?'}
                               </div>
                               {editingCompanyId === t.id ? (
@@ -1099,26 +1115,26 @@ export default function AdminPage() {
                                     if (e.key === 'Escape') setEditingCompanyId(null)
                                   }}
                                   disabled={savingCompany}
-                                  className="bg-[#161b27] border border-[#4F6BFF] rounded px-2 py-0.5 text-slate-100 text-sm focus:outline-none w-32"
+                                  className="bg-[#161b27] border border-[#4F6BFF] rounded-lg px-2.5 py-1 text-slate-100 text-sm focus:outline-none w-44"
                                 />
                               ) : (
                                 <div>
                                   <button
                                     onClick={() => { setEditingCompanyId(t.id); setEditingCompanyVal(t.companyName) }}
-                                    className="text-slate-200 font-medium text-left hover:text-[#4F6BFF] transition-colors group flex items-center gap-1"
-                                    title="Click to edit"
+                                    className="text-slate-100 font-medium text-left hover:text-[#4F6BFF] transition-colors group/edit flex items-center gap-1.5"
+                                    title="Click to rename"
                                   >
                                     {t.companyName || '—'}
-                                    <svg className="w-3 h-3 text-slate-600 group-hover:text-[#4F6BFF] opacity-0 group-hover:opacity-100 transition-all" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <svg className="w-3 h-3 text-slate-600 opacity-0 group-hover/edit:opacity-100 transition-opacity" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                       <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
                                     </svg>
                                   </button>
-                                  <div className="flex items-center gap-1 mt-0.5">
+                                  <div className="flex items-center gap-1.5 mt-1">
                                     {t.isAdmin && (
-                                      <span className="text-[10px] bg-[#4F6BFF]/20 text-[#4F6BFF] px-1.5 py-0.5 rounded font-medium">Admin</span>
+                                      <span className="text-[10px] bg-[#4F6BFF]/20 text-[#4F6BFF] px-1.5 py-0.5 rounded-md font-semibold border border-[#4F6BFF]/20">Admin</span>
                                     )}
                                     {t.isFeedOnly && (
-                                      <span className="text-[10px] bg-amber-900/30 text-amber-400 px-1.5 py-0.5 rounded font-medium border border-amber-800/30">Feed only</span>
+                                      <span className="text-[10px] bg-amber-900/30 text-amber-400 px-1.5 py-0.5 rounded-md font-semibold border border-amber-800/30">Feed only</span>
                                     )}
                                     {trialBadge(t.trialEndsAt)}
                                   </div>
@@ -1128,49 +1144,51 @@ export default function AdminPage() {
                           </td>
 
                           {/* Email */}
-                          <td className="px-4 py-3 text-slate-400 text-xs">{t.email}</td>
+                          <td className="px-4 py-4">
+                            <span className="text-slate-400 text-xs font-mono">{t.email}</span>
+                          </td>
 
                           {/* Plan */}
-                          <td className="px-4 py-3 text-slate-400 text-xs">{t.plan || '—'}</td>
+                          <td className="px-4 py-4">
+                            <PlanBadge plan={t.plan} />
+                          </td>
 
                           {/* Status */}
-                          <td className="px-4 py-3">
-                            <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium ${
-                              t.status === 'Active' ? 'bg-green-900/30 text-green-400' : 'bg-red-900/30 text-red-400'
+                          <td className="px-4 py-4">
+                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${
+                              t.status === 'Active'
+                                ? 'bg-emerald-900/30 text-emerald-300 border border-emerald-800/40'
+                                : 'bg-red-900/20 text-red-400 border border-red-800/30'
                             }`}>
-                              <span className={`w-1.5 h-1.5 rounded-full ${t.status === 'Active' ? 'bg-green-400' : 'bg-red-400'}`} />
+                              <span className={`w-1.5 h-1.5 rounded-full ${t.status === 'Active' ? 'bg-emerald-400' : 'bg-red-400'}`} />
                               {t.status}
                             </span>
                           </td>
 
-                          {/* Apify pool badge */}
-                          <td className="px-4 py-3">
-                            <ApifyPoolBadge hasKey={t.hasApifyKey} />
-                          </td>
+                          {/* Actions — right-aligned, all on one row */}
+                          <td className="px-6 py-4">
+                            <div className="flex items-center justify-end gap-1.5">
 
-                          {/* Actions */}
-                          <td className="px-4 py-3 pr-5">
-                            <div className="flex items-center gap-1">
-                              {/* Suspend / Activate */}
+                              {/* Suspend / Activate — primary action, text + icon */}
                               <button
                                 onClick={() => handleStatusToggle(t)}
                                 title={t.status === 'Active' ? 'Suspend account' : 'Reactivate account'}
-                                className={`inline-flex items-center gap-1 text-[11px] font-medium px-2 py-1 rounded-md border transition-colors ${
+                                className={`whitespace-nowrap inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border transition-all ${
                                   t.status === 'Active'
-                                    ? 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-amber-900/30 hover:border-amber-700/40 hover:text-amber-400'
-                                    : 'bg-emerald-900/20 border-emerald-700/40 text-emerald-400 hover:bg-emerald-900/40'
+                                    ? 'bg-slate-800/80 border-slate-700 text-slate-400 hover:bg-amber-900/30 hover:border-amber-700/50 hover:text-amber-300'
+                                    : 'bg-emerald-900/20 border-emerald-700/40 text-emerald-300 hover:bg-emerald-900/40 hover:border-emerald-600/60'
                                 }`}
                               >
                                 {t.status === 'Active' ? (
                                   <>
-                                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                       <path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
                                     </svg>
                                     Suspend
                                   </>
                                 ) : (
                                   <>
-                                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                       <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                                     </svg>
                                     Activate
@@ -1178,33 +1196,34 @@ export default function AdminPage() {
                                 )}
                               </button>
 
-                              {/* Apify */}
+                              {/* Divider */}
+                              <div className="w-px h-5 bg-slate-700/60 mx-0.5" />
+
+                              {/* Apify — with pool status dot */}
                               <button
                                 onClick={() => setExpandedApify(expandedApify === t.id ? null : t.id)}
-                                title="Manage Apify scanning pool"
-                                className={`inline-flex items-center gap-1 text-[11px] font-medium px-2 py-1 rounded-md border transition-colors ${
+                                title={t.hasApifyKey ? 'Custom Apify key active — click to manage' : 'Using shared pool — click to assign custom key'}
+                                className={`whitespace-nowrap inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border transition-all ${
                                   expandedApify === t.id
-                                    ? 'bg-[#4F6BFF]/20 border-[#4F6BFF]/40 text-[#4F6BFF]'
-                                    : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-[#4F6BFF]/10 hover:border-[#4F6BFF]/30 hover:text-[#4F6BFF]'
+                                    ? 'bg-[#4F6BFF]/20 border-[#4F6BFF]/50 text-[#7B8FF7]'
+                                    : 'bg-slate-800/80 border-slate-700 text-slate-400 hover:bg-[#4F6BFF]/10 hover:border-[#4F6BFF]/40 hover:text-[#7B8FF7]'
                                 }`}
                               >
-                                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14M12 5l7 7-7 7" />
-                                </svg>
+                                <span className={`w-1.5 h-1.5 rounded-full ${t.hasApifyKey ? 'bg-emerald-400' : 'bg-slate-500'}`} />
                                 Apify
                               </button>
 
                               {/* Feed-only toggle */}
                               <button
                                 onClick={() => handleFeedOnlyToggle(t)}
-                                title={t.isFeedOnly ? 'Remove feed-only restriction (grant full access)' : 'Restrict to feed-only access'}
-                                className={`inline-flex items-center gap-1 text-[11px] font-medium px-2 py-1 rounded-md border transition-colors ${
+                                title={t.isFeedOnly ? 'Click to restore full access' : 'Click to restrict to feed only'}
+                                className={`whitespace-nowrap inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border transition-all ${
                                   t.isFeedOnly
-                                    ? 'bg-amber-900/30 border-amber-700/40 text-amber-400 hover:bg-slate-800 hover:border-slate-700 hover:text-slate-400'
-                                    : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-amber-900/20 hover:border-amber-700/30 hover:text-amber-400'
+                                    ? 'bg-amber-900/30 border-amber-700/50 text-amber-300 hover:bg-slate-800/80 hover:border-slate-700 hover:text-slate-400'
+                                    : 'bg-slate-800/80 border-slate-700 text-slate-400 hover:bg-amber-900/20 hover:border-amber-700/40 hover:text-amber-300'
                                 }`}
                               >
-                                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                   <path strokeLinecap="round" strokeLinejoin="round" d={t.isFeedOnly
                                     ? "M15 12a3 3 0 11-6 0 3 3 0 016 0z M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
                                     : "M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"
@@ -1213,23 +1232,26 @@ export default function AdminPage() {
                                 {t.isFeedOnly ? 'Full access' : 'Feed only'}
                               </button>
 
-                              {/* Reset PW */}
+                              {/* Divider */}
+                              <div className="w-px h-5 bg-slate-700/60 mx-0.5" />
+
+                              {/* Reset PW — icon + label */}
                               <button
                                 onClick={() => handleSendReset(t)}
                                 disabled={resetingId === t.id}
-                                title="Send password reset email"
-                                className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-1 rounded-md border bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700 hover:text-slate-200 transition-colors disabled:opacity-40"
+                                title="Email a temporary password reset"
+                                className="whitespace-nowrap inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border bg-slate-800/80 border-slate-700 text-slate-400 hover:bg-slate-700/80 hover:text-slate-200 hover:border-slate-600 transition-all disabled:opacity-40"
                               >
                                 {resetingId === t.id ? (
                                   <>
-                                    <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                       <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                                     </svg>
-                                    Sending
+                                    Sending…
                                   </>
                                 ) : (
                                   <>
-                                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                       <path strokeLinecap="round" strokeLinejoin="round" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
                                     </svg>
                                     Reset PW
@@ -1237,13 +1259,13 @@ export default function AdminPage() {
                                 )}
                               </button>
 
-                              {/* Delete */}
+                              {/* Delete — danger */}
                               <button
                                 onClick={() => setDeleteTarget(t)}
-                                title="Delete tenant"
-                                className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-1 rounded-md border bg-slate-800 border-slate-700 text-slate-400 hover:bg-red-900/20 hover:border-red-700/40 hover:text-red-400 transition-colors"
+                                title="Permanently delete this tenant"
+                                className="whitespace-nowrap inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border bg-slate-800/80 border-slate-700 text-slate-500 hover:bg-red-900/20 hover:border-red-700/50 hover:text-red-400 transition-all"
                               >
-                                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                   <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                                 </svg>
                                 Delete
