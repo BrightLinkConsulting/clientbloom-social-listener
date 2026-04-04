@@ -175,16 +175,16 @@ function buildBriefBlocks(stats: BriefStats): { blocks: object[]; fallback: stri
 
   const pipelineTotal = totalActive + totalEngaged + totalReplied
   const pipelineLine  = pipelineTotal > 0
-    ? `*${pipelineTotal} leads* in your pipeline  ·  ${totalEngaged} engaged  ·  ${totalReplied} replied`
+    ? `*${pipelineTotal} ${pipelineTotal !== 1 ? 'opportunities' : 'opportunity'}* in your pipeline  ·  ${totalEngaged} engaged  ·  ${totalReplied} replied`
     : null
 
   const newLeadsText = newToday > 0
-    ? `*${newToday} new lead${newToday !== 1 ? 's' : ''}* added to your feed today`
-    : `No new leads matched your filters today — your sources are still running`
+    ? `*${newToday} new ${newToday !== 1 ? 'opportunities' : 'opportunity'}* added to your feed today`
+    : `No new opportunities matched your filters today — your sources are still running`
 
   const fallback = newToday > 0
-    ? `Scout: ${newToday} new leads today. ${pipelineTotal} in pipeline. Open Scout to review.`
-    : `Scout: No new leads today. ${pipelineTotal} in pipeline.`
+    ? `Scout: ${newToday} new ${newToday !== 1 ? 'opportunities' : 'opportunity'} today. ${pipelineTotal} in pipeline. Open Scout to review.`
+    : `Scout: No new opportunities today. ${pipelineTotal} in pipeline.`
 
   const blocks: object[] = [
     {
