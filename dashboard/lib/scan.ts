@@ -29,8 +29,11 @@ Posts:
 {posts_json}`
 
 async function runApifyActor(apifyToken: string, actorId: string, input: object, waitSecs = 45) {
+  // Apify API requires tilde (~) as the separator in actor IDs, not slash
+  // e.g. "harvestapi/linkedin-profile-posts" → "harvestapi~linkedin-profile-posts"
+  const safeActorId = actorId.replace('/', '~')
   const url =
-    `https://api.apify.com/v2/acts/${actorId}/run-sync-get-dataset-items` +
+    `https://api.apify.com/v2/acts/${safeActorId}/run-sync-get-dataset-items` +
     `?token=${apifyToken}&timeout=${waitSecs}&memory=256`
 
   let res: Response

@@ -18,8 +18,9 @@ async function testActor(
   input: object,
   waitSecs = 20,
 ): Promise<{ status: number; ok: boolean; body: string }> {
+  const safeActorId = actorId.replace('/', '~')
   const url =
-    `https://api.apify.com/v2/acts/${actorId}/run-sync-get-dataset-items` +
+    `https://api.apify.com/v2/acts/${safeActorId}/run-sync-get-dataset-items` +
     `?token=${token}&timeout=${waitSecs}&memory=256`
 
   try {
