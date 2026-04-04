@@ -21,10 +21,14 @@ interface Post {
     'Comment Approach': string
     'Captured At': string
     'Action': string
+    'Engagement Status': string
+    'Notes': string
+    'CRM Contact ID': string
+    'CRM Pushed At': string
   }
 }
 
-type ActionFilter = 'New' | 'Engaged' | 'Skipped' | 'all'
+type ActionFilter = 'New' | 'Engaged' | 'Replied' | 'Skipped' | 'all'
 
 // ---- Helpers ----
 function timeAgo(iso: string): string {
@@ -172,19 +176,30 @@ function PostCard({
   post,
   onAction,
   updating,
+  crmType,
 }: {
   post: Post
   onAction: (id: string, action: string) => void
   updating: boolean
+  crmType: string
 }) {
-  const [expanded, setExpanded] = useState(false)
-  const [angleOpen, setAngleOpen] = useState(false)
-  const f = post.fields
-  const text = f['Post Text'] || ''
-  const score = f['Relevance Score'] || 0
-  const action = f['Action'] || 'New'
-  const isEngaged = action === 'Engaged'
-  const isSkipped = action === 'Skipped'
+  const [expanded,   setExpanded]   = useState(false)
+  const [angleOpen,  setAngleOpen]  = useState(false)
+  const [notes,      setNotes]      = useState(post.fields['Notes'] || '')
+  const [notesSaved, setNotesSaved] = useState(false)
+  const [crmPushing, setCrmPushing] = useState(false)
+  const [crmPushed,  setCrmPushed]  = useState(!!post.fields['CRM Pushed At'])
+  const [crmError,   setCrmError]   = useState('')
+
+  const f              = post.fields
+  const text           = f['Post Text'] || ''
+  const score          = f['Relevance Score'] || 0
+  const action         = f['Action'] || 'New'
+  const engStatus      = f['Engagement Status'] || ''
+  const isEngaged      = action === 'Engaged' && engStatus === ''
+  const isReplied      = action === 'Engaged' && engStatus === 'replied'
+  const isSkipped      = action === 'Skipped'
+  const isActiveEngage = isEngaged || isReplied  // show enriched UI for both
 
   const keywords = f['Keywords Matched']
     ? f['Keywords Matched'].split(',').map((k) => k.trim()).filter(Boolean)
@@ -196,14 +211,57 @@ function PostCard({
       })
     : ''
 
-  const preview = text.length > 240 ? text.slice(0, 240) + '…' : text
+  const preview  = text.length > 240 ? text.slice(0, 240) + '…' : text
   const platform = f['Platform'] || 'Facebook'
+
+  // Auto-save notes on blur
+  const handleNotesBlur = async () => {
+    try {
+      await fetch(`/api/posts/${post.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notes }),
+      })
+      setNotesSaved(true)
+      setTimeout(() => setNotesSaved(false), 2000)
+    } catch { /* non-fatal */ }
+  }
+
+  const handleCrmPush = async () => {
+    setCrmPushing(true)
+    setCrmError('')
+    try {
+      const resp = await fetch('/api/crm-push', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          recordId:         post.id,
+          authorName:       f['Author Name'],
+          authorProfileUrl: f['Author Profile URL'],
+          postText:         f['Post Text'],
+          postUrl:          f['Post URL'],
+          platform:         f['Platform'],
+          notes,
+          engagedAt:        f['Captured At'],
+        }),
+      })
+      const data = await resp.json()
+      if (!resp.ok) throw new Error(data.error || 'CRM push failed')
+      setCrmPushed(true)
+    } catch (e: any) {
+      setCrmError(e.message)
+    } finally {
+      setCrmPushing(false)
+    }
+  }
 
   return (
     <article
       className={`relative rounded-2xl border transition-all duration-300 ${
         isSkipped
           ? 'opacity-35 bg-[#0d0f14] border-slate-800/30'
+          : isReplied
+          ? 'bg-[#0b1520] border-blue-800/50 ring-1 ring-blue-900/30'
           : isEngaged
           ? 'bg-[#0b1810] border-emerald-800/50 ring-1 ring-emerald-900/30'
           : 'bg-[#12151e] border-slate-700/50 hover:border-slate-600/60'
@@ -215,9 +273,7 @@ function PostCard({
         <div className="flex items-start justify-between gap-3 mb-3">
           <div className="flex items-center gap-2 flex-wrap min-w-0">
             <ScoreBadge score={score} />
-            <span className="text-xs text-slate-500">
-              {f['Group Name']}
-            </span>
+            <span className="text-xs text-slate-500">{f['Group Name']}</span>
             {date && (
               <>
                 <span className="text-slate-700 text-xs">·</span>
@@ -225,7 +281,7 @@ function PostCard({
               </>
             )}
           </div>
-          {/* Top-right: platform badge + engaged status */}
+          {/* Top-right: platform badge + status */}
           <div className="flex flex-col items-end gap-1 shrink-0">
             <PlatformBadge platform={platform} />
             {isEngaged && (
@@ -234,6 +290,14 @@ function PostCard({
                   <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                 </svg>
                 Engaged
+              </span>
+            )}
+            {isReplied && (
+              <span className="text-xs text-blue-400 font-medium flex items-center gap-1">
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                </svg>
+                Replied
               </span>
             )}
           </div>
@@ -284,7 +348,6 @@ function PostCard({
                 </svg>
                 Suggested comment angle
               </button>
-              {/* Copy button always visible — copies even when angle is collapsed */}
               <CopyButton text={f['Comment Approach']} />
             </div>
             {angleOpen && (
@@ -302,8 +365,35 @@ function PostCard({
           <p className="text-xs text-slate-600 mb-4 leading-relaxed">{f['Score Reason']}</p>
         )}
 
-        {/* Actions */}
-        <div className="flex items-center gap-2 pt-1">
+        {/* ── Engagement zone (Engaged + Replied only) ── */}
+        {isActiveEngage && (
+          <div className="mt-3 pt-3 border-t border-slate-700/40 space-y-3">
+
+            {/* Notes textarea */}
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <p className="text-xs text-slate-500 font-medium">Your notes</p>
+                {notesSaved && <span className="text-xs text-emerald-500">Saved</span>}
+              </div>
+              <textarea
+                value={notes}
+                onChange={e => setNotes(e.target.value)}
+                onBlur={handleNotesBlur}
+                placeholder="What did you comment? Did they respond? Next step…"
+                rows={2}
+                className="w-full bg-slate-800/50 border border-slate-700/40 rounded-xl px-3 py-2 text-xs text-slate-300 placeholder-slate-600 focus:outline-none focus:border-blue-500/40 resize-none leading-relaxed"
+              />
+            </div>
+
+            {/* CRM push error */}
+            {crmError && (
+              <p className="text-xs text-red-400">{crmError} — <a href="/settings" className="underline">check CRM settings</a></p>
+            )}
+          </div>
+        )}
+
+        {/* Actions row */}
+        <div className="flex items-center gap-2 pt-3 flex-wrap">
           {f['Post URL'] && (
             <a
               href={f['Post URL']}
@@ -315,7 +405,8 @@ function PostCard({
             </a>
           )}
 
-          {!isSkipped && !isEngaged && (
+          {/* Inbox actions */}
+          {!isSkipped && !isActiveEngage && (
             <>
               <button
                 onClick={() => onAction(post.id, 'Engaged')}
@@ -334,8 +425,71 @@ function PostCard({
             </>
           )}
 
+          {/* Engaged actions */}
           {isEngaged && (
-            <button onClick={() => onAction(post.id, 'New')} disabled={updating} className="text-xs px-3 py-1.5 rounded-lg border border-slate-700/60 text-slate-600 hover:text-slate-400 transition-colors">
+            <>
+              <button
+                onClick={() => onAction(post.id, 'Replied')}
+                disabled={updating}
+                className="text-xs px-3 py-1.5 rounded-lg border border-blue-500/30 bg-blue-600/10 text-blue-400 hover:bg-blue-600/20 transition-colors"
+              >
+                They Replied
+              </button>
+              <button
+                onClick={() => onAction(post.id, 'Archived')}
+                disabled={updating}
+                className="text-xs px-3 py-1.5 rounded-lg border border-slate-700/50 text-slate-600 hover:text-slate-400 transition-colors"
+              >
+                Archive
+              </button>
+            </>
+          )}
+
+          {/* Replied actions */}
+          {isReplied && (
+            <button
+              onClick={() => onAction(post.id, 'Archived')}
+              disabled={updating}
+              className="text-xs px-3 py-1.5 rounded-lg border border-slate-700/50 text-slate-600 hover:text-slate-400 transition-colors"
+            >
+              Archive
+            </button>
+          )}
+
+          {/* CRM push button — visible when engaged or replied and CRM is configured */}
+          {isActiveEngage && crmType && crmType !== 'None' && (
+            <button
+              onClick={handleCrmPush}
+              disabled={crmPushing}
+              className={`ml-auto text-xs px-3 py-1.5 rounded-lg border transition-colors flex items-center gap-1.5 ${
+                crmPushed
+                  ? 'border-emerald-500/30 text-emerald-500/70 cursor-default'
+                  : 'border-slate-600/50 text-slate-400 hover:text-white hover:border-slate-500 disabled:opacity-50'
+              }`}
+            >
+              {crmPushing ? (
+                <>
+                  <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                  Pushing…
+                </>
+              ) : crmPushed ? (
+                <>✓ In {crmType}</>
+              ) : (
+                <>Push to {crmType}</>
+              )}
+            </button>
+          )}
+
+          {/* Undo / restore */}
+          {(isEngaged || isReplied) && (
+            <button
+              onClick={() => onAction(post.id, 'New')}
+              disabled={updating}
+              className="text-xs text-slate-700 hover:text-slate-500 transition-colors"
+            >
               Undo
             </button>
           )}
@@ -405,6 +559,7 @@ export default function FeedPage() {
   const [lastScannedAt, setLastScrapedAt] = useState<string | null>(null)
   const [lastRefreshed, setLastRefreshed] = useState<Date>(new Date())
   const [error, setError] = useState<string | null>(null)
+  const [crmType, setCrmType] = useState('None')
   const refreshTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   // First-run: redirect to onboarding if no posts exist and never onboarded
@@ -455,6 +610,14 @@ export default function FeedPage() {
   // Initial load + re-fetch when filters change
   useEffect(() => { fetchPosts() }, [fetchPosts])
 
+  // Fetch CRM type once on mount (for Push button label)
+  useEffect(() => {
+    fetch('/api/crm-settings')
+      .then(r => r.json())
+      .then(d => setCrmType(d.crmType || 'None'))
+      .catch(() => {})
+  }, [])
+
   // Auto-refresh every 5 minutes (silent — no loading spinner)
   useEffect(() => {
     if (refreshTimerRef.current) clearInterval(refreshTimerRef.current)
@@ -495,15 +658,17 @@ export default function FeedPage() {
   }
 
   const tabs: { id: ActionFilter; label: string }[] = [
-    { id: 'New', label: 'Inbox' },
-    { id: 'Engaged', label: 'Engaged' },
-    { id: 'Skipped', label: 'Skipped' },
-    { id: 'all', label: 'All' },
+    { id: 'New',     label: 'Inbox'    },
+    { id: 'Engaged', label: 'Engaged'  },
+    { id: 'Replied', label: 'Replied'  },
+    { id: 'Skipped', label: 'Skipped'  },
+    { id: 'all',     label: 'All'      },
   ]
 
   const tabCounts: Partial<Record<ActionFilter, number>> = {
-    New: actionCounts['New'],
+    New:     actionCounts['New'],
     Engaged: actionCounts['Engaged'],
+    Replied: actionCounts['Replied'],
     Skipped: actionCounts['Skipped'],
   }
 
@@ -580,10 +745,10 @@ export default function FeedPage() {
         ) : posts.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-24 text-center gap-3">
             <div className="text-4xl">
-              {filter === 'New' ? '🎉' : filter === 'Engaged' ? '📋' : '🗃️'}
+              {filter === 'New' ? '🎉' : filter === 'Engaged' ? '📋' : filter === 'Replied' ? '💬' : '🗃️'}
             </div>
             <p className="text-slate-300 text-sm font-medium">
-              {filter === 'New' ? 'Inbox zero — all caught up' : filter === 'Engaged' ? 'No engaged posts yet' : filter === 'Skipped' ? 'Nothing skipped' : 'No posts found'}
+              {filter === 'New' ? 'Inbox zero — all caught up' : filter === 'Engaged' ? 'No engaged posts yet' : filter === 'Replied' ? 'No replies yet' : filter === 'Skipped' ? 'Nothing skipped' : 'No posts found'}
             </p>
             <p className="text-slate-600 text-xs max-w-xs">
               {filter === 'New'
@@ -607,6 +772,7 @@ export default function FeedPage() {
                   post={post}
                   onAction={handleAction}
                   updating={updating === post.id}
+                  crmType={crmType}
                 />
               ))}
             </div>
