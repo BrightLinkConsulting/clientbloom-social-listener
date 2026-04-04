@@ -28,7 +28,7 @@ export default function LandingPage() {
             <a href="#pricing" className="text-slate-400 hover:text-slate-200 text-sm transition-colors hidden md:block">Pricing</a>
             <Link href="/sign-in" className="text-slate-400 hover:text-slate-200 text-sm transition-colors">Sign in</Link>
             <a href={CHECKOUT_URL} className="bg-[#4F6BFF] hover:bg-[#3D57F5] text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors">
-              Start for $49/mo
+              Start for $79/mo
             </a>
           </div>
         </div>
@@ -60,7 +60,7 @@ export default function LandingPage() {
               href={CHECKOUT_URL}
               className="inline-flex items-center gap-2 bg-[#4F6BFF] hover:bg-[#3D57F5] text-white font-semibold px-8 py-4 rounded-xl text-base transition-all hover:scale-[1.02] shadow-lg shadow-[#4F6BFF]/25"
             >
-              Get Scout — $49/month
+              Get Scout — $79/month
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
             </a>
             <a href="#how-it-works" className="text-slate-400 hover:text-slate-200 text-sm transition-colors flex items-center gap-1.5">
@@ -302,7 +302,7 @@ export default function LandingPage() {
           <div className="bg-[#0f1117] border border-[#4F6BFF]/30 rounded-2xl p-8 shadow-xl shadow-[#4F6BFF]/5">
             <div className="text-slate-400 text-sm font-medium uppercase tracking-wide mb-2">Scout by ClientBloom</div>
             <div className="flex items-end justify-center gap-2 mb-2">
-              <span className="text-6xl font-bold text-white">$49</span>
+              <span className="text-6xl font-bold text-white">$79</span>
               <span className="text-slate-400 text-lg mb-2">/month</span>
             </div>
             <p className="text-slate-500 text-sm mb-8">Billed monthly. Cancel anytime.</p>
@@ -425,14 +425,14 @@ export default function LandingPage() {
             Your ideal clients are posting about their problems, their frustrations, and their search for a solution — right now, today, in public.
           </p>
           <p className="text-slate-300 text-xl mb-10">
-            Scout puts you in those conversations. At $49/month, it pays for itself the first time you close a client who came in through a social engagement instead of a cold outreach.
+            Scout puts you in those conversations. At $79/month, it pays for itself the first time you close a client who came in through a social engagement instead of a cold outreach.
           </p>
 
           <a
             href={CHECKOUT_URL}
             className="inline-flex items-center gap-2 bg-[#4F6BFF] hover:bg-[#3D57F5] text-white font-semibold px-10 py-5 rounded-xl text-lg transition-all hover:scale-[1.02] shadow-xl shadow-[#4F6BFF]/25"
           >
-            Get Scout — $49/month
+            Get Scout — $79/month
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
           </a>
           <p className="text-slate-600 text-sm mt-4">Setup takes under 10 minutes. Your dashboard is live today.</p>
