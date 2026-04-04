@@ -111,6 +111,73 @@ async function atGet(tenantId: string, table: string, extraFormula = '') {
   return res.json()
 }
 
+/**
+ * Strip tracking query parameters from a URL so the same post isn't treated
+ * as unique just because LinkedIn appended a different rcm= or utm_* value.
+ * Example: https://linkedin.com/posts/user_title-activity-1234-XY?rcm=ABC
+ *       → https://linkedin.com/posts/user_title-activity-1234-XY
+ */
+function canonicalUrl(raw: string): string {
+  if (!raw) return ''
+  try {
+    const u = new URL(raw)
+    // Remove all tracking/session params
+    const tracking = ['utm_source','utm_medium','utm_campaign','utm_content','utm_term','rcm','trk','trkInfo']
+    tracking.forEach(p => u.searchParams.delete(p))
+    // If no params remain, drop the '?' entirely
+    return u.searchParams.size === 0 ? `${u.origin}${u.pathname}` : u.toString()
+  } catch {
+    return raw.split('?')[0]  // fallback: strip everything after '?'
+  }
+}
+
+/**
+ * Fetch all Post IDs and canonical Post URLs already stored for this tenant.
+ * Paginates through all pages so dedup works even for large inboxes.
+ * Used to prevent re-saving posts that were captured in previous scans.
+ *
+ * NOTE: LinkedIn wraps every share URL in session-unique tracking params
+ * (rcm=, utm_source=, etc.), so naive URL comparison produces zero matches.
+ * We use the Post ID (the activity number in the URL path) as the primary
+ * dedup key, and canonical URLs (tracking params stripped) as a fallback.
+ */
+async function fetchExistingPostKeys(tenantId: string): Promise<{ urls: Set<string>; ids: Set<string> }> {
+  const urls = new Set<string>()
+  const ids  = new Set<string>()
+  let offset = ''
+
+  try {
+    do {
+      const formula = tenantFilter(tenantId)
+      const url     = new URL(`https://api.airtable.com/v0/${SHARED_BASE}/${encodeURIComponent('Captured Posts')}`)
+      url.searchParams.set('filterByFormula', formula)
+      url.searchParams.set('fields[]',  'Post URL')
+      url.searchParams.set('fields[1]', 'Post ID')
+      url.searchParams.set('pageSize',  '100')
+      if (offset) url.searchParams.set('offset', offset)
+
+      const res  = await fetch(url.toString(), {
+        headers: { Authorization: `Bearer ${PROV_TOKEN}` },
+      })
+      const data = await res.json()
+
+      for (const rec of data.records || []) {
+        const postUrl = canonicalUrl((rec.fields?.['Post URL'] || '').trim())
+        const postId  = (rec.fields?.['Post ID'] || '').trim()
+        if (postUrl) urls.add(postUrl)
+        if (postId)  ids.add(postId)
+      }
+
+      offset = data.offset || ''
+    } while (offset)
+  } catch (e) {
+    // Non-fatal — if this fails we'll log and continue; worst case we save a dup
+    console.error('[scan] fetchExistingPostKeys failed:', e)
+  }
+
+  return { urls, ids }
+}
+
 // ── Facebook group scanning ────────────────────────────────────────────────────
 
 async function scanFacebookGroups(apifyToken: string, groupUrls: string[], keywords: string[]): Promise<any[]> {
@@ -317,9 +384,44 @@ export async function runScanForTenant(tenantId: string, apifyTokenOverride?: st
     const scored     = await scorePosts(ANTHROPIC_KEY, allPosts, businessContext, customPrompt)
     const qualifying = scored.filter(p => p.score >= 5)
 
-    // 4. Save
+    // 4. Deduplicate before saving
+    //
+    // Layer A — within this scan: the same post can be returned by both the ICP
+    //   profile actor and the keyword search actor. Use Post ID as the canonical
+    //   key (not URL — LinkedIn tracking params make every share URL unique).
+    const seenThisScan = new Set<string>()
+    const dedupedQualifying = qualifying.filter(p => {
+      const pid = (p.postId || p.id || '').trim()
+      const url = canonicalUrl((p.postUrl || '').trim())
+      const key = pid || url          // prefer stable ID, fall back to canonical URL
+      if (!key) return true           // no key to dedup on — keep it
+      if (seenThisScan.has(key)) return false
+      seenThisScan.add(key)
+      return true
+    })
+
+    // Layer B — cross-scan: skip anything already stored from a previous scan.
+    //   LinkedIn ICP posts accumulate across runs; without this check every 6 AM/6 PM
+    //   scan re-captures the same posts and floods the inbox with duplicates.
+    //   Primary key: Post ID (stable activity number).
+    //   Fallback key: canonical URL (tracking params stripped).
+    const existing      = await fetchExistingPostKeys(tenantId)
+    const trulyNewPosts = dedupedQualifying.filter(p => {
+      const pid = (p.postId || p.id || '').trim()
+      const url = canonicalUrl((p.postUrl || '').trim())
+      if (pid && existing.ids.has(pid))  return false
+      if (url && existing.urls.has(url)) return false
+      return true
+    })
+
+    console.log(
+      `[scan] Dedup: ${qualifying.length} qualifying → ${dedupedQualifying.length} after within-scan dedup` +
+      ` → ${trulyNewPosts.length} after cross-scan dedup (${existing.urls.size} existing URLs checked)`
+    )
+
+    // 5. Save only genuinely new posts
     let saved = 0
-    for (const p of qualifying) {
+    for (const p of trulyNewPosts) {
       try {
         await airtableCreate('Captured Posts', tenantId, {
           'Post ID':            p.postId || p.id,
@@ -337,7 +439,9 @@ export async function runScanForTenant(tenantId: string, apifyTokenOverride?: st
           'Action':             'New',
         })
         saved++
-      } catch { /* skip duplicates */ }
+      } catch (saveErr: any) {
+        console.error('[scan] Failed to save post:', saveErr?.message)
+      }
     }
 
     return {
