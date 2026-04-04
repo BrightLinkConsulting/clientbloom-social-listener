@@ -18,13 +18,14 @@ export const maxDuration = 300
 const PLATFORM_TOKEN = process.env.PLATFORM_AIRTABLE_TOKEN   || ''
 const PLATFORM_BASE  = process.env.PLATFORM_AIRTABLE_BASE_ID || ''
 
-async function getActiveTenants(): Promise<{ id: string; tenantId: string; email: string }[]> {
+async function getActiveTenants(): Promise<{ id: string; tenantId: string; email: string; apifyKey?: string }[]> {
   const url = new URL(
     `https://api.airtable.com/v0/${PLATFORM_BASE}/${encodeURIComponent('Tenants')}`
   )
   url.searchParams.set('filterByFormula', `{Status}='Active'`)
   url.searchParams.set('fields[]', 'Tenant ID')
   url.searchParams.append('fields[]', 'Email')
+  url.searchParams.append('fields[]', 'Apify API Key')  // per-tenant key for account isolation
   url.searchParams.set('pageSize', '100')
 
   const resp = await fetch(url.toString(), {
@@ -34,8 +35,9 @@ async function getActiveTenants(): Promise<{ id: string; tenantId: string; email
   const data = await resp.json()
   return (data.records || []).map((r: any) => ({
     id:       r.id,
-    tenantId: r.fields['Tenant ID'] || 'owner',  // no Tenant ID = legacy owner record
-    email:    r.fields['Email']     || '',
+    tenantId: r.fields['Tenant ID']    || 'owner',
+    email:    r.fields['Email']        || '',
+    apifyKey: r.fields['Apify API Key'] || undefined,
   }))
 }
 
@@ -64,8 +66,9 @@ export async function GET(req: NextRequest) {
   const results = []
   for (const tenant of tenants) {
     const tenantStart = Date.now()
-    console.log(`[cron/scan] Scanning tenant ${tenant.tenantId} (${tenant.email})`)
-    const result = await runScanForTenant(tenant.tenantId)
+    const poolLabel = tenant.apifyKey ? 'custom key' : 'shared pool'
+    console.log(`[cron/scan] Scanning tenant ${tenant.tenantId} (${tenant.email}) — ${poolLabel}`)
+    const result = await runScanForTenant(tenant.tenantId, tenant.apifyKey)
     results.push(result)
     console.log(`[cron/scan] ${tenant.email}: ${result.postsFound} posts saved, ${result.error || 'ok'}`)
 

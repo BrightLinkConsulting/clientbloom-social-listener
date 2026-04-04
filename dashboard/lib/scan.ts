@@ -183,8 +183,10 @@ export interface ScanResult {
   error?:     string
 }
 
-export async function runScanForTenant(tenantId: string): Promise<ScanResult> {
-  const APIFY_TOKEN   = process.env.APIFY_API_TOKEN   || ''
+// apifyTokenOverride: tenant's own Apify key (set by admin for account isolation).
+// Falls back to the platform-wide APIFY_API_TOKEN env var for the shared pool.
+export async function runScanForTenant(tenantId: string, apifyTokenOverride?: string): Promise<ScanResult> {
+  const APIFY_TOKEN   = apifyTokenOverride || process.env.APIFY_API_TOKEN || ''
   const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY || ''
 
   if (!APIFY_TOKEN) {

@@ -64,8 +64,9 @@ export async function GET() {
       email:          r.fields['Email']               || '',
       companyName:    r.fields['Company Name']         || '',
       airtableBaseId: r.fields['Airtable Base ID']    || '',
-      // Never expose token or password hash
+      // Never expose raw tokens or password hash — only existence flags
       hasToken:       !!(r.fields['Airtable API Token']),
+      hasApifyKey:    !!(r.fields['Apify API Key']),
       status:         r.fields['Status']              || 'Active',
       isAdmin:        r.fields['Is Admin']            ?? false,
       plan:           r.fields['Plan']                || '',
@@ -151,7 +152,7 @@ export async function PATCH(req: Request) {
   }
 
   try {
-    const { id, status, companyName, airtableBaseId, airtableToken, password, plan, isAdmin } = await req.json()
+    const { id, status, companyName, airtableBaseId, airtableToken, password, plan, isAdmin, apifyKey } = await req.json()
 
     if (!id) return NextResponse.json({ error: 'id is required.' }, { status: 400 })
 
@@ -162,6 +163,8 @@ export async function PATCH(req: Request) {
     if (airtableToken  !== undefined) fields['Airtable API Token']  = airtableToken
     if (plan           !== undefined) fields['Plan']                = plan
     if (isAdmin        !== undefined) fields['Is Admin']            = isAdmin
+    // apifyKey: empty string = clear (revert to shared pool), truthy string = set custom key
+    if (apifyKey !== undefined) fields['Apify API Key'] = apifyKey || null
 
     // Reset password if provided
     if (password) {
