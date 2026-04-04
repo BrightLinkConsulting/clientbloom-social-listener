@@ -2020,20 +2020,22 @@ function ScoringPromptSection() {
 
 // ---- System Status Section ----
 function SystemStatusSection() {
-  const [slackChannel, setSlackChannel] = useState('')
-  const [slackLoaded,  setSlackLoaded]  = useState(false)
+  const [slackChannel,  setSlackChannel]  = useState('')
+  const [slackHasToken, setSlackHasToken] = useState(false)
+  const [slackLoaded,   setSlackLoaded]   = useState(false)
 
   useEffect(() => {
     fetch('/api/slack-settings')
       .then(r => r.json())
       .then(d => {
+        setSlackHasToken(!!d.slackBotToken)
         setSlackChannel(d.slackChannelName || d.slackChannelId || '')
         setSlackLoaded(true)
       })
       .catch(() => setSlackLoaded(true))
   }, [])
 
-  const slackConfigured = slackLoaded && !!slackChannel
+  const slackConfigured = slackLoaded && slackHasToken
 
   const items = [
     {
@@ -2062,7 +2064,7 @@ function SystemStatusSection() {
     },
     {
       label:  'Slack',
-      value:  slackLoaded ? (slackChannel ? `#${slackChannel.replace(/^#/, '')}` : 'Not connected') : '…',
+      value:  slackLoaded ? (slackHasToken ? (slackChannel ? `#${slackChannel.replace(/^#/, '')}` : 'Connected') : 'Not connected') : '…',
       detail: slackConfigured
         ? 'Digest and alerts are being delivered to this channel'
         : 'Connect Slack below — the daily digest won\'t send until this is set up',
@@ -2158,8 +2160,10 @@ function SlackIntegrationSection() {
     if (!botToken.trim()) { setTestResult({ ok: false, msg: 'Paste your Bot Token first.' }); return }
     setTesting(true); setTestResult(null)
     try {
-      const r = await fetch('https://slack.com/api/auth.test', {
-        headers: { 'Authorization': `Bearer ${botToken}` },
+      const r = await fetch('/api/slack-test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ botToken }),
       })
       const data = await r.json()
       if (data.ok) {
@@ -2168,7 +2172,7 @@ function SlackIntegrationSection() {
         setTestResult({ ok: false, msg: `Slack returned: ${data.error}. Double-check the token.` })
       }
     } catch {
-      setTestResult({ ok: false, msg: 'Request failed — may be a CORS issue. Save and check your digest to verify.' })
+      setTestResult({ ok: false, msg: 'Request failed — check your network connection and try again.' })
     } finally {
       setTesting(false)
     }
