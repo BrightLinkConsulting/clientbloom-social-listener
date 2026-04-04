@@ -23,6 +23,7 @@ interface Post {
     'Action': string
     'Engagement Status': string
     'Notes': string
+    'Notes Updated At': string
     'CRM Contact ID': string
     'CRM Pushed At': string
   }
@@ -187,6 +188,8 @@ function PostCard({
   const [angleOpen,  setAngleOpen]  = useState(false)
   const [notes,      setNotes]      = useState(post.fields['Notes'] || '')
   const [notesSaved, setNotesSaved] = useState(false)
+  const [notesDirty, setNotesDirty] = useState(false)
+  const [notesTs,    setNotesTs]    = useState(post.fields['Notes Updated At'] || '')
   const [crmPushing, setCrmPushing] = useState(false)
   const [crmPushed,  setCrmPushed]  = useState(!!post.fields['CRM Pushed At'])
   const [crmError,   setCrmError]   = useState('')
@@ -214,16 +217,18 @@ function PostCard({
   const preview  = text.length > 240 ? text.slice(0, 240) + '…' : text
   const platform = f['Platform'] || 'Facebook'
 
-  // Auto-save notes on blur
-  const handleNotesBlur = async () => {
+  const handleNotesSave = async () => {
     try {
       await fetch(`/api/posts/${post.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ notes }),
       })
+      const now = new Date().toISOString()
+      setNotesTs(now)
       setNotesSaved(true)
-      setTimeout(() => setNotesSaved(false), 2000)
+      setNotesDirty(false)
+      setTimeout(() => setNotesSaved(false), 3000)
     } catch { /* non-fatal */ }
   }
 
@@ -371,18 +376,36 @@ function PostCard({
 
             {/* Notes textarea */}
             <div>
-              <div className="flex items-center justify-between mb-1">
-                <p className="text-xs text-slate-500 font-medium">Your notes</p>
-                {notesSaved && <span className="text-xs text-emerald-500">Saved</span>}
-              </div>
+              <p className="text-xs text-slate-500 font-medium mb-1.5">Your notes</p>
               <textarea
                 value={notes}
-                onChange={e => setNotes(e.target.value)}
-                onBlur={handleNotesBlur}
+                onChange={e => { setNotes(e.target.value); setNotesDirty(true); setNotesSaved(false) }}
                 placeholder="What did you comment? Did they respond? Next step…"
                 rows={2}
                 className="w-full bg-slate-800/50 border border-slate-700/40 rounded-xl px-3 py-2 text-xs text-slate-300 placeholder-slate-600 focus:outline-none focus:border-blue-500/40 resize-none leading-relaxed"
               />
+              <div className="flex items-center justify-between mt-1.5">
+                {/* Timestamp */}
+                <span className="text-xs text-slate-700">
+                  {notesSaved
+                    ? '✓ Saved just now'
+                    : notesTs
+                    ? `Last saved ${new Date(notesTs).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}`
+                    : ''}
+                </span>
+                {/* Save button — only active when dirty */}
+                <button
+                  onClick={handleNotesSave}
+                  disabled={!notesDirty}
+                  className={`text-xs px-3 py-1 rounded-lg transition-colors ${
+                    notesDirty
+                      ? 'bg-blue-600 hover:bg-blue-500 text-white'
+                      : 'bg-slate-800/60 text-slate-600 cursor-default'
+                  }`}
+                >
+                  Save note
+                </button>
+              </div>
             </div>
 
             {/* CRM push error */}
