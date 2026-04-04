@@ -88,7 +88,7 @@ export default function SignInPage() {
           {/* Card header */}
           <div className="flex items-center gap-2 mb-6">
             <ClientBloomMark size={20} />
-            <span className="text-slate-400 text-sm font-medium">Market Intelligence Dashboard</span>
+            <span className="text-slate-400 text-sm font-medium">Your AI-Powered ICP Listener</span>
           </div>
 
           <h1 className="text-white font-bold text-2xl mb-1 tracking-tight">Welcome back</h1>

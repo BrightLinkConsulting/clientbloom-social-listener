@@ -406,7 +406,7 @@ export default function LandingPage() {
                 'Daily Slack digest',
                 'ICP auto-discovery',
                 'Custom AI scoring prompts',
-                'Full dashboard access',
+                'Full Scout feed access',
                 'Fully managed — zero infrastructure',
               ].map((feature, i) => (
                 <li key={i} className="flex items-center gap-3 text-slate-300 text-sm">
@@ -422,7 +422,7 @@ export default function LandingPage() {
             >
               Get Scout — Start Today
             </a>
-            <p className="text-slate-600 text-xs mt-3">No setup required. Your dashboard is ready in minutes.</p>
+            <p className="text-slate-600 text-xs mt-3">No setup required. Your Scout feed is live in minutes.</p>
           </div>
 
           <div className="mt-8 grid grid-cols-3 gap-4 text-center">
@@ -453,7 +453,7 @@ export default function LandingPage() {
               },
               {
                 q: 'How does Scout actually find the posts?',
-                a: 'Scout\'s backend agent runs twice daily, scanning your configured LinkedIn search terms and Facebook groups using dedicated APIs. Results are AI-scored for engagement opportunity and delivered to your dashboard. The whole process is automated.'
+                a: 'Scout\'s backend agent runs twice daily, scanning your configured LinkedIn search terms and Facebook groups using dedicated APIs. Results are AI-scored for engagement opportunity and delivered to your Scout feed. The whole process is automated.'
               },
               {
                 q: 'What does the AI scoring actually mean?',
@@ -528,7 +528,7 @@ export default function LandingPage() {
             Get Scout — $79/month
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
           </a>
-          <p className="text-slate-600 text-sm mt-4">Setup takes under 10 minutes. Your dashboard is live today.</p>
+          <p className="text-slate-600 text-sm mt-4">Setup takes under 10 minutes. Your Scout feed is live today.</p>
         </div>
       </section>
 
