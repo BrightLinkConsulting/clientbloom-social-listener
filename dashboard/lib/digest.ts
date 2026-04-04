@@ -1,29 +1,27 @@
 /**
- * lib/digest.ts — Daily digest generator for Scout
+ * lib/digest.ts — Daily brief generator for Scout
  *
- * Fetches top posts from the last 26 hours for a tenant, formats them
- * as a rich Slack Block Kit message, and sends via the tenant's bot token.
- * No extra AI call needed — Score Reason + Comment Approach are already
- * stored on each post from the original scoring step.
+ * Sends a concise summary to Slack — enough to show value and drive
+ * people into the platform. Deliberately does NOT list posts or expose
+ * content. The goal is stickiness, not inbox replacement.
  */
 
 import { SHARED_BASE, PROV_TOKEN, tenantFilter } from '@/lib/airtable'
 import { postSlackMessage } from '@/lib/slack'
 
-const AIRTABLE_BASE = 'https://api.airtable.com/v0'
-const MIN_DIGEST_SCORE = 6   // only include posts scoring 6+ in the digest
-const MAX_DIGEST_POSTS = 5   // max posts shown in a single digest
-const DASHBOARD_URL    = process.env.NEXT_PUBLIC_BASE_URL || 'https://cb-dashboard-xi.vercel.app'
+const AIRTABLE_BASE  = 'https://api.airtable.com/v0'
+const MIN_SCORE      = 5
+const DASHBOARD_URL  = process.env.NEXT_PUBLIC_BASE_URL || 'https://cb-dashboard-xi.vercel.app'
 
 export interface DigestResult {
-  sent:       boolean
-  postCount:  number
-  tenantId:   string
-  error?:     string
-  skipped?:   string   // reason digest was not sent (no posts, no slack config, etc.)
+  sent:      boolean
+  postCount: number
+  tenantId:  string
+  error?:    string
+  skipped?:  string
 }
 
-// ─── Airtable helpers ────────────────────────────────────────────────────────
+// ─── Airtable helpers ─────────────────────────────────────────────────────────
 
 async function getSlackConfig(tenantId: string): Promise<{ botToken: string; channelId: string; channelName: string } | null> {
   const params = new URLSearchParams({
@@ -38,7 +36,7 @@ async function getSlackConfig(tenantId: string): Promise<{ botToken: string; cha
   })
   const data = await r.json()
   const rec = data.records?.[0]?.fields
-  if (!rec || !rec['Slack Bot Token']) return null
+  if (!rec?.['Slack Bot Token']) return null
   return {
     botToken:    rec['Slack Bot Token'],
     channelId:   rec['Slack Channel ID']   || '',
@@ -46,217 +44,180 @@ async function getSlackConfig(tenantId: string): Promise<{ botToken: string; cha
   }
 }
 
-async function getTopPosts(tenantId: string): Promise<any[]> {
-  // Last 26 hours — gives a comfortable buffer around the 24h scan cycle
+interface BriefStats {
+  newToday:    number   // posts captured in last 26h scoring ≥5
+  linkedin:    number   // breakdown by platform
+  facebook:    number
+  topScore:    number   // highest score among today's posts
+  totalActive: number   // all-time unarchived, not yet replied
+  totalEngaged: number  // all-time engaged
+  totalReplied: number  // all-time replied
+}
+
+async function getBriefStats(tenantId: string): Promise<BriefStats> {
   const since = new Date(Date.now() - 26 * 60 * 60 * 1000).toISOString()
 
-  const formula = `AND(
-    ${tenantFilter(tenantId)},
-    {Relevance Score}>=${MIN_DIGEST_SCORE},
-    IS_AFTER({Captured At}, '${since}'),
-    {Engagement Status}!='archived'
-  )`
-
-  const params = new URLSearchParams({
-    filterByFormula:      formula,
-    'sort[0][field]':     'Relevance Score',
-    'sort[0][direction]': 'desc',
-    'sort[1][field]':     'Captured At',
-    'sort[1][direction]': 'desc',
-    pageSize:             String(MAX_DIGEST_POSTS),
-    'fields[]':   'Post Text',
-    'fields[1]':  'Author Name',
-    'fields[2]':  'Platform',
-    'fields[3]':  'Relevance Score',
-    'fields[4]':  'Score Reason',
-    'fields[5]':  'Comment Approach',
-    'fields[6]':  'Post URL',
-    'fields[7]':  'Group Name',
-    'fields[8]':  'Captured At',
+  // Query 1 — today's new posts
+  const todayParams = new URLSearchParams({
+    filterByFormula: `AND(
+      ${tenantFilter(tenantId)},
+      {Relevance Score}>=${MIN_SCORE},
+      IS_AFTER({Captured At}, '${since}'),
+      {Engagement Status}!='archived'
+    )`,
+    'fields[]':  'Platform',
+    'fields[1]': 'Relevance Score',
+    pageSize: '100',
   })
 
-  const r = await fetch(`${AIRTABLE_BASE}/${SHARED_BASE}/Captured%20Posts?${params}`, {
-    headers: { Authorization: `Bearer ${PROV_TOKEN}` },
+  // Query 2 — pipeline action counts (all-time, not archived)
+  const pipelineParams = new URLSearchParams({
+    filterByFormula: `AND(
+      ${tenantFilter(tenantId)},
+      {Engagement Status}!='archived'
+    )`,
+    'fields[]':  'Action',
+    'fields[1]': 'Engagement Status',
+    pageSize: '100',
   })
-  const data = await r.json()
-  return data.records || []
+
+  const [todayResp, pipelineResp] = await Promise.all([
+    fetch(`${AIRTABLE_BASE}/${SHARED_BASE}/Captured%20Posts?${todayParams}`, {
+      headers: { Authorization: `Bearer ${PROV_TOKEN}` },
+    }),
+    fetch(`${AIRTABLE_BASE}/${SHARED_BASE}/Captured%20Posts?${pipelineParams}`, {
+      headers: { Authorization: `Bearer ${PROV_TOKEN}` },
+    }),
+  ])
+
+  const [todayData, pipelineData] = await Promise.all([
+    todayResp.json(),
+    pipelineResp.json(),
+  ])
+
+  const todayPosts = todayData.records || []
+  let linkedin = 0, facebook = 0, topScore = 0
+  for (const r of todayPosts) {
+    const platform = (r.fields?.['Platform'] || '').toLowerCase()
+    const score    = r.fields?.['Relevance Score'] || 0
+    if (platform.includes('facebook')) facebook++
+    else linkedin++
+    if (score > topScore) topScore = score
+  }
+
+  let totalActive = 0, totalEngaged = 0, totalReplied = 0
+  for (const r of pipelineData.records || []) {
+    const action = r.fields?.['Action'] || 'New'
+    const status = r.fields?.['Engagement Status'] || ''
+    if (status === 'replied') {
+      totalReplied++
+    } else if (action === 'Engaged') {
+      totalEngaged++
+    } else {
+      totalActive++
+    }
+  }
+
+  return {
+    newToday: todayPosts.length,
+    linkedin,
+    facebook,
+    topScore,
+    totalActive,
+    totalEngaged,
+    totalReplied,
+  }
 }
 
 // ─── Message formatting ───────────────────────────────────────────────────────
 
-function scoreEmoji(score: number): string {
-  if (score >= 9) return '🔥'
-  if (score >= 7) return '⚡'
-  return '✅'
-}
-
-function platformEmoji(platform: string): string {
-  return platform?.toLowerCase().includes('facebook') ? '👥' : '💼'
-}
-
-function truncate(text: string, max: number): string {
-  if (!text) return ''
-  const clean = text.replace(/\n+/g, ' ').trim()
-  return clean.length > max ? clean.slice(0, max - 1) + '…' : clean
-}
-
 function formatDate(): string {
   return new Date().toLocaleDateString('en-US', {
-    weekday: 'long', month: 'long', day: 'numeric', timeZone: 'America/Los_Angeles'
+    weekday: 'long', month: 'long', day: 'numeric', timeZone: 'America/Los_Angeles',
   })
 }
 
-function buildSlackBlocks(posts: any[]): object[] {
-  const blocks: object[] = []
+function buildBriefBlocks(stats: BriefStats): { blocks: object[]; fallback: string } {
+  const { newToday, linkedin, facebook, topScore, totalActive, totalEngaged, totalReplied } = stats
 
-  // ── Header ──
-  blocks.push({
-    type: 'header',
-    text: { type: 'plain_text', text: `🔍 Scout Daily Digest`, emoji: true },
-  })
-  blocks.push({
-    type: 'context',
-    elements: [{
-      type: 'mrkdwn',
-      text: `*${formatDate()}*  ·  ${posts.length} post${posts.length !== 1 ? 's' : ''} matched your filters`,
-    }],
-  })
-  blocks.push({ type: 'divider' })
+  // Platform breakdown line — only show if we actually have posts
+  const platformLine = newToday > 0
+    ? `↳ ${linkedin} LinkedIn  ·  ${facebook} Facebook${topScore >= 7 ? `  ·  top score *${topScore}/10*` : ''}`
+    : null
 
-  // ── Posts ──
-  for (const rec of posts) {
-    const f            = rec.fields || {}
-    const score        = f['Relevance Score'] || 0
-    const platform     = f['Platform']        || 'LinkedIn'
-    const author       = f['Author Name']     || 'Unknown'
-    const text         = f['Post Text']       || ''
-    const postUrl      = f['Post URL']        || ''
-    const groupName    = f['Group Name']      || ''
-    const comment      = f['Comment Approach']|| ''
-    const reason       = f['Score Reason']    || ''
+  // Pipeline line
+  const pipelineTotal = totalActive + totalEngaged + totalReplied
+  const pipelineLine = pipelineTotal > 0
+    ? `*${pipelineTotal} leads* in your pipeline  ·  ${totalEngaged} engaged  ·  ${totalReplied} replied`
+    : null
 
-    const sourceLabel = groupName ? `${platformEmoji(platform)} ${groupName}` : `${platformEmoji(platform)} ${platform}`
+  const newLeadsText = newToday > 0
+    ? `*${newToday} new lead${newToday !== 1 ? 's'  : ''}* added to your feed today`
+    : `No new leads matched your filters today — your sources are still running`
 
-    // Post card
-    blocks.push({
+  const fallback = newToday > 0
+    ? `Scout: ${newToday} new leads today. ${pipelineTotal} in pipeline. Open Scout to review.`
+    : `Scout: No new leads today. ${pipelineTotal} in pipeline.`
+
+  const blocks: object[] = [
+    // Header
+    {
       type: 'section',
       text: {
         type: 'mrkdwn',
-        text: [
-          `${scoreEmoji(score)} *Score ${score}/10*  ·  ${sourceLabel}  ·  ${author}`,
-          `_"${truncate(text, 280)}"_`,
-        ].join('\n'),
+        text: `🔍 *Scout Daily Brief*  ·  ${formatDate()}`,
       },
-      ...(postUrl ? {
-        accessory: {
-          type: 'button',
-          text: { type: 'plain_text', text: 'View post', emoji: true },
-          url:  postUrl,
-          action_id: `view_post_${rec.id}`,
-        },
-      } : {}),
+    },
+    { type: 'divider' },
+    // Today's count
+    {
+      type: 'section',
+      text: {
+        type: 'mrkdwn',
+        text: [newLeadsText, platformLine].filter(Boolean).join('\n'),
+      },
+    },
+  ]
+
+  // Pipeline stats — only show if there's something to show
+  if (pipelineLine) {
+    blocks.push({
+      type: 'context',
+      elements: [{ type: 'mrkdwn', text: pipelineLine }],
     })
-
-    // Comment angle
-    if (comment) {
-      blocks.push({
-        type: 'context',
-        elements: [{
-          type: 'mrkdwn',
-          text: `💬 *Comment angle:* ${truncate(comment, 200)}`,
-        }],
-      })
-    } else if (reason) {
-      blocks.push({
-        type: 'context',
-        elements: [{
-          type: 'mrkdwn',
-          text: `💡 *Why it scored high:* ${truncate(reason, 200)}`,
-        }],
-      })
-    }
-
-    blocks.push({ type: 'divider' })
   }
 
-  // ── Footer ──
+  // CTA
+  blocks.push({ type: 'divider' })
   blocks.push({
     type: 'actions',
     elements: [{
-      type: 'button',
-      text: { type: 'plain_text', text: '📥 Open Scout Dashboard', emoji: true },
-      url:  DASHBOARD_URL,
-      style: 'primary',
-      action_id: 'open_dashboard',
-    }],
-  })
-  blocks.push({
-    type: 'context',
-    elements: [{
-      type: 'mrkdwn',
-      text: `Scout by ClientBloom  ·  Showing top ${posts.length} post${posts.length !== 1 ? 's' : ''} scored ${MIN_DIGEST_SCORE}+ from the last 24 hours`,
+      type:      'button',
+      style:     'primary',
+      text:      { type: 'plain_text', text: 'Review in Scout →', emoji: true },
+      url:       DASHBOARD_URL,
+      action_id: 'open_scout',
     }],
   })
 
-  return blocks
+  return { blocks, fallback }
 }
 
-// ─── Main export ─────────────────────────────────────────────────────────────
+// ─── Main export ──────────────────────────────────────────────────────────────
 
 export async function sendDailyDigest(tenantId: string): Promise<DigestResult> {
-  // 1. Get Slack config
   const slack = await getSlackConfig(tenantId)
-  if (!slack) {
-    return { sent: false, postCount: 0, tenantId, skipped: 'no_slack_config' }
-  }
-  if (!slack.channelId) {
-    return { sent: false, postCount: 0, tenantId, skipped: 'no_channel_id' }
-  }
+  if (!slack)           return { sent: false, postCount: 0, tenantId, skipped: 'no_slack_config' }
+  if (!slack.channelId) return { sent: false, postCount: 0, tenantId, skipped: 'no_channel_id'   }
 
-  // 2. Fetch top posts
-  const posts = await getTopPosts(tenantId)
-  if (posts.length === 0) {
-    // Send a brief "quiet day" notice so the digest stays habitual
-    const quietResult = await postSlackMessage(
-      slack.botToken,
-      slack.channelId,
-      '🔍 Scout Daily Digest — No new posts matched your filters today.',
-      [
-        {
-          type: 'section',
-          text: {
-            type: 'mrkdwn',
-            text: `*🔍 Scout Daily Digest — ${formatDate()}*\n\nNo posts scored ${MIN_DIGEST_SCORE}+ from the last 24 hours. Your sources are still running — check back after the next scan.`,
-          },
-        },
-        {
-          type: 'actions',
-          elements: [{
-            type: 'button',
-            text: { type: 'plain_text', text: '📥 Open Scout Dashboard', emoji: true },
-            url:  DASHBOARD_URL,
-            action_id: 'open_dashboard_quiet',
-          }],
-        },
-      ]
-    )
-    return {
-      sent:      quietResult.ok,
-      postCount: 0,
-      tenantId,
-      error:     quietResult.ok ? undefined : quietResult.error,
-      skipped:   quietResult.ok ? 'sent_quiet_notice' : undefined,
-    }
-  }
+  const stats = await getBriefStats(tenantId)
+  const { blocks, fallback } = buildBriefBlocks(stats)
 
-  // 3. Build and send the full digest
-  const fallbackText = `Scout Daily Digest — ${posts.length} post${posts.length !== 1 ? 's' : ''} matched your filters today. View them in the Scout dashboard.`
-  const blocks  = buildSlackBlocks(posts)
-  const result  = await postSlackMessage(slack.botToken, slack.channelId, fallbackText, blocks)
+  const result = await postSlackMessage(slack.botToken, slack.channelId, fallback, blocks)
 
   return {
     sent:      result.ok,
-    postCount: posts.length,
+    postCount: stats.newToday,
     tenantId,
     error:     result.ok ? undefined : result.error,
   }
