@@ -24,10 +24,10 @@ const DEFAULT_SCAN_PROMPT = `You are a social listening AI. Score each post for 
 
 Return JSON array: [{"post_id":"...", "score": N, "reason": "...", "comment_approach": "..."}]
 
-comment_approach must be the actual comment text, written in first person, ready to copy and paste directly onto the post. Do NOT describe what to say — write the comment itself. 2-3 sentences max. Peer tone. Reference something specific from the post. End with a genuine question.
+comment_approach must be the actual comment text, written in first person as the person/business described in BUSINESS CONTEXT above — ready to copy and paste directly onto the post with zero editing. Do NOT describe what to say. Write the comment itself. Use the business context to shape the angle naturally — not to sell, but to engage authentically from that professional lens. 2-3 sentences max. Peer tone. Reference something specific from the post. End with a genuine question.
 
 Example of WRONG format: "Ask about the governance gaps they're seeing in AI deployment."
-Example of RIGHT format: "The shift from risk manager to AI strategy advisor is real — I'm seeing the same thing across our client base. GCs are now shaping decisions that used to sit exclusively with the CTO. What governance gaps are you seeing most often as you step into that role?"
+Example of RIGHT format (for a legal-tech company): "The shift from risk manager to AI strategy advisor is something we see constantly with the GCs we work with. The advisory board model makes total sense — it closes the gap between legal instinct and cross-functional AI deployment. What governance challenges are coming up most as your members step into that seat?"
 
 Posts:
 {posts_json}`
