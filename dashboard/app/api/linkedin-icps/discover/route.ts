@@ -1,10 +1,8 @@
 import { NextResponse } from 'next/server'
+import { getTenantConfig, tenantError } from '@/lib/tenant'
+import { airtableList, airtableCreate, SHARED_BASE, PROV_TOKEN, tenantFilter } from '@/lib/airtable'
 
-const APIFY_TOKEN    = process.env.APIFY_API_TOKEN!
-const AIRTABLE_TOKEN = process.env.AIRTABLE_API_TOKEN!
-const BASE_ID        = process.env.AIRTABLE_BASE_ID!
-const TABLE          = 'LinkedIn ICPs'
-const AIRTABLE_URL   = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(TABLE)}`
+const TABLE = 'LinkedIn ICPs'
 
 /**
  * POST /api/linkedin-icps/discover
@@ -20,19 +18,27 @@ const AIRTABLE_URL   = `https://api.airtable.com/v0/${BASE_ID}/${encodeURICompon
  *  6. Return { added, skipped, profiles }
  */
 export async function POST(req: Request) {
+  const tenant = await getTenantConfig()
+  if (!tenant) return tenantError()
+  const { tenantId } = tenant
+
+  const APIFY_TOKEN = process.env.APIFY_API_TOKEN
+
   try {
     const { jobTitles = [], keywords = [], maxProfiles = 50 } = await req.json()
 
     if (!jobTitles.length) {
       return NextResponse.json({ error: 'At least one job title is required.' }, { status: 400 })
     }
+    if (!APIFY_TOKEN) {
+      return NextResponse.json({ error: 'Discovery is not configured on this platform.' }, { status: 500 })
+    }
 
     const cap = Math.min(Number(maxProfiles) || 50, 200)
 
     // ---- Build search queries ----
-    // One query per job title, combining all keywords with the title
     const keywordStr = keywords.map((k: string) => `"${k}"`).join(' ')
-    const queries = jobTitles.map((title: string) =>
+    const queries    = jobTitles.map((title: string) =>
       `site:linkedin.com/in "${title}"${keywordStr ? ' ' + keywordStr : ''}`
     )
 
@@ -41,10 +47,7 @@ export async function POST(req: Request) {
       'https://api.apify.com/v2/acts/apify~google-search-scraper/runs?waitForFinish=120',
       {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${APIFY_TOKEN}`,
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Authorization': `Bearer ${APIFY_TOKEN}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
           queries: queries.join('\n'),
           maxPagesPerQuery: 3,
@@ -55,12 +58,11 @@ export async function POST(req: Request) {
     )
 
     if (!apifyRunResp.ok) {
-      const err = await apifyRunResp.text()
-      return NextResponse.json({ error: `Apify error: ${err}` }, { status: 500 })
+      return NextResponse.json({ error: `Apify error: ${await apifyRunResp.text()}` }, { status: 500 })
     }
 
-    const apifyData  = await apifyRunResp.json()
-    const datasetId  = apifyData?.data?.defaultDatasetId
+    const apifyData = await apifyRunResp.json()
+    const datasetId = apifyData?.data?.defaultDatasetId
 
     if (!datasetId) {
       return NextResponse.json({ error: 'Apify run did not produce a dataset.' }, { status: 500 })
@@ -79,19 +81,18 @@ export async function POST(req: Request) {
     const seen = new Set<string>()
 
     for (const item of (Array.isArray(items) ? items : [])) {
-      const results = item.organicResults || []
-      for (const result of results) {
+      for (const result of (item.organicResults || [])) {
         const rawUrl: string = result.url || ''
         const match = profilePattern.exec(rawUrl)
-        profilePattern.lastIndex = 0  // reset regex
+        profilePattern.lastIndex = 0
         if (match) {
           const slug = match[1].toLowerCase()
           if (!seen.has(slug)) {
             seen.add(slug)
             discovered.push({
               profileUrl: `https://www.linkedin.com/in/${slug}/`,
-              name: result.title || slug,
-              snippet: result.description || '',
+              name:       result.title       || slug,
+              snippet:    result.description || '',
             })
           }
         }
@@ -105,10 +106,14 @@ export async function POST(req: Request) {
     }
 
     // ---- Fetch existing profile URLs from Airtable (dedup) ----
-    const existingResp = await fetch(
-      `${AIRTABLE_URL}?fields[]=Profile URL&pageSize=100`,
-      { headers: { 'Authorization': `Bearer ${AIRTABLE_TOKEN}` } }
-    )
+    const existingUrl = new URL(`https://api.airtable.com/v0/${SHARED_BASE}/${encodeURIComponent(TABLE)}`)
+    existingUrl.searchParams.set('filterByFormula', tenantFilter(tenantId))
+    existingUrl.searchParams.set('fields[]', 'Profile URL')
+    existingUrl.searchParams.set('pageSize', '100')
+
+    const existingResp = await fetch(existingUrl.toString(), {
+      headers: { Authorization: `Bearer ${PROV_TOKEN}` },
+    })
     const existingData = await existingResp.json()
     const existingSlugs = new Set<string>(
       (existingData.records || []).map((r: any) => {
@@ -120,17 +125,19 @@ export async function POST(req: Request) {
 
     // ---- Save new profiles to Airtable ----
     const toAdd = discovered.filter(p => {
-      const m = p.profileUrl.match(/linkedin\.com\/in\/([^/?&\s]+)/)
+      const m    = p.profileUrl.match(/linkedin\.com\/in\/([^/?&\s]+)/)
       const slug = m ? m[1].toLowerCase() : ''
       return slug && !existingSlugs.has(slug)
     })
 
-    const today = new Date().toISOString().split('T')[0]
+    const today     = new Date().toISOString().split('T')[0]
     const batchSize = 10
     const addedProfiles: any[] = []
 
     for (let i = 0; i < toAdd.length; i += batchSize) {
       const batch = toAdd.slice(i, i + batchSize)
+
+      // airtableCreate only handles one record at a time; batch via direct fetch
       const records = batch.map(p => ({
         fields: {
           'Name':        p.name,
@@ -139,17 +146,18 @@ export async function POST(req: Request) {
           'Source':      'discovered',
           'Notes':       p.snippet?.slice(0, 200) || '',
           'Added Date':  today,
+          'Tenant ID':   tenantId,
         }
       }))
 
-      const saveResp = await fetch(AIRTABLE_URL, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${AIRTABLE_TOKEN}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ records }),
-      })
+      const saveResp = await fetch(
+        `https://api.airtable.com/v0/${SHARED_BASE}/${encodeURIComponent(TABLE)}`,
+        {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${PROV_TOKEN}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ records }),
+        }
+      )
 
       if (saveResp.ok) {
         const saved = await saveResp.json()

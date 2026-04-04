@@ -1,27 +1,15 @@
 import { NextResponse } from 'next/server'
+import { getTenantConfig, tenantError } from '@/lib/tenant'
+import { airtableList, airtableCreate, airtableUpdate } from '@/lib/airtable'
 
-const AIRTABLE_TOKEN = process.env.AIRTABLE_API_TOKEN
-const BASE_ID = process.env.AIRTABLE_BASE_ID
 const TABLE = 'Business Profile'
 
-async function at(path: string, opts: RequestInit = {}) {
-  const res = await fetch(
-    `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(TABLE)}${path}`,
-    {
-      ...opts,
-      headers: {
-        Authorization: `Bearer ${AIRTABLE_TOKEN}`,
-        'Content-Type': 'application/json',
-        ...(opts.headers || {}),
-      },
-    }
-  )
-  return res.json()
-}
-
 export async function GET() {
+  const tenant = await getTenantConfig()
+  if (!tenant) return tenantError()
   try {
-    const data = await at('?maxRecords=1')
+    const res  = await airtableList(TABLE, tenant.tenantId, { maxRecords: '1' })
+    const data = await res.json()
     const record = data.records?.[0]
     if (!record) return NextResponse.json({ profile: null })
     return NextResponse.json({ profile: record.fields, id: record.id })
@@ -31,37 +19,29 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
+  const tenant = await getTenantConfig()
+  if (!tenant) return tenantError()
   try {
     const body = await req.json()
     const fields: Record<string, string> = {
-      'Business Name': body.businessName || '',
-      'Industry': body.industry || '',
-      'Ideal Client': body.idealClient || '',
+      'Business Name':  body.businessName  || '',
+      'Industry':       body.industry      || '',
+      'Ideal Client':   body.idealClient   || '',
       'Problem Solved': body.problemSolved || '',
       'Signal Types': Array.isArray(body.signalTypes)
         ? body.signalTypes.join(', ')
         : body.signalTypes || '',
       'Updated At': new Date().toISOString(),
     }
-    // Only include Scoring Prompt if explicitly provided
-    if (typeof body.scoringPrompt === 'string') {
-      fields['Scoring Prompt'] = body.scoringPrompt
-    }
+    if (typeof body.scoringPrompt === 'string') fields['Scoring Prompt'] = body.scoringPrompt
 
-    const existing = await at('?maxRecords=1')
+    const existing = await (await airtableList(TABLE, tenant.tenantId, { maxRecords: '1' })).json()
     const rec = existing.records?.[0]
-
     if (rec) {
-      const updated = await at(`/${rec.id}`, {
-        method: 'PATCH',
-        body: JSON.stringify({ fields }),
-      })
+      const updated = await (await airtableUpdate(TABLE, rec.id, fields)).json()
       return NextResponse.json({ success: true, id: updated.id })
     } else {
-      const created = await at('', {
-        method: 'POST',
-        body: JSON.stringify({ fields }),
-      })
+      const created = await (await airtableCreate(TABLE, tenant.tenantId, fields)).json()
       return NextResponse.json({ success: true, id: created.id })
     }
   } catch (e: any) {

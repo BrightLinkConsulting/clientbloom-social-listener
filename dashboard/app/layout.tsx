@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import Providers from './components/providers'
 
 export const metadata: Metadata = {
   title: 'ClientBloom — Market Intelligence',
@@ -35,7 +36,9 @@ export default function RootLayout({
         `}} />
       </head>
       <body className="min-h-screen bg-[#0a0c10] text-slate-200 antialiased">
-        {children}
+        <Providers>
+          {children}
+        </Providers>
       </body>
     </html>
   )

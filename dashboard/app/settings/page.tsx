@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { useState, useEffect, useCallback } from 'react'
+import { useSession, signOut } from 'next-auth/react'
 
 // ---- Types ----
 interface Source {
@@ -11,6 +12,51 @@ interface Source {
   value: string
   active: boolean
   priority: 'high' | 'medium' | 'low'
+}
+
+// ---- User menu ----
+function SettingsUserMenu() {
+  const { data: session } = useSession()
+  const [open, setOpen]   = useState(false)
+  const user = session?.user as any
+
+  return (
+    <div className="relative ml-1">
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="w-7 h-7 rounded-full bg-[#4F6BFF]/20 border border-[#4F6BFF]/30 flex items-center justify-center text-[#4F6BFF] text-xs font-bold hover:bg-[#4F6BFF]/30 transition-colors"
+        title={user?.email || 'Account'}
+      >
+        {user?.name?.charAt(0)?.toUpperCase() || user?.email?.charAt(0)?.toUpperCase() || '?'}
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div className="absolute right-0 top-9 z-50 bg-[#0f1117] border border-slate-700 rounded-xl shadow-xl w-48 overflow-hidden">
+            <div className="px-3.5 py-2.5 border-b border-slate-800">
+              <p className="text-slate-200 text-xs font-medium truncate">{user?.name || 'Account'}</p>
+              <p className="text-slate-500 text-xs truncate">{user?.email}</p>
+            </div>
+            {user?.isAdmin && (
+              <Link
+                href="/admin"
+                onClick={() => setOpen(false)}
+                className="flex items-center gap-2 px-3.5 py-2.5 text-xs text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 transition-colors"
+              >
+                <span>🔧</span> Admin Panel
+              </Link>
+            )}
+            <button
+              onClick={() => signOut({ callbackUrl: '/sign-in' })}
+              className="w-full text-left flex items-center gap-2 px-3.5 py-2.5 text-xs text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 transition-colors"
+            >
+              <span>→</span> Sign out
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  )
 }
 
 // ---- Nav ----
@@ -37,6 +83,7 @@ function Nav() {
           <Link href="/settings" className="text-xs px-3 py-1.5 rounded-lg font-medium transition-colors bg-slate-800 text-white">
             Settings
           </Link>
+          <SettingsUserMenu />
         </nav>
       </div>
     </header>

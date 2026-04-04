@@ -1,34 +1,31 @@
 /**
  * /api/stats — Aggregated statistics for the dashboard charts.
- *
- * Fetches all posts and computes:
- * - Platform breakdown
- * - Posts per day (last 14 days)
- * - Top keywords by frequency
- * - Top source groups by post count
- * - Score distribution
- * - Total counts by status
  */
 
 import { NextResponse } from 'next/server'
+import { getTenantConfig, tenantError } from '@/lib/tenant'
+import { SHARED_BASE, PROV_TOKEN, tenantFilter } from '@/lib/airtable'
 
-const AIRTABLE_BASE = 'https://api.airtable.com/v0'
-
-async function fetchAllPosts(token: string, baseId: string, tableName: string) {
+async function fetchAllPosts(tenantId: string, tableName: string) {
+  const AIRTABLE_BASE = 'https://api.airtable.com/v0'
   const allRecords: any[] = []
   let offset: string | null = null
 
   do {
-    const params = new URLSearchParams({
-      'fields[]': ['Platform', 'Captured At', 'Keywords Matched', 'Group Name',
-                   'Relevance Score', 'Status', 'Author Name'].join('&fields[]='),
-      pageSize: '100',
-    })
-    if (offset) params.set('offset', offset)
+    const url = new URL(`${AIRTABLE_BASE}/${SHARED_BASE}/${encodeURIComponent(tableName)}`)
+    url.searchParams.set('filterByFormula', tenantFilter(tenantId))
+    url.searchParams.set('fields[]', 'Platform')
+    url.searchParams.append('fields[]', 'Captured At')
+    url.searchParams.append('fields[]', 'Keywords Matched')
+    url.searchParams.append('fields[]', 'Group Name')
+    url.searchParams.append('fields[]', 'Relevance Score')
+    url.searchParams.append('fields[]', 'Status')
+    url.searchParams.append('fields[]', 'Author Name')
+    url.searchParams.set('pageSize', '100')
+    if (offset) url.searchParams.set('offset', offset)
 
-    const url = `${AIRTABLE_BASE}/${baseId}/${encodeURIComponent(tableName)}?${params}`
-    const res = await fetch(url, {
-      headers: { 'Authorization': `Bearer ${token}` },
+    const res = await fetch(url.toString(), {
+      headers: { 'Authorization': `Bearer ${PROV_TOKEN}` },
       next: { revalidate: 300 }
     })
 
@@ -43,16 +40,13 @@ async function fetchAllPosts(token: string, baseId: string, tableName: string) {
 }
 
 export async function GET() {
-  const token = process.env.AIRTABLE_API_TOKEN
-  const baseId = process.env.AIRTABLE_BASE_ID
-  const tableName = process.env.AIRTABLE_POSTS_TABLE || 'Captured Posts'
+  const tenant = await getTenantConfig()
+  if (!tenant) return tenantError()
+  const { tenantId } = tenant
 
-  if (!token || !baseId) {
-    return NextResponse.json({ error: 'Not configured' }, { status: 500 })
-  }
-
-  const records = await fetchAllPosts(token, baseId, tableName)
-  const fields = records.map((r: any) => r.fields)
+  const tableName = 'Captured Posts'
+  const records   = await fetchAllPosts(tenantId, tableName)
+  const fields    = records.map((r: any) => r.fields)
 
   // Platform breakdown
   const platformCounts: Record<string, number> = {}
@@ -73,9 +67,7 @@ export async function GET() {
     const capturedAt = f['Captured At']
     if (!capturedAt) return
     const day = capturedAt.slice(0, 10)
-    if (day in dailyCounts) {
-      dailyCounts[day]++
-    }
+    if (day in dailyCounts) dailyCounts[day]++
   })
 
   // Top keywords
@@ -103,24 +95,21 @@ export async function GET() {
     .slice(0, 8)
     .map(([group, count]) => ({ group, count }))
 
-  // Score distribution (buckets: 1-2, 3-4, 5-6, 7-8, 9-10)
+  // Score distribution
   const scoreBuckets = [
-    { range: '1-2', count: 0 },
-    { range: '3-4', count: 0 },
-    { range: '5-6', count: 0 },
-    { range: '7-8', count: 0 },
+    { range: '1-2', count: 0 }, { range: '3-4', count: 0 },
+    { range: '5-6', count: 0 }, { range: '7-8', count: 0 },
     { range: '9-10', count: 0 },
   ]
   fields.forEach((f: any) => {
     const score = f['Relevance Score'] || 0
-    if (score <= 2) scoreBuckets[0].count++
+    if (score <= 2)      scoreBuckets[0].count++
     else if (score <= 4) scoreBuckets[1].count++
     else if (score <= 6) scoreBuckets[2].count++
     else if (score <= 8) scoreBuckets[3].count++
-    else scoreBuckets[4].count++
+    else                 scoreBuckets[4].count++
   })
 
-  // Status counts
   const statusCounts: Record<string, number> = {}
   fields.forEach((f: any) => {
     const s = f['Status'] || 'New'

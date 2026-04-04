@@ -3,6 +3,8 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { useSession, signOut } from 'next-auth/react'
+import LandingPage from './page-landing'
 
 // ---- Types ----
 interface Post {
@@ -527,6 +529,51 @@ function PostCard({
   )
 }
 
+// ---- User menu (sign out) ----
+function UserMenu() {
+  const { data: session } = useSession()
+  const [open, setOpen]   = useState(false)
+  const user = session?.user as any
+
+  return (
+    <div className="relative ml-1">
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="w-7 h-7 rounded-full bg-[#4F6BFF]/20 border border-[#4F6BFF]/30 flex items-center justify-center text-[#4F6BFF] text-xs font-bold hover:bg-[#4F6BFF]/30 transition-colors"
+        title={user?.email || 'Account'}
+      >
+        {user?.name?.charAt(0)?.toUpperCase() || user?.email?.charAt(0)?.toUpperCase() || '?'}
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div className="absolute right-0 top-9 z-50 bg-[#0f1117] border border-slate-700 rounded-xl shadow-xl w-48 overflow-hidden">
+            <div className="px-3.5 py-2.5 border-b border-slate-800">
+              <p className="text-slate-200 text-xs font-medium truncate">{user?.name || 'Account'}</p>
+              <p className="text-slate-500 text-xs truncate">{user?.email}</p>
+            </div>
+            {user?.isAdmin && (
+              <Link
+                href="/admin"
+                onClick={() => setOpen(false)}
+                className="flex items-center gap-2 px-3.5 py-2.5 text-xs text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 transition-colors"
+              >
+                <span>🔧</span> Admin Panel
+              </Link>
+            )}
+            <button
+              onClick={() => signOut({ callbackUrl: '/sign-in' })}
+              className="w-full text-left flex items-center gap-2 px-3.5 py-2.5 text-xs text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 transition-colors"
+            >
+              <span>→</span> Sign out
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
 // ---- Nav ----
 function Nav({ lastScannedAt }: { lastScannedAt: string | null }) {
   const [tick, setTick] = useState(0)
@@ -563,14 +610,31 @@ function Nav({ lastScannedAt }: { lastScannedAt: string | null }) {
         <nav className="flex items-center gap-1">
           <Link href="/" className="text-xs px-3 py-1.5 rounded-lg font-medium bg-slate-800 text-white transition-colors">Feed</Link>
           <Link href="/settings" className="text-xs px-3 py-1.5 rounded-lg font-medium text-slate-400 hover:text-white hover:bg-slate-800/60 transition-colors">Settings</Link>
+          <UserMenu />
         </nav>
       </div>
     </header>
   )
 }
 
+// ---- Root: route between landing page and authenticated dashboard ----
+export default function RootPage() {
+  const { status } = useSession()
+
+  // Minimal dark fill while session resolves — avoids white flash
+  if (status === 'loading') {
+    return <div className="min-h-screen bg-[#080a0f]" />
+  }
+
+  if (status === 'unauthenticated') {
+    return <LandingPage />
+  }
+
+  return <FeedPage />
+}
+
 // ---- Main Feed ----
-export default function FeedPage() {
+function FeedPage() {
   const router = useRouter()
   const [posts, setPosts] = useState<Post[]>([])
   const [loading, setLoading] = useState(true)

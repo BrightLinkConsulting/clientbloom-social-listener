@@ -4,40 +4,37 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
+import { getTenantConfig, tenantError } from '@/lib/tenant'
+import { SHARED_BASE, PROV_TOKEN, tenantFilter } from '@/lib/airtable'
 
 const AIRTABLE_BASE = 'https://api.airtable.com/v0'
 
 export async function GET(request: NextRequest) {
-  const token = process.env.AIRTABLE_API_TOKEN
-  const baseId = process.env.AIRTABLE_BASE_ID
-  const tableName = process.env.AIRTABLE_POSTS_TABLE || 'Captured Posts'
+  const tenant = await getTenantConfig()
+  if (!tenant) return tenantError()
 
-  if (!token || !baseId) {
-    return NextResponse.json({ error: 'Airtable credentials not configured' }, { status: 500 })
-  }
+  const { tenantId } = tenant
+  const tableName = 'Captured Posts'
 
   const { searchParams } = new URL(request.url)
-  const action = searchParams.get('action') || 'New'
+  const action   = searchParams.get('action')   || 'New'
   const platform = searchParams.get('platform')
   const minScore = searchParams.get('minScore') || '0'
-  const group = searchParams.get('group') || ''
-  const limit = searchParams.get('limit') || '100'
-  const offset = searchParams.get('offset') || ''
+  const group    = searchParams.get('group')    || ''
+  const limit    = searchParams.get('limit')    || '100'
+  const offset   = searchParams.get('offset')  || ''
 
   // --- Build filter formula ---
-  const filters: string[] = []
+  const filters: string[] = [tenantFilter(tenantId)]
 
   if (action && action !== 'all') {
     if (action === 'New') {
-      // Inbox: Action is New/empty AND not archived
       filters.push(`OR({Action}='New', {Action}='')`)
-      filters.push(`{Engagement Status}!=\'archived\'`)
+      filters.push(`{Engagement Status}!='archived'`)
     } else if (action === 'Engaged') {
-      // Engaged: Action=Engaged AND no sub-status (not replied, not archived)
       filters.push(`{Action}='Engaged'`)
       filters.push(`OR({Engagement Status}='', {Engagement Status}=BLANK())`)
     } else if (action === 'Replied') {
-      // Replied: Action=Engaged AND Engagement Status=replied
       filters.push(`{Action}='Engaged'`)
       filters.push(`{Engagement Status}='replied'`)
     } else if (action === 'Archived') {
@@ -46,80 +43,64 @@ export async function GET(request: NextRequest) {
       filters.push(`{Action}='${action}'`)
     }
   }
-  if (platform && platform !== 'all') {
-    filters.push(`{Platform}='${platform}'`)
-  }
-  if (minScore && minScore !== '0') {
-    filters.push(`{Relevance Score}>=${minScore}`)
-  }
-  if (group && group !== 'all') {
-    // Escape single quotes in group name
-    filters.push(`{Group Name}='${group.replace(/'/g, "\\'")}'`)
-  }
+  if (platform && platform !== 'all') filters.push(`{Platform}='${platform}'`)
+  if (minScore && minScore !== '0')   filters.push(`{Relevance Score}>=${minScore}`)
+  if (group    && group    !== 'all') filters.push(`{Group Name}='${group.replace(/'/g, "\\'")}'`)
 
   const formula = filters.length > 1
     ? `AND(${filters.join(', ')})`
-    : filters.length === 1
-    ? filters[0]
-    : ''
+    : filters[0]
 
   const params = new URLSearchParams({
-    'sort[0][field]': 'Relevance Score',
+    'sort[0][field]':     'Relevance Score',
     'sort[0][direction]': 'desc',
-    'sort[1][field]': 'Captured At',
+    'sort[1][field]':     'Captured At',
     'sort[1][direction]': 'desc',
     pageSize: limit,
   })
-  if (formula) params.set('filterByFormula', formula)
+  params.set('filterByFormula', formula)
   if (offset) params.set('offset', offset)
 
-  const postsUrl = `${AIRTABLE_BASE}/${baseId}/${encodeURIComponent(tableName)}?${params}`
+  const postsUrl = `${AIRTABLE_BASE}/${SHARED_BASE}/${encodeURIComponent(tableName)}?${params}`
 
-  // --- Fetch metadata (action counts + last scrape) from all posts records ---
+  // Meta query — just action/status/time fields, still filtered by tenant
+  const metaFormula = tenantFilter(tenantId)
   const metaParams = new URLSearchParams({
+    filterByFormula: metaFormula,
     'fields[]':  'Action',
     'fields[1]': 'Captured At',
     'fields[2]': 'Engagement Status',
     pageSize: '100',
   })
-  const metaUrl = `${AIRTABLE_BASE}/${baseId}/${encodeURIComponent(tableName)}?${metaParams}`
+  const metaUrl = `${AIRTABLE_BASE}/${SHARED_BASE}/${encodeURIComponent(tableName)}?${metaParams}`
 
-  // --- Fetch active Facebook groups from Sources table (canonical group list) ---
+  // Sources query — filtered by tenant
+  const sourcesFormula = `AND(${tenantFilter(tenantId)}, {Type}='facebook_group', {Active}=1)`
   const sourcesParams = new URLSearchParams({
-    filterByFormula: "AND({Type}='facebook_group', {Active}=1)",
+    filterByFormula: sourcesFormula,
     'fields[]': 'Name',
     pageSize: '100',
   })
-  const sourcesUrl = `${AIRTABLE_BASE}/${baseId}/Sources?${sourcesParams}`
+  const sourcesUrl = `${AIRTABLE_BASE}/${SHARED_BASE}/Sources?${sourcesParams}`
 
-  // Run all three fetches in parallel
+  const authHeader = { 'Authorization': `Bearer ${PROV_TOKEN}` }
+
   const [postsResp, metaResp, sourcesResp] = await Promise.all([
-    fetch(postsUrl, {
-      headers: { 'Authorization': `Bearer ${token}` },
-      next: { revalidate: 0 }
-    }),
-    fetch(metaUrl, {
-      headers: { 'Authorization': `Bearer ${token}` },
-      next: { revalidate: 0 }
-    }),
-    fetch(sourcesUrl, {
-      headers: { 'Authorization': `Bearer ${token}` },
-      next: { revalidate: 0 }
-    })
+    fetch(postsUrl,   { headers: authHeader, next: { revalidate: 0 } }),
+    fetch(metaUrl,    { headers: authHeader, next: { revalidate: 0 } }),
+    fetch(sourcesUrl, { headers: authHeader, next: { revalidate: 0 } }),
   ])
 
   if (!postsResp.ok) {
-    const error = await postsResp.text()
-    return NextResponse.json({ error }, { status: postsResp.status })
+    return NextResponse.json({ error: await postsResp.text() }, { status: postsResp.status })
   }
 
   const [postsData, metaData, sourcesData] = await Promise.all([
     postsResp.json(),
     metaResp.json(),
-    sourcesResp.ok ? sourcesResp.json() : Promise.resolve({ records: [] })
+    sourcesResp.ok ? sourcesResp.json() : Promise.resolve({ records: [] }),
   ])
 
-  // Compute metadata from all records
   const actionCounts: Record<string, number> = { New: 0, Engaged: 0, Replied: 0, Skipped: 0, Archived: 0 }
   let lastScrapedAt: string | null = null
 
@@ -128,7 +109,6 @@ export async function GET(request: NextRequest) {
     const a  = f['Action']            || 'New'
     const es = f['Engagement Status'] || ''
 
-    // Derive logical status from Action + Engagement Status
     if (es === 'archived') {
       actionCounts['Archived'] = (actionCounts['Archived'] || 0) + 1
     } else if (a === 'Engaged' && es === 'replied') {
@@ -137,14 +117,12 @@ export async function GET(request: NextRequest) {
       actionCounts[a] = (actionCounts[a] || 0) + 1
     }
 
-    // Track most recent captured time
     const capturedAt = f['Captured At']
     if (capturedAt && (!lastScrapedAt || capturedAt > lastScrapedAt)) {
       lastScrapedAt = capturedAt
     }
   }
 
-  // Build group list from Sources table (the single source of truth)
   const availableGroups = (sourcesData.records || [])
     .map((r: any) => r.fields?.Name || '')
     .filter(Boolean)

@@ -1,33 +1,24 @@
 /**
- * /api/slack-settings
- * GET  — fetch Slack configuration from Business Profile table
- * POST — save Slack configuration
+ * /api/slack-settings — GET/POST Slack config (stored in Business Profile table)
  */
-
 import { NextResponse } from 'next/server'
+import { getTenantConfig, tenantError } from '@/lib/tenant'
+import { airtableList, airtableCreate, airtableUpdate } from '@/lib/airtable'
 
-const AIRTABLE_TOKEN = process.env.AIRTABLE_API_TOKEN!
-const BASE_ID        = process.env.AIRTABLE_BASE_ID!
-const TABLE          = 'Business Profile'
-const BASE_URL       = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(TABLE)}`
-const HEADERS        = () => ({
-  'Authorization': `Bearer ${AIRTABLE_TOKEN}`,
-  'Content-Type':  'application/json',
-})
+const TABLE = 'Business Profile'
 
 export async function GET() {
+  const tenant = await getTenantConfig()
+  if (!tenant) return tenantError()
   try {
-    const resp = await fetch(`${BASE_URL}?pageSize=1`, { headers: HEADERS() })
-    if (!resp.ok) return NextResponse.json({ error: await resp.text() }, { status: resp.status })
-
-    const data   = await resp.json()
+    const res = await airtableList(TABLE, tenant.tenantId, { pageSize: '1' })
+    const data = await res.json()
     const record = data.records?.[0]
     if (!record) return NextResponse.json({ slackBotToken: '', slackChannelId: '', slackChannelName: '' })
-
     return NextResponse.json({
-      slackBotToken:   record.fields['Slack Bot Token']   || '',
-      slackChannelId:  record.fields['Slack Channel ID']  || '',
-      slackChannelName:record.fields['Slack Channel Name']|| '',
+      slackBotToken:    record.fields['Slack Bot Token']    || '',
+      slackChannelId:   record.fields['Slack Channel ID']   || '',
+      slackChannelName: record.fields['Slack Channel Name'] || '',
     })
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 })
@@ -35,28 +26,22 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
+  const tenant = await getTenantConfig()
+  if (!tenant) return tenantError()
   try {
     const { slackBotToken, slackChannelId, slackChannelName } = await req.json()
-
-    const listResp = await fetch(`${BASE_URL}?pageSize=1`, { headers: HEADERS() })
-    if (!listResp.ok) return NextResponse.json({ error: await listResp.text() }, { status: listResp.status })
-    const existing = (await listResp.json()).records?.[0]
-
     const fields: Record<string, any> = {}
     if (slackBotToken    !== undefined) fields['Slack Bot Token']    = slackBotToken
     if (slackChannelId   !== undefined) fields['Slack Channel ID']   = slackChannelId
     if (slackChannelName !== undefined) fields['Slack Channel Name'] = slackChannelName
 
-    const saveResp = existing
-      ? await fetch(`${BASE_URL}/${existing.id}`, {
-          method: 'PATCH', headers: HEADERS(), body: JSON.stringify({ fields }),
-        })
-      : await fetch(BASE_URL, {
-          method: 'POST', headers: HEADERS(), body: JSON.stringify({ records: [{ fields }] }),
-        })
-
-    if (!saveResp.ok) return NextResponse.json({ error: await saveResp.text() }, { status: saveResp.status })
-    return NextResponse.json({ ok: true })
+    const existing = await (await airtableList(TABLE, tenant.tenantId, { pageSize: '1' })).json()
+    const rec = existing.records?.[0]
+    const saved = rec
+      ? await airtableUpdate(TABLE, rec.id, fields)
+      : await airtableCreate(TABLE, tenant.tenantId, fields)
+    if (!saved.ok) return NextResponse.json({ error: await saved.text() }, { status: saved.status })
+    return NextResponse.json({ success: true })
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 })
   }
