@@ -50,9 +50,7 @@ export default function LandingPage() {
           </h1>
 
           <p className="text-xl text-slate-400 max-w-2xl mx-auto leading-relaxed mb-10">
-            Scout monitors LinkedIn and Facebook for your exact ICPs —
-            then AI scores every post so you know who to engage, what to say,
-            and when to show up. Before your competitors even see it.
+            Scout monitors LinkedIn and Facebook for your exact ICPs, scores every post for engagement opportunity, and hands you a ready-to-paste comment written in your voice and tuned to your business. Start real conversations in seconds, not hours.
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
@@ -172,8 +170,8 @@ export default function LandingPage() {
               },
               {
                 step: '02',
-                title: 'AI scores every post for engagement opportunity',
-                body: 'Scout runs twice daily, pulling posts from your sources. Each one gets a 1–10 relevance score and a reason — "agency owner describing exact pain point you solve" — so you know exactly why it\'s worth your time.',
+                title: 'AI scores every post — and writes your opener',
+                body: 'Scout runs twice daily, pulling posts from your sources. Each one gets a 1–10 relevance score, a reason, and a ready-to-paste comment written in first person from your business angle. Not a prompt. Not a suggestion. The actual words you can post right now.',
                 detail: 'Only the highest-opportunity posts surface in your inbox.'
               },
               {
@@ -202,6 +200,82 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* ─── COMMENT GENERATION ─── */}
+      <section className="py-24 px-6 border-t border-slate-800/50">
+        <div className="max-w-4xl mx-auto">
+          <div className="text-center mb-16">
+            <div className="inline-flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/20 rounded-full px-4 py-1.5 mb-6">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+              <span className="text-emerald-400 text-xs font-medium tracking-wide uppercase">The part that saves you</span>
+            </div>
+            <h2 className="text-4xl font-bold text-white mb-4">Not just what to read.<br />Exactly what to say.</h2>
+            <p className="text-slate-400 text-lg max-w-2xl mx-auto">Finding the right post is step one. Knowing how to respond — in your voice, from your angle, without sounding like a bot — is where most people freeze. Scout handles that part too.</p>
+          </div>
+
+          {/* Demo card */}
+          <div className="bg-[#0f1117] border border-slate-800 rounded-2xl overflow-hidden mb-12">
+            {/* Post */}
+            <div className="p-6 border-b border-slate-800">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#4F6BFF]/30 to-[#1a2235] flex items-center justify-center text-xs font-bold text-[#4F6BFF]">SK</div>
+                <div>
+                  <div className="text-white text-sm font-medium">Sarah K.</div>
+                  <div className="text-slate-500 text-xs">VP of Sales · LinkedIn</div>
+                </div>
+                <div className="ml-auto flex items-center gap-2">
+                  <span className="text-[11px] font-bold text-emerald-400 bg-emerald-900/30 border border-emerald-800/40 px-2 py-0.5 rounded-md">9/10</span>
+                  <span className="text-[10px] text-slate-500 bg-slate-800/60 px-2 py-0.5 rounded">LinkedIn ICP</span>
+                </div>
+              </div>
+              <p className="text-slate-300 text-sm leading-relaxed">Three consultants pitched us this week on AI tools. Different packaging, same promises. How do you actually evaluate vendors when everyone sounds identical and every case study looks the same?</p>
+            </div>
+
+            {/* Suggested comment */}
+            <div className="p-6 bg-[#0b0e18]">
+              <div className="flex items-center gap-2 mb-3">
+                <svg className="w-3.5 h-3.5 text-[#4F6BFF]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" /></svg>
+                <span className="text-[#4F6BFF] text-xs font-medium">Suggested comment — ready to paste</span>
+                <button className="ml-auto text-slate-500 hover:text-slate-300 text-xs flex items-center gap-1 transition-colors">
+                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+                  Copy
+                </button>
+              </div>
+              <p className="text-slate-200 text-sm leading-relaxed italic">
+                "We started asking vendors to show us one thing that went wrong on a client account and exactly how they handled it. Filters out most of the pitch decks pretty fast. What does the biggest gap look like between what they're promising and what you actually need?"
+              </p>
+              <p className="text-slate-600 text-xs mt-3">Tuned to your business profile. Sounds human. No em-dashes. No marketing speak.</p>
+            </div>
+          </div>
+
+          {/* Three pillars */}
+          <div className="grid md:grid-cols-3 gap-6">
+            {[
+              {
+                icon: '🎯',
+                title: 'Written from your angle',
+                body: 'Scout knows your business, your industry, and the clients you serve. Every suggested comment is written from that lens — not generic. Not templated. Yours.'
+              },
+              {
+                icon: '🤝',
+                title: 'Sounds like a person, not a pitch',
+                body: 'Scout strips out every AI tell: no em-dashes, no "at the end of the day," no "I completely understand your situation." Comments read like something you actually typed. Because that\'s what gets replies.'
+              },
+              {
+                icon: '⚡',
+                title: 'One click from conversation',
+                body: 'Copy the comment. Open the post. Paste and post. The whole workflow from spotting an opportunity to being in the conversation takes under 60 seconds.'
+              }
+            ].map((item, i) => (
+              <div key={i} className="bg-[#0f1117] border border-slate-800 rounded-xl p-6 hover:border-slate-700 transition-colors">
+                <div className="text-3xl mb-4">{item.icon}</div>
+                <h3 className="text-white font-semibold mb-2">{item.title}</h3>
+                <p className="text-slate-400 text-sm leading-relaxed">{item.body}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* ─── FEATURES ─── */}
       <section className="py-24 px-6 border-t border-slate-800/50 bg-[#0a0c10]">
         <div className="max-w-4xl mx-auto">
@@ -213,6 +287,7 @@ export default function LandingPage() {
           <div className="grid md:grid-cols-2 gap-4">
             {[
               { icon: '🎯', title: 'AI-Scored Intelligence Feed', desc: 'Every post gets a 1–10 engagement opportunity score with reasoning. You see why it matters, not just that it does.' },
+              { icon: '💬', title: 'Ready-to-Paste Comment Starters', desc: 'Every post comes with a suggested comment written in first person from your business angle. No pitch. No AI speak. Just a natural opener you can post immediately.' },
               { icon: '👤', title: 'ICP Profile Monitoring', desc: 'Add specific LinkedIn profiles you\'re tracking. Scout watches their activity and surfaces high-signal posts from people already on your radar.' },
               { icon: '📝', title: 'Engagement Workflow', desc: 'Notes with timestamps. Status tracking (New → Engaged → Replied). A full history of every conversation you\'ve been in.' },
               { icon: '🔗', title: 'CRM Integration', desc: 'One click pushes a contact and your notes to GoHighLevel or HubSpot. No switching tabs. No copy-paste. The context goes with them.' },
@@ -310,6 +385,7 @@ export default function LandingPage() {
             <ul className="text-left space-y-3 mb-8 max-w-xs mx-auto">
               {[
                 'AI-scored intelligence feed',
+                'Ready-to-paste comment starters',
                 'LinkedIn + Facebook monitoring',
                 'ICP profile tracking',
                 'Engagement workflow with notes',
@@ -389,6 +465,10 @@ export default function LandingPage() {
               {
                 q: 'Can I customize how Scout scores posts?',
                 a: 'Yes. Scout uses a default AI scoring prompt, but you can write a custom one that describes exactly what a high-value post looks like for your business. The more specific you are, the sharper the scoring becomes over time.'
+              },
+              {
+                q: 'How does the suggested comment actually work — does it sound like AI?',
+                a: 'We spent a lot of time on this. Scout generates comments in first person from your specific business angle, and we\'ve built in hard rules against everything that makes AI writing obvious: no em-dashes, no "at the end of the day," no hollow phrases like "I completely understand your situation." Comments are kept short, casual, and a little imperfect on purpose — because that\'s what reads as human in a LinkedIn or Facebook comment thread. The goal is something you could paste, post, and nobody would guess it didn\'t come directly from you.'
               }
             ].map((item, i) => (
               <div key={i} className="bg-[#0f1117] border border-slate-800 rounded-xl overflow-hidden">
