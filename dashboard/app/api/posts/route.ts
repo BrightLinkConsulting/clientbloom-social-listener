@@ -29,7 +29,19 @@ export async function GET(request: NextRequest) {
 
   if (action && action !== 'all') {
     if (action === 'New') {
+      // Inbox: Action is New/empty AND not archived
       filters.push(`OR({Action}='New', {Action}='')`)
+      filters.push(`{Engagement Status}!=\'archived\'`)
+    } else if (action === 'Engaged') {
+      // Engaged: Action=Engaged AND no sub-status (not replied, not archived)
+      filters.push(`{Action}='Engaged'`)
+      filters.push(`OR({Engagement Status}='', {Engagement Status}=BLANK())`)
+    } else if (action === 'Replied') {
+      // Replied: Action=Engaged AND Engagement Status=replied
+      filters.push(`{Action}='Engaged'`)
+      filters.push(`{Engagement Status}='replied'`)
+    } else if (action === 'Archived') {
+      filters.push(`{Engagement Status}='archived'`)
     } else {
       filters.push(`{Action}='${action}'`)
     }
@@ -65,8 +77,9 @@ export async function GET(request: NextRequest) {
 
   // --- Fetch metadata (action counts + last scrape) from all posts records ---
   const metaParams = new URLSearchParams({
-    'fields[]': 'Action',
+    'fields[]':  'Action',
     'fields[1]': 'Captured At',
+    'fields[2]': 'Engagement Status',
     pageSize: '100',
   })
   const metaUrl = `${AIRTABLE_BASE}/${baseId}/${encodeURIComponent(tableName)}?${metaParams}`
@@ -107,22 +120,27 @@ export async function GET(request: NextRequest) {
   ])
 
   // Compute metadata from all records
-  const actionCounts: Record<string, number> = { New: 0, Engaged: 0, Skipped: 0 }
+  const actionCounts: Record<string, number> = { New: 0, Engaged: 0, Replied: 0, Skipped: 0, Archived: 0 }
   let lastScrapedAt: string | null = null
 
   for (const record of metaData.records || []) {
-    const f = record.fields || {}
+    const f  = record.fields || {}
+    const a  = f['Action']            || 'New'
+    const es = f['Engagement Status'] || ''
 
-    // Action counts
-    const a = f['Action'] || 'New'
-    actionCounts[a] = (actionCounts[a] || 0) + 1
+    // Derive logical status from Action + Engagement Status
+    if (es === 'archived') {
+      actionCounts['Archived'] = (actionCounts['Archived'] || 0) + 1
+    } else if (a === 'Engaged' && es === 'replied') {
+      actionCounts['Replied'] = (actionCounts['Replied'] || 0) + 1
+    } else {
+      actionCounts[a] = (actionCounts[a] || 0) + 1
+    }
 
     // Track most recent captured time
     const capturedAt = f['Captured At']
-    if (capturedAt) {
-      if (!lastScrapedAt || capturedAt > lastScrapedAt) {
-        lastScrapedAt = capturedAt
-      }
+    if (capturedAt && (!lastScrapedAt || capturedAt > lastScrapedAt)) {
+      lastScrapedAt = capturedAt
     }
   }
 
