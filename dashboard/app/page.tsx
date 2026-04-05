@@ -31,7 +31,7 @@ interface Post {
   }
 }
 
-type ActionFilter = 'New' | 'Engaged' | 'Replied' | 'Skipped' | 'all'
+type ActionFilter = 'New' | 'Engaged' | 'Replied' | 'Skipped' | 'CRM' | 'all'
 
 // ---- Helpers ----
 function timeAgo(iso: string): string {
@@ -43,6 +43,19 @@ function timeAgo(iso: string): string {
   if (hrs < 24) return `${hrs}h ago`
   const days = Math.floor(hrs / 24)
   return `${days}d ago`
+}
+
+// ---- ClientBloom Logo ----
+function ClientBloomMark({ size = 28 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <ellipse cx="50" cy="21" rx="24" ry="13" fill="#F7B731" />
+      <ellipse cx="20" cy="52" rx="13" ry="25" fill="#E91E8C" />
+      <ellipse cx="80" cy="52" rx="13" ry="25" fill="#00B96B" />
+      <ellipse cx="50" cy="79" rx="24" ry="13" fill="#7C3AED" />
+      <circle cx="50" cy="50" r="13" fill="#7C3AED" />
+    </svg>
+  )
 }
 
 // ---- Platform Badge ----
@@ -574,6 +587,58 @@ function UserMenu() {
   )
 }
 
+// ---- Countdown to next scan ----
+function getNextScanMs(): number {
+  const now = new Date()
+  // Scans at 6 AM and 6 PM PDT = 13:00 and 01:00 UTC
+  const utcH = now.getUTCHours()
+  const utcM = now.getUTCMinutes()
+  const utcS = now.getUTCSeconds()
+  const todayMins = utcH * 60 + utcM
+
+  // Next scan candidates (UTC minutes from midnight)
+  const scan1 = 1 * 60   // 01:00 UTC = 6 PM PDT
+  const scan2 = 13 * 60  // 13:00 UTC = 6 AM PDT
+
+  let nextMins: number
+  if (todayMins < scan1) {
+    nextMins = scan1
+  } else if (todayMins < scan2) {
+    nextMins = scan2
+  } else {
+    nextMins = scan1 + 24 * 60 // tomorrow's 01:00 UTC
+  }
+
+  const minsUntil = nextMins - todayMins
+  return minsUntil * 60 * 1000 - utcS * 1000
+}
+
+function formatCountdown(ms: number): string {
+  if (ms <= 0) return 'any moment'
+  const totalSecs = Math.floor(ms / 1000)
+  const h = Math.floor(totalSecs / 3600)
+  const m = Math.floor((totalSecs % 3600) / 60)
+  const s = totalSecs % 60
+  if (h > 0) return `${h}h ${m}m`
+  if (m > 0) return `${m}m ${s}s`
+  return `${s}s`
+}
+
+function NextScanCountdown() {
+  const [ms, setMs] = useState(() => getNextScanMs())
+
+  useEffect(() => {
+    const id = setInterval(() => setMs(getNextScanMs()), 1000)
+    return () => clearInterval(id)
+  }, [])
+
+  return (
+    <span className="text-xs text-slate-600">
+      Next scan in <span className="text-slate-500 font-medium tabular-nums">{formatCountdown(ms)}</span>
+    </span>
+  )
+}
+
 // ---- Nav ----
 interface ScanHealth {
   lastScanAt:     string | null
@@ -645,7 +710,7 @@ function Nav({ lastScannedAt, scanHealth }: { lastScannedAt: string | null; scan
     <header className="sticky top-0 z-20 border-b border-slate-800/80 bg-[#0a0c10]/95 backdrop-blur-md">
       <div className="max-w-3xl mx-auto px-5 py-3.5 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-7 h-7 rounded-lg bg-blue-600 flex items-center justify-center text-white font-bold text-xs shrink-0">CB</div>
+          <ClientBloomMark size={28} />
           <div>
             <p className="text-sm font-semibold text-white leading-tight">Scout by ClientBloom</p>
             <ScanStatusPill health={scanHealth} lastScannedAt={lastScannedAt} />
@@ -829,6 +894,7 @@ function FeedPage() {
     { id: 'Engaged', label: 'Engaged'  },
     { id: 'Replied', label: 'Replied'  },
     { id: 'Skipped', label: 'Skipped'  },
+    { id: 'CRM',     label: 'In CRM'   },
     { id: 'all',     label: 'All'      },
   ]
 
@@ -837,6 +903,7 @@ function FeedPage() {
     Engaged: actionCounts['Engaged'],
     Replied: actionCounts['Replied'],
     Skipped: actionCounts['Skipped'],
+    CRM:     actionCounts['CRM'],
   }
 
   return (
@@ -912,10 +979,10 @@ function FeedPage() {
         ) : posts.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-24 text-center gap-3">
             <div className="text-4xl">
-              {filter === 'New' ? '🎉' : filter === 'Engaged' ? '📋' : filter === 'Replied' ? '💬' : '🗃️'}
+              {filter === 'New' ? '🎉' : filter === 'Engaged' ? '📋' : filter === 'Replied' ? '💬' : filter === 'CRM' ? '🔗' : '🗃️'}
             </div>
             <p className="text-slate-300 text-sm font-medium">
-              {filter === 'New' ? 'Inbox zero — all caught up' : filter === 'Engaged' ? 'No engaged posts yet' : filter === 'Replied' ? 'No replies yet' : filter === 'Skipped' ? 'Nothing skipped' : 'No posts found'}
+              {filter === 'New' ? 'Inbox zero — all caught up' : filter === 'Engaged' ? 'No engaged posts yet' : filter === 'Replied' ? 'No replies yet' : filter === 'Skipped' ? 'Nothing skipped' : filter === 'CRM' ? 'No contacts pushed to CRM yet' : 'No posts found'}
             </p>
             <p className="text-slate-600 text-xs max-w-xs">
               {filter === 'New'
@@ -936,12 +1003,15 @@ function FeedPage() {
         ) : (
           <>
             {/* Subtle refresh note */}
-            <p className="text-xs text-slate-700 mb-4 text-right">
-              Updated {timeAgo(lastRefreshed.toISOString())} · Scout scans at 6 AM &amp; 6 PM daily
-              {scanHealth?.lastScanStatus === 'failed' && (
-                <span className="text-amber-600"> · ⚠ last scan had issues</span>
-              )}
-            </p>
+            <div className="flex items-center justify-between mb-4">
+              <NextScanCountdown />
+              <p className="text-xs text-slate-700">
+                Updated {timeAgo(lastRefreshed.toISOString())}
+                {scanHealth?.lastScanStatus === 'failed' && (
+                  <span className="text-amber-600"> · ⚠ last scan had issues</span>
+                )}
+              </p>
+            </div>
             <div className="space-y-3">
               {posts.map(post => (
                 <PostCard
