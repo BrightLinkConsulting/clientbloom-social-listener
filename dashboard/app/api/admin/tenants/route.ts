@@ -65,6 +65,7 @@ export async function GET() {
       email:          r.fields['Email']               || '',
       companyName:    r.fields['Company Name']         || '',
       airtableBaseId: r.fields['Airtable Base ID']    || '',
+      tenantId:       r.fields['Tenant ID']           || '',
       // Never expose raw tokens or password hash — only existence flags
       hasToken:       !!(r.fields['Airtable API Token']),
       hasApifyKey:    !!(r.fields['Apify API Key']),

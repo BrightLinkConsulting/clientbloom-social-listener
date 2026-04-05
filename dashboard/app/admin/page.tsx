@@ -10,12 +10,26 @@ import {
 // ─── Apify affiliate link — replace with your approved affiliate URL ───────────
 const APIFY_AFFILIATE_URL = 'https://apify.com?fpr=YOUR_CODE'
 
+// ── ClientBloom Logo ──────────────────────────────────────────────────────────
+function ClientBloomMark({ size = 28 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <ellipse cx="50" cy="21" rx="24" ry="13" fill="#F7B731" />
+      <ellipse cx="20" cy="52" rx="13" ry="25" fill="#E91E8C" />
+      <ellipse cx="80" cy="52" rx="13" ry="25" fill="#00B96B" />
+      <ellipse cx="50" cy="79" rx="24" ry="13" fill="#7C3AED" />
+      <circle cx="50" cy="50" r="13" fill="#7C3AED" />
+    </svg>
+  )
+}
+
 // ── Types ──────────────────────────────────────────────────────────────────────
 interface Tenant {
   id:             string
   email:          string
   companyName:    string
   airtableBaseId: string
+  tenantId:       string
   hasToken:       boolean
   hasApifyKey:    boolean
   status:         string
@@ -722,7 +736,7 @@ export default function AdminPage() {
           </button>
           <span className="text-slate-700">|</span>
           <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded bg-[#4F6BFF] flex items-center justify-center text-white font-bold text-xs">CB</div>
+            <ClientBloomMark size={24} />
             <span className="font-semibold text-sm">Scout Admin</span>
           </div>
         </div>
@@ -1077,15 +1091,59 @@ export default function AdminPage() {
                 const matchesStatus = filterStatus === 'all' || t.status === filterStatus
                 return matchesSearch && matchesPlan && matchesStatus
               })
+              // Build account groups: owner rows with their members nested below
+              // Group by tenantId — owner is isFeedOnly=false, members are isFeedOnly=true
+              const groups: { owner: Tenant; members: Tenant[] }[] = []
+              const orphans: Tenant[] = []
+              const seenOwners = new Map<string, Tenant>()
+
+              // First pass: find all owners
+              filtered.forEach(t => {
+                if (!t.isFeedOnly && t.tenantId) {
+                  seenOwners.set(t.tenantId, t)
+                  groups.push({ owner: t, members: [] })
+                }
+              })
+              // Second pass: attach members to their owner
+              filtered.forEach(t => {
+                if (t.isFeedOnly) {
+                  const group = groups.find(g => g.owner.tenantId === t.tenantId)
+                  if (group) group.members.push(t)
+                  else orphans.push(t) // member whose owner is filtered out
+                }
+              })
+              // Tenants with no tenantId at all (legacy / admin records)
+              filtered.forEach(t => {
+                if (!t.tenantId && !t.isFeedOnly && !seenOwners.has(t.tenantId)) {
+                  orphans.push(t)
+                }
+              })
+
+              // Flatten to ordered rows with a flag for rendering
+              type TableRow =
+                | { kind: 'owner'; tenant: Tenant; hasMembers: boolean }
+                | { kind: 'member'; tenant: Tenant; ownerEmail: string; isLast: boolean }
+                | { kind: 'orphan'; tenant: Tenant }
+
+              const rows: TableRow[] = []
+              groups.forEach(g => {
+                rows.push({ kind: 'owner', tenant: g.owner, hasMembers: g.members.length > 0 })
+                g.members.forEach((m, mi) => {
+                  rows.push({ kind: 'member', tenant: m, ownerEmail: g.owner.email, isLast: mi === g.members.length - 1 })
+                })
+              })
+              orphans.forEach(t => rows.push({ kind: 'orphan', tenant: t }))
+
               return (
               <div className="bg-[#0f1117] border border-slate-800 rounded-xl overflow-hidden">
                 {filtered.length === 0 ? (
                   <div className="text-center py-10 text-slate-500 text-sm">No tenants match your filters.</div>
                 ) : (
-                <table className="w-full text-sm">
+                <div className="overflow-x-auto">
+                <table className="w-full text-sm" style={{ minWidth: '900px' }}>
                   <thead>
                     <tr className="border-b border-slate-800/80 bg-[#0d0f15]">
-                      <th className="text-left text-[11px] font-semibold text-slate-500 uppercase tracking-wider px-6 py-3.5">Company</th>
+                      <th className="text-left text-[11px] font-semibold text-slate-500 uppercase tracking-wider px-6 py-3.5">Account</th>
                       <th className="text-left text-[11px] font-semibold text-slate-500 uppercase tracking-wider px-4 py-3.5">Email</th>
                       <th className="text-left text-[11px] font-semibold text-slate-500 uppercase tracking-wider px-4 py-3.5">Plan</th>
                       <th className="text-left text-[11px] font-semibold text-slate-500 uppercase tracking-wider px-4 py-3.5">Status</th>
@@ -1093,16 +1151,38 @@ export default function AdminPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {filtered.map((t, i) => (
+                    {rows.map((row, i) => {
+                      const t = row.tenant
+                      const isMember = row.kind === 'member'
+                      const isLastRow = i === rows.length - 1
+                      return (
                       <>
-                        <tr key={t.id} className={`group transition-colors hover:bg-slate-800/20 ${i < filtered.length - 1 || expandedApify === t.id ? 'border-b border-slate-800/50' : ''}`}>
+                        <tr key={t.id} className={`group transition-colors ${
+                          isMember
+                            ? 'bg-slate-900/30 hover:bg-slate-800/20'
+                            : 'hover:bg-slate-800/20'
+                        } ${!isLastRow || expandedApify === t.id ? 'border-b border-slate-800/50' : ''}`}>
 
                           {/* Company — inline editable */}
-                          <td className="px-6 py-4">
+                          <td className={`py-4 ${isMember ? 'pl-12 pr-6' : 'px-6'}`}>
                             <div className="flex items-center gap-3">
+                              {/* Member indent connector */}
+                              {isMember && (
+                                <div className="shrink-0 flex flex-col items-center self-stretch -ml-5 mr-1">
+                                  <div className="w-px flex-1 bg-slate-700/40" />
+                                  <svg className="w-3 h-3 text-slate-700 shrink-0" fill="none" viewBox="0 0 12 12">
+                                    <path d="M2 0 v6 h8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+                                  </svg>
+                                  <div className="w-px flex-1 bg-transparent" />
+                                </div>
+                              )}
                               {/* Avatar */}
-                              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#4F6BFF]/30 to-[#1a2235] border border-slate-700/80 flex items-center justify-center text-sm font-bold text-slate-200 shrink-0 shadow-sm">
-                                {t.companyName?.charAt(0)?.toUpperCase() || '?'}
+                              <div className={`rounded-xl flex items-center justify-center text-sm font-bold shrink-0 shadow-sm ${
+                                isMember
+                                  ? 'w-7 h-7 bg-slate-800 border border-slate-700/60 text-slate-400 text-xs'
+                                  : 'w-9 h-9 bg-gradient-to-br from-[#4F6BFF]/30 to-[#1a2235] border border-slate-700/80 text-slate-200'
+                              }`}>
+                                {t.companyName?.charAt(0)?.toUpperCase() || t.email?.charAt(0)?.toUpperCase() || '?'}
                               </div>
                               {editingCompanyId === t.id ? (
                                 <input
@@ -1129,13 +1209,17 @@ export default function AdminPage() {
                                       <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
                                     </svg>
                                   </button>
-                                  <div className="flex items-center gap-1.5 mt-1">
+                                  <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                                     {t.isAdmin && (
                                       <span className="text-[10px] bg-[#4F6BFF]/20 text-[#4F6BFF] px-1.5 py-0.5 rounded-md font-semibold border border-[#4F6BFF]/20">Admin</span>
                                     )}
-                                    {t.isFeedOnly && (
+                                    {isMember ? (
+                                      <span className="text-[10px] bg-slate-800 text-slate-500 px-1.5 py-0.5 rounded-md font-medium border border-slate-700/50">
+                                        Guest · {row.kind === 'member' ? row.ownerEmail : ''}
+                                      </span>
+                                    ) : t.isFeedOnly ? (
                                       <span className="text-[10px] bg-amber-900/30 text-amber-400 px-1.5 py-0.5 rounded-md font-semibold border border-amber-800/30">Feed only</span>
-                                    )}
+                                    ) : null}
                                     {trialBadge(t.trialEndsAt)}
                                   </div>
                                 </div>
@@ -1294,9 +1378,10 @@ export default function AdminPage() {
                           />
                         )}
                       </>
-                    ))}
+                    )})}
                   </tbody>
                 </table>
+                </div>
                 )}
               </div>
             )
