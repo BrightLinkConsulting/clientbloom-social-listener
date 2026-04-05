@@ -516,6 +516,7 @@ export default function AdminPage() {
   const [success,          setSuccess]          = useState('')
   const [tab,              setTab]              = useState<'overview' | 'tenants' | 'usage'>('overview')
   const [expandedApify,    setExpandedApify]    = useState<string | null>(null)
+  const [openMenuId,       setOpenMenuId]       = useState<string | null>(null)
 
   // Task 1: Inline company name editing
   const [editingCompanyId,  setEditingCompanyId]  = useState<string | null>(null)
@@ -1139,8 +1140,7 @@ export default function AdminPage() {
                 {filtered.length === 0 ? (
                   <div className="text-center py-10 text-slate-500 text-sm">No tenants match your filters.</div>
                 ) : (
-                <div className="overflow-x-auto">
-                <table className="w-full text-sm" style={{ minWidth: '900px' }}>
+                <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-slate-800/80 bg-[#0d0f15]">
                       <th className="text-left text-[11px] font-semibold text-slate-500 uppercase tracking-wider px-6 py-3.5">Account</th>
@@ -1249,59 +1249,36 @@ export default function AdminPage() {
                             </span>
                           </td>
 
-                          {/* Actions — right-aligned, all on one row */}
-                          <td className="px-6 py-4">
-                            <div className="flex items-center justify-end gap-1.5">
+                          {/* Actions — compact: 2 icon toggles + ⋮ overflow menu */}
+                          <td className="px-4 py-4">
+                            <div className="flex items-center justify-end gap-1">
 
-                              {/* Suspend / Activate — primary action, text + icon */}
+                              {/* Suspend / Activate toggle */}
                               <button
                                 onClick={() => handleStatusToggle(t)}
                                 title={t.status === 'Active' ? 'Suspend account' : 'Reactivate account'}
-                                className={`whitespace-nowrap inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border transition-all ${
+                                className={`w-8 h-8 rounded-lg border flex items-center justify-center transition-all ${
                                   t.status === 'Active'
                                     ? 'bg-slate-800/80 border-slate-700 text-slate-400 hover:bg-amber-900/30 hover:border-amber-700/50 hover:text-amber-300'
-                                    : 'bg-emerald-900/20 border-emerald-700/40 text-emerald-300 hover:bg-emerald-900/40 hover:border-emerald-600/60'
+                                    : 'bg-emerald-900/20 border-emerald-700/40 text-emerald-300 hover:bg-emerald-900/40'
                                 }`}
                               >
                                 {t.status === 'Active' ? (
-                                  <>
-                                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                      <path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
-                                    </svg>
-                                    Suspend
-                                  </>
+                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                                  </svg>
                                 ) : (
-                                  <>
-                                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                    </svg>
-                                    Activate
-                                  </>
+                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                  </svg>
                                 )}
                               </button>
 
-                              {/* Divider */}
-                              <div className="w-px h-5 bg-slate-700/60 mx-0.5" />
-
-                              {/* Apify — with pool status dot */}
-                              <button
-                                onClick={() => setExpandedApify(expandedApify === t.id ? null : t.id)}
-                                title={t.hasApifyKey ? 'Custom Apify key active — click to manage' : 'Using shared pool — click to assign custom key'}
-                                className={`whitespace-nowrap inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border transition-all ${
-                                  expandedApify === t.id
-                                    ? 'bg-[#4F6BFF]/20 border-[#4F6BFF]/50 text-[#7B8FF7]'
-                                    : 'bg-slate-800/80 border-slate-700 text-slate-400 hover:bg-[#4F6BFF]/10 hover:border-[#4F6BFF]/40 hover:text-[#7B8FF7]'
-                                }`}
-                              >
-                                <span className={`w-1.5 h-1.5 rounded-full ${t.hasApifyKey ? 'bg-emerald-400' : 'bg-slate-500'}`} />
-                                Apify
-                              </button>
-
-                              {/* Feed-only toggle */}
+                              {/* Feed-only toggle icon */}
                               <button
                                 onClick={() => handleFeedOnlyToggle(t)}
-                                title={t.isFeedOnly ? 'Click to restore full access' : 'Click to restrict to feed only'}
-                                className={`whitespace-nowrap inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border transition-all ${
+                                title={t.isFeedOnly ? 'Restore full access' : 'Restrict to feed only'}
+                                className={`w-8 h-8 rounded-lg border flex items-center justify-center transition-all ${
                                   t.isFeedOnly
                                     ? 'bg-amber-900/30 border-amber-700/50 text-amber-300 hover:bg-slate-800/80 hover:border-slate-700 hover:text-slate-400'
                                     : 'bg-slate-800/80 border-slate-700 text-slate-400 hover:bg-amber-900/20 hover:border-amber-700/40 hover:text-amber-300'
@@ -1313,52 +1290,68 @@ export default function AdminPage() {
                                     : "M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"
                                   } />
                                 </svg>
-                                {t.isFeedOnly ? 'Full access' : 'Feed only'}
                               </button>
 
-                              {/* Divider */}
-                              <div className="w-px h-5 bg-slate-700/60 mx-0.5" />
+                              {/* ⋮ Overflow menu — Apify, Reset PW, Delete */}
+                              <div className="relative">
+                                <button
+                                  onClick={() => setOpenMenuId(openMenuId === t.id ? null : t.id)}
+                                  title="More actions"
+                                  className="w-8 h-8 rounded-lg border bg-slate-800/80 border-slate-700 text-slate-400 hover:text-slate-200 hover:bg-slate-700/80 hover:border-slate-600 flex items-center justify-center transition-all"
+                                >
+                                  <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+                                    <path d="M6 10a2 2 0 11-4 0 2 2 0 014 0zM12 10a2 2 0 11-4 0 2 2 0 014 0zM16 12a2 2 0 100-4 2 2 0 000 4z" />
+                                  </svg>
+                                </button>
 
-                              {/* Reset PW — icon + label */}
-                              <button
-                                onClick={() => handleSendReset(t)}
-                                disabled={resetingId === t.id}
-                                title="Email a temporary password reset"
-                                className="whitespace-nowrap inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border bg-slate-800/80 border-slate-700 text-slate-400 hover:bg-slate-700/80 hover:text-slate-200 hover:border-slate-600 transition-all disabled:opacity-40"
-                              >
-                                {resetingId === t.id ? (
+                                {openMenuId === t.id && (
                                   <>
-                                    <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                      <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                                    </svg>
-                                    Sending…
-                                  </>
-                                ) : (
-                                  <>
-                                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                      <path strokeLinecap="round" strokeLinejoin="round" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
-                                    </svg>
-                                    Reset PW
+                                    {/* Click-away backdrop */}
+                                    <div className="fixed inset-0 z-40" onClick={() => setOpenMenuId(null)} />
+                                    {/* Dropdown */}
+                                    <div className="absolute right-0 top-9 z-50 w-48 bg-[#0f1117] border border-slate-700/80 rounded-xl shadow-2xl overflow-hidden">
+
+                                      {/* Apify */}
+                                      <button
+                                        onClick={() => { setOpenMenuId(null); setExpandedApify(expandedApify === t.id ? null : t.id) }}
+                                        className="w-full flex items-center gap-3 px-3.5 py-2.5 text-xs text-slate-300 hover:bg-slate-800/60 hover:text-white transition-colors"
+                                      >
+                                        <span className={`w-2 h-2 rounded-full shrink-0 ${t.hasApifyKey ? 'bg-emerald-400' : 'bg-slate-600'}`} />
+                                        <span>{t.hasApifyKey ? 'Apify key — manage' : 'Apify — use shared pool'}</span>
+                                      </button>
+
+                                      {/* Reset PW */}
+                                      <button
+                                        onClick={() => { setOpenMenuId(null); handleSendReset(t) }}
+                                        disabled={resetingId === t.id}
+                                        className="w-full flex items-center gap-3 px-3.5 py-2.5 text-xs text-slate-300 hover:bg-slate-800/60 hover:text-white transition-colors disabled:opacity-40"
+                                      >
+                                        <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                          <path strokeLinecap="round" strokeLinejoin="round" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                                        </svg>
+                                        {resetingId === t.id ? 'Sending…' : 'Reset password'}
+                                      </button>
+
+                                      {/* Separator + Delete */}
+                                      <div className="border-t border-slate-800 mx-2 my-1" />
+                                      <button
+                                        onClick={() => { setOpenMenuId(null); setDeleteTarget(t) }}
+                                        className="w-full flex items-center gap-3 px-3.5 py-2.5 text-xs text-red-400 hover:bg-red-900/20 hover:text-red-300 transition-colors"
+                                      >
+                                        <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                          <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                        </svg>
+                                        Delete account
+                                      </button>
+                                    </div>
                                   </>
                                 )}
-                              </button>
-
-                              {/* Delete — danger */}
-                              <button
-                                onClick={() => setDeleteTarget(t)}
-                                title="Permanently delete this tenant"
-                                className="whitespace-nowrap inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border bg-slate-800/80 border-slate-700 text-slate-500 hover:bg-red-900/20 hover:border-red-700/50 hover:text-red-400 transition-all"
-                              >
-                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                </svg>
-                                Delete
-                              </button>
+                              </div>
                             </div>
 
                             {/* Inline feedback for reset */}
                             {resetMsg[t.id] && (
-                              <p className={`text-[11px] mt-1.5 ${
+                              <p className={`text-[11px] mt-1.5 text-right ${
                                 resetMsg[t.id] === 'Email sent!'
                                   ? 'text-emerald-400'
                                   : 'text-red-400'
@@ -1381,7 +1374,6 @@ export default function AdminPage() {
                     )})}
                   </tbody>
                 </table>
-                </div>
                 )}
               </div>
             )
