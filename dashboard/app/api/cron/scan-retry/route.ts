@@ -112,9 +112,8 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ ok: true, retried: 0, message: 'All tenants scanned successfully — no retries needed.' })
   }
 
-  const results = []
-
-  for (const tenant of failedTenants) {
+  // Retry all failed tenants in PARALLEL — same pattern as the main scan orchestrator
+  async function retryTenant(tenant: { tenantId: string; email: string; apifyKey?: string }) {
     console.log(`[scan-retry] Retrying scan for tenant ${tenant.tenantId} (${tenant.email})`)
 
     const result = await runScanForTenant(tenant.tenantId, tenant.apifyKey)
@@ -135,7 +134,6 @@ export async function GET(req: NextRequest) {
       fbDatasetId:    '',
     })
 
-    // Alert if retry also failed — this is a real problem worth flagging
     if (result.error || result.scanned === 0) {
       await sendScanAlert({
         tenantId:   tenant.tenantId,
@@ -148,8 +146,11 @@ export async function GET(req: NextRequest) {
     }
 
     console.log(`[scan-retry] ${tenant.email}: ${result.postsFound} posts — ${result.error || 'ok'}`)
-    results.push(result)
+    return result
   }
+
+  const settled = await Promise.allSettled(failedTenants.map(retryTenant))
+  const results = settled.map(s => s.status === 'fulfilled' ? s.value : { error: String((s as any).reason), postsFound: 0, scanned: 0 })
 
   return NextResponse.json({
     ok:      true,

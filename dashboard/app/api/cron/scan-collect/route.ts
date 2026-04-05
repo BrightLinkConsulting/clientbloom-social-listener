@@ -12,6 +12,9 @@
  * This means: even if Apify's webhook call to us fails (network hiccup, cold
  * start, etc.), Facebook results will still land in the feed within 15 minutes.
  * Tenants never miss a scan because of webhook delivery issues.
+ *
+ * All pending runs are processed in PARALLEL (Promise.allSettled) so
+ * collection time stays constant regardless of how many tenants are pending.
  */
 
 import { NextRequest, NextResponse } from 'next/server'
@@ -20,7 +23,7 @@ import { getApifyRunStatus, fetchApifyDataset } from '@/lib/apify-async'
 import { normalizeFacebookPost, scorePosts, saveScoredPosts } from '@/lib/scan'
 import { SHARED_BASE, PROV_TOKEN, tenantFilter } from '@/lib/airtable'
 
-// 120s max: collects multiple tenants' Facebook results sequentially
+// 120s max: all pending runs processed in parallel so time ≈ max(individual collect)
 export const maxDuration = 120
 
 async function getBusinessContext(tenantId: string): Promise<{ context: string; prompt: string }> {
@@ -70,66 +73,59 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ ok: true, message: 'No pending Facebook runs to collect.' })
   }
 
-  const results = []
-
-  for (const run of pendingRuns) {
-    console.log(`[scan-collect] Checking run ${run.fbRunId} for tenant ${run.tenantId}`)
-
-    // Use tenant's own Apify key if stored in health record (future enhancement)
+  // Process all pending runs in PARALLEL — collect time stays constant at scale
+  async function collectRun(run: { tenantId: string; fbRunId: string; fbDatasetId: string }) {
     const token = APIFY_TOKEN
+    console.log(`[scan-collect] Checking run ${run.fbRunId} for tenant ${run.tenantId}`)
 
     const status = await getApifyRunStatus(token, run.fbRunId)
     console.log(`[scan-collect] Run ${run.fbRunId} status: ${status}`)
 
     if (status === 'RUNNING' || status === 'READY') {
-      // Still in progress — leave as pending, next collect cycle will check again
-      results.push({ tenantId: run.tenantId, status: 'still_running' })
-      continue
+      return { tenantId: run.tenantId, status: 'still_running' as const }
     }
 
     if (status === 'FAILED' || status === 'TIMED-OUT' || status === 'ABORTED' || !status) {
-      // The async run itself failed — mark as failed
       await upsertScanHealth(run.tenantId, {
         lastScanStatus: 'failed',
         lastError:      `Async FB run ${status || 'unknown'}: ${run.fbRunId}`,
         fbRunId:        '',
         fbDatasetId:    '',
       })
-      results.push({ tenantId: run.tenantId, status: 'failed', runStatus: status })
-      continue
+      return { tenantId: run.tenantId, status: 'failed' as const, runStatus: status }
     }
 
-    if (status === 'SUCCEEDED') {
-      // Fetch items from the dataset
-      const rawItems = await fetchApifyDataset(token, run.fbDatasetId)
-      console.log(`[scan-collect] Run ${run.fbRunId} succeeded — ${rawItems.length} items in dataset`)
+    // SUCCEEDED — fetch, score, save
+    const rawItems   = await fetchApifyDataset(token, run.fbDatasetId)
+    console.log(`[scan-collect] Run ${run.fbRunId} succeeded — ${rawItems.length} items in dataset`)
 
-      const normalized = rawItems.map(normalizeFacebookPost)
+    const normalized = rawItems.map(normalizeFacebookPost)
+    let saved = 0
 
-      // Get keywords for this tenant to filter posts
-      // (simplified: we'll score all and let the AI decide — keywords filtering
-      //  already happened inside the actor via maxPosts on the right groups)
-      let saved = 0
-      if (normalized.length > 0) {
-        const { context, prompt } = await getBusinessContext(run.tenantId)
-        const scored = await scorePosts(ANTHROPIC_KEY, normalized, context, prompt)
-        saved = await saveScoredPosts(run.tenantId, scored)
-      }
-
-      await upsertScanHealth(run.tenantId, {
-        lastScanAt:     new Date().toISOString(),
-        lastScanStatus: 'success',
-        lastPostsFound: saved,
-        lastScanSource: 'facebook_groups (async)',
-        lastError:      '',
-        fbRunId:        '',
-        fbDatasetId:    '',
-      })
-
-      console.log(`[scan-collect] Tenant ${run.tenantId}: saved ${saved} posts from async Facebook run`)
-      results.push({ tenantId: run.tenantId, status: 'collected', saved })
+    if (normalized.length > 0) {
+      const { context, prompt } = await getBusinessContext(run.tenantId)
+      const scored = await scorePosts(ANTHROPIC_KEY, normalized, context, prompt)
+      saved = await saveScoredPosts(run.tenantId, scored)
     }
+
+    await upsertScanHealth(run.tenantId, {
+      lastScanAt:     new Date().toISOString(),
+      lastScanStatus: 'success',
+      lastPostsFound: saved,
+      lastScanSource: 'facebook_groups (async)',
+      lastError:      '',
+      fbRunId:        '',
+      fbDatasetId:    '',
+    })
+
+    console.log(`[scan-collect] Tenant ${run.tenantId}: saved ${saved} posts from async Facebook run`)
+    return { tenantId: run.tenantId, status: 'collected' as const, saved }
   }
+
+  const settled = await Promise.allSettled(pendingRuns.map(collectRun))
+  const results = settled.map(s =>
+    s.status === 'fulfilled' ? s.value : { tenantId: 'unknown', status: 'error' as const, error: String((s as any).reason) }
+  )
 
   return NextResponse.json({
     ok:      true,

@@ -1,13 +1,19 @@
 /**
  * GET /api/checkout
  *
- * Creates a Stripe Checkout Session for the Scout $49/month subscription
+ * Creates a Stripe Checkout Session for the Scout $79/month subscription
  * and redirects the browser to Stripe's hosted checkout page.
+ *
+ * Every new subscriber gets a 14-day free trial before their card is charged.
+ * Set STRIPE_TRIAL_DAYS env var to override (default: 14). Set to "0" to disable.
  *
  * Required env vars:
  *   STRIPE_SECRET_KEY    — sk_live_... or sk_test_...
- *   STRIPE_PRICE_ID      — price_... for the $49/month recurring price
+ *   STRIPE_PRICE_ID      — price_... for the $79/month recurring price
  *   NEXT_PUBLIC_BASE_URL — canonical URL of this deployment
+ *
+ * Optional env vars:
+ *   STRIPE_TRIAL_DAYS    — trial period in days (default: 14, set to 0 to disable)
  *
  * On success, Stripe redirects to /welcome?session_id={CHECKOUT_SESSION_ID}
  * On cancel,  Stripe redirects back to /
@@ -63,6 +69,12 @@ async function createCheckoutSession() {
         metadata: {
           product: 'scout',
         },
+        // 14-day free trial before first charge.
+        // Override with STRIPE_TRIAL_DAYS env var; set to "0" to disable.
+        ...((() => {
+          const days = parseInt(process.env.STRIPE_TRIAL_DAYS ?? '14', 10)
+          return days > 0 ? { trial_period_days: days } : {}
+        })()),
       },
     })
 

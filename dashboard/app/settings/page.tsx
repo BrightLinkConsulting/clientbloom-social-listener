@@ -1,22 +1,8 @@
 'use client'
 
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import { useState, useEffect, useCallback } from 'react'
 import { useSession, signOut } from 'next-auth/react'
-
-// ---- ClientBloom bloom mark ----
-function ClientBloomMark({ size = 28 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <ellipse cx="50" cy="21" rx="24" ry="13" fill="#F7B731" />
-      <ellipse cx="20" cy="52" rx="13" ry="25" fill="#E91E8C" />
-      <ellipse cx="80" cy="52" rx="13" ry="25" fill="#00B96B" />
-      <ellipse cx="50" cy="79" rx="24" ry="13" fill="#7C3AED" />
-      <circle cx="50" cy="50" r="13" fill="#7C3AED" />
-    </svg>
-  )
-}
 
 // ---- Types ----
 interface Source {
@@ -79,9 +65,11 @@ function Nav() {
     <header className="sticky top-0 z-20 border-b border-slate-800/80 bg-[#0a0c10]/95 backdrop-blur-md">
       <div className="max-w-3xl mx-auto px-5 py-3.5 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <ClientBloomMark size={28} />
+          <div className="w-7 h-7 rounded-lg bg-blue-600 flex items-center justify-center text-white font-bold text-xs shrink-0">
+            CB
+          </div>
           <div>
-            <p className="text-sm font-semibold text-white leading-tight">Scout <span className="text-slate-500 font-normal">by ClientBloom</span></p>
+            <p className="text-sm font-semibold text-white leading-tight">ClientBloom Listener</p>
             <span className="text-xs text-emerald-400 flex items-center gap-1">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
               Live · 2× daily
@@ -2074,6 +2062,14 @@ function SystemStatusSection() {
       detail: 'AI-written summary of top posts with comment angles — requires Slack to be connected below',
       status: slackConfigured ? 'active' as const : 'warning' as const,
     },
+    {
+      label:  'Slack',
+      value:  slackLoaded ? (slackHasToken ? (slackChannel ? `#${slackChannel.replace(/^#/, '')}` : 'Connected') : 'Not connected') : '…',
+      detail: slackConfigured
+        ? 'Digest and alerts are being delivered to this channel'
+        : 'Connect Slack below — the daily digest won\'t send until this is set up',
+      status: slackConfigured ? 'active' as const : 'warning' as const,
+    },
   ]
 
   return (
@@ -2578,192 +2574,141 @@ function CRMIntegrationSection() {
   )
 }
 
-// ---- Team Section ----
-interface TeamMember {
-  id:        string
-  email:     string
-  name:      string
-  status:    string
-  createdAt: string
-}
+// ---- Account Section (password change) ----
+function AccountSection() {
+  const { data: session } = useSession()
+  const user = session?.user as any
 
-function TeamSection() {
-  const [members,      setMembers]      = useState<TeamMember[]>([])
-  const [loadingList,  setLoadingList]  = useState(true)
-  const [inviteEmail,  setInviteEmail]  = useState('')
-  const [inviting,     setInviting]     = useState(false)
-  const [removing,     setRemoving]     = useState<string | null>(null)
-  const [feedback,     setFeedback]     = useState<{ type: 'success' | 'error'; msg: string } | null>(null)
+  const [current,  setCurrent]  = useState('')
+  const [next,     setNext]     = useState('')
+  const [confirm,  setConfirm]  = useState('')
+  const [saving,   setSaving]   = useState(false)
+  const [success,  setSuccess]  = useState(false)
+  const [error,    setError]    = useState('')
 
-  const loadMembers = useCallback(async () => {
-    setLoadingList(true)
-    try {
-      const resp = await fetch('/api/team/members')
-      if (!resp.ok) throw new Error('Failed to load team')
-      const data = await resp.json()
-      setMembers(data.members || [])
-    } catch {
-      // silently fail — treat as no members
-    } finally {
-      setLoadingList(false)
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError('')
+    setSuccess(false)
+
+    if (next !== confirm) {
+      setError('New passwords do not match.')
+      return
     }
-  }, [])
+    if (next.length < 8) {
+      setError('New password must be at least 8 characters.')
+      return
+    }
 
-  useEffect(() => { loadMembers() }, [loadMembers])
-
-  async function handleInvite() {
-    if (!inviteEmail.trim()) return
-    setInviting(true)
-    setFeedback(null)
+    setSaving(true)
     try {
-      const resp = await fetch('/api/team/invite', {
-        method:  'POST',
+      const resp = await fetch('/api/change-password', {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ email: inviteEmail.trim() }),
+        body: JSON.stringify({ currentPassword: current, newPassword: next }),
       })
       const data = await resp.json()
-      if (!resp.ok) {
-        setFeedback({ type: 'error', msg: data.error || 'Invite failed.' })
-      } else {
-        setInviteEmail('')
-        setFeedback({
-          type: 'success',
-          msg:  data.emailWarning
-            ? `Access created — but the invite email failed to send. Share these credentials manually.`
-            : `Invite sent to ${inviteEmail.trim()}. They'll receive login instructions by email.`,
-        })
-        loadMembers()
-      }
-    } catch {
-      setFeedback({ type: 'error', msg: 'Network error. Please try again.' })
+      if (!resp.ok) throw new Error(data.error || 'Failed to change password.')
+      setSuccess(true)
+      setCurrent('')
+      setNext('')
+      setConfirm('')
+    } catch (e: any) {
+      setError(e.message)
     } finally {
-      setInviting(false)
+      setSaving(false)
     }
   }
-
-  async function handleRemove(member: TeamMember) {
-    setRemoving(member.id)
-    setFeedback(null)
-    try {
-      const resp = await fetch('/api/team/remove', {
-        method:  'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ recordId: member.id }),
-      })
-      const data = await resp.json()
-      if (!resp.ok) {
-        setFeedback({ type: 'error', msg: data.error || 'Could not remove member.' })
-      } else {
-        setFeedback({ type: 'success', msg: `${member.email}'s access has been removed.` })
-        loadMembers()
-      }
-    } catch {
-      setFeedback({ type: 'error', msg: 'Network error. Please try again.' })
-    } finally {
-      setRemoving(null)
-    }
-  }
-
-  const hasMember  = members.length > 0
-  const atLimit    = members.length >= 1
 
   return (
     <div className="space-y-4">
-      <Section
-        title="Team Access"
-        description="Give one teammate read-only access to your Scout feed."
-      >
-        {/* Access rules callout */}
-        <div className="rounded-xl bg-slate-800/50 border border-slate-700/40 p-4 mb-6 flex gap-3">
-          <div className="mt-0.5 shrink-0 w-5 h-5 rounded-full bg-blue-500/20 flex items-center justify-center">
-            <svg className="w-3 h-3 text-blue-400" fill="currentColor" viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-            </svg>
+      {/* Account info */}
+      <Section title="Account Details">
+        <div className="space-y-3">
+          <div>
+            <p className="text-xs text-slate-500 mb-1">Email</p>
+            <p className="text-sm text-white font-medium">{user?.email || '—'}</p>
           </div>
           <div>
-            <p className="text-xs font-medium text-slate-300 mb-1">What a team member can do</p>
-            <ul className="text-xs text-slate-500 space-y-0.5">
-              <li>View and filter all posts in the Scout feed</li>
-              <li>Copy AI comment starters and act on leads</li>
-              <li>Mark posts as Engaged, Replied, or Skipped</li>
-            </ul>
-            <p className="text-xs text-slate-600 mt-2">They cannot access Settings, billing, or any account configuration. You can remove their access at any time.</p>
+            <p className="text-xs text-slate-500 mb-1">Company</p>
+            <p className="text-sm text-white font-medium">{user?.name || '—'}</p>
+          </div>
+          <div>
+            <p className="text-xs text-slate-500 mb-1">Plan</p>
+            <p className="text-sm text-white font-medium">Scout $79 / mo</p>
           </div>
         </div>
+      </Section>
 
-        {/* Feedback banner */}
-        {feedback && (
-          <div className={`mb-4 px-4 py-3 rounded-xl border text-sm ${
-            feedback.type === 'success'
-              ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
-              : 'bg-red-500/10 border-red-500/20 text-red-400'
-          }`}>
-            {feedback.msg}
-          </div>
-        )}
-
-        {/* Current member */}
-        {loadingList ? (
-          <div className="flex items-center gap-2 py-4 text-slate-500 text-sm">
-            <Spinner /> Loading team...
-          </div>
-        ) : hasMember ? (
-          <div className="space-y-3 mb-6">
-            {members.map(m => (
-              <div key={m.id} className="flex items-center justify-between rounded-xl bg-slate-800/60 border border-slate-700/40 px-4 py-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-blue-600/30 flex items-center justify-center text-xs font-semibold text-blue-300">
-                    {m.email.charAt(0).toUpperCase()}
-                  </div>
-                  <div>
-                    <p className="text-sm text-white font-medium">{m.email}</p>
-                    <p className="text-xs text-slate-500">Feed access only · added {m.createdAt || 'recently'}</p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => handleRemove(m)}
-                  disabled={removing === m.id}
-                  className="text-xs px-3 py-1.5 rounded-lg border border-red-500/30 text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-40"
-                >
-                  {removing === m.id ? 'Removing...' : 'Remove access'}
-                </button>
-              </div>
-            ))}
-          </div>
-        ) : null}
-
-        {/* Invite form */}
-        {atLimit ? (
-          <div className="rounded-xl bg-slate-800/30 border border-slate-700/30 px-4 py-3 text-xs text-slate-500">
-            You've reached the limit of 1 team member on this plan. Remove the existing member to invite someone new.
-          </div>
-        ) : (
+      {/* Change password */}
+      <Section
+        title="Change Password"
+        description="Choose a strong password that is at least 8 characters."
+      >
+        <form onSubmit={handleSubmit} className="space-y-4 max-w-sm">
+          {/* Current */}
           <div>
-            <p className="text-xs font-medium text-slate-400 mb-2">
-              {hasMember ? '' : 'Invite your first team member'}
-            </p>
-            <div className="flex gap-2">
-              <input
-                type="email"
-                placeholder="teammate@company.com"
-                value={inviteEmail}
-                onChange={e => setInviteEmail(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') handleInvite() }}
-                className="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500 transition-colors"
-              />
-              <button
-                onClick={handleInvite}
-                disabled={inviting || !inviteEmail.trim()}
-                className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-500 transition-colors disabled:opacity-40"
-              >
-                {inviting ? 'Sending...' : 'Send invite'}
-              </button>
-            </div>
-            <p className="text-xs text-slate-600 mt-2">
-              They'll receive an email with their login credentials and a walkthrough of the feed.
-            </p>
+            <label className="block text-xs font-medium text-slate-400 mb-1.5">Current password</label>
+            <input
+              type="password"
+              value={current}
+              onChange={e => setCurrent(e.target.value)}
+              autoComplete="current-password"
+              required
+              className="w-full bg-slate-800/60 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30 transition-colors"
+              placeholder="Your current password"
+            />
           </div>
-        )}
+
+          {/* New */}
+          <div>
+            <label className="block text-xs font-medium text-slate-400 mb-1.5">New password</label>
+            <input
+              type="password"
+              value={next}
+              onChange={e => setNext(e.target.value)}
+              autoComplete="new-password"
+              required
+              minLength={8}
+              className="w-full bg-slate-800/60 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30 transition-colors"
+              placeholder="At least 8 characters"
+            />
+          </div>
+
+          {/* Confirm */}
+          <div>
+            <label className="block text-xs font-medium text-slate-400 mb-1.5">Confirm new password</label>
+            <input
+              type="password"
+              value={confirm}
+              onChange={e => setConfirm(e.target.value)}
+              autoComplete="new-password"
+              required
+              className="w-full bg-slate-800/60 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30 transition-colors"
+              placeholder="Repeat new password"
+            />
+          </div>
+
+          {/* Error / success */}
+          {error && (
+            <p className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
+              {error}
+            </p>
+          )}
+          {success && (
+            <p className="text-xs text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-lg px-3 py-2">
+              Password updated. Use your new password the next time you sign in.
+            </p>
+          )}
+
+          <button
+            type="submit"
+            disabled={saving || !current || !next || !confirm}
+            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium px-5 py-2.5 rounded-xl transition-colors"
+          >
+            {saving ? <><Spinner /> Saving...</> : 'Update password'}
+          </button>
+        </form>
       </Section>
     </div>
   )
@@ -2776,29 +2721,12 @@ const TABS = [
   { id: 'linkedin', label: 'LinkedIn'     },
   { id: 'ai',       label: 'AI & Scoring' },
   { id: 'system',   label: 'System'       },
-  { id: 'team',     label: 'Team'         },
+  { id: 'account',  label: 'Account'      },
 ] as const
 type TabId = typeof TABS[number]['id']
 
 // ---- Main page ----
 export default function SettingsPage() {
-  const { data: session, status: sessionStatus } = useSession()
-  const settingsRouter = useRouter()
-
-  // Feed-only users cannot access Settings — redirect to Feed
-  // Trial-expired users are redirected to upgrade page
-  useEffect(() => {
-    if (sessionStatus === 'loading') return
-    const u = session?.user as any
-    if (u?.isFeedOnly) { settingsRouter.replace('/'); return }
-    const trialEndsAt = u?.trialEndsAt || null
-    const plan        = u?.plan || ''
-    const isPaidPlan  = plan === 'Scout $79' || plan === 'Owner'
-    if (trialEndsAt && !isPaidPlan && new Date() > new Date(trialEndsAt)) {
-      settingsRouter.replace('/upgrade')
-    }
-  }, [session, sessionStatus, settingsRouter])
-
   const [activeTab, setActiveTab] = useState<TabId>('profile')
   const [sources, setSources]     = useState<Source[]>([])
   const [loading, setLoading]     = useState(true)
@@ -2926,9 +2854,9 @@ export default function SettingsPage() {
           </div>
         )}
 
-        {/* ── Team ── */}
-        {activeTab === 'team' && (
-          <TeamSection />
+        {/* ── Account ── */}
+        {activeTab === 'account' && (
+          <AccountSection />
         )}
 
       </main>

@@ -1,43 +1,55 @@
 /**
  * GET /api/cron/scan
  *
- * Vercel cron job — fires at 6 AM and 6 PM PDT every day.
- * Iterates every Active tenant and runs LinkedIn + Facebook scans for each.
+ * Scan ORCHESTRATOR — fires at 6 AM and 6 PM PDT every day.
  *
- * Protected by CRON_SECRET env var. Vercel automatically sends
- * Authorization: Bearer <CRON_SECRET> when invoking cron routes.
+ * ── Scalability architecture ─────────────────────────────────────────────────
+ * This route does NOT run scans itself. It fetches the tenant list and
+ * dispatches each tenant to /api/cron/scan-tenant as a PARALLEL, INDEPENDENT
+ * serverless function invocation. Each worker has its own 300s timeout budget.
  *
- * Reliability layers built into this route:
- *   1. runScanForTenant() already retries each actor up to 2× with progressive
- *      memory scaling before giving up (see lib/scan.ts).
- *   2. If Facebook sync fails after both attempts, this route starts an async
- *      Apify run and stores the pending run ID in Scan Health (Airtable).
- *   3. /api/webhooks/apify collects Facebook results the instant they're ready.
- *   4. /api/cron/scan-collect (runs 15 min later) collects any webhook misses.
- *   5. /api/cron/scan-retry (runs 20 min later) reruns tenants that had 0 results.
+ * Result: 500 tenants scan in the same ~150s as 1 tenant.
+ * (Previous sequential design: 500 tenants × 150s = ~20 hours.)
+ *
+ * Vercel Pro supports up to 1,000 concurrent function invocations.
+ * If tenant count exceeds that, batch dispatches into groups of 900.
+ *
+ * ── Five-layer reliability (unchanged — each worker implements these) ─────────
+ *   1. Improved timeout + memory — FB 30s→90s, progressive memory scaling
+ *   2. In-scan retry — reduced scope + more RAM on second attempt
+ *   3. Async Facebook fallback — if both sync attempts fail, fires async Apify
+ *      run and stores pending run ID in Scan Health
+ *   4. /api/cron/scan-collect (15 min later) — collects any webhook misses
+ *   5. /api/cron/scan-retry (20 min later) — re-runs tenants with 0 results
+ *
+ * ── Protected by CRON_SECRET ─────────────────────────────────────────────────
+ * Vercel automatically injects Authorization: Bearer <CRON_SECRET> for cron
+ * invocations. The same secret is forwarded to each scan-tenant worker.
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { runScanForTenant }         from '@/lib/scan'
-import { sendScanAlert }            from '@/lib/notify'
-import { upsertScanHealth }         from '@/lib/scan-health'
-import { startApifyRunAsync }       from '@/lib/apify-async'
-import { tenantFilter }             from '@/lib/airtable'
+import { upsertScanHealth }          from '@/lib/scan-health'
 
-// 300s max: cron may run multiple tenants sequentially; each scan can take up
-// to ~150s (LinkedIn 60s + Facebook 90s) with retries, so 300s = 2 tenants max.
-// Scale to async architecture if tenant count grows beyond 2.
+// The orchestrator awaits all parallel workers concurrently.
+// Workers run in ~150s max, so 300s budget is comfortable.
+// Critical: even though N workers run at once, the orchestrator only
+// blocks for max(individual scan times) ≈ 150s — NOT sum of all scan times.
 export const maxDuration = 300
 
 const PLATFORM_TOKEN = process.env.PLATFORM_AIRTABLE_TOKEN   || ''
 const PLATFORM_BASE  = process.env.PLATFORM_AIRTABLE_BASE_ID || ''
 
+// ── Fetch active tenant list ───────────────────────────────────────────────────
 async function getActiveTenants(): Promise<{
-  id:       string
   tenantId: string
   email:    string
   apifyKey?: string
 }[]> {
+  if (!PLATFORM_TOKEN || !PLATFORM_BASE) {
+    console.error('[cron/scan] PLATFORM_AIRTABLE_TOKEN or PLATFORM_AIRTABLE_BASE_ID not set')
+    return []
+  }
+
   const url = new URL(
     `https://api.airtable.com/v0/${PLATFORM_BASE}/${encodeURIComponent('Tenants')}`
   )
@@ -50,177 +62,146 @@ async function getActiveTenants(): Promise<{
   const resp = await fetch(url.toString(), {
     headers: { Authorization: `Bearer ${PLATFORM_TOKEN}` },
   })
-  if (!resp.ok) return []
+  if (!resp.ok) {
+    console.error(`[cron/scan] Failed to fetch tenants: ${resp.status}`)
+    return []
+  }
   const data = await resp.json()
   return (data.records || []).map((r: any) => ({
-    id:       r.id,
     tenantId: r.fields['Tenant ID']     || 'owner',
     email:    r.fields['Email']         || '',
     apifyKey: r.fields['Apify API Key'] || undefined,
   }))
 }
 
-// Get Facebook group URLs for a tenant (used for async fallback start)
-async function getFacebookGroupUrls(tenantId: string): Promise<string[]> {
+// ── Dispatch a single scan-tenant worker ───────────────────────────────────────
+// Returns the HTTP status code (200 = dispatched OK, anything else = failed to dispatch).
+async function dispatchTenantScan(
+  workerUrl: string,
+  cronSecret: string,
+  tenant: { tenantId: string; email: string; apifyKey?: string },
+): Promise<{ tenantId: string; dispatched: boolean; status: number; error?: string }> {
   try {
-    const formula = `AND(${tenantFilter(tenantId)},{Active}=1,{Type}='facebook_group')`
-    const url = new URL(
-      `https://api.airtable.com/v0/${PLATFORM_BASE}/${encodeURIComponent('Sources')}`
-    )
-    url.searchParams.set('filterByFormula', formula)
-    url.searchParams.set('fields[]', 'Value')
-    url.searchParams.append('fields[]', 'Name')
-    url.searchParams.set('pageSize', '5')
-
-    const res = await fetch(url.toString(), {
-      headers: { Authorization: `Bearer ${PLATFORM_TOKEN}` },
+    const resp = await fetch(workerUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${cronSecret}`,
+        'Content-Type':  'application/json',
+      },
+      body: JSON.stringify({
+        tenantId: tenant.tenantId,
+        email:    tenant.email,
+        apifyKey: tenant.apifyKey,
+      }),
+      // Signal.timeout not available in all environments — use a generous absolute timeout
+      // The worker will keep running on Vercel even if this connection drops
+      signal: AbortSignal.timeout(290_000),  // 290s — just under the worker's 300s limit
     })
-    if (!res.ok) return []
-    const data = await res.json()
-    return (data.records || [])
-      .map((r: any) => r.fields['Value'] || r.fields['Name'])
-      .filter(Boolean)
-  } catch {
-    return []
+
+    // Read a small slice of the body just to confirm the worker returned
+    const text = await resp.text().catch(() => '')
+    const wasOk = resp.ok
+
+    if (!wasOk) {
+      console.error(`[cron/scan] scan-tenant returned ${resp.status} for ${tenant.tenantId}: ${text.slice(0, 200)}`)
+    }
+
+    return { tenantId: tenant.tenantId, dispatched: wasOk, status: resp.status }
+  } catch (e: any) {
+    // AbortError = worker took >290s (extremely unlikely given scan-tenant's own maxDuration)
+    const isTimeout = e.name === 'AbortError' || e.name === 'TimeoutError'
+    if (!isTimeout) {
+      console.error(`[cron/scan] Dispatch error for ${tenant.tenantId}:`, e.message)
+    }
+    return {
+      tenantId:   tenant.tenantId,
+      dispatched: false,
+      status:     isTimeout ? 408 : 0,
+      error:      e.message,
+    }
   }
 }
 
+// ── Main handler ───────────────────────────────────────────────────────────────
 export async function GET(req: NextRequest) {
-  // Verify the cron secret so only Vercel (or you) can trigger this
+  // Verify cron secret — Vercel injects this automatically for scheduled invocations
   const cronSecret = process.env.CRON_SECRET || ''
   if (cronSecret) {
-    const authHeader = req.headers.get('authorization') || ''
-    const token      = authHeader.replace('Bearer ', '')
+    const token = (req.headers.get('authorization') || '').replace('Bearer ', '')
     if (token !== cronSecret) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
   }
 
   const started = Date.now()
-  console.log(`[cron/scan] Starting scheduled scan at ${new Date().toISOString()}`)
+  console.log(`[cron/scan] Orchestrator starting at ${new Date().toISOString()}`)
 
+  // ── 1. Fetch tenant list ──────────────────────────────────────────────────────
   const tenants = await getActiveTenants()
-  console.log(`[cron/scan] Found ${tenants.length} active tenant(s)`)
+  console.log(`[cron/scan] Found ${tenants.length} active tenant(s) — dispatching in parallel`)
 
   if (tenants.length === 0) {
     return NextResponse.json({ ok: true, tenants: 0, message: 'No active tenants to scan.' })
   }
 
-  // Mark all tenants as scan-in-progress immediately so the feed can show it
-  await Promise.all(
+  // ── 2. Mark all tenants as scanning immediately ───────────────────────────────
+  // The feed will show the amber "scanning" pill before any results arrive
+  await Promise.allSettled(
     tenants.map(t =>
       upsertScanHealth(t.tenantId, {
         lastScanStatus: 'scanning',
-        lastError: '',
+        lastError:      '',
       })
     )
   )
 
-  const results = []
+  // ── 3. Dispatch all tenant scans in parallel ──────────────────────────────────
+  // Each dispatch creates a fully independent Vercel serverless invocation.
+  // The orchestrator waits for all responses (max ~150s) before returning.
+  //
+  // For very large tenant counts (>900), chunk to avoid HTTP concurrency limits.
+  const appUrl    = (process.env.NEXTAUTH_URL || 'https://app.clientbloom.ai').replace(/\/$/, '')
+  const workerUrl = `${appUrl}/api/cron/scan-tenant`
 
-  for (const tenant of tenants) {
-    const tenantStart = Date.now()
-    const poolLabel = tenant.apifyKey ? 'custom key' : 'shared pool'
-    console.log(`[cron/scan] Scanning tenant ${tenant.tenantId} (${tenant.email}) — ${poolLabel}`)
+  const CHUNK_SIZE  = 900  // Vercel Pro concurrent invocation limit
+  const allResults: { tenantId: string; dispatched: boolean; status: number; error?: string }[] = []
 
-    const result = await runScanForTenant(tenant.tenantId, tenant.apifyKey)
-    const elapsed = `${((Date.now() - tenantStart) / 1000).toFixed(1)}s`
+  for (let i = 0; i < tenants.length; i += CHUNK_SIZE) {
+    const chunk = tenants.slice(i, i + CHUNK_SIZE)
+    console.log(`[cron/scan] Dispatching chunk ${Math.floor(i / CHUNK_SIZE) + 1}: ${chunk.length} tenants`)
 
-    console.log(`[cron/scan] ${tenant.email}: ${result.postsFound} posts saved, ${result.error || 'ok'} in ${elapsed}`)
+    const settled = await Promise.allSettled(
+      chunk.map(tenant => dispatchTenantScan(workerUrl, cronSecret, tenant))
+    )
 
-    // ── Async Facebook fallback ─────────────────────────────────────────────
-    // If the sync scan completed but scanned 0 posts AND Facebook groups are
-    // configured, start an async Facebook run. The webhook / scan-collect will
-    // pick up the results when Apify finishes (could be 1-5 min).
-    let fbPendingRunId = ''
-    const APIFY_TOKEN = tenant.apifyKey || process.env.APIFY_API_TOKEN || ''
-
-    if (result.scanned === 0 && APIFY_TOKEN) {
-      const fbGroups = await getFacebookGroupUrls(tenant.tenantId)
-      if (fbGroups.length > 0) {
-        console.log(`[cron/scan] Starting async Facebook fallback for ${tenant.tenantId}`)
-
-        const webhookSecret = process.env.APIFY_WEBHOOK_SECRET || ''
-        const appUrl        = process.env.NEXTAUTH_URL || 'https://app.clientbloom.ai'
-        const webhookUrl    = webhookSecret
-          ? `${appUrl}/api/webhooks/apify?tenantId=${tenant.tenantId}&secret=${webhookSecret}`
-          : undefined
-
-        const handle = await startApifyRunAsync(
-          APIFY_TOKEN,
-          'apify/facebook-groups-scraper',
-          {
-            startUrls:   fbGroups.map(url => ({ url })),
-            maxPosts:    5,
-            maxComments: 0,
-            proxy:       { useApifyProxy: true },
-          },
-          1024,        // 1 GB — give Apify plenty of headroom on async run
-          webhookUrl,
-        )
-
-        if (handle) {
-          fbPendingRunId = handle.runId
-          await upsertScanHealth(tenant.tenantId, {
-            lastScanStatus: 'pending_fb',
-            lastScanAt:     new Date().toISOString(),
-            fbRunId:        handle.runId,
-            fbDatasetId:    handle.datasetId,
-            fbRunAt:        new Date().toISOString(),
-            lastError:      '',
-          })
-          console.log(`[cron/scan] Async Facebook run started: ${handle.runId}`)
-        }
+    for (const outcome of settled) {
+      if (outcome.status === 'fulfilled') {
+        allResults.push(outcome.value)
+      } else {
+        console.error('[cron/scan] Unexpected dispatch rejection:', outcome.reason)
       }
     }
-
-    // ── Write final scan health ────────────────────────────────────────────
-    if (!fbPendingRunId) {
-      const status = result.error
-        ? 'failed'
-        : result.scanned === 0
-          ? 'no_results'
-          : 'success'
-
-      await upsertScanHealth(tenant.tenantId, {
-        lastScanAt:     new Date().toISOString(),
-        lastScanStatus: status,
-        lastPostsFound: result.postsFound,
-        lastScanSource: result.scanSource,
-        lastError:      result.error || '',
-      })
-    }
-
-    // ── Alert on scan failure ───────────────────────────────────────────────
-    // Alert when the scan produced nothing AND no async fallback was started.
-    if ((result.error || result.scanned === 0) && !fbPendingRunId) {
-      await sendScanAlert({
-        tenantId:   tenant.tenantId,
-        email:      tenant.email,
-        error:      result.error,
-        scanned:    result.scanned,
-        scanSource: result.scanSource,
-        elapsed,
-      })
-    }
-
-    results.push({ ...result, fbPendingRunId: fbPendingRunId || undefined, elapsed })
   }
 
-  const totalFound   = results.reduce((sum, r) => sum + r.postsFound, 0)
-  const totalScanned = results.reduce((sum, r) => sum + r.scanned, 0)
-  const errors       = results.filter(r => r.error).map(r => ({ tenantId: r.tenantId, error: r.error }))
-  const elapsed      = ((Date.now() - started) / 1000).toFixed(1)
+  // ── 4. Summarise dispatch results ─────────────────────────────────────────────
+  const dispatched  = allResults.filter(r => r.dispatched).length
+  const failed      = allResults.filter(r => !r.dispatched)
+  const elapsed     = ((Date.now() - started) / 1000).toFixed(1)
 
-  console.log(`[cron/scan] Done in ${elapsed}s — ${totalFound} posts saved across ${tenants.length} tenants`)
+  if (failed.length > 0) {
+    console.error(`[cron/scan] ${failed.length} worker dispatch(es) failed:`,
+      failed.map(f => `${f.tenantId}:${f.status}`).join(', ')
+    )
+  }
+
+  console.log(`[cron/scan] Orchestrator done in ${elapsed}s — dispatched ${dispatched}/${tenants.length} workers`)
 
   return NextResponse.json({
-    ok:           true,
-    tenants:      tenants.length,
-    totalFound,
-    totalScanned,
-    elapsed:      `${elapsed}s`,
-    errors:       errors.length ? errors : undefined,
-    results,
+    ok:         true,
+    tenants:    tenants.length,
+    dispatched,
+    failed:     failed.length > 0 ? failed.map(f => ({ tenantId: f.tenantId, status: f.status, error: f.error })) : undefined,
+    elapsed:    `${elapsed}s`,
+    note:       'Each tenant scan runs as an independent serverless function. Check individual worker logs for per-tenant results.',
   })
 }

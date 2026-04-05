@@ -155,98 +155,6 @@ async function sendAdminNotification(event: string, email: string, details: stri
   })
 }
 
-async function sendPaymentFailedWarningEmail(email: string, companyName: string, attemptNumber: number) {
-  const resendKey = process.env.RESEND_API_KEY
-  if (!resendKey) {
-    console.log(`[webhook] Would send payment warning email to ${email} (RESEND_API_KEY not set)`)
-    return
-  }
-
-  const html = `
-    <div style="font-family:sans-serif;max-width:520px;margin:0 auto;color:#1a1a1a">
-      <div style="background:#d97706;padding:24px 32px;border-radius:12px 12px 0 0">
-        <p style="color:#fff;font-size:18px;font-weight:700;margin:0">Scout by ClientBloom</p>
-      </div>
-      <div style="background:#f9f9f9;padding:32px;border-radius:0 0 12px 12px;border:1px solid #e5e5e5;border-top:none">
-        <h2 style="margin:0 0 12px;color:#92400e">Payment attempt ${attemptNumber} failed</h2>
-        <p style="color:#444;line-height:1.6">
-          Hi ${companyName || email.split('@')[0]}, we weren't able to process your Scout subscription payment.
-          Your access remains active while we retry — please update your payment method to avoid any interruption.
-        </p>
-        <a href="${BASE_URL}/sign-in"
-           style="display:inline-block;background:#4F6BFF;color:#fff;font-weight:600;padding:12px 24px;border-radius:8px;text-decoration:none;margin:20px 0">
-          Update payment method →
-        </a>
-        <p style="font-size:13px;color:#666;line-height:1.6">
-          Stripe will automatically retry your card. If all retry attempts fail, your access will be suspended
-          and you'll receive a final notification. Reactivating is instant once a valid payment method is on file.
-        </p>
-        <hr style="border:none;border-top:1px solid #e5e5e5;margin:24px 0" />
-        <p style="font-size:12px;color:#999;margin:0">
-          Questions? Reply to this email — we'll help you sort it out.
-        </p>
-      </div>
-    </div>
-  `
-
-  await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${resendKey}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      from: 'Scout by ClientBloom <noreply@clientbloom.ai>',
-      to: [email],
-      subject: `Action needed: Your Scout payment didn't go through`,
-      html,
-    }),
-  })
-}
-
-async function sendPaymentSuspendedEmail(email: string, companyName: string) {
-  const resendKey = process.env.RESEND_API_KEY
-  if (!resendKey) {
-    console.log(`[webhook] Would send suspension email to ${email} (RESEND_API_KEY not set)`)
-    return
-  }
-
-  const html = `
-    <div style="font-family:sans-serif;max-width:520px;margin:0 auto;color:#1a1a1a">
-      <div style="background:#dc2626;padding:24px 32px;border-radius:12px 12px 0 0">
-        <p style="color:#fff;font-size:18px;font-weight:700;margin:0">Scout by ClientBloom</p>
-      </div>
-      <div style="background:#f9f9f9;padding:32px;border-radius:0 0 12px 12px;border:1px solid #e5e5e5;border-top:none">
-        <h2 style="margin:0 0 12px;color:#991b1b">Your Scout access has been suspended</h2>
-        <p style="color:#444;line-height:1.6">
-          Hi ${companyName || email.split('@')[0]}, all payment retry attempts for your Scout subscription have been exhausted
-          and your access has been suspended.
-        </p>
-        <p style="color:#444;line-height:1.6">
-          <strong>Your captured leads and data are safe</strong> — nothing has been deleted.
-          Reactivating your account is instant once your payment is updated.
-        </p>
-        <a href="${BASE_URL}/sign-in"
-           style="display:inline-block;background:#4F6BFF;color:#fff;font-weight:600;padding:12px 24px;border-radius:8px;text-decoration:none;margin:20px 0">
-          Reactivate my account →
-        </a>
-        <hr style="border:none;border-top:1px solid #e5e5e5;margin:24px 0" />
-        <p style="font-size:12px;color:#999;margin:0">
-          Reply to this email if you have questions or need help. We're happy to work with you.
-        </p>
-      </div>
-    </div>
-  `
-
-  await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${resendKey}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      from: 'Scout by ClientBloom <noreply@clientbloom.ai>',
-      to: [email],
-      subject: `Your Scout access has been suspended`,
-      html,
-    }),
-  })
-}
-
 // ── Password generator ─────────────────────────────────────────────────────
 function generatePassword(): string {
   return crypto.randomBytes(9).toString('base64url').slice(0, 12)
@@ -329,7 +237,7 @@ export async function POST(req: NextRequest) {
           'Company Name':           companyName,
           'Password Hash':          passwordHash,
           'Status':                 'Active',
-          'Plan':                   'Scout $49',
+          'Plan':                   'Scout $79',
           'Is Admin':               false,
           'Stripe Customer ID':     customerId,
           'Stripe Subscription ID': subId,
@@ -357,7 +265,7 @@ export async function POST(req: NextRequest) {
         break
       }
 
-      // ── Payment failed — warn or suspend depending on attempt number ──
+      // ── Payment failed — suspend access ──────────────────────────────
       case 'invoice.payment_failed': {
         const invoice    = event.data.object as Stripe.Invoice
         const customerId = typeof invoice.customer === 'string' ? invoice.customer : ''
@@ -369,34 +277,13 @@ export async function POST(req: NextRequest) {
           break
         }
 
-        const tenantEmail   = tenant.fields['Email']       || customerId
-        const companyName   = tenant.fields['Company Name'] || ''
-        const attemptCount  = (invoice as any).attempt_count || 1
-
-        // Stripe sets next_payment_attempt to null when it will not retry again
-        // (i.e., all retry attempts exhausted). This is when we actually suspend.
-        const isFinalAttempt = (invoice as any).next_payment_attempt === null
-
-        if (isFinalAttempt) {
-          // All retries exhausted — suspend access and email customer
-          await updateTenantRecord(tenant.id, { 'Status': 'Suspended' })
-          await sendPaymentSuspendedEmail(tenantEmail, companyName)
-          await sendAdminNotification(
-            'Payment failed (final) — tenant suspended',
-            tenantEmail,
-            `Invoice: ${invoice.id} | Amount due: $${(invoice.amount_due / 100).toFixed(2)} | Attempts: ${attemptCount}`
-          )
-          console.log(`[webhook] Suspended tenant after final payment failure: ${customerId}`)
-        } else {
-          // Intermediate failure — warn the customer but keep access active
-          await sendPaymentFailedWarningEmail(tenantEmail, companyName, attemptCount)
-          await sendAdminNotification(
-            `Payment failed (attempt ${attemptCount}) — still active`,
-            tenantEmail,
-            `Invoice: ${invoice.id} | Amount due: $${(invoice.amount_due / 100).toFixed(2)} | Next retry scheduled`
-          )
-          console.log(`[webhook] Payment failure attempt ${attemptCount} for ${customerId} — warned, not suspended`)
-        }
+        await updateTenantRecord(tenant.id, { 'Status': 'Suspended' })
+        await sendAdminNotification(
+          'Payment failed — tenant suspended',
+          tenant.fields['Email'] || customerId,
+          `Invoice: ${invoice.id} | Amount due: $${(invoice.amount_due / 100).toFixed(2)}`
+        )
+        console.log(`[webhook] Suspended tenant due to payment failure: ${customerId}`)
         break
       }
 
@@ -428,15 +315,10 @@ export async function POST(req: NextRequest) {
           break
         }
 
-        const tenantEmail = tenant.fields['Email']        || customerId
-        const companyName = tenant.fields['Company Name'] || ''
-
         await updateTenantRecord(tenant.id, { 'Status': 'Suspended' })
-        // Send suspension email to customer (covers both voluntary cancel + payment retry exhaustion)
-        await sendPaymentSuspendedEmail(tenantEmail, companyName)
         await sendAdminNotification(
           'Subscription canceled — tenant suspended',
-          tenantEmail,
+          tenant.fields['Email'] || customerId,
           `Subscription: ${sub.id}`
         )
         console.log(`[webhook] Suspended tenant due to cancellation: ${customerId}`)
