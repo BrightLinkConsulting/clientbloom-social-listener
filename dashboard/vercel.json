@@ -3,40 +3,12 @@
   "outputDirectory": ".next",
   "framework": "nextjs",
   "crons": [
-    {
-      "path": "/api/cron/scan",
-      "schedule": "0 13 * * *",
-      "_comment": "6:00 AM PDT — main scan (LinkedIn sync + Facebook sync with retry)"
-    },
-    {
-      "path": "/api/cron/scan",
-      "schedule": "0 1 * * *",
-      "_comment": "6:00 PM PDT — main scan"
-    },
-    {
-      "path": "/api/cron/scan-collect",
-      "schedule": "15 13 * * *",
-      "_comment": "6:15 AM PDT — collect any async Facebook runs still in flight"
-    },
-    {
-      "path": "/api/cron/scan-collect",
-      "schedule": "15 1 * * *",
-      "_comment": "6:15 PM PDT — collect any async Facebook runs still in flight"
-    },
-    {
-      "path": "/api/cron/scan-retry",
-      "schedule": "20 13 * * *",
-      "_comment": "6:20 AM PDT — safety net: re-run any tenant that got 0 results"
-    },
-    {
-      "path": "/api/cron/scan-retry",
-      "schedule": "20 1 * * *",
-      "_comment": "6:20 PM PDT — safety net: re-run any tenant that got 0 results"
-    },
-    {
-      "path": "/api/cron/digest",
-      "schedule": "0 15 * * *",
-      "_comment": "8:00 AM PDT — send daily email digest to tenants"
-    }
+    { "path": "/api/cron/scan",         "schedule": "0 13 * * *" },
+    { "path": "/api/cron/scan",         "schedule": "0 1 * * *"  },
+    { "path": "/api/cron/scan-collect", "schedule": "15 13 * * *" },
+    { "path": "/api/cron/scan-collect", "schedule": "15 1 * * *"  },
+    { "path": "/api/cron/scan-retry",   "schedule": "20 13 * * *" },
+    { "path": "/api/cron/scan-retry",   "schedule": "20 1 * * *"  },
+    { "path": "/api/cron/digest",       "schedule": "0 15 * * *"  }
   ]
 }
