@@ -168,7 +168,8 @@ export async function GET() {
       offset = data.offset
     } while (offset)
 
-    const payingTenants = all.filter(r => r.fields?.Plan !== 'Owner')
+    // Include all tenants — Owner row shows the platform master account's own scan usage
+    const payingTenants = all
 
     // ── 3. Build usage records — post counts from cache, costs from Apify ─────
     const usageRaw = await Promise.all(

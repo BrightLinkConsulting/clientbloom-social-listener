@@ -1433,13 +1433,14 @@ export default function AdminPage() {
           const syncMinAgo = syncMsAgo !== null ? Math.floor(syncMsAgo / 60000) : null
           const nextSyncIn = syncMinAgo !== null ? Math.max(0, 60 - syncMinAgo) : null
 
-          function SortHeader({ col, label, right = false }: { col: typeof usageSortCol; label: string; right?: boolean }) {
+          function SortHeader({ col, label, right = false, tooltip }: { col: typeof usageSortCol; label: string; right?: boolean; tooltip?: string }) {
             const active = usageSortCol === col
             return (
               <th
                 className={`${right ? 'text-right' : 'text-left'} text-[11px] font-semibold uppercase tracking-wider px-4 py-3 cursor-pointer select-none transition-colors ${
                   active ? 'text-[#4F6BFF]' : 'text-slate-500 hover:text-slate-300'
                 }`}
+                title={tooltip}
                 onClick={() => {
                   if (usageSortCol === col) setUsageSortDir(d => d === 'asc' ? 'desc' : 'asc')
                   else { setUsageSortCol(col); setUsageSortDir('desc') }
@@ -1447,6 +1448,7 @@ export default function AdminPage() {
               >
                 <span className={`inline-flex items-center gap-1 ${right ? 'justify-end w-full' : ''}`}>
                   {label}
+                  {tooltip && <span className="text-slate-700 font-normal normal-case tracking-normal text-[10px]">?</span>}
                   {active
                     ? <span className="text-[#4F6BFF]">{usageSortDir === 'desc' ? '↓' : '↑'}</span>
                     : <span className="text-slate-700">↕</span>
@@ -1463,7 +1465,7 @@ export default function AdminPage() {
             <div className="flex items-start justify-between gap-4">
               <div>
                 <h1 className="text-xl font-semibold text-white">Usage</h1>
-                <p className="text-slate-400 text-sm mt-0.5">Per-tenant post counts and estimated Apify cost.</p>
+                <p className="text-slate-400 text-sm mt-0.5">Per-tenant post counts and real Apify cost attribution.</p>
               </div>
               <div className="flex items-center gap-3 shrink-0 pt-1">
                 {/* Sync status badge */}
@@ -1539,8 +1541,8 @@ export default function AdminPage() {
                       <SortHeader col="companyName" label="Tenant" />
                       <th className="text-left text-[11px] font-semibold text-slate-500 uppercase tracking-wider px-4 py-3">Plan</th>
                       <th className="text-left text-[11px] font-semibold text-slate-500 uppercase tracking-wider px-4 py-3">Status</th>
-                      <SortHeader col="postCount" label="Posts" right />
-                      <SortHeader col="syncedAt"  label="Cache age" right />
+                      <SortHeader col="postCount" label="Posts" right tooltip="Total posts captured in this tenant's Airtable base. Updated automatically every hour by the background sync." />
+                      <SortHeader col="syncedAt"  label="Cache age" right tooltip="How long ago the hourly sync last updated this tenant's post count. Goes amber if it's been over 90 minutes — usually means a sync error." />
                       <SortHeader col="realCost"  label="Apify cost" right />
                     </tr>
                   </thead>
