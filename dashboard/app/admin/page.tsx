@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Fragment } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import {
@@ -1123,14 +1123,14 @@ export default function AdminPage() {
               // Flatten to ordered rows with a flag for rendering
               type TableRow =
                 | { kind: 'owner'; tenant: Tenant; hasMembers: boolean }
-                | { kind: 'member'; tenant: Tenant; ownerEmail: string; isLast: boolean }
+                | { kind: 'member'; tenant: Tenant; ownerEmail: string; ownerCompanyName: string; isLast: boolean }
                 | { kind: 'orphan'; tenant: Tenant }
 
               const rows: TableRow[] = []
               groups.forEach(g => {
                 rows.push({ kind: 'owner', tenant: g.owner, hasMembers: g.members.length > 0 })
                 g.members.forEach((m, mi) => {
-                  rows.push({ kind: 'member', tenant: m, ownerEmail: g.owner.email, isLast: mi === g.members.length - 1 })
+                  rows.push({ kind: 'member', tenant: m, ownerEmail: g.owner.email, ownerCompanyName: g.owner.companyName, isLast: mi === g.members.length - 1 })
                 })
               })
               orphans.forEach(t => rows.push({ kind: 'orphan', tenant: t }))
@@ -1156,8 +1156,8 @@ export default function AdminPage() {
                       const isMember = row.kind === 'member'
                       const isLastRow = i === rows.length - 1
                       return (
-                      <>
-                        <tr key={t.id} className={`group transition-colors ${
+                      <Fragment key={t.id}>
+                        <tr className={`group transition-colors ${
                           isMember
                             ? 'bg-slate-900/30 hover:bg-slate-800/20'
                             : 'hover:bg-slate-800/20'
@@ -1215,7 +1215,7 @@ export default function AdminPage() {
                                     )}
                                     {isMember ? (
                                       <span className="text-[10px] bg-slate-800 text-slate-500 px-1.5 py-0.5 rounded-md font-medium border border-slate-700/50">
-                                        Guest · {row.kind === 'member' ? row.ownerEmail : ''}
+                                        Guest · {row.kind === 'member' ? (row.ownerCompanyName || row.ownerEmail) : ''}
                                       </span>
                                     ) : t.isFeedOnly ? (
                                       <span className="text-[10px] bg-amber-900/30 text-amber-400 px-1.5 py-0.5 rounded-md font-semibold border border-amber-800/30">Feed only</span>
@@ -1253,31 +1253,41 @@ export default function AdminPage() {
                           <td className="px-4 py-4">
                             <div className="flex items-center justify-end gap-1">
 
-                              {/* Suspend / Activate toggle */}
+                              {/* Suspend / Activate toggle
+                                  Grey = currently active (click to suspend)
+                                  Red  = currently suspended (click to reactivate) */}
                               <button
                                 onClick={() => handleStatusToggle(t)}
-                                title={t.status === 'Active' ? 'Suspend account' : 'Reactivate account'}
+                                title={t.status === 'Active'
+                                  ? 'Currently active — click to suspend'
+                                  : 'Currently suspended — click to reactivate'}
                                 className={`w-8 h-8 rounded-lg border flex items-center justify-center transition-all ${
                                   t.status === 'Active'
-                                    ? 'bg-slate-800/80 border-slate-700 text-slate-400 hover:bg-amber-900/30 hover:border-amber-700/50 hover:text-amber-300'
-                                    : 'bg-emerald-900/20 border-emerald-700/40 text-emerald-300 hover:bg-emerald-900/40'
+                                    ? 'bg-slate-800/80 border-slate-700 text-slate-400 hover:bg-red-900/30 hover:border-red-700/50 hover:text-red-300'
+                                    : 'bg-red-900/20 border-red-700/40 text-red-400 hover:bg-emerald-900/20 hover:border-emerald-700/40 hover:text-emerald-300'
                                 }`}
                               >
                                 {t.status === 'Active' ? (
+                                  /* Ban icon — click will suspend */
                                   <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
                                   </svg>
                                 ) : (
+                                  /* Check icon — click will reactivate */
                                   <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                                   </svg>
                                 )}
                               </button>
 
-                              {/* Feed-only toggle icon */}
+                              {/* Feed-only toggle icon
+                                  Grey/eye-slash = full access (click to restrict)
+                                  Amber/eye-open = feed only (click to restore) */}
                               <button
                                 onClick={() => handleFeedOnlyToggle(t)}
-                                title={t.isFeedOnly ? 'Restore full access' : 'Restrict to feed only'}
+                                title={t.isFeedOnly
+                                  ? 'Currently feed only — click to restore full access'
+                                  : 'Currently full access — click to restrict to feed only'}
                                 className={`w-8 h-8 rounded-lg border flex items-center justify-center transition-all ${
                                   t.isFeedOnly
                                     ? 'bg-amber-900/30 border-amber-700/50 text-amber-300 hover:bg-slate-800/80 hover:border-slate-700 hover:text-slate-400'
@@ -1370,7 +1380,7 @@ export default function AdminPage() {
                             onSaved={() => { fetchTenants() }}
                           />
                         )}
-                      </>
+                      </Fragment>
                     )})}
                   </tbody>
                 </table>

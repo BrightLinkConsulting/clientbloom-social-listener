@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useState, useEffect, useCallback } from 'react'
 import { useSession, signOut } from 'next-auth/react'
+import { useRouter } from 'next/navigation'
 
 // ---- Types ----
 interface Source {
@@ -2921,6 +2922,16 @@ type TabId = typeof TABS[number]['id']
 
 // ---- Main page ----
 export default function SettingsPage() {
+  const { data: session, status } = useSession()
+  const router = useRouter()
+
+  // Feed-only users can only access the feed — redirect immediately
+  useEffect(() => {
+    if (status === 'loading') return
+    const user = session?.user as any
+    if (user?.isFeedOnly) router.replace('/')
+  }, [session, status, router])
+
   const [activeTab, setActiveTab] = useState<TabId>('profile')
   const [sources, setSources]     = useState<Source[]>([])
   const [loading, setLoading]     = useState(true)
