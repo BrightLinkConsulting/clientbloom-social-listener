@@ -833,6 +833,8 @@ function ScanStatusPill({ health, lastScannedAt }: { health: ScanHealth | null; 
 
 function Nav({ lastScannedAt, scanHealth }: { lastScannedAt: string | null; scanHealth: ScanHealth | null }) {
   const [tick, setTick] = useState(0)
+  const { data: session } = useSession()
+  const isFeedOnly = (session?.user as any)?.isFeedOnly ?? false
 
   // Re-render time-ago labels every minute
   useEffect(() => {
@@ -852,7 +854,9 @@ function Nav({ lastScannedAt, scanHealth }: { lastScannedAt: string | null; scan
         </div>
         <nav className="flex items-center gap-1 shrink-0 pl-3">
           <Link href="/" className="text-xs px-3 py-1.5 rounded-lg font-medium bg-slate-800 text-white transition-colors">Feed</Link>
-          <Link href="/settings" className="text-xs px-3 py-1.5 rounded-lg font-medium text-slate-400 hover:text-white hover:bg-slate-800/60 transition-colors">Settings</Link>
+          {!isFeedOnly && (
+            <Link href="/settings" className="text-xs px-3 py-1.5 rounded-lg font-medium text-slate-400 hover:text-white hover:bg-slate-800/60 transition-colors">Settings</Link>
+          )}
           <UserMenu />
         </nav>
       </div>
