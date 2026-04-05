@@ -2716,6 +2716,197 @@ function AccountSection() {
   )
 }
 
+// ---- Team Section ----
+interface TeamMember {
+  id:        string
+  email:     string
+  name:      string
+  status:    string
+  createdAt: string
+}
+
+function TeamSection() {
+  const [members,     setMembers]     = useState<TeamMember[]>([])
+  const [loadingList, setLoadingList] = useState(true)
+  const [inviteEmail, setInviteEmail] = useState('')
+  const [inviting,    setInviting]    = useState(false)
+  const [removing,    setRemoving]    = useState<string | null>(null)
+  const [feedback,    setFeedback]    = useState<{ type: 'success' | 'error'; msg: string } | null>(null)
+
+  const loadMembers = useCallback(async () => {
+    setLoadingList(true)
+    try {
+      const resp = await fetch('/api/team/members')
+      if (!resp.ok) throw new Error('Failed to load team')
+      const data = await resp.json()
+      setMembers(data.members || [])
+    } catch {
+      // silently fail — treat as no members
+    } finally {
+      setLoadingList(false)
+    }
+  }, [])
+
+  useEffect(() => { loadMembers() }, [loadMembers])
+
+  async function handleInvite() {
+    if (!inviteEmail.trim()) return
+    setInviting(true)
+    setFeedback(null)
+    try {
+      const resp = await fetch('/api/team/invite', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ email: inviteEmail.trim() }),
+      })
+      const data = await resp.json()
+      if (!resp.ok) {
+        setFeedback({ type: 'error', msg: data.error || 'Invite failed.' })
+      } else {
+        setInviteEmail('')
+        setFeedback({
+          type: 'success',
+          msg:  data.emailWarning
+            ? 'Access created — but the invite email failed to send. Share the login link and credentials manually.'
+            : `Invite sent to ${inviteEmail.trim()}. They'll receive login instructions by email.`,
+        })
+        loadMembers()
+      }
+    } catch {
+      setFeedback({ type: 'error', msg: 'Network error. Please try again.' })
+    } finally {
+      setInviting(false)
+    }
+  }
+
+  async function handleRemove(member: TeamMember) {
+    setRemoving(member.id)
+    setFeedback(null)
+    try {
+      const resp = await fetch('/api/team/remove', {
+        method:  'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ recordId: member.id }),
+      })
+      const data = await resp.json()
+      if (!resp.ok) {
+        setFeedback({ type: 'error', msg: data.error || 'Could not remove member.' })
+      } else {
+        setFeedback({ type: 'success', msg: `${member.email}'s access has been removed.` })
+        loadMembers()
+      }
+    } catch {
+      setFeedback({ type: 'error', msg: 'Network error. Please try again.' })
+    } finally {
+      setRemoving(null)
+    }
+  }
+
+  const hasMember = members.length > 0
+  const atLimit   = members.length >= 1
+
+  return (
+    <div className="space-y-4">
+      <Section
+        title="Team Access"
+        description="Give one teammate read-only access to your Scout feed."
+      >
+        {/* Access rules callout */}
+        <div className="rounded-xl bg-slate-800/50 border border-slate-700/40 p-4 mb-6 flex gap-3">
+          <div className="mt-0.5 shrink-0 w-5 h-5 rounded-full bg-blue-500/20 flex items-center justify-center">
+            <svg className="w-3 h-3 text-blue-400" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+            </svg>
+          </div>
+          <div>
+            <p className="text-xs font-medium text-slate-300 mb-1">What a team member can do</p>
+            <ul className="text-xs text-slate-500 space-y-0.5">
+              <li>View and filter all posts in the Scout feed</li>
+              <li>Copy AI comment starters and act on leads</li>
+              <li>Mark posts as Engaged, Replied, or Skipped</li>
+            </ul>
+            <p className="text-xs text-slate-600 mt-2">They cannot access Settings, billing, or any account configuration. You can remove their access at any time.</p>
+          </div>
+        </div>
+
+        {/* Feedback banner */}
+        {feedback && (
+          <div className={`mb-4 px-4 py-3 rounded-xl border text-sm ${
+            feedback.type === 'success'
+              ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
+              : 'bg-red-500/10 border-red-500/20 text-red-400'
+          }`}>
+            {feedback.msg}
+          </div>
+        )}
+
+        {/* Current member list */}
+        {loadingList ? (
+          <div className="flex items-center gap-2 py-4 text-slate-500 text-sm">
+            <Spinner /> Loading team...
+          </div>
+        ) : hasMember ? (
+          <div className="space-y-3 mb-6">
+            {members.map(m => (
+              <div key={m.id} className="flex items-center justify-between rounded-xl bg-slate-800/60 border border-slate-700/40 px-4 py-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full bg-blue-600/30 flex items-center justify-center text-xs font-semibold text-blue-300">
+                    {m.email.charAt(0).toUpperCase()}
+                  </div>
+                  <div>
+                    <p className="text-sm text-white font-medium">{m.email}</p>
+                    <p className="text-xs text-slate-500">Feed access only · added {m.createdAt || 'recently'}</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => handleRemove(m)}
+                  disabled={removing === m.id}
+                  className="text-xs px-3 py-1.5 rounded-lg border border-red-500/30 text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-40"
+                >
+                  {removing === m.id ? 'Removing...' : 'Remove access'}
+                </button>
+              </div>
+            ))}
+          </div>
+        ) : null}
+
+        {/* Invite form */}
+        {atLimit ? (
+          <div className="rounded-xl bg-slate-800/30 border border-slate-700/30 px-4 py-3 text-xs text-slate-500">
+            You've reached the limit of 1 team member on this plan. Remove the existing member to invite someone new.
+          </div>
+        ) : (
+          <div>
+            {!hasMember && (
+              <p className="text-xs font-medium text-slate-400 mb-2">Invite your first team member</p>
+            )}
+            <div className="flex gap-2">
+              <input
+                type="email"
+                placeholder="teammate@company.com"
+                value={inviteEmail}
+                onChange={e => setInviteEmail(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') handleInvite() }}
+                className="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500 transition-colors"
+              />
+              <button
+                onClick={handleInvite}
+                disabled={inviting || !inviteEmail.trim()}
+                className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-500 transition-colors disabled:opacity-40"
+              >
+                {inviting ? 'Sending...' : 'Send invite'}
+              </button>
+            </div>
+            <p className="text-xs text-slate-600 mt-2">
+              They'll receive an email with their login credentials and a walkthrough of the feed.
+            </p>
+          </div>
+        )}
+      </Section>
+    </div>
+  )
+}
+
 // ---- Tab definitions ----
 const TABS = [
   { id: 'profile',  label: 'Profile'      },
@@ -2724,6 +2915,7 @@ const TABS = [
   { id: 'ai',       label: 'AI & Scoring' },
   { id: 'system',   label: 'System'       },
   { id: 'account',  label: 'Account'      },
+  { id: 'team',     label: 'Team'         },
 ] as const
 type TabId = typeof TABS[number]['id']
 
@@ -2859,6 +3051,11 @@ export default function SettingsPage() {
         {/* ── Account ── */}
         {activeTab === 'account' && (
           <AccountSection />
+        )}
+
+        {/* ── Team ── */}
+        {activeTab === 'team' && (
+          <TeamSection />
         )}
 
       </main>
