@@ -26,6 +26,9 @@ interface Post {
     'Engagement Status': string
     'Notes': string
     'Notes Updated At': string
+    'Notes Updated By': string
+    'Engaged By': string
+    'Reply Log': string
     'CRM Contact ID': string
     'CRM Pushed At': string
   }
@@ -33,7 +36,24 @@ interface Post {
 
 type ActionFilter = 'New' | 'Engaged' | 'Replied' | 'Skipped' | 'CRM' | 'all'
 
+interface ReplyLogEntry {
+  text: string
+  by:   string   // email of who wrote it
+  at:   string   // ISO timestamp
+}
+
 // ---- Helpers ----
+function parseReplyLog(raw: string): ReplyLogEntry[] {
+  if (!raw) return []
+  try { return JSON.parse(raw) } catch { return [] }
+}
+
+// Short display name from email: "mike@brightlink.com" → "mike"
+function displayName(email: string): string {
+  if (!email) return ''
+  return email.split('@')[0]
+}
+
 function timeAgo(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime()
   const mins = Math.floor(diff / 60000)
@@ -193,21 +213,27 @@ function PostCard({
   onAction,
   updating,
   crmType,
+  userEmail,
 }: {
   post: Post
   onAction: (id: string, action: string) => void
   updating: boolean
   crmType: string
+  userEmail: string
 }) {
-  const [expanded,   setExpanded]   = useState(false)
-  const [angleOpen,  setAngleOpen]  = useState(false)
-  const [notes,      setNotes]      = useState(post.fields['Notes'] || '')
-  const [notesSaved, setNotesSaved] = useState(false)
-  const [notesDirty, setNotesDirty] = useState(false)
-  const [notesTs,    setNotesTs]    = useState(post.fields['Notes Updated At'] || '')
-  const [crmPushing, setCrmPushing] = useState(false)
-  const [crmPushed,  setCrmPushed]  = useState(!!post.fields['CRM Pushed At'])
-  const [crmError,   setCrmError]   = useState('')
+  const [expanded,         setExpanded]         = useState(false)
+  const [angleOpen,        setAngleOpen]         = useState(false)
+  const [notes,            setNotes]             = useState(post.fields['Notes'] || '')
+  const [notesSaved,       setNotesSaved]        = useState(false)
+  const [notesDirty,       setNotesDirty]        = useState(false)
+  const [notesTs,          setNotesTs]           = useState(post.fields['Notes Updated At'] || '')
+  const [notesBy,          setNotesBy]           = useState(post.fields['Notes Updated By'] || '')
+  const [replyLog,         setReplyLog]          = useState<ReplyLogEntry[]>(parseReplyLog(post.fields['Reply Log']))
+  const [replyEntry,       setReplyEntry]        = useState('')
+  const [replyEntrySaving, setReplyEntrySaving]  = useState(false)
+  const [crmPushing,       setCrmPushing]        = useState(false)
+  const [crmPushed,        setCrmPushed]         = useState(!!post.fields['CRM Pushed At'])
+  const [crmError,         setCrmError]          = useState('')
 
   const f              = post.fields
   const text           = f['Post Text'] || ''
@@ -241,10 +267,33 @@ function PostCard({
       })
       const now = new Date().toISOString()
       setNotesTs(now)
+      setNotesBy(userEmail)
       setNotesSaved(true)
       setNotesDirty(false)
       setTimeout(() => setNotesSaved(false), 3000)
     } catch { /* non-fatal */ }
+  }
+
+  const handleAddReplyEntry = async () => {
+    if (!replyEntry.trim()) return
+    setReplyEntrySaving(true)
+    try {
+      const resp = await fetch(`/api/posts/${post.id}`, {
+        method:  'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ appendReplyLog: replyEntry.trim() }),
+      })
+      if (resp.ok) {
+        setReplyLog(prev => [...prev, {
+          text: replyEntry.trim(),
+          by:   userEmail,
+          at:   new Date().toISOString(),
+        }])
+        setReplyEntry('')
+      }
+    } catch { /* non-fatal */ } finally {
+      setReplyEntrySaving(false)
+    }
   }
 
   const handleCrmPush = async () => {
@@ -385,47 +434,144 @@ function PostCard({
           <p className="text-xs text-slate-600 mb-4 leading-relaxed">{f['Score Reason']}</p>
         )}
 
-        {/* ── Engagement zone (Engaged + Replied only) ── */}
+        {/* ── Engagement zone ── */}
         {isActiveEngage && (
           <div className="mt-3 pt-3 border-t border-slate-700/40 space-y-3">
 
-            {/* Notes textarea */}
-            <div>
-              <p className="text-xs text-slate-500 font-medium mb-1.5">Your notes</p>
-              <textarea
-                value={notes}
-                onChange={e => { setNotes(e.target.value); setNotesDirty(true); setNotesSaved(false) }}
-                placeholder="What did you comment? Did they respond? Next step…"
-                rows={2}
-                className="w-full bg-slate-800/50 border border-slate-700/40 rounded-xl px-3 py-2 text-xs text-slate-300 placeholder-slate-600 focus:outline-none focus:border-blue-500/40 resize-none leading-relaxed"
-              />
-              <div className="flex items-center justify-between mt-1.5">
-                {/* Timestamp */}
-                <span className="text-xs text-slate-700">
-                  {notesSaved
-                    ? '✓ Saved just now'
-                    : notesTs
-                    ? `Last saved ${new Date(notesTs).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}`
-                    : ''}
-                </span>
-                {/* Save button — only active when dirty */}
-                <button
-                  onClick={handleNotesSave}
-                  disabled={!notesDirty}
-                  className={`text-xs px-3 py-1 rounded-lg transition-colors ${
-                    notesDirty
-                      ? 'bg-blue-600 hover:bg-blue-500 text-white'
-                      : 'bg-slate-800/60 text-slate-600 cursor-default'
-                  }`}
-                >
-                  Save note
-                </button>
+            {/* ── Engaged state: single editable note ── */}
+            {isEngaged && (
+              <div>
+                <p className="text-xs text-slate-500 font-medium mb-1.5">Your notes</p>
+                <textarea
+                  value={notes}
+                  onChange={e => { setNotes(e.target.value); setNotesDirty(true); setNotesSaved(false) }}
+                  placeholder="What did you comment? Did they respond? Next step…"
+                  rows={2}
+                  className="w-full bg-slate-800/50 border border-slate-700/40 rounded-xl px-3 py-2 text-xs text-slate-300 placeholder-slate-600 focus:outline-none focus:border-blue-500/40 resize-none leading-relaxed"
+                />
+                <div className="flex items-center justify-between mt-1.5">
+                  <span className="text-xs text-slate-700">
+                    {notesSaved
+                      ? `✓ Saved by ${displayName(userEmail)}`
+                      : notesTs
+                      ? `Saved ${new Date(notesTs).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}${notesBy ? ` · ${displayName(notesBy)}` : ''}`
+                      : ''}
+                  </span>
+                  <button
+                    onClick={handleNotesSave}
+                    disabled={!notesDirty}
+                    className={`text-xs px-3 py-1 rounded-lg transition-colors ${
+                      notesDirty
+                        ? 'bg-blue-600 hover:bg-blue-500 text-white'
+                        : 'bg-slate-800/60 text-slate-600 cursor-default'
+                    }`}
+                  >
+                    Save note
+                  </button>
+                </div>
               </div>
-            </div>
+            )}
 
-            {/* CRM push error */}
-            {crmError && (
-              <p className="text-xs text-red-400">{crmError} — <a href="/settings" className="underline">check CRM settings</a></p>
+            {/* ── Replied state: append-only activity log + CRM push ── */}
+            {isReplied && (
+              <div>
+                <p className="text-xs text-slate-500 font-medium mb-2">Activity log</p>
+
+                {/* Legacy note migrated as first entry if no log entries yet */}
+                {replyLog.length === 0 && notes && (
+                  <div className="mb-2 rounded-xl bg-slate-800/40 border border-slate-700/30 px-3 py-2.5">
+                    <p className="text-xs text-slate-300 leading-relaxed whitespace-pre-wrap">{notes}</p>
+                    {notesTs && (
+                      <p className="text-xs text-slate-600 mt-1.5">
+                        {new Date(notesTs).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                        {notesBy ? ` · ${displayName(notesBy)}` : ''}
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {/* Log entries */}
+                {replyLog.map((entry, i) => (
+                  <div key={i} className="mb-2 rounded-xl bg-slate-800/40 border border-slate-700/30 px-3 py-2.5">
+                    <p className="text-xs text-slate-300 leading-relaxed whitespace-pre-wrap">{entry.text}</p>
+                    <p className="text-xs text-slate-600 mt-1.5">
+                      {new Date(entry.at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                      {entry.by ? ` · ${displayName(entry.by)}` : ''}
+                    </p>
+                  </div>
+                ))}
+
+                {/* New entry input */}
+                <textarea
+                  value={replyEntry}
+                  onChange={e => setReplyEntry(e.target.value)}
+                  placeholder="Add a note — what happened next? Who responded?"
+                  rows={2}
+                  className="w-full bg-slate-800/50 border border-slate-700/40 rounded-xl px-3 py-2 text-xs text-slate-300 placeholder-slate-600 focus:outline-none focus:border-blue-500/40 resize-none leading-relaxed"
+                />
+                <div className="flex justify-end mt-1.5">
+                  <button
+                    onClick={handleAddReplyEntry}
+                    disabled={replyEntrySaving || !replyEntry.trim()}
+                    className={`text-xs px-3 py-1 rounded-lg transition-colors ${
+                      replyEntry.trim()
+                        ? 'bg-blue-600 hover:bg-blue-500 text-white'
+                        : 'bg-slate-800/60 text-slate-600 cursor-default'
+                    }`}
+                  >
+                    {replyEntrySaving ? 'Adding…' : 'Add note'}
+                  </button>
+                </div>
+
+                {/* CRM push — inside Replied zone */}
+                <div className="mt-3 pt-3 border-t border-slate-700/30">
+                  {crmType && crmType !== 'None' ? (
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={handleCrmPush}
+                        disabled={crmPushing || crmPushed}
+                        className={`text-xs px-4 py-2 rounded-lg border font-medium transition-colors flex items-center gap-2 ${
+                          crmPushed
+                            ? 'border-emerald-500/30 text-emerald-400/70 cursor-default bg-emerald-500/5'
+                            : 'border-blue-500/40 bg-blue-600/10 text-blue-300 hover:bg-blue-600/20 disabled:opacity-50'
+                        }`}
+                      >
+                        {crmPushing ? (
+                          <>
+                            <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                            </svg>
+                            Adding to {crmType}…
+                          </>
+                        ) : crmPushed ? (
+                          <>✓ Added to {crmType}</>
+                        ) : (
+                          <>
+                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                            </svg>
+                            Add to {crmType} pipeline
+                          </>
+                        )}
+                      </button>
+                      {!crmPushed && (
+                        <p className="text-xs text-slate-600">Pushes contact + notes and moves this post to your In CRM tab.</p>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-slate-600">
+                      No CRM connected —{' '}
+                      <a href="/settings" className="text-blue-400/70 hover:text-blue-400 underline transition-colors">
+                        Connect GHL or HubSpot in Settings → System.
+                      </a>
+                    </p>
+                  )}
+                  {crmError && (
+                    <p className="text-xs text-red-400 mt-2">{crmError} — <a href="/settings" className="underline">check CRM settings</a></p>
+                  )}
+                </div>
+              </div>
             )}
           </div>
         )}
@@ -494,30 +640,18 @@ function PostCard({
             </button>
           )}
 
-          {/* CRM push button — visible when engaged or replied and CRM is configured */}
-          {isActiveEngage && crmType && crmType !== 'None' && (
+          {/* CRM push for Engaged state (not yet replied) */}
+          {isEngaged && crmType && crmType !== 'None' && (
             <button
               onClick={handleCrmPush}
-              disabled={crmPushing}
+              disabled={crmPushing || crmPushed}
               className={`ml-auto text-xs px-3 py-1.5 rounded-lg border transition-colors flex items-center gap-1.5 ${
                 crmPushed
                   ? 'border-emerald-500/30 text-emerald-500/70 cursor-default'
                   : 'border-slate-600/50 text-slate-400 hover:text-white hover:border-slate-500 disabled:opacity-50'
               }`}
             >
-              {crmPushing ? (
-                <>
-                  <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                  </svg>
-                  Pushing…
-                </>
-              ) : crmPushed ? (
-                <>✓ In {crmType}</>
-              ) : (
-                <>Push to {crmType}</>
-              )}
+              {crmPushing ? 'Pushing…' : crmPushed ? `✓ In ${crmType}` : `Push to ${crmType}`}
             </button>
           )}
 
@@ -745,6 +879,8 @@ export default function RootPage() {
 // ---- Main Feed ----
 function FeedPage() {
   const router = useRouter()
+  const { data: session } = useSession()
+  const userEmail = (session?.user as any)?.email || ''
   const [posts, setPosts] = useState<Post[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<ActionFilter>('New')
@@ -1020,6 +1156,7 @@ function FeedPage() {
                   onAction={handleAction}
                   updating={updating === post.id}
                   crmType={crmType}
+                  userEmail={userEmail}
                 />
               ))}
             </div>
