@@ -6,26 +6,7 @@ import { useRouter } from 'next/navigation'
 import { useSession, signOut } from 'next-auth/react'
 import LandingPage from './page-landing'
 
-// ---- ClientBloom bloom mark ----
-function ClientBloomMark({ size = 28 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <ellipse cx="50" cy="21" rx="24" ry="13" fill="#F7B731" />
-      <ellipse cx="20" cy="52" rx="13" ry="25" fill="#E91E8C" />
-      <ellipse cx="80" cy="52" rx="13" ry="25" fill="#00B96B" />
-      <ellipse cx="50" cy="79" rx="24" ry="13" fill="#7C3AED" />
-      <circle cx="50" cy="50" r="13" fill="#7C3AED" />
-    </svg>
-  )
-}
-
 // ---- Types ----
-interface ReplyLogEntry {
-  text: string
-  by:   string   // email of who wrote it
-  at:   string   // ISO timestamp
-}
-
 interface Post {
   id: string
   fields: {
@@ -45,81 +26,12 @@ interface Post {
     'Engagement Status': string
     'Notes': string
     'Notes Updated At': string
-    'Notes Updated By': string   // email of last note saver
-    'Engaged By': string         // email of who clicked Engage
-    'Reply Log': string          // JSON array of ReplyLogEntry
     'CRM Contact ID': string
     'CRM Pushed At': string
   }
 }
 
-// Parse the Reply Log JSON field safely
-function parseReplyLog(raw: string): ReplyLogEntry[] {
-  if (!raw) return []
-  try { return JSON.parse(raw) } catch { return [] }
-}
-
-// Short display name from email: "mike@brightlink.com" → "mike"
-function displayName(email: string): string {
-  if (!email) return ''
-  return email.split('@')[0]
-}
-
-type ActionFilter = 'New' | 'Engaged' | 'Replied' | 'Skipped' | 'CRM' | 'all'
-
-// ---- Next scan countdown ----
-// Scanner runs at 6 AM and 6 PM PST every day.
-function getNextScanMs(): number {
-  const now      = new Date()
-  // Offset from UTC to PST (UTC-8) or PDT (UTC-7); use fixed PST for simplicity
-  const pstOffset = 8 * 60 * 60 * 1000
-  const pstNow    = new Date(now.getTime() - pstOffset)
-  const h = pstNow.getUTCHours()
-  const m = pstNow.getUTCMinutes()
-  const s = pstNow.getUTCSeconds()
-
-  // Build candidate times in PST (as UTC ms since epoch)
-  const todayBase = Date.UTC(
-    pstNow.getUTCFullYear(), pstNow.getUTCMonth(), pstNow.getUTCDate()
-  ) + pstOffset   // back to real UTC
-
-  const scan6am  = todayBase + 6  * 3600 * 1000
-  const scan6pm  = todayBase + 18 * 3600 * 1000
-  const scan6am2 = scan6am  + 24 * 3600 * 1000  // tomorrow 6 AM
-
-  const nowMs = now.getTime()
-  if      (nowMs < scan6am)  return scan6am  - nowMs
-  else if (nowMs < scan6pm)  return scan6pm  - nowMs
-  else                       return scan6am2 - nowMs
-}
-
-function formatCountdown(ms: number): string {
-  if (ms <= 0) return 'scanning now…'
-  const totalSec = Math.floor(ms / 1000)
-  const h = Math.floor(totalSec / 3600)
-  const m = Math.floor((totalSec % 3600) / 60)
-  const s = totalSec % 60
-  if (h > 0) return `${h}h ${String(m).padStart(2, '0')}m ${String(s).padStart(2, '0')}s`
-  if (m > 0) return `${m}m ${String(s).padStart(2, '0')}s`
-  return `${s}s`
-}
-
-function NextScanCountdown() {
-  const [remaining, setRemaining] = useState(getNextScanMs())
-
-  useEffect(() => {
-    const tick = () => setRemaining(getNextScanMs())
-    tick()
-    const id = setInterval(tick, 1000)
-    return () => clearInterval(id)
-  }, [])
-
-  return (
-    <span className="tabular-nums">
-      Next scan in <span className="text-slate-400 font-medium">{formatCountdown(remaining)}</span>
-    </span>
-  )
-}
+type ActionFilter = 'New' | 'Engaged' | 'Replied' | 'Skipped' | 'all'
 
 // ---- Helpers ----
 function timeAgo(iso: string): string {
@@ -268,27 +180,21 @@ function PostCard({
   onAction,
   updating,
   crmType,
-  userEmail,
 }: {
   post: Post
   onAction: (id: string, action: string) => void
   updating: boolean
   crmType: string
-  userEmail: string
 }) {
-  const [expanded,        setExpanded]        = useState(false)
-  const [angleOpen,       setAngleOpen]       = useState(false)
-  const [notes,           setNotes]           = useState(post.fields['Notes'] || '')
-  const [notesSaved,      setNotesSaved]      = useState(false)
-  const [notesDirty,      setNotesDirty]      = useState(false)
-  const [notesTs,         setNotesTs]         = useState(post.fields['Notes Updated At'] || '')
-  const [notesBy,         setNotesBy]         = useState(post.fields['Notes Updated By'] || '')
-  const [replyLog,        setReplyLog]        = useState<ReplyLogEntry[]>(parseReplyLog(post.fields['Reply Log']))
-  const [replyEntry,      setReplyEntry]      = useState('')
-  const [replyEntrySaving, setReplyEntrySaving] = useState(false)
-  const [crmPushing,      setCrmPushing]      = useState(false)
-  const [crmPushed,       setCrmPushed]       = useState(!!post.fields['CRM Pushed At'])
-  const [crmError,        setCrmError]        = useState('')
+  const [expanded,   setExpanded]   = useState(false)
+  const [angleOpen,  setAngleOpen]  = useState(false)
+  const [notes,      setNotes]      = useState(post.fields['Notes'] || '')
+  const [notesSaved, setNotesSaved] = useState(false)
+  const [notesDirty, setNotesDirty] = useState(false)
+  const [notesTs,    setNotesTs]    = useState(post.fields['Notes Updated At'] || '')
+  const [crmPushing, setCrmPushing] = useState(false)
+  const [crmPushed,  setCrmPushed]  = useState(!!post.fields['CRM Pushed At'])
+  const [crmError,   setCrmError]   = useState('')
 
   const f              = post.fields
   const text           = f['Post Text'] || ''
@@ -318,39 +224,14 @@ function PostCard({
       await fetch(`/api/posts/${post.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ notes }),  // server reads email from session
+        body: JSON.stringify({ notes }),
       })
       const now = new Date().toISOString()
       setNotesTs(now)
-      setNotesBy(userEmail)
       setNotesSaved(true)
       setNotesDirty(false)
       setTimeout(() => setNotesSaved(false), 3000)
     } catch { /* non-fatal */ }
-  }
-
-  const handleAddReplyEntry = async () => {
-    if (!replyEntry.trim()) return
-    setReplyEntrySaving(true)
-    try {
-      const resp = await fetch(`/api/posts/${post.id}`, {
-        method:  'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ appendReplyLog: replyEntry.trim() }),
-      })
-      if (resp.ok) {
-        const data = await resp.json()
-        const newEntry: ReplyLogEntry = {
-          text: replyEntry.trim(),
-          by:   userEmail,
-          at:   new Date().toISOString(),
-        }
-        setReplyLog(prev => [...prev, newEntry])
-        setReplyEntry('')
-      }
-    } catch { /* non-fatal */ } finally {
-      setReplyEntrySaving(false)
-    }
   }
 
   const handleCrmPush = async () => {
@@ -374,8 +255,6 @@ function PostCard({
       const data = await resp.json()
       if (!resp.ok) throw new Error(data.error || 'CRM push failed')
       setCrmPushed(true)
-      // Move the post to the "In CRM" tab — removes it from Replied view
-      onAction(post.id, 'CRM')
     } catch (e: any) {
       setCrmError(e.message)
     } finally {
@@ -497,141 +376,43 @@ function PostCard({
         {isActiveEngage && (
           <div className="mt-3 pt-3 border-t border-slate-700/40 space-y-3">
 
-            {/* ── Engaged state: single editable note ── */}
-            {isEngaged && (
-              <div>
-                <p className="text-xs text-slate-500 font-medium mb-1.5">Your notes</p>
-                <textarea
-                  value={notes}
-                  onChange={e => { setNotes(e.target.value); setNotesDirty(true); setNotesSaved(false) }}
-                  placeholder="What did you comment? Did they respond? Next step…"
-                  rows={2}
-                  className="w-full bg-slate-800/50 border border-slate-700/40 rounded-xl px-3 py-2 text-xs text-slate-300 placeholder-slate-600 focus:outline-none focus:border-blue-500/40 resize-none leading-relaxed"
-                />
-                <div className="flex items-center justify-between mt-1.5">
-                  {/* Timestamp + attribution */}
-                  <span className="text-xs text-slate-700">
-                    {notesSaved
-                      ? `✓ Saved by ${displayName(userEmail)}`
-                      : notesTs
-                      ? `Saved ${new Date(notesTs).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}${notesBy ? ` · ${displayName(notesBy)}` : ''}`
-                      : ''}
-                  </span>
-                  <button
-                    onClick={handleNotesSave}
-                    disabled={!notesDirty}
-                    className={`text-xs px-3 py-1 rounded-lg transition-colors ${
-                      notesDirty
-                        ? 'bg-blue-600 hover:bg-blue-500 text-white'
-                        : 'bg-slate-800/60 text-slate-600 cursor-default'
-                    }`}
-                  >
-                    Save note
-                  </button>
-                </div>
+            {/* Notes textarea */}
+            <div>
+              <p className="text-xs text-slate-500 font-medium mb-1.5">Your notes</p>
+              <textarea
+                value={notes}
+                onChange={e => { setNotes(e.target.value); setNotesDirty(true); setNotesSaved(false) }}
+                placeholder="What did you comment? Did they respond? Next step…"
+                rows={2}
+                className="w-full bg-slate-800/50 border border-slate-700/40 rounded-xl px-3 py-2 text-xs text-slate-300 placeholder-slate-600 focus:outline-none focus:border-blue-500/40 resize-none leading-relaxed"
+              />
+              <div className="flex items-center justify-between mt-1.5">
+                {/* Timestamp */}
+                <span className="text-xs text-slate-700">
+                  {notesSaved
+                    ? '✓ Saved just now'
+                    : notesTs
+                    ? `Last saved ${new Date(notesTs).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}`
+                    : ''}
+                </span>
+                {/* Save button — only active when dirty */}
+                <button
+                  onClick={handleNotesSave}
+                  disabled={!notesDirty}
+                  className={`text-xs px-3 py-1 rounded-lg transition-colors ${
+                    notesDirty
+                      ? 'bg-blue-600 hover:bg-blue-500 text-white'
+                      : 'bg-slate-800/60 text-slate-600 cursor-default'
+                  }`}
+                >
+                  Save note
+                </button>
               </div>
-            )}
+            </div>
 
-            {/* ── Replied state: append-only activity log ── */}
-            {isReplied && (
-              <div>
-                <p className="text-xs text-slate-500 font-medium mb-2">Activity log</p>
-
-                {/* Existing plain note migrated as first entry (if no log yet) */}
-                {replyLog.length === 0 && notes && (
-                  <div className="mb-2 rounded-xl bg-slate-800/40 border border-slate-700/30 px-3 py-2.5">
-                    <p className="text-xs text-slate-300 leading-relaxed whitespace-pre-wrap">{notes}</p>
-                    {notesTs && (
-                      <p className="text-xs text-slate-600 mt-1.5">
-                        {new Date(notesTs).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                        {notesBy ? ` · ${displayName(notesBy)}` : ''}
-                      </p>
-                    )}
-                  </div>
-                )}
-
-                {/* Log entries */}
-                {replyLog.map((entry, i) => (
-                  <div key={i} className="mb-2 rounded-xl bg-slate-800/40 border border-slate-700/30 px-3 py-2.5">
-                    <p className="text-xs text-slate-300 leading-relaxed whitespace-pre-wrap">{entry.text}</p>
-                    <p className="text-xs text-slate-600 mt-1.5">
-                      {new Date(entry.at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                      {entry.by ? ` · ${displayName(entry.by)}` : ''}
-                    </p>
-                  </div>
-                ))}
-
-                {/* New entry input */}
-                <textarea
-                  value={replyEntry}
-                  onChange={e => setReplyEntry(e.target.value)}
-                  placeholder="Add a note — what happened next? Who responded?"
-                  rows={2}
-                  className="w-full bg-slate-800/50 border border-slate-700/40 rounded-xl px-3 py-2 text-xs text-slate-300 placeholder-slate-600 focus:outline-none focus:border-blue-500/40 resize-none leading-relaxed"
-                />
-                <div className="flex justify-end mt-1.5">
-                  <button
-                    onClick={handleAddReplyEntry}
-                    disabled={replyEntrySaving || !replyEntry.trim()}
-                    className={`text-xs px-3 py-1 rounded-lg transition-colors ${
-                      replyEntry.trim()
-                        ? 'bg-blue-600 hover:bg-blue-500 text-white'
-                        : 'bg-slate-800/60 text-slate-600 cursor-default'
-                    }`}
-                  >
-                    {replyEntrySaving ? 'Adding…' : 'Add note'}
-                  </button>
-                </div>
-
-                {/* CRM push — only in Replied state */}
-                <div className="mt-3 pt-3 border-t border-slate-700/30">
-                  {crmType && crmType !== 'None' ? (
-                    <div className="flex items-center gap-3">
-                      <button
-                        onClick={handleCrmPush}
-                        disabled={crmPushing || crmPushed}
-                        className={`text-xs px-4 py-2 rounded-lg border font-medium transition-colors flex items-center gap-2 ${
-                          crmPushed
-                            ? 'border-emerald-500/30 text-emerald-400/70 cursor-default bg-emerald-500/5'
-                            : 'border-blue-500/40 bg-blue-600/10 text-blue-300 hover:bg-blue-600/20 disabled:opacity-50'
-                        }`}
-                      >
-                        {crmPushing ? (
-                          <>
-                            <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
-                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                            </svg>
-                            Adding to {crmType}…
-                          </>
-                        ) : crmPushed ? (
-                          <>✓ Added to {crmType}</>
-                        ) : (
-                          <>
-                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                            </svg>
-                            Add to {crmType} pipeline
-                          </>
-                        )}
-                      </button>
-                      {!crmPushed && (
-                        <p className="text-xs text-slate-600">Pushes contact + notes and moves this post to your In CRM tab.</p>
-                      )}
-                    </div>
-                  ) : (
-                    <p className="text-xs text-slate-600">
-                      Want to push this contact to your CRM?{' '}
-                      <a href="/settings?tab=system" className="text-slate-500 underline underline-offset-2 hover:text-slate-300 transition-colors">
-                        Connect GHL or HubSpot in Settings → System.
-                      </a>
-                    </p>
-                  )}
-                  {crmError && (
-                    <p className="text-xs text-red-400 mt-2">{crmError} — <a href="/settings" className="underline">check CRM settings</a></p>
-                  )}
-                </div>
-              </div>
+            {/* CRM push error */}
+            {crmError && (
+              <p className="text-xs text-red-400">{crmError} — <a href="/settings" className="underline">check CRM settings</a></p>
             )}
           </div>
         )}
@@ -700,6 +481,33 @@ function PostCard({
             </button>
           )}
 
+          {/* CRM push button — visible when engaged or replied and CRM is configured */}
+          {isActiveEngage && crmType && crmType !== 'None' && (
+            <button
+              onClick={handleCrmPush}
+              disabled={crmPushing}
+              className={`ml-auto text-xs px-3 py-1.5 rounded-lg border transition-colors flex items-center gap-1.5 ${
+                crmPushed
+                  ? 'border-emerald-500/30 text-emerald-500/70 cursor-default'
+                  : 'border-slate-600/50 text-slate-400 hover:text-white hover:border-slate-500 disabled:opacity-50'
+              }`}
+            >
+              {crmPushing ? (
+                <>
+                  <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                  Pushing…
+                </>
+              ) : crmPushed ? (
+                <>✓ In {crmType}</>
+              ) : (
+                <>Push to {crmType}</>
+              )}
+            </button>
+          )}
+
           {/* Undo / restore */}
           {(isEngaged || isReplied) && (
             <button
@@ -743,11 +551,8 @@ function UserMenu() {
             <div className="px-3.5 py-2.5 border-b border-slate-800">
               <p className="text-slate-200 text-xs font-medium truncate">{user?.name || 'Account'}</p>
               <p className="text-slate-500 text-xs truncate">{user?.email}</p>
-              {user?.isFeedOnly && (
-                <p className="text-[10px] text-amber-400 mt-0.5">Feed-only access</p>
-              )}
             </div>
-            {user?.isAdmin && !user?.isFeedOnly && (
+            {user?.isAdmin && (
               <Link
                 href="/admin"
                 onClick={() => setOpen(false)}
@@ -769,23 +574,68 @@ function UserMenu() {
   )
 }
 
-// ---- Settings link hidden for feed-only users ----
-function NavSettingsLink() {
-  const { data: session } = useSession()
-  const user = session?.user as any
-  if (user?.isFeedOnly) return null
+// ---- Nav ----
+interface ScanHealth {
+  lastScanAt:     string | null
+  lastScanStatus: string | null
+  lastPostsFound: number
+  fbPending:      boolean
+}
+
+function ScanStatusPill({ health, lastScannedAt }: { health: ScanHealth | null; lastScannedAt: string | null }) {
+  // Determine display state from scan health (preferred) or fallback to lastScannedAt from posts
+  const scanAt = health?.lastScanAt || lastScannedAt
+  const status = health?.lastScanStatus
+
+  if (status === 'scanning') {
+    return (
+      <span className="text-xs text-blue-400 flex items-center gap-1">
+        <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
+        Scanning…
+      </span>
+    )
+  }
+
+  if (status === 'pending_fb' || health?.fbPending) {
+    return (
+      <span className="text-xs text-amber-400 flex items-center gap-1">
+        <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+        {scanAt ? `LinkedIn done · Facebook collecting…` : 'Collecting…'}
+      </span>
+    )
+  }
+
+  if (status === 'failed') {
+    return (
+      <span className="text-xs text-red-400 flex items-center gap-1" title="Last scan encountered an error. Retry is scheduled.">
+        <span className="w-1.5 h-1.5 rounded-full bg-red-400" />
+        {scanAt ? `Scan issue · retrying · ${timeAgo(scanAt)}` : 'Scan issue · retrying'}
+      </span>
+    )
+  }
+
+  if (scanAt) {
+    return (
+      <span className="text-xs text-emerald-400 flex items-center gap-1">
+        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+        Last scan: {timeAgo(scanAt)}
+      </span>
+    )
+  }
+
+  // Fallback — no data yet
   return (
-    <Link href="/settings" className="text-xs px-3 py-1.5 rounded-lg font-medium text-slate-400 hover:text-white hover:bg-slate-800/60 transition-colors">
-      Settings
-    </Link>
+    <span className="text-xs text-slate-500 flex items-center gap-1">
+      <span className="w-1.5 h-1.5 rounded-full bg-slate-600 animate-pulse" />
+      Live · 2× daily
+    </span>
   )
 }
 
-// ---- Nav ----
-function Nav({ lastScannedAt }: { lastScannedAt: string | null }) {
+function Nav({ lastScannedAt, scanHealth }: { lastScannedAt: string | null; scanHealth: ScanHealth | null }) {
   const [tick, setTick] = useState(0)
 
-  // Re-render the "X ago" label every minute
+  // Re-render time-ago labels every minute
   useEffect(() => {
     const id = setInterval(() => setTick(t => t + 1), 60000)
     return () => clearInterval(id)
@@ -795,28 +645,15 @@ function Nav({ lastScannedAt }: { lastScannedAt: string | null }) {
     <header className="sticky top-0 z-20 border-b border-slate-800/80 bg-[#0a0c10]/95 backdrop-blur-md">
       <div className="max-w-3xl mx-auto px-5 py-3.5 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <ClientBloomMark size={28} />
+          <div className="w-7 h-7 rounded-lg bg-blue-600 flex items-center justify-center text-white font-bold text-xs shrink-0">CB</div>
           <div>
-            <p className="text-sm font-semibold text-white leading-tight">Scout <span className="text-slate-500 font-normal">by ClientBloom</span></p>
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-emerald-400 flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                Live · 2× daily
-              </span>
-              {lastScannedAt && (
-                <>
-                  <span className="text-slate-700 text-xs">·</span>
-                  <span className="text-xs text-slate-500">
-                    Last scan: {timeAgo(lastScannedAt)}
-                  </span>
-                </>
-              )}
-            </div>
+            <p className="text-sm font-semibold text-white leading-tight">Scout by ClientBloom</p>
+            <ScanStatusPill health={scanHealth} lastScannedAt={lastScannedAt} />
           </div>
         </div>
         <nav className="flex items-center gap-1">
           <Link href="/" className="text-xs px-3 py-1.5 rounded-lg font-medium bg-slate-800 text-white transition-colors">Feed</Link>
-          <NavSettingsLink />
+          <Link href="/settings" className="text-xs px-3 py-1.5 rounded-lg font-medium text-slate-400 hover:text-white hover:bg-slate-800/60 transition-colors">Settings</Link>
           <UserMenu />
         </nav>
       </div>
@@ -840,36 +677,9 @@ export default function RootPage() {
   return <FeedPage />
 }
 
-// ---- Trial Banner ----
-function TrialBanner({ daysLeft }: { daysLeft: number }) {
-  const urgent = daysLeft <= 3
-  return (
-    <div className={`border-b ${urgent ? 'bg-amber-950/50 border-amber-700/40' : 'bg-blue-950/40 border-blue-800/30'}`}>
-      <div className="max-w-3xl mx-auto px-5 py-2.5 flex items-center justify-between gap-4">
-        <p className={`text-xs font-medium ${urgent ? 'text-amber-300' : 'text-blue-300'}`}>
-          {urgent
-            ? `⚠️ Your free trial ends in ${daysLeft} day${daysLeft === 1 ? '' : 's'} — your captured leads will be locked.`
-            : `🎉 Free trial: ${daysLeft} day${daysLeft === 1 ? '' : 's'} remaining`}
-        </p>
-        <a
-          href="/upgrade"
-          className={`shrink-0 text-xs font-semibold px-3 py-1 rounded-lg transition-colors ${
-            urgent
-              ? 'bg-amber-500 hover:bg-amber-400 text-black'
-              : 'bg-blue-600 hover:bg-blue-500 text-white'
-          }`}
-        >
-          Subscribe now →
-        </a>
-      </div>
-    </div>
-  )
-}
-
 // ---- Main Feed ----
 function FeedPage() {
   const router = useRouter()
-  const { data: session } = useSession()
   const [posts, setPosts] = useState<Post[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<ActionFilter>('New')
@@ -881,22 +691,8 @@ function FeedPage() {
   const [lastRefreshed, setLastRefreshed] = useState<Date>(new Date())
   const [error, setError] = useState<string | null>(null)
   const [crmType, setCrmType] = useState('None')
+  const [scanHealth, setScanHealth] = useState<ScanHealth | null>(null)
   const refreshTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
-
-  // ── Trial expiry check ──────────────────────────────────────────────────────
-  const user         = session?.user as any
-  const trialEndsAt  = user?.trialEndsAt || null
-  const plan         = user?.plan || ''
-  const isPaidPlan   = plan === 'Scout $79' || plan === 'Owner'
-  const trialExpired = !!trialEndsAt && !isPaidPlan && new Date() > new Date(trialEndsAt)
-  const daysLeft     = trialEndsAt ? Math.ceil((new Date(trialEndsAt).getTime() - Date.now()) / 86400000) : null
-  const isActiveTrial = !!trialEndsAt && !trialExpired && !isPaidPlan
-
-  useEffect(() => {
-    if (trialExpired) {
-      router.replace('/upgrade')
-    }
-  }, [trialExpired, router])
 
   // First-run: redirect to onboarding if no posts exist and never onboarded
   useEffect(() => {
@@ -954,6 +750,41 @@ function FeedPage() {
       .catch(() => {})
   }, [])
 
+  // Fetch scan health on mount + every 3 minutes
+  // Also re-poll every 30s while a Facebook run is pending (fbPending)
+  useEffect(() => {
+    let pollInterval: ReturnType<typeof setInterval> | null = null
+
+    const fetchHealth = async () => {
+      try {
+        const res = await fetch('/api/scan-status')
+        if (!res.ok) return
+        const data = await res.json()
+        setScanHealth(data)
+
+        // If Facebook is still collecting, poll faster (30s) until it's done
+        if (data.fbPending) {
+          if (!pollInterval) {
+            pollInterval = setInterval(fetchHealth, 30 * 1000)
+          }
+        } else {
+          if (pollInterval) {
+            clearInterval(pollInterval)
+            pollInterval = null
+          }
+        }
+      } catch { /* non-fatal */ }
+    }
+
+    fetchHealth()
+    const baseInterval = setInterval(fetchHealth, 3 * 60 * 1000)
+
+    return () => {
+      clearInterval(baseInterval)
+      if (pollInterval) clearInterval(pollInterval)
+    }
+  }, [])
+
   // Auto-refresh every 5 minutes (silent — no loading spinner)
   useEffect(() => {
     if (refreshTimerRef.current) clearInterval(refreshTimerRef.current)
@@ -998,7 +829,6 @@ function FeedPage() {
     { id: 'Engaged', label: 'Engaged'  },
     { id: 'Replied', label: 'Replied'  },
     { id: 'Skipped', label: 'Skipped'  },
-    { id: 'CRM',     label: 'In CRM'   },
     { id: 'all',     label: 'All'      },
   ]
 
@@ -1007,52 +837,47 @@ function FeedPage() {
     Engaged: actionCounts['Engaged'],
     Replied: actionCounts['Replied'],
     Skipped: actionCounts['Skipped'],
-    CRM:     actionCounts['CRM'],
   }
 
   return (
     <div className="min-h-screen bg-[#0a0c10] text-white">
-      <Nav lastScannedAt={lastScannedAt} />
-      {isActiveTrial && daysLeft !== null && <TrialBanner daysLeft={daysLeft} />}
+      <Nav lastScannedAt={lastScannedAt} scanHealth={scanHealth} />
 
       {/* Tab bar + filters */}
       <div className="sticky top-[61px] z-10 bg-[#0a0c10]/95 backdrop-blur-md border-b border-slate-800/60">
         <div className="max-w-3xl mx-auto px-5">
-          <div className="flex items-center">
-            {/* Tabs — scrollable, never clips the controls */}
-            <div className="flex-1 overflow-x-auto flex items-center gap-0 scrollbar-none">
-              {tabs.map(tab => {
-                const count = tabCounts[tab.id]
-                return (
-                  <button
-                    key={tab.id}
-                    onClick={() => setFilter(tab.id)}
-                    className={`shrink-0 px-4 py-2.5 text-xs font-medium border-b-2 transition-colors ${
-                      filter === tab.id
-                        ? 'border-blue-500 text-white'
-                        : 'border-transparent text-slate-500 hover:text-slate-400'
-                    }`}
-                  >
-                    {tab.label}
-                    {count !== undefined && count > 0 && (
-                      <span className={`ml-1.5 px-1.5 py-0.5 rounded-full text-xs ${
-                        filter === tab.id ? 'bg-blue-500/20 text-blue-300' : 'bg-slate-800 text-slate-500'
-                      }`}>
-                        {count}
-                      </span>
-                    )}
-                  </button>
-                )
-              })}
-            </div>
+          <div className="flex items-center gap-0 overflow-x-auto">
+            {tabs.map(tab => {
+              const count = tabCounts[tab.id]
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setFilter(tab.id)}
+                  className={`shrink-0 px-4 py-2.5 text-xs font-medium border-b-2 transition-colors ${
+                    filter === tab.id
+                      ? 'border-blue-500 text-white'
+                      : 'border-transparent text-slate-500 hover:text-slate-400'
+                  }`}
+                >
+                  {tab.label}
+                  {count !== undefined && count > 0 && (
+                    <span className={`ml-1.5 px-1.5 py-0.5 rounded-full text-xs ${
+                      filter === tab.id ? 'bg-blue-500/20 text-blue-300' : 'bg-slate-800 text-slate-500'
+                    }`}>
+                      {count}
+                    </span>
+                  )}
+                </button>
+              )
+            })}
 
-            {/* Controls — always visible, never scrolls away */}
-            <div className="shrink-0 flex items-center gap-2 pl-3 py-1.5 border-l border-slate-800/60">
+            <div className="ml-auto flex items-center gap-2 py-1.5 shrink-0">
+              {/* Group filter */}
               {availableGroups.length > 0 && (
                 <select
                   value={groupFilter}
                   onChange={e => setGroupFilter(e.target.value)}
-                  className="text-xs bg-slate-800/80 border border-slate-700/60 rounded-lg px-2.5 py-1 text-slate-400 focus:outline-none focus:border-blue-500/50 max-w-[140px] truncate"
+                  className="text-xs bg-slate-800/80 border border-slate-700/60 rounded-lg px-2.5 py-1 text-slate-400 focus:outline-none focus:border-blue-500/50 max-w-[160px] truncate"
                 >
                   <option value="all">All groups</option>
                   {availableGroups.map(g => (
@@ -1060,6 +885,7 @@ function FeedPage() {
                   ))}
                 </select>
               )}
+
               <button
                 onClick={() => fetchPosts()}
                 className="text-xs px-3 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 transition-colors whitespace-nowrap"
@@ -1086,32 +912,35 @@ function FeedPage() {
         ) : posts.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-24 text-center gap-3">
             <div className="text-4xl">
-              {filter === 'New' ? '🎉' : filter === 'Engaged' ? '📋' : filter === 'Replied' ? '💬' : filter === 'CRM' ? '✅' : '🗃️'}
+              {filter === 'New' ? '🎉' : filter === 'Engaged' ? '📋' : filter === 'Replied' ? '💬' : '🗃️'}
             </div>
             <p className="text-slate-300 text-sm font-medium">
-              {filter === 'New' ? 'Inbox zero — all caught up'
-                : filter === 'Engaged' ? 'No engaged posts yet'
-                : filter === 'Replied' ? 'No replies yet'
-                : filter === 'Skipped' ? 'Nothing skipped'
-                : filter === 'CRM' ? 'Pipeline is clear'
-                : 'No posts found'}
+              {filter === 'New' ? 'Inbox zero — all caught up' : filter === 'Engaged' ? 'No engaged posts yet' : filter === 'Replied' ? 'No replies yet' : filter === 'Skipped' ? 'Nothing skipped' : 'No posts found'}
             </p>
             <p className="text-slate-600 text-xs max-w-xs">
               {filter === 'New'
-                ? 'Scanner runs at 6 AM and 6 PM PST. Check back later.'
-                : filter === 'CRM'
-                ? 'Posts pushed to your CRM will appear here for reference.'
+                ? scanHealth?.lastScanStatus === 'pending_fb'
+                  ? 'Facebook results are still being collected — check back in a minute.'
+                  : scanHealth?.lastScanStatus === 'scanning'
+                    ? 'Scan is running now — results will appear shortly.'
+                    : 'Scout scans at 6 AM and 6 PM daily.'
                 : 'Posts you mark will appear here.'}
             </p>
-            {lastScannedAt && (
-              <p className="text-slate-700 text-xs">Last scan: {timeAgo(lastScannedAt)}</p>
+            {(scanHealth?.lastScanAt || lastScannedAt) && (
+              <p className="text-slate-700 text-xs">
+                Last scan: {timeAgo(scanHealth?.lastScanAt || lastScannedAt || '')}
+                {scanHealth?.lastScanStatus === 'failed' && ' · ⚠️ issue detected, retry scheduled'}
+              </p>
             )}
           </div>
         ) : (
           <>
-            {/* Next scan countdown */}
-            <p className="text-xs text-slate-600 mb-4 text-right">
-              <NextScanCountdown />
+            {/* Subtle refresh note */}
+            <p className="text-xs text-slate-700 mb-4 text-right">
+              Updated {timeAgo(lastRefreshed.toISOString())} · Scout scans at 6 AM &amp; 6 PM daily
+              {scanHealth?.lastScanStatus === 'failed' && (
+                <span className="text-amber-600"> · ⚠ last scan had issues</span>
+              )}
             </p>
             <div className="space-y-3">
               {posts.map(post => (
@@ -1121,7 +950,6 @@ function FeedPage() {
                   onAction={handleAction}
                   updating={updating === post.id}
                   crmType={crmType}
-                  userEmail={(session?.user as any)?.email || ''}
                 />
               ))}
             </div>

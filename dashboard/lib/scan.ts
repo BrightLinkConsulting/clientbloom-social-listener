@@ -5,11 +5,19 @@
  *   - POST /api/trigger-scan  (manual, single tenant from session)
  *   - GET  /api/cron/scan     (automatic, iterates all active tenants)
  *
- * Accepts a tenantId directly so it works without a session.
+ * Reliability architecture:
+ *   LinkedIn  → sync (fast, ~5-10s) with automatic retry on empty result
+ *   Facebook  → sync with extended timeout (90s) + retry; falls back to
+ *               async-start if both sync attempts fail (results collected
+ *               by /api/cron/scan-collect 15 min later)
  *
- * Scan priority:
- *   LinkedIn  → ICP profiles first, then keyword search, then business-profile fallback
- *   Facebook  → facebook_group sources (always runs if configured, parallel with LinkedIn)
+ * Error categories logged for each failure:
+ *   TIMEOUT    – Apify actor exceeded waitSecs (most common Facebook failure)
+ *   AUTH       – Bad API token
+ *   RATE_LIMIT – Too many requests to Apify
+ *   RUN_FAILED – Actor errored on Apify's side
+ *   NETWORK    – Connection error before Apify even responded
+ *   HTTP_xxx   – Unexpected HTTP status
  */
 
 import { SHARED_BASE, PROV_TOKEN, tenantFilter, airtableCreate } from './airtable'
@@ -23,35 +31,35 @@ const DEFAULT_SCAN_PROMPT = `You are a social listening AI. Score each post for 
 1: Skip — irrelevant
 
 Return JSON array: [{"post_id":"...", "score": N, "reason": "...", "comment_approach": "..."}]
-
-comment_approach is the actual comment to post. Written in first person as the person/business in BUSINESS CONTEXT above. Use their angle naturally, not to sell — to start a real conversation.
-
-MANDATORY STYLE RULES:
-- Sound like a real person who typed this quickly. Casual, direct, a little unpolished.
-- 2-3 sentences max. Shorter is almost always better.
-- Reference something specific from the post. Generic openers get ignored.
-- End with a question that invites a genuine reply.
-- No em-dashes (use a comma or period instead).
-- Do not start with "I" every single time. Vary the opening word.
-- Avoid all of these words and phrases: straightforward, dive in, delve, leverage, game-changer, at the end of the day, it's not about X it's about Y, in today's landscape, robust, seamlessly, absolutely, certainly, I completely understand, touch base, circle back, move the needle, unpack.
-- No perfect punctuation required. A comma splice or casual phrasing is fine.
-- Never pitch the business. Never sound like a LinkedIn ad.
-- Do NOT use em-dashes anywhere in the comment.
-
-WRONG (AI-generated, avoid this): "This is such a valuable perspective. At the end of the day, it's not about the tools — it's about the strategy. I'd love to connect and explore how we can leverage these insights. What does your current approach look like?"
-
-RIGHT (human, use this tone): "Three hours a week is actually on the low end from what I've seen. We hit that same wall around the 10-client mark. What does your review process look like right now, are you tracking health metrics or going mostly on gut?"
+Keep comment_approach to 2 sentences max — peer tone, specific reference, one follow-up question.
 
 Posts:
 {posts_json}`
 
-async function runApifyActor(apifyToken: string, actorId: string, input: object, waitSecs = 45) {
-  // Apify API requires tilde (~) as the separator in actor IDs, not slash
-  // e.g. "harvestapi/linkedin-profile-posts" → "harvestapi~linkedin-profile-posts"
+// ── Error categorization ────────────────────────────────────────────────────
+export function categorizeApifyError(statusCode: number, body: string): string {
+  if (statusCode === 401 || statusCode === 403) return 'AUTH'
+  if (statusCode === 429) return 'RATE_LIMIT'
+  if (statusCode === 400 && body.includes('TIMED-OUT')) return 'TIMEOUT'
+  if (statusCode === 400 && body.includes('run-failed')) return 'RUN_FAILED'
+  if (statusCode >= 500) return 'APIFY_SERVER_ERROR'
+  return `HTTP_${statusCode}`
+}
+
+// ── Core Apify sync runner ────────────────────────────────────────────────────
+// Returns items array on success, empty array on any failure.
+// memoryMbytes: higher memory lets actors boot faster (costs more Apify CU).
+export async function runApifyActor(
+  apifyToken: string,
+  actorId: string,
+  input: object,
+  waitSecs = 45,
+  memoryMbytes = 256,
+): Promise<{ items: any[]; errorType: string | null }> {
   const safeActorId = actorId.replace('/', '~')
   const url =
     `https://api.apify.com/v2/acts/${safeActorId}/run-sync-get-dataset-items` +
-    `?token=${apifyToken}&timeout=${waitSecs}&memory=256`
+    `?token=${apifyToken}&timeout=${waitSecs}&memory=${memoryMbytes}`
 
   let res: Response
   try {
@@ -61,24 +69,131 @@ async function runApifyActor(apifyToken: string, actorId: string, input: object,
       body: JSON.stringify(input),
     })
   } catch (networkErr: any) {
-    console.error(`[scan] Apify network error for ${actorId}:`, networkErr.message)
-    return []
+    console.error(`[scan] Apify NETWORK error for ${actorId}:`, networkErr.message)
+    return { items: [], errorType: 'NETWORK' }
   }
 
   if (!res.ok) {
     let errBody = ''
     try { errBody = await res.text() } catch {}
-    console.error(`[scan] Apify HTTP ${res.status} for ${actorId}: ${errBody.slice(0, 400)}`)
-    return []
+    const errorType = categorizeApifyError(res.status, errBody)
+    console.error(`[scan] Apify ${errorType} (${res.status}) for ${actorId}: ${errBody.slice(0, 400)}`)
+    return { items: [], errorType }
   }
 
-  try { return await res.json() } catch (parseErr: any) {
+  try {
+    const items = await res.json()
+    return { items: Array.isArray(items) ? items : [], errorType: null }
+  } catch (parseErr: any) {
     console.error(`[scan] Apify JSON parse error for ${actorId}:`, parseErr.message)
-    return []
+    return { items: [], errorType: 'PARSE_ERROR' }
   }
 }
 
-async function scorePosts(anthropicKey: string, posts: any[], businessContext: string, customPrompt = '') {
+// ── Retry wrapper ─────────────────────────────────────────────────────────────
+// Tries the primary config first. On empty result or retriable error, retries
+// with a smaller scope and more memory to increase success probability.
+export async function runApifyActorWithRetry(
+  apifyToken: string,
+  actorId: string,
+  primaryInput: object,
+  primaryOpts: { waitSecs: number; memoryMbytes: number },
+  retryInput: object,
+  retryOpts: { waitSecs: number; memoryMbytes: number },
+  label: string,
+): Promise<any[]> {
+  console.log(`[scan] ${label}: attempt 1 (timeout=${primaryOpts.waitSecs}s, memory=${primaryOpts.memoryMbytes}MB)`)
+  const first = await runApifyActor(
+    apifyToken, actorId, primaryInput,
+    primaryOpts.waitSecs, primaryOpts.memoryMbytes,
+  )
+
+  if (first.items.length > 0) {
+    console.log(`[scan] ${label}: attempt 1 succeeded — ${first.items.length} items`)
+    return first.items
+  }
+
+  // Only retry on retriable errors (timeout, server error, network) — not auth failures
+  const retriable = !first.errorType || ['TIMEOUT', 'RUN_FAILED', 'NETWORK', 'APIFY_SERVER_ERROR'].includes(first.errorType)
+  if (!retriable) {
+    console.log(`[scan] ${label}: not retrying (error type: ${first.errorType})`)
+    return []
+  }
+
+  console.log(`[scan] ${label}: attempt 2 (smaller scope, timeout=${retryOpts.waitSecs}s, memory=${retryOpts.memoryMbytes}MB)`)
+  const second = await runApifyActor(
+    apifyToken, actorId, retryInput,
+    retryOpts.waitSecs, retryOpts.memoryMbytes,
+  )
+
+  if (second.items.length > 0) {
+    console.log(`[scan] ${label}: attempt 2 succeeded — ${second.items.length} items`)
+  } else {
+    console.log(`[scan] ${label}: both attempts returned 0 items (errorType: ${second.errorType || 'none'})`)
+  }
+
+  return second.items
+}
+
+// ── Post normalizers (exported so webhook can reuse them) ────────────────────
+export function normalizeFacebookPost(raw: any) {
+  const groupName  = raw.groupName  || raw.group?.name  || 'Facebook Group'
+  const authorName = raw.authorName || raw.user?.name   || raw.author?.name  || ''
+  const authorUrl  = raw.authorUrl  || raw.user?.url    || raw.author?.url   || ''
+  const postUrl    = raw.url        || raw.postUrl      || raw.link          || ''
+  const postId     = raw.postId     || raw.id           || postUrl           || String(Math.random())
+  const text       = raw.text       || raw.message      || raw.body         || ''
+  return {
+    id:         postId,
+    postId,
+    text,
+    content:    text,
+    authorName,
+    authorUrl,
+    postUrl,
+    platform:   'Facebook',
+    groupName:  `FB: ${groupName}`,
+    capturedAt: new Date().toISOString(),
+  }
+}
+
+export function normalizeLinkedInIcpPost(raw: any) {
+  return {
+    id:         raw.id || raw.linkedinUrl || String(Math.random()),
+    postId:     raw.id || raw.linkedinUrl,
+    text:       raw.content || '',
+    content:    raw.content || '',
+    authorName: raw.author?.name || '',
+    authorUrl:  raw.author?.linkedinUrl || raw.socialContent?.authorUrl || '',
+    postUrl:    raw.socialContent?.shareUrl || raw.linkedinUrl || '',
+    platform:   'LinkedIn',
+    groupName:  `LinkedIn ICP: ${raw.author?.name || 'Profile'}`,
+    capturedAt: new Date().toISOString(),
+  }
+}
+
+export function normalizeLinkedInKeywordPost(raw: any, searchTerm: string) {
+  return {
+    id:         raw.id || raw.postUrl || String(Math.random()),
+    postId:     raw.id || raw.postUrl,
+    text:       raw.text || raw.content || '',
+    content:    raw.text || raw.content || '',
+    authorName: raw.authorName || raw.author?.name || '',
+    authorUrl:  raw.authorProfileUrl || '',
+    postUrl:    raw.postUrl || raw.url || '',
+    platform:   'LinkedIn',
+    groupName:  `LinkedIn: ${searchTerm}`,
+    capturedAt: new Date().toISOString(),
+  }
+}
+
+// ── Scorer (exported for reuse by webhook / scan-collect) ────────────────────
+export async function scorePosts(
+  anthropicKey: string,
+  posts: any[],
+  businessContext: string,
+  customPrompt = '',
+): Promise<any[]> {
   if (!posts.length || !anthropicKey) return posts.map(p => ({ ...p, score: 5, reason: '' }))
 
   const postsJson = JSON.stringify(posts.map(p => ({
@@ -116,7 +231,34 @@ async function scorePosts(anthropicKey: string, posts: any[], businessContext: s
   } catch { return posts.map(p => ({ ...p, score: 5, reason: '' })) }
 }
 
-// Filtered Airtable GET for a specific tenant
+// ── Save scored posts to Airtable ────────────────────────────────────────────
+export async function saveScoredPosts(tenantId: string, scored: any[]): Promise<number> {
+  const qualifying = scored.filter(p => p.score >= 5)
+  let saved = 0
+  for (const p of qualifying) {
+    try {
+      await airtableCreate('Captured Posts', tenantId, {
+        'Post ID':            p.postId || p.id,
+        'Platform':           p.platform || 'LinkedIn',
+        'Group Name':         p.groupName || '',
+        'Author Name':        p.authorName || '',
+        'Author Profile URL': p.authorUrl || '',
+        'Post Text':          p.text || p.content || '',
+        'Post URL':           p.postUrl || '',
+        'Keywords Matched':   '',
+        'Relevance Score':    p.score || 5,
+        'Score Reason':       p.reason || '',
+        'Comment Approach':   p.comment_approach || '',
+        'Captured At':        p.capturedAt || new Date().toISOString(),
+        'Action':             'New',
+      })
+      saved++
+    } catch { /* skip duplicates — Airtable rejects duplicate Post IDs */ }
+  }
+  return saved
+}
+
+// ── Filtered Airtable GET for a specific tenant ──────────────────────────────
 async function atGet(tenantId: string, table: string, extraFormula = '') {
   const base    = tenantFilter(tenantId)
   const formula = extraFormula ? `AND(${base},${extraFormula})` : base
@@ -128,101 +270,41 @@ async function atGet(tenantId: string, table: string, extraFormula = '') {
   return res.json()
 }
 
-/**
- * Strip tracking query parameters from a URL so the same post isn't treated
- * as unique just because LinkedIn appended a different rcm= or utm_* value.
- * Example: https://linkedin.com/posts/user_title-activity-1234-XY?rcm=ABC
- *       → https://linkedin.com/posts/user_title-activity-1234-XY
- */
-function canonicalUrl(raw: string): string {
-  if (!raw) return ''
-  try {
-    const u = new URL(raw)
-    // Remove all tracking/session params
-    const tracking = ['utm_source','utm_medium','utm_campaign','utm_content','utm_term','rcm','trk','trkInfo']
-    tracking.forEach(p => u.searchParams.delete(p))
-    // If no params remain, drop the '?' entirely
-    return u.searchParams.size === 0 ? `${u.origin}${u.pathname}` : u.toString()
-  } catch {
-    return raw.split('?')[0]  // fallback: strip everything after '?'
-  }
-}
-
-/**
- * Fetch all Post IDs and canonical Post URLs already stored for this tenant.
- * Paginates through all pages so dedup works even for large inboxes.
- * Used to prevent re-saving posts that were captured in previous scans.
- *
- * NOTE: LinkedIn wraps every share URL in session-unique tracking params
- * (rcm=, utm_source=, etc.), so naive URL comparison produces zero matches.
- * We use the Post ID (the activity number in the URL path) as the primary
- * dedup key, and canonical URLs (tracking params stripped) as a fallback.
- */
-async function fetchExistingPostKeys(tenantId: string): Promise<{ urls: Set<string>; ids: Set<string> }> {
-  const urls = new Set<string>()
-  const ids  = new Set<string>()
-  let offset = ''
-
-  try {
-    do {
-      const formula = tenantFilter(tenantId)
-      const url     = new URL(`https://api.airtable.com/v0/${SHARED_BASE}/${encodeURIComponent('Captured Posts')}`)
-      url.searchParams.set('filterByFormula', formula)
-      url.searchParams.set('fields[]',  'Post URL')
-      url.searchParams.set('fields[1]', 'Post ID')
-      url.searchParams.set('pageSize',  '100')
-      if (offset) url.searchParams.set('offset', offset)
-
-      const res  = await fetch(url.toString(), {
-        headers: { Authorization: `Bearer ${PROV_TOKEN}` },
-      })
-      const data = await res.json()
-
-      for (const rec of data.records || []) {
-        const postUrl = canonicalUrl((rec.fields?.['Post URL'] || '').trim())
-        const postId  = (rec.fields?.['Post ID'] || '').trim()
-        if (postUrl) urls.add(postUrl)
-        if (postId)  ids.add(postId)
-      }
-
-      offset = data.offset || ''
-    } while (offset)
-  } catch (e) {
-    // Non-fatal — if this fails we'll log and continue; worst case we save a dup
-    console.error('[scan] fetchExistingPostKeys failed:', e)
-  }
-
-  return { urls, ids }
-}
-
-// ── Facebook group scanning ────────────────────────────────────────────────────
-
-async function scanFacebookGroups(apifyToken: string, groupUrls: string[], keywords: string[]): Promise<any[]> {
+// ── Facebook group scanning ───────────────────────────────────────────────────
+// Primary actor:  apify/facebook-groups-scraper
+// Reliability: 2-attempt retry with progressive timeout + memory tuning
+async function scanFacebookGroups(
+  apifyToken: string,
+  groupUrls: string[],
+  keywords: string[],
+): Promise<any[]> {
   if (!groupUrls.length) return []
-
   console.log(`[scan] Facebook: scanning ${groupUrls.length} group(s)`)
 
-  // maxPosts intentionally kept low (5) so the actor finishes well under the
-  // 30-second window we allocate when running parallel with LinkedIn.
-  // Higher values were causing 55s timeouts on every run and burning Apify budget.
-  const items = await runApifyActor(
+  const baseInput = {
+    startUrls:   groupUrls.map(url => ({ url })),
+    maxComments: 0,
+    proxy:       { useApifyProxy: true },
+  }
+
+  const items = await runApifyActorWithRetry(
     apifyToken,
     'apify/facebook-groups-scraper',
-    {
-      startUrls:   groupUrls.map(url => ({ url })),
-      maxPosts:    5,
-      maxComments: 0,
-      proxy:       { useApifyProxy: true },
-    },
-    30,
+    // Primary: 3 posts, 512 MB, 90s — handles typical load
+    { ...baseInput, maxPosts: 3 },
+    { waitSecs: 90, memoryMbytes: 512 },
+    // Retry: 2 posts, 1 GB, 60s — more memory boots browser faster when slow
+    { ...baseInput, maxPosts: 2 },
+    { waitSecs: 60, memoryMbytes: 1024 },
+    'Facebook groups-scraper',
   )
 
-  if (!Array.isArray(items) || !items.length) {
-    console.log('[scan] Facebook: no items returned from actor')
+  if (!items.length) {
+    console.log('[scan] Facebook: no items returned from actor (both attempts)')
     return []
   }
 
-  // Keyword filter — if keywords configured, only keep posts that contain at least one
+  // Keyword filter — only keep posts containing at least one configured keyword
   const lowerKeywords = keywords.map(k => k.toLowerCase())
   const filtered = lowerKeywords.length > 0
     ? items.filter((raw: any) => {
@@ -232,32 +314,49 @@ async function scanFacebookGroups(apifyToken: string, groupUrls: string[], keywo
     : items
 
   console.log(`[scan] Facebook: ${items.length} posts fetched, ${filtered.length} passed keyword filter`)
-
-  return filtered.map((raw: any) => {
-    const groupName  = raw.groupName  || raw.group?.name  || 'Facebook Group'
-    const authorName = raw.authorName || raw.user?.name   || raw.author?.name  || ''
-    const authorUrl  = raw.authorUrl  || raw.user?.url    || raw.author?.url   || ''
-    const postUrl    = raw.url        || raw.postUrl      || raw.link          || ''
-    const postId     = raw.postId     || raw.id           || postUrl           || String(Math.random())
-    const text       = raw.text       || raw.message      || raw.body         || ''
-
-    return {
-      id:         postId,
-      postId,
-      text,
-      content:    text,
-      authorName,
-      authorUrl,
-      postUrl,
-      platform:   'Facebook',
-      groupName:  `FB: ${groupName}`,
-      capturedAt: new Date().toISOString(),
-    }
-  })
+  return filtered.map(normalizeFacebookPost)
 }
 
-// ── Exports ────────────────────────────────────────────────────────────────────
+// ── LinkedIn scanning ─────────────────────────────────────────────────────────
+async function scanLinkedIn(
+  apifyToken: string,
+  icpProfiles: string[],
+  linkedinTerms: string[],
+  fallbackTerm: string,
+): Promise<{ posts: any[]; source: string }> {
+  if (icpProfiles.length > 0) {
+    console.log(`[scan] LinkedIn: scanning ${icpProfiles.length} ICP profile(s)`)
+    const items = await runApifyActorWithRetry(
+      apifyToken,
+      'harvestapi/linkedin-profile-posts',
+      { profileUrls: icpProfiles, maxPosts: 5, proxy: { useApifyProxy: true }, scrapeReactions: false, scrapeComments: false },
+      { waitSecs: 45, memoryMbytes: 256 },
+      { profileUrls: icpProfiles.slice(0, 2), maxPosts: 3, proxy: { useApifyProxy: true }, scrapeReactions: false, scrapeComments: false },
+      { waitSecs: 60, memoryMbytes: 512 },
+      'LinkedIn ICP profiles',
+    )
+    return { source: 'icp_profiles', posts: items.map(normalizeLinkedInIcpPost) }
+  }
 
+  if (linkedinTerms.length > 0 || fallbackTerm) {
+    const searchTerm = linkedinTerms[0] || fallbackTerm
+    console.log(`[scan] LinkedIn: keyword search for "${searchTerm}"`)
+    const items = await runApifyActorWithRetry(
+      apifyToken,
+      'apimaestro/linkedin-posts-search-scraper-no-cookies',
+      { searchQuery: searchTerm, limit: 15, sort_type: 'relevance' },
+      { waitSecs: 45, memoryMbytes: 256 },
+      { searchQuery: searchTerm, limit: 8, sort_type: 'relevance' },
+      { waitSecs: 60, memoryMbytes: 512 },
+      `LinkedIn keyword "${searchTerm}"`,
+    )
+    return { source: 'keyword_search', posts: items.map(r => normalizeLinkedInKeywordPost(r, searchTerm)) }
+  }
+
+  return { posts: [], source: '' }
+}
+
+// ── Exports ───────────────────────────────────────────────────────────────────
 export interface ScanResult {
   tenantId:   string
   postsFound: number
@@ -265,11 +364,15 @@ export interface ScanResult {
   scanSource: string
   message:    string
   error?:     string
+  fbPending?: boolean  // true when Facebook async run started but not yet collected
 }
 
 // apifyTokenOverride: tenant's own Apify key (set by admin for account isolation).
 // Falls back to the platform-wide APIFY_API_TOKEN env var for the shared pool.
-export async function runScanForTenant(tenantId: string, apifyTokenOverride?: string): Promise<ScanResult> {
+export async function runScanForTenant(
+  tenantId: string,
+  apifyTokenOverride?: string,
+): Promise<ScanResult> {
   const APIFY_TOKEN   = apifyTokenOverride || process.env.APIFY_API_TOKEN || ''
   const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY || ''
 
@@ -325,141 +428,35 @@ export async function runScanForTenant(tenantId: string, apifyTokenOverride?: st
       fallbackTerm = industry || idealClient || ''
     }
 
-    // ── LinkedIn + Facebook scans run in PARALLEL ──────────────────────────────
-    // Running sequentially (LinkedIn 7s + Facebook 55s) exceeded the 60s
-    // maxDuration on both routes. Parallel execution keeps total wall-clock
-    // time to ~30s (Facebook now the bottleneck at 30s max).
-
-    const runLinkedIn = async (): Promise<{ posts: any[]; source: string }> => {
-      if (icpProfiles.length > 0) {
-        console.log(`[scan] LinkedIn: scanning ${icpProfiles.length} ICP profile(s)`)
-        const items = await runApifyActor(APIFY_TOKEN, 'harvestapi/linkedin-profile-posts', {
-          profileUrls: icpProfiles, maxPosts: 5,
-          proxy: { useApifyProxy: true }, scrapeReactions: false, scrapeComments: false,
-        })
-        return {
-          source: 'icp_profiles',
-          posts:  (Array.isArray(items) ? items : []).map((raw: any) => ({
-            id:         raw.id || raw.linkedinUrl || String(Math.random()),
-            postId:     raw.id || raw.linkedinUrl,
-            text:       raw.content || '',
-            content:    raw.content || '',
-            authorName: raw.author?.name || '',
-            authorUrl:  raw.author?.linkedinUrl || raw.socialContent?.authorUrl || '',
-            postUrl:    raw.socialContent?.shareUrl || raw.linkedinUrl || '',
-            platform:   'LinkedIn',
-            groupName:  `LinkedIn ICP: ${raw.author?.name || 'Profile'}`,
-            capturedAt: new Date().toISOString(),
-          })),
-        }
-      } else if (linkedinTerms.length > 0 || fallbackTerm) {
-        const searchTerm = linkedinTerms[0] || fallbackTerm
-        console.log(`[scan] LinkedIn: keyword search for "${searchTerm}"`)
-        const items = await runApifyActor(APIFY_TOKEN, 'apimaestro/linkedin-posts-search-scraper-no-cookies', {
-          searchQuery: searchTerm, limit: 15, sort_type: 'relevance',
-        })
-        return {
-          source: 'keyword_search',
-          posts:  (Array.isArray(items) ? items : []).map((raw: any) => ({
-            id:         raw.id || raw.postUrl || String(Math.random()),
-            postId:     raw.id || raw.postUrl,
-            text:       raw.text || raw.content || '',
-            content:    raw.text || raw.content || '',
-            authorName: raw.authorName || raw.author?.name || '',
-            authorUrl:  raw.authorProfileUrl || '',
-            postUrl:    raw.postUrl || raw.url || '',
-            platform:   'LinkedIn',
-            groupName:  `LinkedIn: ${searchTerm}`,
-            capturedAt: new Date().toISOString(),
-          })),
-        }
-      }
-      return { posts: [], source: '' }
-    }
-
+    // ── LinkedIn + Facebook run in PARALLEL ──────────────────────────────────
+    // Each has its own retry logic. Wall-clock time is determined by whichever
+    // takes longer (Facebook at worst 90s + 60s retry = 150s, LinkedIn < 60s).
+    // Vercel maxDuration is 300s — plenty of headroom.
     const [linkedinResult, facebookPosts] = await Promise.all([
-      runLinkedIn(),
+      scanLinkedIn(APIFY_TOKEN, icpProfiles, linkedinTerms, fallbackTerm),
       scanFacebookGroups(APIFY_TOKEN, facebookGroups, fbKeywords),
     ])
-    const linkedinPosts  = linkedinResult.posts
-    const linkedinSource = linkedinResult.source
 
-    // ── Combine ────────────────────────────────────────────────────────────────
-    const allPosts = [...linkedinPosts, ...facebookPosts]
+    const allPosts = [...linkedinResult.posts, ...facebookPosts]
     const scanSources = [
-      linkedinSource || (linkedinPosts.length ? 'linkedin' : ''),
+      linkedinResult.source || (linkedinResult.posts.length ? 'linkedin' : ''),
       facebookPosts.length ? 'facebook_groups' : '',
     ].filter(Boolean).join('+') || 'none'
 
-    console.log(`[scan] Total: ${linkedinPosts.length} LinkedIn + ${facebookPosts.length} Facebook = ${allPosts.length} posts`)
+    console.log(`[scan] Total: ${linkedinResult.posts.length} LinkedIn + ${facebookPosts.length} Facebook = ${allPosts.length} posts`)
 
     if (!allPosts.length) {
-      return { tenantId, postsFound: 0, scanned: 0, scanSource: scanSources, message: 'No posts returned from sources.' }
+      return {
+        tenantId, postsFound: 0, scanned: 0, scanSource: scanSources,
+        message: 'No posts returned from sources.',
+      }
     }
 
     // 3. Score
-    const scored     = await scorePosts(ANTHROPIC_KEY, allPosts, businessContext, customPrompt)
-    const qualifying = scored.filter(p => p.score >= 5)
+    const scored = await scorePosts(ANTHROPIC_KEY, allPosts, businessContext, customPrompt)
 
-    // 4. Deduplicate before saving
-    //
-    // Layer A — within this scan: the same post can be returned by both the ICP
-    //   profile actor and the keyword search actor. Use Post ID as the canonical
-    //   key (not URL — LinkedIn tracking params make every share URL unique).
-    const seenThisScan = new Set<string>()
-    const dedupedQualifying = qualifying.filter(p => {
-      const pid = (p.postId || p.id || '').trim()
-      const url = canonicalUrl((p.postUrl || '').trim())
-      const key = pid || url          // prefer stable ID, fall back to canonical URL
-      if (!key) return true           // no key to dedup on — keep it
-      if (seenThisScan.has(key)) return false
-      seenThisScan.add(key)
-      return true
-    })
-
-    // Layer B — cross-scan: skip anything already stored from a previous scan.
-    //   LinkedIn ICP posts accumulate across runs; without this check every 6 AM/6 PM
-    //   scan re-captures the same posts and floods the inbox with duplicates.
-    //   Primary key: Post ID (stable activity number).
-    //   Fallback key: canonical URL (tracking params stripped).
-    const existing      = await fetchExistingPostKeys(tenantId)
-    const trulyNewPosts = dedupedQualifying.filter(p => {
-      const pid = (p.postId || p.id || '').trim()
-      const url = canonicalUrl((p.postUrl || '').trim())
-      if (pid && existing.ids.has(pid))  return false
-      if (url && existing.urls.has(url)) return false
-      return true
-    })
-
-    console.log(
-      `[scan] Dedup: ${qualifying.length} qualifying → ${dedupedQualifying.length} after within-scan dedup` +
-      ` → ${trulyNewPosts.length} after cross-scan dedup (${existing.urls.size} existing URLs checked)`
-    )
-
-    // 5. Save only genuinely new posts
-    let saved = 0
-    for (const p of trulyNewPosts) {
-      try {
-        await airtableCreate('Captured Posts', tenantId, {
-          'Post ID':            p.postId || p.id,
-          'Platform':           p.platform || 'LinkedIn',
-          'Group Name':         p.groupName || '',
-          'Author Name':        p.authorName || '',
-          'Author Profile URL': p.authorUrl || '',
-          'Post Text':          p.text || p.content || '',
-          'Post URL':           p.postUrl || '',
-          'Keywords Matched':   '',
-          'Relevance Score':    p.score || 5,
-          'Score Reason':       p.reason || '',
-          'Comment Approach':   p.comment_approach || '',
-          'Captured At':        p.capturedAt || new Date().toISOString(),
-          'Action':             'New',
-        })
-        saved++
-      } catch (saveErr: any) {
-        console.error('[scan] Failed to save post:', saveErr?.message)
-      }
-    }
+    // 4. Save
+    const saved = await saveScoredPosts(tenantId, scored)
 
     return {
       tenantId,
