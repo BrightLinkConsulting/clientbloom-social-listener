@@ -83,12 +83,21 @@ interface UsageRecord {
   companyName: string
   plan:        string
   status:      string
+  tenantId:    string
   postCount:   number | null
   lastScan:    string | null
-  estCost:     number | null
+  realCost:    number | null
+  costSource:  'tagged' | 'prorata' | 'own_key' | 'no_data'
   syncedAt:    string | null
   fromCache:   boolean
+  ownApify:    boolean
   error?:      string
+}
+
+interface ApifyAccount {
+  totalUsd:          number
+  billingCycleStart: string
+  billingCycleEnd:   string
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -511,7 +520,8 @@ export default function AdminPage() {
   const [usageData,        setUsageData]        = useState<UsageRecord[]>([])
   const [newestSyncedAt,   setNewestSyncedAt]   = useState<string | null>(null)
   const [usageFetchedAt,   setUsageFetchedAt]   = useState<Date | null>(null)
-  const [usageSortCol,     setUsageSortCol]     = useState<'postCount' | 'estCost' | 'companyName' | 'syncedAt'>('postCount')
+  const [apifyAccount,     setApifyAccount]     = useState<ApifyAccount | null>(null)
+  const [usageSortCol,     setUsageSortCol]     = useState<'postCount' | 'realCost' | 'companyName' | 'syncedAt'>('postCount')
   const [usageSortDir,     setUsageSortDir]     = useState<'asc' | 'desc'>('desc')
   const [loading,          setLoading]          = useState(true)
   const [statsLoad,        setStatsLoad]        = useState(true)
@@ -590,6 +600,7 @@ export default function AdminPage() {
         const data = await resp.json()
         setUsageData(data.usage || [])
         setNewestSyncedAt(data.newestSyncedAt || null)
+        setApifyAccount(data.apify || null)
         setUsageFetchedAt(new Date())
       }
     } catch {}
@@ -1409,7 +1420,7 @@ export default function AdminPage() {
           const sortedUsage = [...usageData].sort((a, b) => {
             let av: any, bv: any
             if (usageSortCol === 'postCount') { av = a.postCount ?? -1; bv = b.postCount ?? -1 }
-            else if (usageSortCol === 'estCost') { av = a.estCost ?? -1; bv = b.estCost ?? -1 }
+            else if (usageSortCol === 'realCost') { av = a.realCost ?? -1; bv = b.realCost ?? -1 }
             else if (usageSortCol === 'syncedAt') { av = a.syncedAt ? new Date(a.syncedAt).getTime() : 0; bv = b.syncedAt ? new Date(b.syncedAt).getTime() : 0 }
             else { av = (a.companyName || a.email).toLowerCase(); bv = (b.companyName || b.email).toLowerCase() }
             if (av < bv) return usageSortDir === 'asc' ? -1 : 1
@@ -1479,17 +1490,35 @@ export default function AdminPage() {
               </div>
             </div>
 
-            {/* Info banner */}
-            <div className="bg-[#0a0c10] border border-slate-700/50 rounded-lg px-4 py-3 flex items-center justify-between">
-              <span className="text-xs text-slate-500">
-                Cost estimates use ~$0.002/post (Apify starter tier). Actual costs vary by actor and usage tier.
-              </span>
-              {usageFetchedAt && (
-                <span className="text-[11px] text-slate-600 shrink-0 ml-4">
-                  Data fetched {usageFetchedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            {/* Apify account card */}
+            {apifyAccount ? (
+              <div className="bg-[#0a0c10] border border-slate-700/50 rounded-lg px-4 py-3 flex flex-wrap items-center gap-x-6 gap-y-2">
+                <div className="flex items-baseline gap-2">
+                  <span className="text-white font-bold text-lg tabular-nums">${apifyAccount.totalUsd.toFixed(4)}</span>
+                  <span className="text-slate-400 text-xs">actual spend this billing cycle</span>
+                </div>
+                <div className="text-[11px] text-slate-500">
+                  {new Date(apifyAccount.billingCycleStart).toLocaleDateString([], { month: 'short', day: 'numeric' })}
+                  {' – '}
+                  {new Date(apifyAccount.billingCycleEnd).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}
+                </div>
+                <div className="text-[11px] text-slate-600 ml-auto">
+                  Source: Apify /users/me/usage/monthly
+                  {usageFetchedAt && <> · fetched {usageFetchedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</>}
+                </div>
+              </div>
+            ) : (
+              <div className="bg-[#0a0c10] border border-slate-700/50 rounded-lg px-4 py-3 flex items-center justify-between">
+                <span className="text-xs text-slate-500">
+                  Apify account data unavailable — check APIFY_API_TOKEN env var.
                 </span>
-              )}
-            </div>
+                {usageFetchedAt && (
+                  <span className="text-[11px] text-slate-600 shrink-0 ml-4">
+                    Fetched {usageFetchedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                )}
+              </div>
+            )}
 
             {usageLoad ? (
               <div className="space-y-2">
@@ -1512,7 +1541,7 @@ export default function AdminPage() {
                       <th className="text-left text-[11px] font-semibold text-slate-500 uppercase tracking-wider px-4 py-3">Status</th>
                       <SortHeader col="postCount" label="Posts" right />
                       <SortHeader col="syncedAt"  label="Cache age" right />
-                      <SortHeader col="estCost"   label="Est. cost" right />
+                      <SortHeader col="realCost"  label="Apify cost" right />
                     </tr>
                   </thead>
                   <tbody>
@@ -1561,12 +1590,24 @@ export default function AdminPage() {
                             )}
                           </td>
                           <td className="px-4 py-3.5 pr-5 text-right">
-                            {u.estCost === null ? (
+                            {u.realCost === null ? (
                               <span className="text-slate-600 text-xs">—</span>
                             ) : (
-                              <span className="text-slate-300 text-xs tabular-nums">
-                                ~${u.estCost.toFixed(2)}
-                              </span>
+                              <div className="flex flex-col items-end gap-0.5">
+                                <span className="text-slate-200 text-xs tabular-nums font-semibold">
+                                  ${u.realCost.toFixed(4)}
+                                </span>
+                                <span className={`text-[10px] tabular-nums ${
+                                  u.costSource === 'tagged'   ? 'text-green-500' :
+                                  u.costSource === 'own_key'  ? 'text-blue-400'  :
+                                  u.costSource === 'prorata'  ? 'text-amber-500' :
+                                  'text-slate-600'
+                                }`}>
+                                  {u.costSource === 'tagged'  ? 'exact' :
+                                   u.costSource === 'own_key' ? 'own key' :
+                                   u.costSource === 'prorata' ? 'pro-rata' : ''}
+                                </span>
+                              </div>
                             )}
                           </td>
                         </tr>
@@ -1580,8 +1621,19 @@ export default function AdminPage() {
                         {usageData.reduce((s, u) => s + (u.postCount || 0), 0).toLocaleString()}
                       </td>
                       <td className="px-4 py-3" />
-                      <td className="px-5 py-3 text-right text-white font-bold text-sm tabular-nums">
-                        ~${usageData.reduce((s, u) => s + (u.estCost || 0), 0).toFixed(2)}
+                      <td className="px-5 py-3 text-right">
+                        <div className="flex flex-col items-end gap-0.5">
+                          {apifyAccount ? (
+                            <>
+                              <span className="text-white font-bold text-sm tabular-nums">${apifyAccount.totalUsd.toFixed(4)}</span>
+                              <span className="text-[10px] text-slate-500">billing cycle total</span>
+                            </>
+                          ) : (
+                            <span className="text-white font-bold text-sm tabular-nums">
+                              ${usageData.reduce((s, u) => s + (u.realCost || 0), 0).toFixed(4)}
+                            </span>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   </tfoot>

@@ -42,9 +42,12 @@ export async function startApifyRunAsync(
   input: object,
   memoryMbytes = 512,
   webhookUrl?: string,
+  tenantTag?: string,          // tenantId — stored as run tag for per-tenant cost attribution
 ): Promise<AsyncRunHandle | null> {
   const safeActorId = actorId.replace('/', '~')
-  const url = `https://api.apify.com/v2/acts/${safeActorId}/runs?token=${apifyToken}&memory=${memoryMbytes}`
+  // Encode tenantId as a run tag so we can later query /v2/actor-runs?tag=<tenantId>
+  const tagParam = tenantTag ? `&tag=${encodeURIComponent(tenantTag)}` : ''
+  const url = `https://api.apify.com/v2/acts/${safeActorId}/runs?token=${apifyToken}&memory=${memoryMbytes}${tagParam}`
 
   const body: any = { ...input }
 

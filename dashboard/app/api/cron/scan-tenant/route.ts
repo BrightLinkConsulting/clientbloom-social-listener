@@ -122,6 +122,7 @@ export async function POST(req: NextRequest) {
         },
         1024,       // 1 GB for async run — plenty of headroom
         webhookUrl,
+        tenantId,   // tag run with tenantId for per-tenant cost attribution
       )
 
       if (handle) {
