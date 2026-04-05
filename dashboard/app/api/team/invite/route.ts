@@ -85,7 +85,6 @@ export async function POST(req: Request) {
               'Is Feed Only':  true,
               'Status':        'Active',
               'Plan':          'Member',
-              'Invited By':    caller.email,
               'Created At':    new Date().toISOString().split('T')[0],
             },
           }],
