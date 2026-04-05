@@ -86,6 +86,8 @@ interface UsageRecord {
   postCount:   number | null
   lastScan:    string | null
   estCost:     number | null
+  syncedAt:    string | null
+  fromCache:   boolean
   error?:      string
 }
 
@@ -507,6 +509,10 @@ export default function AdminPage() {
   const [tenants,          setTenants]          = useState<Tenant[]>([])
   const [stats,            setStats]            = useState<StatsData | null>(null)
   const [usageData,        setUsageData]        = useState<UsageRecord[]>([])
+  const [newestSyncedAt,   setNewestSyncedAt]   = useState<string | null>(null)
+  const [usageFetchedAt,   setUsageFetchedAt]   = useState<Date | null>(null)
+  const [usageSortCol,     setUsageSortCol]     = useState<'postCount' | 'estCost' | 'companyName' | 'syncedAt'>('postCount')
+  const [usageSortDir,     setUsageSortDir]     = useState<'asc' | 'desc'>('desc')
   const [loading,          setLoading]          = useState(true)
   const [statsLoad,        setStatsLoad]        = useState(true)
   const [usageLoad,        setUsageLoad]        = useState(false)
@@ -583,13 +589,18 @@ export default function AdminPage() {
       if (resp.ok) {
         const data = await resp.json()
         setUsageData(data.usage || [])
+        setNewestSyncedAt(data.newestSyncedAt || null)
+        setUsageFetchedAt(new Date())
       }
     } catch {}
     finally { setUsageLoad(false) }
   }
 
+  // Auto-fetch on tab open; re-fetch if cached data is >55 min old
   useEffect(() => {
-    if (tab === 'usage' && usageData.length === 0 && !usageLoad) {
+    if (tab !== 'usage') return
+    const ageMs = usageFetchedAt ? Date.now() - usageFetchedAt.getTime() : Infinity
+    if (usageData.length === 0 || ageMs > 55 * 60 * 1000) {
       fetchUsage()
     }
   }, [tab]) // eslint-disable-line
@@ -1393,30 +1404,91 @@ export default function AdminPage() {
         )}
 
         {/* ── Usage tab ── */}
-        {tab === 'usage' && (
-          <div className="space-y-6">
+        {tab === 'usage' && (() => {
+          // Sort logic
+          const sortedUsage = [...usageData].sort((a, b) => {
+            let av: any, bv: any
+            if (usageSortCol === 'postCount') { av = a.postCount ?? -1; bv = b.postCount ?? -1 }
+            else if (usageSortCol === 'estCost') { av = a.estCost ?? -1; bv = b.estCost ?? -1 }
+            else if (usageSortCol === 'syncedAt') { av = a.syncedAt ? new Date(a.syncedAt).getTime() : 0; bv = b.syncedAt ? new Date(b.syncedAt).getTime() : 0 }
+            else { av = (a.companyName || a.email).toLowerCase(); bv = (b.companyName || b.email).toLowerCase() }
+            if (av < bv) return usageSortDir === 'asc' ? -1 : 1
+            if (av > bv) return usageSortDir === 'asc' ? 1 : -1
+            return 0
+          })
 
-            <div className="flex items-center justify-between">
+          // Sync freshness
+          const syncMsAgo  = newestSyncedAt ? Date.now() - new Date(newestSyncedAt).getTime() : null
+          const syncMinAgo = syncMsAgo !== null ? Math.floor(syncMsAgo / 60000) : null
+          const nextSyncIn = syncMinAgo !== null ? Math.max(0, 60 - syncMinAgo) : null
+
+          function SortHeader({ col, label, right = false }: { col: typeof usageSortCol; label: string; right?: boolean }) {
+            const active = usageSortCol === col
+            return (
+              <th
+                className={`${right ? 'text-right' : 'text-left'} text-[11px] font-semibold uppercase tracking-wider px-4 py-3 cursor-pointer select-none transition-colors ${
+                  active ? 'text-[#4F6BFF]' : 'text-slate-500 hover:text-slate-300'
+                }`}
+                onClick={() => {
+                  if (usageSortCol === col) setUsageSortDir(d => d === 'asc' ? 'desc' : 'asc')
+                  else { setUsageSortCol(col); setUsageSortDir('desc') }
+                }}
+              >
+                <span className={`inline-flex items-center gap-1 ${right ? 'justify-end w-full' : ''}`}>
+                  {label}
+                  {active
+                    ? <span className="text-[#4F6BFF]">{usageSortDir === 'desc' ? '↓' : '↑'}</span>
+                    : <span className="text-slate-700">↕</span>
+                  }
+                </span>
+              </th>
+            )
+          }
+
+          return (
+          <div className="space-y-5">
+
+            {/* Header row */}
+            <div className="flex items-start justify-between gap-4">
               <div>
                 <h1 className="text-xl font-semibold text-white">Usage</h1>
-                <p className="text-slate-400 text-sm mt-0.5">
-                  Per-tenant post counts and estimated Apify cost.
-                </p>
+                <p className="text-slate-400 text-sm mt-0.5">Per-tenant post counts and estimated Apify cost.</p>
               </div>
-              <button
-                onClick={fetchUsage}
-                disabled={usageLoad}
-                className="text-sm text-slate-400 hover:text-slate-200 transition-colors flex items-center gap-1.5"
-              >
-                <svg className={`w-4 h-4 ${usageLoad ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
-                Refresh
-              </button>
+              <div className="flex items-center gap-3 shrink-0 pt-1">
+                {/* Sync status badge */}
+                {newestSyncedAt && (
+                  <div className="text-right">
+                    <p className="text-xs text-slate-400">
+                      Last sync: <span className="text-slate-200">{syncMinAgo === 0 ? 'just now' : `${syncMinAgo}m ago`}</span>
+                    </p>
+                    {nextSyncIn !== null && (
+                      <p className="text-[11px] text-slate-600">Next in ~{nextSyncIn}m</p>
+                    )}
+                  </div>
+                )}
+                <button
+                  onClick={fetchUsage}
+                  disabled={usageLoad}
+                  className="text-sm text-slate-400 hover:text-slate-200 transition-colors flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-700 bg-slate-800/60 hover:bg-slate-700/60 disabled:opacity-40"
+                >
+                  <svg className={`w-3.5 h-3.5 ${usageLoad ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                  {usageLoad ? 'Loading…' : 'Refresh'}
+                </button>
+              </div>
             </div>
 
-            <div className="bg-[#0a0c10] border border-amber-800/30 rounded-lg px-4 py-3 text-xs text-amber-300">
-              Cost estimates use ~$0.002/post (Apify starter tier). Actual costs vary by actor and usage tier.
+            {/* Info banner */}
+            <div className="bg-[#0a0c10] border border-slate-700/50 rounded-lg px-4 py-3 flex items-center justify-between">
+              <span className="text-xs text-slate-500">
+                Cost estimates use ~$0.002/post (Apify starter tier). Actual costs vary by actor and usage tier.
+              </span>
+              {usageFetchedAt && (
+                <span className="text-[11px] text-slate-600 shrink-0 ml-4">
+                  Data fetched {usageFetchedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </span>
+              )}
             </div>
 
             {usageLoad ? (
@@ -1434,79 +1506,92 @@ export default function AdminPage() {
               <div className="bg-[#0f1117] border border-slate-800 rounded-xl overflow-hidden">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b border-slate-800">
-                      <th className="text-left text-slate-400 font-medium px-5 py-3">Tenant</th>
-                      <th className="text-left text-slate-400 font-medium px-4 py-3">Plan</th>
-                      <th className="text-left text-slate-400 font-medium px-4 py-3">Status</th>
-                      <th className="text-right text-slate-400 font-medium px-4 py-3">Posts captured</th>
-                      <th className="text-right text-slate-400 font-medium px-4 py-3">Last scan</th>
-                      <th className="text-right text-slate-400 font-medium px-5 py-3">Est. cost</th>
+                    <tr className="border-b border-slate-800 bg-[#0d0f15]">
+                      <SortHeader col="companyName" label="Tenant" />
+                      <th className="text-left text-[11px] font-semibold text-slate-500 uppercase tracking-wider px-4 py-3">Plan</th>
+                      <th className="text-left text-[11px] font-semibold text-slate-500 uppercase tracking-wider px-4 py-3">Status</th>
+                      <SortHeader col="postCount" label="Posts" right />
+                      <SortHeader col="syncedAt"  label="Cache age" right />
+                      <SortHeader col="estCost"   label="Est. cost" right />
                     </tr>
                   </thead>
                   <tbody>
-                    {usageData.map((u, i) => (
-                      <tr key={u.id} className={i < usageData.length - 1 ? 'border-b border-slate-800/50' : ''}>
-                        <td className="px-5 py-3.5">
-                          <p className="text-slate-200 font-medium">{u.companyName || '—'}</p>
-                          <p className="text-slate-500 text-xs">{u.email}</p>
-                        </td>
-                        <td className="px-4 py-3.5 text-slate-400 text-xs">{u.plan || '—'}</td>
-                        <td className="px-4 py-3.5">
-                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
-                            u.status === 'Active' ? 'bg-green-900/30 text-green-400' : 'bg-red-900/30 text-red-400'
-                          }`}>
-                            <span className={`w-1 h-1 rounded-full ${u.status === 'Active' ? 'bg-green-400' : 'bg-red-400'}`} />
-                            {u.status}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3.5 text-right">
-                          {u.error === 'no_credentials' ? (
-                            <span className="text-slate-600 text-xs">No credentials</span>
-                          ) : u.error ? (
-                            <span className="text-amber-500 text-xs" title={u.error}>Error</span>
-                          ) : u.postCount === null ? (
-                            <span className="text-slate-600 text-xs">—</span>
-                          ) : (
-                            <span className="text-slate-200 font-medium tabular-nums">
-                              {u.postCount >= 500 ? '500+' : u.postCount.toLocaleString()}
+                    {sortedUsage.map((u, i) => {
+                      const cacheAgeMs  = u.syncedAt ? Date.now() - new Date(u.syncedAt).getTime() : null
+                      const cacheAgeMin = cacheAgeMs !== null ? Math.floor(cacheAgeMs / 60000) : null
+                      const stale       = cacheAgeMin !== null && cacheAgeMin > 90
+
+                      return (
+                        <tr key={u.id} className={`transition-colors hover:bg-slate-800/20 ${i < sortedUsage.length - 1 ? 'border-b border-slate-800/50' : ''}`}>
+                          <td className="px-4 py-3.5 pl-5">
+                            <p className="text-slate-200 font-medium text-sm">{u.companyName || '—'}</p>
+                            <p className="text-slate-500 text-xs mt-0.5">{u.email}</p>
+                          </td>
+                          <td className="px-4 py-3.5 text-slate-400 text-xs">{u.plan || '—'}</td>
+                          <td className="px-4 py-3.5">
+                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
+                              u.status === 'Active' ? 'bg-green-900/30 text-green-400' : 'bg-red-900/30 text-red-400'
+                            }`}>
+                              <span className={`w-1 h-1 rounded-full ${u.status === 'Active' ? 'bg-green-400' : 'bg-red-400'}`} />
+                              {u.status}
                             </span>
-                          )}
-                        </td>
-                        <td className="px-4 py-3.5 text-right text-slate-400 text-xs">
-                          {scanAgo(u.lastScan)}
-                        </td>
-                        <td className="px-5 py-3.5 text-right">
-                          {u.estCost === null ? (
-                            <span className="text-slate-600 text-xs">—</span>
-                          ) : (
-                            <span className="text-slate-300 text-xs tabular-nums">
-                              ~${u.estCost.toFixed(2)}
-                            </span>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
+                          </td>
+                          <td className="px-4 py-3.5 text-right">
+                            {u.error === 'no_credentials' ? (
+                              <span className="text-slate-600 text-xs">No credentials</span>
+                            ) : u.error ? (
+                              <span className="text-amber-500 text-xs" title={u.error}>Error</span>
+                            ) : u.postCount === null ? (
+                              <span className="text-slate-600 text-xs">—</span>
+                            ) : (
+                              <span className="text-slate-200 font-semibold tabular-nums">
+                                {u.postCount.toLocaleString()}
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3.5 text-right">
+                            {u.syncedAt ? (
+                              <span className={`text-xs tabular-nums ${stale ? 'text-amber-400' : 'text-slate-500'}`}
+                                title={new Date(u.syncedAt).toLocaleString()}>
+                                {cacheAgeMin === 0 ? 'just now' : `${cacheAgeMin}m ago`}
+                                {stale && ' ⚠'}
+                              </span>
+                            ) : (
+                              <span className="text-slate-700 text-xs">live</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3.5 pr-5 text-right">
+                            {u.estCost === null ? (
+                              <span className="text-slate-600 text-xs">—</span>
+                            ) : (
+                              <span className="text-slate-300 text-xs tabular-nums">
+                                ~${u.estCost.toFixed(2)}
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      )
+                    })}
                   </tbody>
-                  {usageData.length > 0 && (
-                    <tfoot>
-                      <tr className="border-t border-slate-700">
-                        <td colSpan={3} className="px-5 py-3 text-xs text-slate-500 font-medium">Totals</td>
-                        <td className="px-4 py-3 text-right text-slate-300 font-semibold text-sm tabular-nums">
-                          {usageData.reduce((s, u) => s + (u.postCount || 0), 0).toLocaleString()}
-                        </td>
-                        <td className="px-4 py-3" />
-                        <td className="px-5 py-3 text-right text-slate-300 font-semibold text-sm tabular-nums">
-                          ~${usageData.reduce((s, u) => s + (u.estCost || 0), 0).toFixed(2)}
-                        </td>
-                      </tr>
-                    </tfoot>
-                  )}
+                  <tfoot>
+                    <tr className="border-t border-slate-700 bg-[#0d0f15]">
+                      <td colSpan={3} className="px-5 py-3 text-xs text-slate-500 font-semibold uppercase tracking-wider">Totals</td>
+                      <td className="px-4 py-3 text-right text-white font-bold text-sm tabular-nums">
+                        {usageData.reduce((s, u) => s + (u.postCount || 0), 0).toLocaleString()}
+                      </td>
+                      <td className="px-4 py-3" />
+                      <td className="px-5 py-3 text-right text-white font-bold text-sm tabular-nums">
+                        ~${usageData.reduce((s, u) => s + (u.estCost || 0), 0).toFixed(2)}
+                      </td>
+                    </tr>
+                  </tfoot>
                 </table>
               </div>
             )}
 
           </div>
-        )}
+          )
+        })()}
 
       </div>
     </div>

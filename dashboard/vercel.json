@@ -9,6 +9,7 @@
     { "path": "/api/cron/scan-collect", "schedule": "15 1 * * *"  },
     { "path": "/api/cron/scan-retry",   "schedule": "20 13 * * *" },
     { "path": "/api/cron/scan-retry",   "schedule": "20 1 * * *"  },
-    { "path": "/api/cron/digest",       "schedule": "0 15 * * *"  }
+    { "path": "/api/cron/digest",       "schedule": "0 15 * * *"  },
+    { "path": "/api/cron/usage-sync",   "schedule": "0 * * * *"   }
   ]
 }
