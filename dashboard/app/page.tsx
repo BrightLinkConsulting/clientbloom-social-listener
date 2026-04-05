@@ -67,6 +67,60 @@ function displayName(email: string): string {
 
 type ActionFilter = 'New' | 'Engaged' | 'Replied' | 'Skipped' | 'CRM' | 'all'
 
+// ---- Next scan countdown ----
+// Scanner runs at 6 AM and 6 PM PST every day.
+function getNextScanMs(): number {
+  const now      = new Date()
+  // Offset from UTC to PST (UTC-8) or PDT (UTC-7); use fixed PST for simplicity
+  const pstOffset = 8 * 60 * 60 * 1000
+  const pstNow    = new Date(now.getTime() - pstOffset)
+  const h = pstNow.getUTCHours()
+  const m = pstNow.getUTCMinutes()
+  const s = pstNow.getUTCSeconds()
+
+  // Build candidate times in PST (as UTC ms since epoch)
+  const todayBase = Date.UTC(
+    pstNow.getUTCFullYear(), pstNow.getUTCMonth(), pstNow.getUTCDate()
+  ) + pstOffset   // back to real UTC
+
+  const scan6am  = todayBase + 6  * 3600 * 1000
+  const scan6pm  = todayBase + 18 * 3600 * 1000
+  const scan6am2 = scan6am  + 24 * 3600 * 1000  // tomorrow 6 AM
+
+  const nowMs = now.getTime()
+  if      (nowMs < scan6am)  return scan6am  - nowMs
+  else if (nowMs < scan6pm)  return scan6pm  - nowMs
+  else                       return scan6am2 - nowMs
+}
+
+function formatCountdown(ms: number): string {
+  if (ms <= 0) return 'scanning now…'
+  const totalSec = Math.floor(ms / 1000)
+  const h = Math.floor(totalSec / 3600)
+  const m = Math.floor((totalSec % 3600) / 60)
+  const s = totalSec % 60
+  if (h > 0) return `${h}h ${String(m).padStart(2, '0')}m ${String(s).padStart(2, '0')}s`
+  if (m > 0) return `${m}m ${String(s).padStart(2, '0')}s`
+  return `${s}s`
+}
+
+function NextScanCountdown() {
+  const [remaining, setRemaining] = useState(getNextScanMs())
+
+  useEffect(() => {
+    const tick = () => setRemaining(getNextScanMs())
+    tick()
+    const id = setInterval(tick, 1000)
+    return () => clearInterval(id)
+  }, [])
+
+  return (
+    <span className="tabular-nums">
+      Next scan in <span className="text-slate-400 font-medium">{formatCountdown(remaining)}</span>
+    </span>
+  )
+}
+
 // ---- Helpers ----
 function timeAgo(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime()
@@ -1055,9 +1109,9 @@ function FeedPage() {
           </div>
         ) : (
           <>
-            {/* Subtle refresh note */}
-            <p className="text-xs text-slate-700 mb-4 text-right">
-              Scout checks every 5 min · last updated {timeAgo(lastRefreshed.toISOString())} · Scanner runs 2× daily
+            {/* Next scan countdown */}
+            <p className="text-xs text-slate-600 mb-4 text-right">
+              <NextScanCountdown />
             </p>
             <div className="space-y-3">
               {posts.map(post => (
