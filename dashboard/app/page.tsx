@@ -1053,7 +1053,9 @@ function FeedPage() {
       {/* Tab bar + filters */}
       <div className="sticky top-[61px] z-10 bg-[#0a0c10]/95 backdrop-blur-md border-b border-slate-800/60">
         <div className="max-w-3xl mx-auto px-5">
-          <div className="flex items-center gap-0 overflow-x-auto">
+          <div className="flex items-center gap-2">
+            {/* Scrollable tab strip */}
+            <div className="flex items-center gap-0 overflow-x-auto flex-1 min-w-0 scrollbar-none">
             {tabs.map(tab => {
               const count = tabCounts[tab.id]
               return (
@@ -1077,9 +1079,10 @@ function FeedPage() {
                 </button>
               )
             })}
+            </div>{/* end scrollable tab strip */}
 
-            <div className="ml-auto flex items-center gap-2 py-1.5 shrink-0">
-              {/* Group filter */}
+            {/* Fixed right-side controls — always visible, never inside the scroll area */}
+            <div className="flex items-center gap-2 py-1.5 shrink-0">
               {availableGroups.length > 0 && (
                 <select
                   value={groupFilter}
@@ -1092,7 +1095,6 @@ function FeedPage() {
                   ))}
                 </select>
               )}
-
               <button
                 onClick={() => fetchPosts()}
                 className="text-xs px-3 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 transition-colors whitespace-nowrap"
