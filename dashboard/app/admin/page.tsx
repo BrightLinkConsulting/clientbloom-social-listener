@@ -533,6 +533,7 @@ export default function AdminPage() {
   const [tab,              setTab]              = useState<'overview' | 'tenants' | 'usage'>('overview')
   const [expandedApify,    setExpandedApify]    = useState<string | null>(null)
   const [openMenuId,       setOpenMenuId]       = useState<string | null>(null)
+  const [menuAnchor,       setMenuAnchor]       = useState<{ top: number; right: number } | null>(null)
 
   // Task 1: Inline company name editing
   const [editingCompanyId,  setEditingCompanyId]  = useState<string | null>(null)
@@ -1158,7 +1159,8 @@ export default function AdminPage() {
               orphans.forEach(t => rows.push({ kind: 'orphan', tenant: t }))
 
               return (
-              <div className="bg-[#0f1117] border border-slate-800 rounded-xl overflow-hidden">
+              <div className="overflow-x-auto">
+              <div className="bg-[#0f1117] border border-slate-800 rounded-xl overflow-hidden min-w-[640px]">
                 {filtered.length === 0 ? (
                   <div className="text-center py-10 text-slate-500 text-sm">No tenants match your filters.</div>
                 ) : (
@@ -1327,7 +1329,15 @@ export default function AdminPage() {
                               {/* ⋮ Overflow menu — Apify, Reset PW, Delete */}
                               <div className="relative">
                                 <button
-                                  onClick={() => setOpenMenuId(openMenuId === t.id ? null : t.id)}
+                                  onClick={(e) => {
+                                    if (openMenuId === t.id) {
+                                      setOpenMenuId(null); setMenuAnchor(null)
+                                    } else {
+                                      const rect = e.currentTarget.getBoundingClientRect()
+                                      setMenuAnchor({ top: rect.bottom + 6, right: window.innerWidth - rect.right })
+                                      setOpenMenuId(t.id)
+                                    }
+                                  }}
                                   title="More actions"
                                   className="w-8 h-8 rounded-lg border bg-slate-800/80 border-slate-700 text-slate-400 hover:text-slate-200 hover:bg-slate-700/80 hover:border-slate-600 flex items-center justify-center transition-all"
                                 >
@@ -1336,12 +1346,15 @@ export default function AdminPage() {
                                   </svg>
                                 </button>
 
-                                {openMenuId === t.id && (
+                                {openMenuId === t.id && menuAnchor && (
                                   <>
                                     {/* Click-away backdrop */}
-                                    <div className="fixed inset-0 z-40" onClick={() => setOpenMenuId(null)} />
-                                    {/* Dropdown */}
-                                    <div className="absolute right-0 top-9 z-50 w-48 bg-[#0f1117] border border-slate-700/80 rounded-xl shadow-2xl overflow-hidden">
+                                    <div className="fixed inset-0 z-40" onClick={() => { setOpenMenuId(null); setMenuAnchor(null) }} />
+                                    {/* Dropdown — fixed to viewport so it is never clipped by overflow:hidden */}
+                                    <div
+                                      style={{ top: menuAnchor.top, right: menuAnchor.right }}
+                                      className="fixed z-50 w-48 bg-[#0f1117] border border-slate-700/80 rounded-xl shadow-2xl overflow-hidden"
+                                    >
 
                                       {/* Apify */}
                                       <button
@@ -1407,6 +1420,7 @@ export default function AdminPage() {
                   </tbody>
                 </table>
                 )}
+              </div>
               </div>
             )
             })()}
