@@ -864,8 +864,145 @@ function Nav({ lastScannedAt, scanHealth }: { lastScannedAt: string | null; scan
   )
 }
 
+// ── Types for history ─────────────────────────────────────────────────────────
+interface DaySnapshot {
+  date:     string
+  surfaced: number
+  engaged:  number
+  replied:  number
+  crm:      number
+}
+
+// ── Sparkline chart ───────────────────────────────────────────────────────────
+function MomentumSparkline({ history }: { history: DaySnapshot[] }) {
+  const DAYS     = 14
+  const BAR_W    = 10
+  const BAR_GAP  = 3
+  const H        = 44
+  const today    = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' })
+
+  // Build a full 14-day window ending today
+  const days: { date: string; delta: number; isToday: boolean }[] = []
+  for (let i = DAYS - 1; i >= 0; i--) {
+    const d   = new Date()
+    d.setDate(d.getDate() - i)
+    const key = d.toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' })
+    const idx = history.findIndex(s => s.date === key)
+    let delta = 0
+    if (idx > 0) {
+      const cur  = history[idx]
+      const prev = history[idx - 1]
+      delta = Math.max(0, (cur.engaged - prev.engaged) + (cur.replied - prev.replied) * 2 + (cur.crm - prev.crm))
+    } else if (idx === 0) {
+      // First ever snapshot — use absolute value
+      delta = (history[0].engaged + history[0].replied * 2 + history[0].crm)
+    }
+    days.push({ date: key, delta, isToday: key === today })
+  }
+
+  const maxDelta = Math.max(1, ...days.map(d => d.delta))
+
+  const totalW = DAYS * BAR_W + (DAYS - 1) * BAR_GAP
+  const svgW   = totalW
+
+  const dayLabels = ['S','M','T','W','T','F','S']
+
+  return (
+    <div className="mt-3 pt-3 border-t border-slate-800/60">
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-[10px] text-slate-600 uppercase tracking-wider">14-day activity</span>
+        <span className="text-[10px] text-slate-600">engagements per day</span>
+      </div>
+      <svg
+        width="100%"
+        viewBox={`0 0 ${svgW} ${H + 14}`}
+        preserveAspectRatio="none"
+        className="overflow-visible"
+        style={{ display: 'block' }}
+      >
+        <defs>
+          {/* Glow filter for active bars */}
+          <filter id="glow-bar" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur stdDeviation="2.5" result="blur" />
+            <feMerge>
+              <feMergeNode in="blur" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+          {/* Stronger glow for high-activity days */}
+          <filter id="glow-bar-strong" x="-80%" y="-80%" width="260%" height="260%">
+            <feGaussianBlur stdDeviation="4" result="blur" />
+            <feMerge>
+              <feMergeNode in="blur" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+          <linearGradient id="bar-grad-hi" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#34d399" />
+            <stop offset="100%" stopColor="#3b82f6" />
+          </linearGradient>
+          <linearGradient id="bar-grad-mid" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#60a5fa" />
+            <stop offset="100%" stopColor="#818cf8" />
+          </linearGradient>
+          <linearGradient id="bar-grad-today" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#a78bfa" />
+            <stop offset="100%" stopColor="#6366f1" />
+          </linearGradient>
+        </defs>
+
+        {days.map((day, i) => {
+          const x        = i * (BAR_W + BAR_GAP)
+          const pct      = day.delta / maxDelta
+          const minH     = 3
+          const barH     = day.delta === 0 ? minH : Math.max(minH, Math.round(pct * H))
+          const y        = H - barH
+          const isHigh   = pct >= 0.6
+          const isMid    = pct >= 0.2
+          const fill     = day.isToday ? 'url(#bar-grad-today)' : isHigh ? 'url(#bar-grad-hi)' : isMid ? 'url(#bar-grad-mid)' : '#1e293b'
+          const opacity  = day.delta === 0 ? 0.35 : 1
+          const filter   = isHigh ? 'url(#glow-bar-strong)' : isMid ? 'url(#glow-bar)' : undefined
+          const weekDay  = new Date(day.date + 'T12:00:00').getDay()
+          const labelTxt = dayLabels[weekDay]
+
+          return (
+            <g key={day.date} opacity={opacity}>
+              <rect
+                x={x}
+                y={y}
+                width={BAR_W}
+                height={barH}
+                rx={2.5}
+                fill={fill}
+                filter={filter}
+              />
+              {/* Subtle day-of-week label below */}
+              <text
+                x={x + BAR_W / 2}
+                y={H + 12}
+                textAnchor="middle"
+                fontSize="6"
+                fill={day.isToday ? '#a78bfa' : '#374151'}
+                fontFamily="system-ui, sans-serif"
+              >
+                {labelTxt}
+              </text>
+            </g>
+          )
+        })}
+      </svg>
+    </div>
+  )
+}
+
 // ── Engagement Momentum Widget ─────────────────────────────────────────────
-function MomentumWidget({ actionCounts }: { actionCounts: Record<string, number> }) {
+function MomentumWidget({
+  actionCounts,
+  history,
+}: {
+  actionCounts: Record<string, number>
+  history:      DaySnapshot[]
+}) {
   const totalNew     = actionCounts['New']     || 0
   const totalEngaged = actionCounts['Engaged'] || 0
   const totalReplied = actionCounts['Replied'] || 0
@@ -900,10 +1037,10 @@ function MomentumWidget({ actionCounts }: { actionCounts: Record<string, number>
 
       <div className="grid grid-cols-4 gap-2 mb-3">
         {([
-          { label: 'Surfaced',  value: String(totalSurfaced), sub: 'by Scout',     color: 'text-white'         },
-          { label: 'Engaged',   value: String(totalEngaged),  sub: 'conversations',color: 'text-blue-400'      },
-          { label: 'Replied',   value: String(totalReplied),  sub: 'connections',  color: 'text-emerald-400'   },
-          { label: 'Rate',      value: `${engagementPct}%`,   sub: 'engaged',      color: engagementPct >= 20 ? 'text-emerald-400' : 'text-slate-400' },
+          { label: 'Surfaced',  value: String(totalSurfaced), color: 'text-white'         },
+          { label: 'Engaged',   value: String(totalEngaged),  color: 'text-blue-400'      },
+          { label: 'Replied',   value: String(totalReplied),  color: 'text-emerald-400'   },
+          { label: 'Rate',      value: `${engagementPct}%`,   color: engagementPct >= 20 ? 'text-emerald-400' : 'text-slate-400' },
         ] as const).map((stat, i) => (
           <div key={i} className="text-center py-1">
             <div className={`text-xl font-bold leading-tight ${stat.color}`}>{stat.value}</div>
@@ -927,10 +1064,13 @@ function MomentumWidget({ actionCounts }: { actionCounts: Record<string, number>
       ) : (
         <p className="text-[11px] text-slate-600 mt-2 leading-snug">
           {totalReplied > 0
-            ? `${totalReplied} conversation${totalReplied !== 1 ? 's' : ''} started · ${totalSurfaced - totalActed - totalSkipped} new post${totalSurfaced - totalActed - totalSkipped !== 1 ? 's' : ''} waiting`
+            ? `${totalReplied} conversation${totalReplied !== 1 ? 's' : ''} started · ${totalNew} new post${totalNew !== 1 ? 's' : ''} waiting`
             : `${totalEngaged} engagement${totalEngaged !== 1 ? 's' : ''} recorded · keep going — replies are where relationships begin`}
         </p>
       )}
+
+      {/* 14-day sparkline — only rendered once history is populated */}
+      {history.length >= 2 && <MomentumSparkline history={history} />}
     </div>
   )
 }
@@ -968,6 +1108,8 @@ function FeedPage() {
   const [error, setError] = useState<string | null>(null)
   const [crmType, setCrmType] = useState('None')
   const [scanHealth, setScanHealth] = useState<ScanHealth | null>(null)
+  const [momentumHistory, setMomentumHistory] = useState<DaySnapshot[]>([])
+  const historySyncedRef = useRef(false)
   const refreshTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   // First-run: redirect to onboarding if no posts exist and never onboarded
@@ -1069,6 +1211,40 @@ function FeedPage() {
       if (refreshTimerRef.current) clearInterval(refreshTimerRef.current)
     }
   }, [fetchPosts])
+
+  // Fetch momentum history on mount (for sparkline)
+  useEffect(() => {
+    fetch('/api/engagement-history')
+      .then(r => r.json())
+      .then(d => { if (Array.isArray(d.history)) setMomentumHistory(d.history) })
+      .catch(() => {})
+  }, [])
+
+  // Sync today's snapshot once per session when actionCounts is first populated
+  useEffect(() => {
+    if (historySyncedRef.current) return
+    const totalSurfaced =
+      (actionCounts['New']     || 0) +
+      (actionCounts['Engaged'] || 0) +
+      (actionCounts['Replied'] || 0) +
+      (actionCounts['Skipped'] || 0) +
+      (actionCounts['CRM']     || 0)
+    if (totalSurfaced === 0) return
+    historySyncedRef.current = true
+    fetch('/api/engagement-history', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        surfaced: totalSurfaced,
+        engaged:  actionCounts['Engaged'] || 0,
+        replied:  actionCounts['Replied'] || 0,
+        crm:      actionCounts['CRM']     || 0,
+      }),
+    })
+      .then(r => r.json())
+      .then(d => { if (Array.isArray(d.history)) setMomentumHistory(d.history) })
+      .catch(() => {})
+  }, [actionCounts])
 
   const handleAction = async (recordId: string, action: string) => {
     setUpdating(recordId)
@@ -1178,7 +1354,7 @@ function FeedPage() {
       </div>
 
       <main className="max-w-3xl mx-auto px-5 py-6">
-        <MomentumWidget actionCounts={actionCounts} />
+        <MomentumWidget actionCounts={actionCounts} history={momentumHistory} />
 
         {error && (
           <div className="mb-4 p-4 rounded-xl bg-red-900/20 border border-red-700/40 text-red-400 text-sm">

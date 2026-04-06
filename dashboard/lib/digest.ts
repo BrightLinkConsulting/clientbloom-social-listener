@@ -88,12 +88,14 @@ function todayMidnightUTC(): string {
 }
 
 interface BriefStats {
-  newToday:     number
-  linkedin:     number
-  topScore:     number
-  totalActive:  number
-  totalEngaged: number
-  totalReplied: number
+  newToday:          number
+  linkedin:          number
+  topScore:          number
+  totalActive:       number
+  totalEngaged:      number
+  totalReplied:      number
+  relationshipScore: number
+  momentumTrend:     'up' | 'flat' | 'down' | 'new'
 }
 
 async function getBriefStats(tenantId: string): Promise<BriefStats> {
@@ -138,10 +140,42 @@ async function getBriefStats(tenantId: string): Promise<BriefStats> {
   for (const r of pipelinePosts) {
     const action = r.fields?.['Action'] || 'New'
     const status = r.fields?.['Engagement Status'] || ''
-    if (status === 'replied')   totalReplied++
+    if (status === 'replied')      totalReplied++
     else if (action === 'Engaged') totalEngaged++
-    else totalActive++
+    else                           totalActive++
   }
+
+  // Relationship score — same formula as the frontend MomentumWidget
+  const totalSurfaced       = totalActive + totalEngaged + totalReplied
+  const rawScore            = ((totalEngaged + totalReplied * 2) / Math.max(1, totalSurfaced)) * 150
+  const relationshipScore   = Math.min(100, Math.round(rawScore))
+
+  // Read stored momentum history to determine trend
+  let momentumTrend: BriefStats['momentumTrend'] = 'new'
+  try {
+    const bpParams = new URLSearchParams({
+      filterByFormula: tenantFilter(tenantId),
+      'fields[]': 'Momentum History',
+      pageSize: '1',
+    })
+    const bpRes  = await fetch(`${AIRTABLE_BASE}/${SHARED_BASE}/Business%20Profile?${bpParams}`, {
+      headers: { Authorization: `Bearer ${PROV_TOKEN}` },
+    })
+    const bpData = await bpRes.json()
+    const raw    = bpData.records?.[0]?.fields?.['Momentum History'] || '[]'
+    const history: { date: string; engaged: number; replied: number; surfaced: number }[] = JSON.parse(raw)
+    if (history.length >= 2) {
+      // Compare last 3 days vs the 3 days before that
+      const recent = history.slice(-3)
+      const prior  = history.slice(-6, -3)
+      const recentAct = recent.reduce((s, d) => s + d.engaged + d.replied * 2, 0)
+      const priorAct  = prior.reduce( (s, d) => s + d.engaged + d.replied * 2, 0)
+      if (prior.length === 0)       momentumTrend = 'new'
+      else if (recentAct > priorAct * 1.1) momentumTrend = 'up'
+      else if (recentAct < priorAct * 0.7) momentumTrend = 'down'
+      else                                  momentumTrend = 'flat'
+    }
+  } catch { /* non-fatal */ }
 
   return {
     newToday: todayPosts.length,
@@ -150,6 +184,8 @@ async function getBriefStats(tenantId: string): Promise<BriefStats> {
     totalActive,
     totalEngaged,
     totalReplied,
+    relationshipScore,
+    momentumTrend,
   }
 }
 
@@ -162,24 +198,45 @@ function formatDate(): string {
 }
 
 function buildBriefBlocks(stats: BriefStats): { blocks: object[]; fallback: string } {
-  const { newToday, linkedin, topScore, totalActive, totalEngaged, totalReplied } = stats
+  const {
+    newToday, topScore,
+    totalActive, totalEngaged, totalReplied,
+    relationshipScore, momentumTrend,
+  } = stats
 
   const platformLine = newToday > 0 && topScore >= 7
     ? `↳ top score *${topScore}/10*`
     : null
 
   const pipelineTotal = totalActive + totalEngaged + totalReplied
-  const pipelineLine  = pipelineTotal > 0
-    ? `*${pipelineTotal} ${pipelineTotal !== 1 ? 'opportunities' : 'opportunity'}* in your pipeline  ·  ${totalEngaged} engaged  ·  ${totalReplied} replied`
-    : null
 
   const newLeadsText = newToday > 0
-    ? `*${newToday} new ${newToday !== 1 ? 'opportunities' : 'opportunity'}* added to your feed today`
-    : `No new opportunities matched your filters today — your sources are still running`
+    ? `*${newToday} new ${newToday !== 1 ? 'conversations' : 'conversation'}* added to your feed today`
+    : `No new posts matched your filters today — your sources are still running`
+
+  // Momentum section
+  const trendIcon = momentumTrend === 'up'   ? '📈'
+                  : momentumTrend === 'down' ? '⚠️'
+                  : momentumTrend === 'flat' ? '→'
+                  : '🚀'
+
+  const trendText = momentumTrend === 'up'
+    ? `Engagement building — keep it going`
+    : momentumTrend === 'down'
+    ? `Engagement dropped lately — ${totalActive} posts waiting in your inbox`
+    : momentumTrend === 'flat'
+    ? `Engagement steady — ${totalActive} posts waiting`
+    : `${totalActive} posts waiting for your first engagement`
+
+  const momentumLine = `${trendIcon}  Relationship Score: *${relationshipScore}/100*  ·  ${trendText}`
+
+  const pipelineLine = pipelineTotal > 0
+    ? `${totalEngaged} engaged  ·  ${totalReplied} replied  ·  *${totalActive} in inbox*`
+    : null
 
   const fallback = newToday > 0
-    ? `Scout: ${newToday} new ${newToday !== 1 ? 'opportunities' : 'opportunity'} today. ${pipelineTotal} in pipeline. Open Scout to review.`
-    : `Scout: No new opportunities today. ${pipelineTotal} in pipeline.`
+    ? `Scout: ${newToday} new ${newToday !== 1 ? 'conversations' : 'conversation'} today. Score: ${relationshipScore}/100. ${totalActive} in inbox.`
+    : `Scout: No new posts today. Score: ${relationshipScore}/100. ${totalActive} waiting in inbox.`
 
   const blocks: object[] = [
     {
@@ -202,11 +259,16 @@ function buildBriefBlocks(stats: BriefStats): { blocks: object[]; fallback: stri
 
   blocks.push({ type: 'divider' })
   blocks.push({
+    type: 'section',
+    text: { type: 'mrkdwn', text: momentumLine },
+  })
+  blocks.push({ type: 'divider' })
+  blocks.push({
     type: 'actions',
     elements: [{
       type:      'button',
       style:     'primary',
-      text:      { type: 'plain_text', text: 'Review in Scout →', emoji: true },
+      text:      { type: 'plain_text', text: 'Open Scout →', emoji: true },
       url:       DASHBOARD_URL,
       action_id: 'open_scout',
     }],
