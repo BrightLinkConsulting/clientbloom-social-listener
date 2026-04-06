@@ -1,5 +1,6 @@
 """
 agent.py — Main orchestrator for the ClientBloom Social Listener.
+# diagnostic: min_score_to_save lowered to 2 to inspect Facebook post quality
 
 Run order per execution:
   1. Load config + credentials
