@@ -6,10 +6,9 @@
  *   - GET  /api/cron/scan     (automatic, iterates all active tenants)
  *
  * Reliability architecture:
- *   LinkedIn  → sync (fast, ~5-10s) with automatic retry on empty result
- *   Facebook  → sync with extended timeout (90s) + retry; falls back to
- *               async-start if both sync attempts fail (results collected
- *               by /api/cron/scan-collect 15 min later)
+ *   LinkedIn (ICP profiles) → sync, up to 8 profiles, 10 posts each, with retry
+ *   LinkedIn (keyword terms) → sync, up to 4 terms in parallel, 25 posts each
+ *   Facebook → REMOVED (browser-based actor: high cost, near-zero qualifying posts)
  *
  * Error categories logged for each failure:
  *   TIMEOUT    – Apify actor exceeded waitSecs (most common Facebook failure)
@@ -329,31 +328,36 @@ async function scanLinkedIn(
     const items = await runApifyActorWithRetry(
       apifyToken,
       'harvestapi/linkedin-profile-posts',
-      { profileUrls: icpProfiles, maxPosts: 5, proxy: { useApifyProxy: true }, scrapeReactions: false, scrapeComments: false },
+      { profileUrls: icpProfiles, maxPosts: 10, proxy: { useApifyProxy: true }, scrapeReactions: false, scrapeComments: false },
       { waitSecs: 45, memoryMbytes: 256 },
-      { profileUrls: icpProfiles.slice(0, 2), maxPosts: 3, proxy: { useApifyProxy: true }, scrapeReactions: false, scrapeComments: false },
+      { profileUrls: icpProfiles.slice(0, 4), maxPosts: 5, proxy: { useApifyProxy: true }, scrapeReactions: false, scrapeComments: false },
       { waitSecs: 60, memoryMbytes: 512 },
       'LinkedIn ICP profiles',
     )
     return { source: 'icp_profiles', posts: items.map(normalizeLinkedInIcpPost) }
   }
 
-  if (linkedinTerms.length > 0 || fallbackTerm) {
-    const searchTerm = linkedinTerms[0] || fallbackTerm
-    console.log(`[scan] LinkedIn: keyword search for "${searchTerm}"`)
-    const items = await runApifyActorWithRetry(
-      apifyToken,
-      'apimaestro/linkedin-posts-search-scraper-no-cookies',
-      { searchQuery: searchTerm, limit: 15, sort_type: 'relevance' },
-      { waitSecs: 45, memoryMbytes: 256 },
-      { searchQuery: searchTerm, limit: 8, sort_type: 'relevance' },
-      { waitSecs: 60, memoryMbytes: 512 },
-      `LinkedIn keyword "${searchTerm}"`,
-    )
-    return { source: 'keyword_search', posts: items.map(r => normalizeLinkedInKeywordPost(r, searchTerm)) }
-  }
+  // Run all configured keyword terms in parallel (up to 4) — each is an independent
+  // API-based actor call (cheap, ~$0.001/run) with no shared browser state.
+  const terms = linkedinTerms.length > 0 ? linkedinTerms : (fallbackTerm ? [fallbackTerm] : [])
+  if (terms.length === 0) return { posts: [], source: '' }
 
-  return { posts: [], source: '' }
+  console.log(`[scan] LinkedIn: keyword search for ${terms.length} term(s): ${terms.join(', ')}`)
+  const results = await Promise.all(
+    terms.map(term =>
+      runApifyActorWithRetry(
+        apifyToken,
+        'apimaestro/linkedin-posts-search-scraper-no-cookies',
+        { searchQuery: term, limit: 25, sort_type: 'relevance' },
+        { waitSecs: 45, memoryMbytes: 256 },
+        { searchQuery: term, limit: 15, sort_type: 'relevance' },
+        { waitSecs: 60, memoryMbytes: 512 },
+        `LinkedIn keyword "${term}"`,
+      ).then(items => items.map(r => normalizeLinkedInKeywordPost(r, term)))
+    )
+  )
+  const posts = results.flat()
+  return { source: 'keyword_search', posts }
 }
 
 // ── Exports ───────────────────────────────────────────────────────────────────
@@ -364,7 +368,7 @@ export interface ScanResult {
   scanSource: string
   message:    string
   error?:     string
-  fbPending?: boolean  // true when Facebook async run started but not yet collected
+  fbPending?: boolean  // legacy field — kept for API compatibility
 }
 
 // apifyTokenOverride: tenant's own Apify key (set by admin for account isolation).
@@ -393,34 +397,23 @@ export async function runScanForTenant(
     ].filter(Boolean).join('\n')
     const customPrompt = (profile['Scoring Prompt'] || '').trim()
 
-    // 2a. LinkedIn ICP profiles
+    // 2a. LinkedIn ICP profiles (up to 8 — API-based actor, cheap per profile)
     const icpJson     = await atGet(tenantId, 'LinkedIn ICPs', '{Active}=1')
     const icpProfiles = (icpJson.records || [])
-      .slice(0, 3)
+      .slice(0, 8)
       .map((r: any) => r.fields['Profile URL'])
       .filter(Boolean)
 
-    // 2b. All sources — split by type
-    const sourcesJson    = await atGet(tenantId, 'Sources', '{Active}=1')
-    const allSources     = sourcesJson.records || []
-    const linkedinTerms  = allSources
+    // 2b. LinkedIn keyword terms (up to 4 — each term runs as a parallel API call)
+    const sourcesJson   = await atGet(tenantId, 'Sources', '{Active}=1')
+    const allSources    = sourcesJson.records || []
+    const linkedinTerms = allSources
       .filter((r: any) => r.fields['Type'] === 'linkedin_term')
-      .slice(0, 2)
-      .map((r: any) => r.fields['Value'] || r.fields['Name'])
-      .filter(Boolean)
-    const facebookGroups = allSources
-      .filter((r: any) => r.fields['Type'] === 'facebook_group')
-      .slice(0, 5)
+      .slice(0, 4)
       .map((r: any) => r.fields['Value'] || r.fields['Name'])
       .filter(Boolean)
 
-    // 2c. Facebook keywords for post-fetch filtering
-    const fbKeywordsJson = await atGet(tenantId, 'Facebook Keywords', '{Active}=1')
-    const fbKeywords     = (fbKeywordsJson.records || [])
-      .map((r: any) => r.fields['Keyword'] || '')
-      .filter(Boolean) as string[]
-
-    // 2d. Smart fallback from business profile (LinkedIn only)
+    // 2c. Smart fallback from business profile
     let fallbackTerm = ''
     if (!icpProfiles.length && !linkedinTerms.length) {
       const industry    = (profile['Industry']     || '').split(',')[0].trim()
@@ -428,22 +421,16 @@ export async function runScanForTenant(
       fallbackTerm = industry || idealClient || ''
     }
 
-    // ── LinkedIn + Facebook run in PARALLEL ──────────────────────────────────
-    // Each has its own retry logic. Wall-clock time is determined by whichever
-    // takes longer (Facebook at worst 90s + 60s retry = 150s, LinkedIn < 60s).
-    // Vercel maxDuration is 300s — plenty of headroom.
-    const [linkedinResult, facebookPosts] = await Promise.all([
-      scanLinkedIn(APIFY_TOKEN, icpProfiles, linkedinTerms, fallbackTerm),
-      scanFacebookGroups(APIFY_TOKEN, facebookGroups, fbKeywords),
-    ])
+    // ── LinkedIn-only scan ───────────────────────────────────────────────────
+    // Facebook scraping removed: browser-based actor costs ~$5/day at minimal
+    // usage and produces 0 posts above score threshold in practice.
+    // LinkedIn (API-based actors) costs ~$0.10-0.40/day for unlimited tenants.
+    const linkedinResult = await scanLinkedIn(APIFY_TOKEN, icpProfiles, linkedinTerms, fallbackTerm)
 
-    const allPosts = [...linkedinResult.posts, ...facebookPosts]
-    const scanSources = [
-      linkedinResult.source || (linkedinResult.posts.length ? 'linkedin' : ''),
-      facebookPosts.length ? 'facebook_groups' : '',
-    ].filter(Boolean).join('+') || 'none'
+    const allPosts    = linkedinResult.posts
+    const scanSources = linkedinResult.source || 'none'
 
-    console.log(`[scan] Total: ${linkedinResult.posts.length} LinkedIn + ${facebookPosts.length} Facebook = ${allPosts.length} posts`)
+    console.log(`[scan] Total: ${linkedinResult.posts.length} LinkedIn posts`)
 
     if (!allPosts.length) {
       return {
