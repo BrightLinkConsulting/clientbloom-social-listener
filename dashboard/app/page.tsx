@@ -1101,6 +1101,7 @@ function FeedPage() {
   const [filter, setFilter] = useState<ActionFilter>('New')
   const [groupFilter, setGroupFilter] = useState('all')
   const [updating, setUpdating] = useState<string | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
   const [actionCounts, setActionCounts] = useState<Record<string, number>>({})
   const [availableGroups, setAvailableGroups] = useState<string[]>([])
   const [lastScannedAt, setLastScrapedAt] = useState<string | null>(null)
@@ -1248,6 +1249,7 @@ function FeedPage() {
 
   const handleAction = async (recordId: string, action: string) => {
     setUpdating(recordId)
+    setActionError(null)
     try {
       const res = await fetch(`/api/posts/${recordId}`, {
         method: 'PATCH',
@@ -1255,22 +1257,56 @@ function FeedPage() {
         body: JSON.stringify({ action }),
       })
       if (res.ok) {
-        const old = posts.find(p => p.id === recordId)?.fields?.Action || 'New'
+        const existingPost = posts.find(p => p.id === recordId)
+        const old = existingPost?.fields?.Action || 'New'
+        const oldEngStatus = existingPost?.fields?.['Engagement Status'] || ''
+
+        // Update tab counts — mirror how the server categorises each state
+        const countKey = (a: string, es: string) =>
+          a === 'Engaged' && es === 'replied' ? 'Replied'
+          : a === 'Engaged'                   ? 'Engaged'
+          : a
+
         setActionCounts(prev => ({
           ...prev,
-          [old]: Math.max(0, (prev[old] || 0) - 1),
-          [action]: (prev[action] || 0) + 1,
+          [countKey(old, oldEngStatus)]: Math.max(0, (prev[countKey(old, oldEngStatus)] || 0) - 1),
+          [action === 'Replied' ? 'Replied' : action === 'Archived' ? 'Archived' : action]:
+            (prev[action === 'Replied' ? 'Replied' : action === 'Archived' ? 'Archived' : action] || 0) + 1,
         }))
-        // Optimistic update — remove from view after short delay if it no longer matches filter
+
+        // Optimistic field update — mirror exactly what the server writes
+        // so isEngaged / isReplied / isSkipped flags stay correct
+        let newAction    = action
+        let newEngStatus = ''
+        if (action === 'Replied') {
+          newAction    = 'Engaged'
+          newEngStatus = 'replied'
+        } else if (action === 'Archived') {
+          newAction    = old          // server keeps Action unchanged for Archived
+          newEngStatus = 'archived'
+        }
+
         setPosts(prev => prev.map(p =>
-          p.id === recordId ? { ...p, fields: { ...p.fields, Action: action } } : p
+          p.id === recordId
+            ? { ...p, fields: { ...p.fields, Action: newAction, 'Engagement Status': newEngStatus } }
+            : p
         ))
+
+        // Remove from view after short delay if the post no longer belongs in this tab
         if (action !== filter && filter !== 'all') {
           setTimeout(() => {
             setPosts(prev => prev.filter(p => p.id !== recordId))
           }, 500)
         }
+      } else {
+        let msg = `Action failed (HTTP ${res.status})`
+        try { const d = await res.json(); if (d.error) msg = d.error } catch {}
+        console.error('[Scout] handleAction PATCH failed:', res.status, msg)
+        setActionError(msg)
       }
+    } catch (e: any) {
+      console.error('[Scout] handleAction fetch error:', e)
+      setActionError('Network error — check your connection and try again.')
     } finally {
       setUpdating(null)
     }
@@ -1359,6 +1395,13 @@ function FeedPage() {
         {error && (
           <div className="mb-4 p-4 rounded-xl bg-red-900/20 border border-red-700/40 text-red-400 text-sm">
             {error}
+          </div>
+        )}
+
+        {actionError && (
+          <div className="mb-4 p-3 rounded-xl bg-red-900/20 border border-red-700/40 text-red-400 text-sm flex items-center justify-between gap-3">
+            <span>⚠ {actionError}</span>
+            <button onClick={() => setActionError(null)} className="text-red-600 hover:text-red-400 text-xs shrink-0">Dismiss</button>
           </div>
         )}
 
