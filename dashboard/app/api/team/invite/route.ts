@@ -135,7 +135,7 @@ export async function POST(req: Request) {
             <p style="margin:0 0 6px;font-size:13px;font-weight:600;color:#1e40af">What you can do</p>
             <ul style="margin:0;padding-left:16px;font-size:13px;color:#374151;line-height:1.8">
               <li>View and filter all incoming ICP posts in the feed</li>
-              <li>Copy AI-generated comment starters and reply on LinkedIn or Facebook</li>
+              <li>Copy AI-generated comment starters and reply on LinkedIn</li>
               <li>Mark posts as Engaged, Replied, or Skipped</li>
               <li>Refresh the feed to pull the latest scans</li>
             </ul>

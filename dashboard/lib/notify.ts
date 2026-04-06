@@ -49,7 +49,7 @@ export async function sendScanAlert(payload: ScanAlertPayload): Promise<void> {
   const color     = isError ? '#ef4444' : '#f59e0b'
   const guidance  = isError
     ? 'This usually means an Apify actor failed, a token expired, or Airtable is unreachable. Check the Vercel function logs for the full stack trace.'
-    : 'No posts came back from any source. This can mean an actor silently returned empty results, Facebook groups have no recent posts, or LinkedIn sources are misconfigured. Check your Sources and LinkedIn ICPs in Scout settings.'
+    : 'No posts came back from any source. This can mean an actor silently returned empty results or LinkedIn sources are misconfigured. Check your ICP profiles and keyword terms in Scout settings.'
 
   const html = `
     <div style="font-family:sans-serif;max-width:540px;margin:0 auto;color:#1a1a1a">

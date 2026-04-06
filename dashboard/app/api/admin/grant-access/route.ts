@@ -124,7 +124,7 @@ export async function POST(req: Request) {
             Hey${displayName !== cleanEmail ? ` ${displayName}` : ''},
             you have full Scout access for the next 14 days — completely free.
             Sign in below, complete the 2-minute setup, and Scout will start finding
-            high-intent leads on LinkedIn and Facebook for you automatically.
+            high-intent LinkedIn leads for you automatically.
           </p>
 
           ${note ? `<p style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:12px 16px;font-size:13px;color:#92400e;margin:0 0 24px">${note}</p>` : ''}
@@ -167,7 +167,7 @@ export async function POST(req: Request) {
 
           <hr style="border:none;border-top:1px solid #e5e5e5;margin:24px 0 16px" />
           <p style="font-size:12px;color:#aaa;margin:0;line-height:1.6">
-            Scout monitors LinkedIn and Facebook for high-intent conversations matching your ICP.
+            Scout monitors LinkedIn for high-intent conversations matching your ICP.
             Your captured opportunities and profile data are preserved if you subscribe after the trial.
           </p>
         </div>

@@ -90,7 +90,6 @@ function todayMidnightUTC(): string {
 interface BriefStats {
   newToday:     number
   linkedin:     number
-  facebook:     number
   topScore:     number
   totalActive:  number
   totalEngaged: number
@@ -108,8 +107,7 @@ async function getBriefStats(tenantId: string): Promise<BriefStats> {
       IS_AFTER({Captured At}, '${since}'),
       {Engagement Status}!='archived'
     )`,
-    'fields[]':  'Platform',
-    'fields[1]': 'Relevance Score',
+    'fields[]': 'Relevance Score',
     pageSize: '100',
   })
 
@@ -129,12 +127,10 @@ async function getBriefStats(tenantId: string): Promise<BriefStats> {
     fetchAllRecords('Captured Posts', pipelineParams),
   ])
 
-  let linkedin = 0, facebook = 0, topScore = 0
+  let linkedin = 0, topScore = 0
   for (const r of todayPosts) {
-    const platform = (r.fields?.['Platform'] || '').toLowerCase()
-    const score    = r.fields?.['Relevance Score'] || 0
-    if (platform.includes('facebook')) facebook++
-    else linkedin++
+    const score = r.fields?.['Relevance Score'] || 0
+    linkedin++
     if (score > topScore) topScore = score
   }
 
@@ -150,7 +146,6 @@ async function getBriefStats(tenantId: string): Promise<BriefStats> {
   return {
     newToday: todayPosts.length,
     linkedin,
-    facebook,
     topScore,
     totalActive,
     totalEngaged,
@@ -167,10 +162,10 @@ function formatDate(): string {
 }
 
 function buildBriefBlocks(stats: BriefStats): { blocks: object[]; fallback: string } {
-  const { newToday, linkedin, facebook, topScore, totalActive, totalEngaged, totalReplied } = stats
+  const { newToday, linkedin, topScore, totalActive, totalEngaged, totalReplied } = stats
 
-  const platformLine = newToday > 0
-    ? `↳ ${linkedin} LinkedIn  ·  ${facebook} Facebook${topScore >= 7 ? `  ·  top score *${topScore}/10*` : ''}`
+  const platformLine = newToday > 0 && topScore >= 7
+    ? `↳ top score *${topScore}/10*`
     : null
 
   const pipelineTotal = totalActive + totalEngaged + totalReplied
