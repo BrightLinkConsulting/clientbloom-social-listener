@@ -2,7 +2,7 @@
  * /api/posts/[id] — Update a post's Action, Engagement Status, Notes, or Reply Log.
  *
  * Body options:
- *   { action: 'New' | 'Engaged' | 'Skipped' }           — standard status change (sets Engaged By)
+ *   { action: 'New' | 'Engaged' | 'Skipped' }           — standard status change
  *   { action: 'Replied' }                                — keeps Action=Engaged, sets Engagement Status=replied
  *   { action: 'Archived' }                               — sets Engagement Status=archived
  *   { notes: string }                                    — saves notes + Notes Updated By from session
@@ -73,13 +73,9 @@ export async function PATCH(
     if (coreActions.includes(action)) {
       fields['Action']            = action
       fields['Engagement Status'] = ''
-      if (action === 'Engaged') {
-        fields['Engaged By'] = tenant.email
-      }
     } else if (action === 'Replied') {
       fields['Action']            = 'Engaged'
       fields['Engagement Status'] = 'replied'
-      fields['Engaged By']        = tenant.email
     } else if (action === 'Archived') {
       fields['Engagement Status'] = 'archived'
     }
