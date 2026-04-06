@@ -16,26 +16,26 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'ANTHROPIC_API_KEY not configured' }, { status: 500 })
     }
 
-    const metaPrompt = `You are an expert at writing AI scoring prompts for social listening tools.
+    const metaPrompt = `You are an expert at writing AI scoring prompts for LinkedIn relationship intelligence tools.
 
-A user has answered a few questions about their business. Use their answers to write a high-quality, structured scoring prompt that their AI will use to evaluate social media posts and decide which ones are worth engaging with.
+A user has answered questions about their business. Use their answers to write a scoring prompt their AI will use to identify LinkedIn posts worth engaging with — not to find people in pain, but to find the right moments to show up, add value, and become a familiar, trusted face to their ideal clients.
 
 USER'S ANSWERS:
 - Ideal client: ${idealClient}
-- Problem they solve: ${problemSolved}
-- High-value post signals: ${highValueSignals || 'Not specified — infer from above'}
+- Value they deliver: ${problemSolved}
+- Conversation types to prioritize: ${highValueSignals || 'Not specified — infer from above'}
 - What to filter out: ${lowValueSignals || 'Not specified — infer from above'}
 - Comment style preference: ${commentStyle || 'Peer-to-peer, 2–3 sentences, non-salesy'}
 
 Write a scoring prompt that:
-1. Opens with a 2-sentence role description for the AI (who it's supporting, what that person sells, what their goal is)
-2. Has a "WHAT MAKES A HIGH-SCORE POST (7–10)" section with 4–6 specific bullet points based on their answers
-3. Has a "WHAT MAKES A LOW-SCORE POST (1–4)" section with 4–5 bullet points
-4. Has a "SCORING SCALE" section defining 9–10, 7–8, 5–6, and 1–4 bands
-5. Has a "COMMENT APPROACH RULES" section with 4–5 rules for how to engage with qualifying posts
-6. Ends with the line: "Return ONLY a JSON array. No markdown, no explanation, no preamble."
+1. Opens with a 2-sentence role description for the AI: who it is supporting, what that person sells, and that the goal is relationship-building through genuine, valuable engagement — not identifying pain or pitching solutions.
+2. Has a "HIGH-VALUE CONVERSATION ENTRIES (7–10)" section with 4–6 specific bullet points. Focus on: questions, debates, opinions, milestones, evaluations, thought leadership the user can add to — all tuned to this user's specific ICP and industry language.
+3. Has a "LOW-VALUE / SKIP (1–4)" section with 3–4 bullets: pure broadcast content, irrelevant posts, promotional posts, no natural comment angle.
+4. Has a "SCORING SCALE" section defining 9–10, 7–8, 5–6, and 1–4 bands.
+5. Has a "COMMENT APPROACH RULES" section with 4–5 rules. Rules must emphasize: adding specific insight the post didn't cover, sharing a counterintuitive perspective, asking one genuinely curious follow-up question. Explicitly state: no pitching, no "I can help with that," no offering services. The goal is to be someone they want to know.
+6. Ends with: "Return ONLY a JSON array: [{post_id, score, reason, comment_approach}]. No markdown, no explanation, no preamble."
 
-Write the prompt in second person to the AI. Be specific — use the user's actual industry language, not generic placeholders.
+Write the prompt in second person to the AI. Be specific — use the user's actual industry language and the names of their ICP roles, not generic placeholders.
 Output only the prompt text itself, no explanation, no wrapper.`
 
     const resp = await fetch('https://api.anthropic.com/v1/messages', {

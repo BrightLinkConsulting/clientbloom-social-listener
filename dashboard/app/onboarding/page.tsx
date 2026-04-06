@@ -17,12 +17,12 @@ function ClientBloomMark({ size = 32 }: { size?: number }) {
 }
 
 const SIGNALS = [
-  { id: 'asking_for_help', label: 'Publicly asking for tool or service recommendations' },
-  { id: 'frustration', label: 'Expressing frustration with their current solution' },
-  { id: 'announcing_problem', label: 'Announcing a business challenge or problem' },
-  { id: 'growing_team', label: 'Looking to grow, hire, or scale their business' },
-  { id: 'shopping_alternatives', label: 'Comparing or shopping for alternatives' },
-  { id: 'milestone', label: 'Celebrating a milestone that signals a transition' },
+  { id: 'questions', label: 'Asking questions or seeking advice from their network' },
+  { id: 'industry_discussion', label: 'Starting or joining an industry debate or discussion' },
+  { id: 'milestone', label: 'Announcing a milestone, promotion, or company change' },
+  { id: 'scaling', label: 'Talking about growing, hiring, or scaling their business' },
+  { id: 'evaluating', label: 'Comparing tools, vendors, or evaluating alternatives' },
+  { id: 'thought_leadership', label: 'Sharing bold takes or opinions you can thoughtfully add to' },
 ]
 
 function StepDots({ current, total }: { current: number; total: number }) {
@@ -57,9 +57,9 @@ function Step1({
   const valid = data.industry.trim() && data.idealClient.trim()
   return (
     <div>
-      <h2 className="text-2xl font-bold text-white mb-2">Tell us about your business</h2>
+      <h2 className="text-2xl font-bold text-white mb-2">Tell Scout who you serve</h2>
       <p className="text-slate-400 text-sm mb-8">
-        Scout uses this to score LinkedIn posts — the more specific your ICP description, the sharper the results.
+        This is how Scout knows which conversations are worth your time. The more specific you are about your ideal client and what you do for them, the more precisely Scout will surface the right moments on LinkedIn.
       </p>
 
       <div className="space-y-5">
@@ -95,20 +95,20 @@ function Step1({
             value={data.idealClient}
             onChange={e => onChange('idealClient', e.target.value)}
             rows={3}
-            placeholder="e.g. Marketing agency owners with 10–50 clients who use GoHighLevel and struggle to retain clients month-to-month."
+            placeholder="e.g. Marketing agency owners with 10–50 clients who use GoHighLevel. Decision-makers, usually the founder or ops lead, typically posting about growth, systems, or client management."
             className="w-full bg-slate-800/60 border border-slate-700/60 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/60 focus:ring-1 focus:ring-blue-500/20 transition-colors resize-none"
           />
         </div>
 
         <div>
           <label className="block text-xs font-medium text-slate-400 mb-1.5 uppercase tracking-wide">
-            What problem do you solve for them?
+            What value do you deliver for them?
           </label>
           <textarea
             value={data.problemSolved}
             onChange={e => onChange('problemSolved', e.target.value)}
             rows={2}
-            placeholder="e.g. We help agencies track client health scores and get early warnings before clients churn."
+            placeholder="e.g. We help agencies systematize client retention so they stop losing clients they thought were happy — and start getting referrals instead."
             className="w-full bg-slate-800/60 border border-slate-700/60 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/60 focus:ring-1 focus:ring-blue-500/20 transition-colors resize-none"
           />
         </div>
@@ -139,9 +139,9 @@ function Step2({
 }) {
   return (
     <div>
-      <h2 className="text-2xl font-bold text-white mb-2">What signals matter to you?</h2>
+      <h2 className="text-2xl font-bold text-white mb-2">What conversation moments matter?</h2>
       <p className="text-slate-400 text-sm mb-8">
-        When someone in your LinkedIn ICP posts one of these signals, Scout surfaces it in your inbox. Select all that apply.
+        Scout surfaces LinkedIn posts that create a natural opening for you to show up and add value. Select the types of conversations you want to be part of — these train Scout's scoring for your feed.
       </p>
 
       <div className="space-y-2.5">
@@ -257,11 +257,11 @@ function Step3({
         </h2>
         <p className="text-slate-400 text-sm mb-2">
           {postsFound > 0
-            ? 'Your inbox has posts waiting. Each one is an opportunity to start a real conversation.'
-            : "Your profile is saved. Your next automatic scan runs at 6 AM or 6 PM PST — check back then."}
+            ? 'Your feed is live. Each post is a real conversation you can join right now — with a comment starter already written for you.'
+            : "Your profile is saved. Your next automatic scan runs at 6 AM or 6 PM PST — posts will be waiting when you check back."}
         </p>
         {postsFound > 0 && (
-          <p className="text-slate-600 text-xs mb-8">New posts arrive twice daily, automatically.</p>
+          <p className="text-slate-600 text-xs mb-8">Scout scans twice daily. The more you engage, the more visible you become.</p>
         )}
         {postsFound === 0 && <div className="mb-8" />}
         <button
@@ -288,8 +288,8 @@ function Step3({
         </h2>
         <p className="text-slate-400 text-sm mb-8">
           {status === 'saving'
-            ? 'Saving your business profile so Scout knows what to listen for on LinkedIn.'
-            : 'Searching LinkedIn for your ICP posts and scoring them. This takes about 30 seconds.'}
+            ? 'Saving your profile so Scout knows exactly which conversations are worth your time.'
+            : 'Searching LinkedIn for conversations worth joining and scoring each one. Takes about 30 seconds.'}
         </p>
 
         {/* Progress bar */}
@@ -332,9 +332,9 @@ function Step3({
   // idle state
   return (
     <div>
-      <h2 className="text-2xl font-bold text-white mb-2">Ready to run your first LinkedIn scan</h2>
+      <h2 className="text-2xl font-bold text-white mb-2">Run your first scan</h2>
       <p className="text-slate-400 text-sm mb-8">
-        Scout will search LinkedIn for relevant posts right now and put the best ones in your inbox in about 30 seconds.
+        Scout will search LinkedIn for conversations worth joining right now and score them for you. Takes about 30 seconds. From here, your feed updates automatically twice a day — you just show up and engage.
       </p>
 
       {/* Summary card */}
@@ -350,11 +350,11 @@ function Step3({
           <span className="text-sm text-slate-300">{data.industry}</span>
         </div>
         <div className="flex items-start gap-3">
-          <span className="text-slate-600 text-xs mt-0.5 w-20 shrink-0">Listening for</span>
+          <span className="text-slate-600 text-xs mt-0.5 w-20 shrink-0">Entry points</span>
           <span className="text-sm text-slate-300">
             {data.signalTypes.length > 0
-              ? `${data.signalTypes.length} signal type${data.signalTypes.length !== 1 ? 's' : ''} selected`
-              : 'All signal types'}
+              ? `${data.signalTypes.length} conversation type${data.signalTypes.length !== 1 ? 's' : ''} selected`
+              : 'All conversation types'}
           </span>
         </div>
       </div>
@@ -416,7 +416,7 @@ export default function OnboardingPage() {
           <ClientBloomMark size={32} />
           <div>
             <p className="text-sm font-semibold text-white leading-tight">Scout <span className="text-slate-500 font-normal">by ClientBloom</span></p>
-            <p className="text-xs text-slate-500">LinkedIn ICP listener · setup</p>
+            <p className="text-xs text-slate-500">LinkedIn relationship intelligence · setup</p>
           </div>
         </div>
 

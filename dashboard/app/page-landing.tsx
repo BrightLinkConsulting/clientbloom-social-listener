@@ -53,17 +53,17 @@ export default function LandingPage() {
 
           <div className="inline-flex items-center gap-2 bg-[#4F6BFF]/10 border border-[#4F6BFF]/20 rounded-full px-4 py-1.5 mb-8">
             <span className="w-1.5 h-1.5 rounded-full bg-[#4F6BFF] animate-pulse" />
-            <span className="text-[#4F6BFF] text-xs font-medium tracking-wide uppercase">LinkedIn Prospect Intelligence</span>
+            <span className="text-[#4F6BFF] text-xs font-medium tracking-wide uppercase">LinkedIn Relationship Intelligence</span>
           </div>
 
           <h1 className="text-5xl md:text-6xl lg:text-7xl font-bold text-white leading-[1.08] tracking-tight mb-6">
-            Your ideal clients are<br />
-            posting about their<br />
-            <span className="text-[#4F6BFF]">problems right now.</span>
+            Your next client is on<br />
+            LinkedIn right now.<br />
+            <span className="text-[#4F6BFF]">Scout puts you in front of them.</span>
           </h1>
 
           <p className="text-xl text-slate-400 max-w-2xl mx-auto leading-relaxed mb-10">
-            Scout monitors LinkedIn for your exact ICPs, scores every post for engagement opportunity, and hands you a ready-to-paste comment written in your voice and tuned to your business. Start real conversations in seconds, not hours.
+            Sales Navigator helps you interrupt the right people. Scout shows up in the conversations your buyers are already having — and hands you the perfect thing to say. Build real relationships before anyone asks you to pitch.
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
@@ -92,9 +92,9 @@ export default function LandingPage() {
                 <span className="ml-auto text-xs text-[#4F6BFF] font-medium">14 new posts</span>
               </div>
               {[
-                { score: 9, platform: 'LinkedIn', name: 'Jennifer R.', title: 'Agency Owner', text: 'Spending 3+ hours a week manually reviewing client accounts. Has to be a better way. Anyone using AI for this?', tag: 'Pain Signal', tagColor: 'text-red-400 bg-red-400/10' },
-                { score: 8, platform: 'LinkedIn', name: 'Marcus T.', title: 'Marketing Consultant', text: 'My team keeps dropping the ball on client onboarding. Third time this quarter. Considering switching our entire ops stack.', tag: 'Decision Mode', tagColor: 'text-amber-400 bg-amber-400/10' },
-                { score: 7, platform: 'LinkedIn', name: 'Sarah K.', title: 'Business Coach', text: 'Lost two clients this month I thought were happy. Zero warning signs. How are you actually tracking client health?', tag: 'Retention Pain', tagColor: 'text-orange-400 bg-orange-400/10' },
+                { score: 9, platform: 'LinkedIn', name: 'Jennifer R.', title: 'Agency Owner · ICP Profile', text: 'Scaling from 12 to 20 clients this quarter. Mostly excited, a little terrified. Anyone else find the systems that worked at 10 clients completely break at 20?', tag: 'ICP Active', tagColor: 'text-blue-400 bg-blue-400/10' },
+                { score: 8, platform: 'LinkedIn', name: 'Marcus T.', title: 'Marketing Consultant', text: 'Hot take: The agencies that survive the next 3 years will be the ones who got proactive about client communication, not reactive. Who\'s doing this well right now?', tag: 'Discussion Starter', tagColor: 'text-amber-400 bg-amber-400/10' },
+                { score: 7, platform: 'LinkedIn', name: 'Sarah K.', title: 'VP of Sales', text: 'Three consultants pitched us this week on AI tools. Different packaging, same promises. How do you actually evaluate vendors when everyone sounds identical?', tag: 'Conversation Hook', tagColor: 'text-emerald-400 bg-emerald-400/10' },
               ].map((post, i) => (
                 <div key={i} className={`flex gap-3 py-3 ${i < 2 ? 'border-b border-slate-800/50' : ''}`}>
                   <div className={`w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-bold ${
@@ -125,25 +125,25 @@ export default function LandingPage() {
         <div className="max-w-4xl mx-auto">
           <div className="text-center mb-16">
             <h2 className="text-4xl font-bold text-white mb-4">The conversation is happening.<br />You're just not in it.</h2>
-            <p className="text-slate-400 text-lg max-w-2xl mx-auto">Every day, your ideal clients are posting about the exact problems you solve — on LinkedIn, in public, visible to anyone. But invisible to you because there's no system watching.</p>
+            <p className="text-slate-400 text-lg max-w-2xl mx-auto">Your ICP is on LinkedIn every day — posting, discussing, asking questions, sharing opinions. The people who build the deepest relationships show up in those moments consistently. You can't do that manually.</p>
           </div>
 
           <div className="grid md:grid-cols-3 gap-6">
             {[
               {
                 icon: '🔎',
-                title: 'You\'re missing buying signals',
-                body: 'When someone posts "I\'m overwhelmed with client work and need a system" — that\'s an invitation. It expires in 24 hours. Manual scrolling catches maybe 5% of them.'
+                title: 'You\'re missing daily entry points',
+                body: 'When an ICP posts a question, shares a milestone, or kicks off an industry debate — that\'s a natural opening. It expires in 24 hours. Manual scrolling catches maybe 5% of them.'
               },
               {
                 icon: '⏰',
-                title: 'Timing is everything in social selling',
-                body: 'The first credible, helpful voice in a conversation wins. Your competitors aren\'t faster because they\'re smarter — they just have a system. You don\'t. Yet.'
+                title: 'Familiarity is built through repetition',
+                body: 'Buyers choose people they recognize. The first credible voice that shows up consistently in their feed wins. Your competitors aren\'t smarter — they just have a system. You don\'t. Yet.'
               },
               {
                 icon: '📊',
-                title: 'No system means no consistency',
-                body: 'You engage when you remember. You forget to follow up. You have no record of who said what, when. Every week starts from zero.'
+                title: 'No system means no momentum',
+                body: 'You engage when you remember. You lose track of who you\'ve already talked to. There\'s no record, no momentum, no sense that it\'s working. Every week starts from zero.'
               }
             ].map((item, i) => (
               <div key={i} className="bg-[#0f1117] border border-slate-800 rounded-xl p-6">
@@ -156,10 +156,9 @@ export default function LandingPage() {
 
           <div className="mt-12 bg-gradient-to-r from-[#4F6BFF]/10 to-transparent border border-[#4F6BFF]/20 rounded-2xl p-8">
             <p className="text-slate-300 text-lg leading-relaxed">
-              Here's the math nobody talks about. If your average client is worth $3,000–$10,000 — and you're missing 10–15 high-signal conversations a week — that's conservatively
-              <span className="text-white font-bold"> $150,000–$500,000 in pipeline you're walking past.</span>
+              Here's what actually drives inbound from LinkedIn. It's not volume of cold messages. It's recognizability — showing up in the right conversations often enough that when someone needs what you do, you're the first name they think of. Scout builds that surface area for you, automatically, every single day.
               <br /><br />
-              Not because the opportunity wasn't there. Because you didn't have eyes on it.
+              <span className="text-white font-bold">That's the compounding advantage manual scrolling will never give you.</span>
             </p>
           </div>
         </div>
@@ -177,15 +176,15 @@ export default function LandingPage() {
             {[
               {
                 step: '01',
-                title: 'Tell Scout who you\'re looking for',
-                body: 'Add your LinkedIn search terms and ICP profiles. If you sell to marketing agency owners, Scout finds where they post and watches continuously. Takes five minutes.',
+                title: 'Tell Scout who you want to be visible to',
+                body: 'Add the LinkedIn profiles of specific people you want to build relationships with, plus keyword terms around topics your ICP discusses. Scout watches their activity continuously — not for pain signals, but for any moment worth showing up in.',
                 detail: 'Configure once. Scout watches permanently.'
               },
               {
                 step: '02',
-                title: 'AI scores every post — and writes your opener',
-                body: 'Scout runs twice daily, pulling posts from your sources. Each one gets a 1–10 relevance score, a reason, and a ready-to-paste comment written in first person from your business angle. Not a prompt. Not a suggestion. The actual words you can post right now.',
-                detail: 'Only the highest-opportunity posts surface in your inbox.'
+                title: 'AI scores every post and writes your opener',
+                body: 'Scout runs twice daily, pulling posts from your sources. Each one gets a 1–10 conversation score, a reason it\'s worth your time, and a ready-to-paste comment written in first person from your business perspective. Not a template. The actual words — tuned to the specific post and your voice.',
+                detail: 'Only the highest-opportunity posts surface in your feed.'
               },
               {
                 step: '03',
@@ -222,7 +221,7 @@ export default function LandingPage() {
               <span className="text-emerald-400 text-xs font-medium tracking-wide uppercase">The part that saves you</span>
             </div>
             <h2 className="text-4xl font-bold text-white mb-4">Not just what to read.<br />Exactly what to say.</h2>
-            <p className="text-slate-400 text-lg max-w-2xl mx-auto">Finding the right post is step one. Knowing how to respond — in your voice, from your angle, without sounding like a bot — is where most people freeze. Scout handles that part too.</p>
+            <p className="text-slate-400 text-lg max-w-2xl mx-auto">Spotting the right post is step one. Knowing how to respond — in your voice, from your angle, in a way that makes them want to know who you are — is where most people freeze. Scout handles that part too.</p>
           </div>
 
           {/* Demo card */}
@@ -331,9 +330,9 @@ export default function LandingPage() {
 
           <div className="grid md:grid-cols-3 gap-6">
             {[
-              { title: 'Marketing Agencies', desc: 'Your potential clients are complaining about ad performance, bad agencies, and wasted budgets. In public. Daily. Scout finds them the moment they say it.' },
-              { title: 'Coaches & Consultants', desc: 'Your ICPs describe the exact transformation you offer — in words you could have written yourself — and nobody from your world is in the conversation. Scout puts you there first.' },
-              { title: 'B2B Service Providers', desc: 'If your business runs on long-term client relationships and referrals, Scout is the front of your pipeline. It fills the top with warm, pre-qualified conversations.' },
+              { title: 'Marketing Agencies', desc: 'Your potential clients are on LinkedIn every day — discussing strategy, sharing lessons, asking questions. Scout surfaces those moments and puts the right response in your hands before anyone else shows up.' },
+              { title: 'Coaches & Consultants', desc: 'Your business runs on trust and recognizability. Scout builds both — consistently putting you in conversations with exactly the right people until they know your name before you ever pitch them.' },
+              { title: 'B2B Service Providers', desc: 'If your business runs on long-term client relationships and referrals, Scout is the front of your pipeline. It fills the top with warm, pre-qualified conversations — not cold introductions.' },
             ].map((item, i) => (
               <div key={i} className="bg-[#0f1117] border border-slate-800 rounded-xl p-6 hover:border-[#4F6BFF]/30 transition-colors">
                 <h3 className="text-white font-semibold text-lg mb-3">{item.title}</h3>
@@ -457,7 +456,7 @@ export default function LandingPage() {
               },
               {
                 q: 'What does the AI scoring actually mean?',
-                a: 'Every post gets a 1–10 relevance score based on how strong of an engagement opportunity it represents for your specific business. A 9–10 means someone is describing an exact pain point or situation where you can add clear, genuine value. A 5–6 is possible but tangential. Anything below 5 doesn\'t show up.'
+                a: 'Every post gets a 1–10 conversation score based on how strong of a natural entry point it creates for you. A 9–10 means someone is asking a question, starting a discussion, announcing a milestone, or sharing an opinion you can genuinely add to — and showing up there will be remembered. A 5–6 is tangentially relevant but not compelling. Anything below 5 doesn\'t surface. The score is never about whether someone is in pain — it\'s about whether you can say something worth saying.'
               },
               {
                 q: 'Can I connect my CRM?',
@@ -465,7 +464,7 @@ export default function LandingPage() {
               },
               {
                 q: 'How is this different from just searching LinkedIn manually?',
-                a: 'Manual searching catches maybe 5–10% of relevant conversations — the ones that happen to appear when you happen to be scrolling. Scout watches your ICP profiles and search terms around the clock and surfaces everything, sorted by engagement opportunity. It\'s also persistent: you have a full history of every post you\'ve seen, engaged with, or replied to — not a disappearing feed.'
+                a: 'Manual scrolling catches maybe 5–10% of relevant conversations — the ones that happen to surface when you happen to be online. Scout watches your ICP profiles and keyword topics continuously and surfaces everything, sorted by conversation quality. More importantly: it\'s consistent. The people who win on LinkedIn show up repeatedly, not occasionally. Scout makes that consistency automatic. You also keep a full history of every post you\'ve engaged with — something a disappearing feed can\'t give you.'
               },
               {
                 q: 'Who built this? Is ClientBloom a real company?',
@@ -515,10 +514,10 @@ export default function LandingPage() {
             The conversations are<br />already happening.
           </h2>
           <p className="text-slate-400 text-xl mb-4">
-            Your ideal clients are posting about their problems, their frustrations, and their search for a solution — right now, today, in public.
+            Your ideal clients are on LinkedIn every day — posting, discussing, asking, sharing. The ones who win their business aren't the ones who cold pitch the loudest. They're the ones who showed up consistently in the right places.
           </p>
           <p className="text-slate-300 text-xl mb-10">
-            Scout puts you in those conversations. At $79/month, it pays for itself the first time you close a client who came in through a social engagement instead of a cold outreach.
+            Scout automates that presence. At $79/month, it pays for itself the first time a prospect reaches out because they already know who you are.
           </p>
 
           <a

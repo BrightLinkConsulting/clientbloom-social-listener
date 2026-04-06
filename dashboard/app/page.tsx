@@ -864,6 +864,77 @@ function Nav({ lastScannedAt, scanHealth }: { lastScannedAt: string | null; scan
   )
 }
 
+// ── Engagement Momentum Widget ─────────────────────────────────────────────
+function MomentumWidget({ actionCounts }: { actionCounts: Record<string, number> }) {
+  const totalNew     = actionCounts['New']     || 0
+  const totalEngaged = actionCounts['Engaged'] || 0
+  const totalReplied = actionCounts['Replied'] || 0
+  const totalSkipped = actionCounts['Skipped'] || 0
+  const totalCRM     = actionCounts['CRM']     || 0
+
+  const totalSurfaced = totalNew + totalEngaged + totalReplied + totalSkipped + totalCRM
+  const totalActed    = totalEngaged + totalReplied + totalCRM
+
+  if (totalSurfaced === 0) return null
+
+  const engagementPct = Math.round((totalActed / totalSurfaced) * 100)
+
+  // Relationship Score (0–100): climbs as you consistently engage.
+  // Replied counts double — it means the conversation went somewhere.
+  const rawScore = ((totalEngaged + totalReplied * 2) / Math.max(1, totalSurfaced)) * 150
+  const relationshipScore = Math.min(100, Math.round(rawScore))
+
+  const momentumTier = (() => {
+    if (relationshipScore >= 70) return { label: 'Strong momentum', color: 'text-emerald-400', barColor: 'from-emerald-500 to-teal-400' }
+    if (relationshipScore >= 35) return { label: 'Building momentum', color: 'text-blue-400',   barColor: 'from-blue-500 to-emerald-400' }
+    if (relationshipScore >= 10) return { label: 'Getting started',   color: 'text-amber-400',  barColor: 'from-amber-500 to-blue-400' }
+    return                               { label: 'Ready to engage',  color: 'text-slate-500',  barColor: 'from-slate-600 to-slate-500' }
+  })()
+
+  return (
+    <div className="mb-5 bg-[#0f1117] border border-slate-800/60 rounded-xl p-4">
+      <div className="flex items-center justify-between mb-3">
+        <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Engagement Momentum</span>
+        <span className={`text-xs font-medium ${momentumTier.color}`}>{momentumTier.label}</span>
+      </div>
+
+      <div className="grid grid-cols-4 gap-2 mb-3">
+        {([
+          { label: 'Surfaced',  value: String(totalSurfaced), sub: 'by Scout',     color: 'text-white'         },
+          { label: 'Engaged',   value: String(totalEngaged),  sub: 'conversations',color: 'text-blue-400'      },
+          { label: 'Replied',   value: String(totalReplied),  sub: 'connections',  color: 'text-emerald-400'   },
+          { label: 'Rate',      value: `${engagementPct}%`,   sub: 'engaged',      color: engagementPct >= 20 ? 'text-emerald-400' : 'text-slate-400' },
+        ] as const).map((stat, i) => (
+          <div key={i} className="text-center py-1">
+            <div className={`text-xl font-bold leading-tight ${stat.color}`}>{stat.value}</div>
+            <div className="text-[11px] text-slate-500 mt-0.5">{stat.label}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Momentum bar */}
+      <div className="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
+        <div
+          className={`h-full rounded-full bg-gradient-to-r ${momentumTier.barColor} transition-all duration-700 ease-out`}
+          style={{ width: `${Math.max(2, relationshipScore)}%` }}
+        />
+      </div>
+
+      {totalActed === 0 ? (
+        <p className="text-[11px] text-slate-600 mt-2 leading-snug">
+          Engage with posts below to start building your score — every comment puts you in front of the right people.
+        </p>
+      ) : (
+        <p className="text-[11px] text-slate-600 mt-2 leading-snug">
+          {totalReplied > 0
+            ? `${totalReplied} conversation${totalReplied !== 1 ? 's' : ''} started · ${totalSurfaced - totalActed - totalSkipped} new post${totalSurfaced - totalActed - totalSkipped !== 1 ? 's' : ''} waiting`
+            : `${totalEngaged} engagement${totalEngaged !== 1 ? 's' : ''} recorded · keep going — replies are where relationships begin`}
+        </p>
+      )}
+    </div>
+  )
+}
+
 // ---- Root: route between landing page and authenticated dashboard ----
 export default function RootPage() {
   const { status } = useSession()
@@ -1107,6 +1178,8 @@ function FeedPage() {
       </div>
 
       <main className="max-w-3xl mx-auto px-5 py-6">
+        <MomentumWidget actionCounts={actionCounts} />
+
         {error && (
           <div className="mb-4 p-4 rounded-xl bg-red-900/20 border border-red-700/40 text-red-400 text-sm">
             {error}

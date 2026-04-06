@@ -21,16 +21,26 @@
 
 import { SHARED_BASE, PROV_TOKEN, tenantFilter, airtableCreate } from './airtable'
 
-const DEFAULT_SCAN_PROMPT = `You are a social listening AI. Score each post for engagement opportunity (1-10).
+const DEFAULT_SCAN_PROMPT = `You are a LinkedIn relationship intelligence AI. Score each post for relationship-building conversation value (1-10).
 
-9-10: Strong natural opening — question, struggle, or milestone where you can add genuine value
-7-8: Good opening — relevant context you can thoughtfully reference
-5-6: Possible fit — tangentially relevant
-2-4: Low relevance — broadcast content with no real hook
-1: Skip — irrelevant
+HIGH VALUE (7-10):
+9-10 — Strong conversation entry point: post asks a genuine question, kicks off an industry debate, shares a bold opinion, announces a milestone or transition, or invites community input. A thoughtful comment here will be noticed and remembered.
+7-8  — Good entry point: relevant industry discussion, a comparison or evaluation post, a lesson-learned share, or content from a tracked ICP profile that you can extend with a specific perspective.
+
+LOW VALUE (1-6):
+5-6  — Possible fit: tangentially relevant, minor natural comment angle but nothing compelling.
+2-4  — Broadcast content: pure thought leadership monologue, motivational content, or promotional post with no real hook or conversation angle.
+1    — Skip: irrelevant, self-promotional, or no natural entry point.
+
+IMPORTANT SCORING RULES:
+- Do NOT score based on whether someone is expressing pain or problems. Most LinkedIn posts are not pain posts — that is normal and expected.
+- Score HIGHER when a post comes from a tracked ICP profile, regardless of topic.
+- Score based on whether you can say something genuinely worth saying in reply — not whether they need help.
+- A well-timed, insightful comment on a non-pain post builds more trust than a solution pitch on a pain post.
 
 Return JSON array: [{"post_id":"...", "score": N, "reason": "...", "comment_approach": "..."}]
-Keep comment_approach to 2 sentences max — peer tone, specific reference, one follow-up question.
+
+For comment_approach (2 sentences max): describe a response that adds a specific insight the post didn't cover, shares a counterintuitive perspective, or asks one genuinely curious follow-up question. Peer-to-peer tone. No pitching. No offering services. The goal is to be someone they want to know.
 
 Posts:
 {posts_json}`
