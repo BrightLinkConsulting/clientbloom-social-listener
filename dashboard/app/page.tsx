@@ -1070,7 +1070,7 @@ function MomentumWidget({
       )}
 
       {/* 14-day sparkline — only rendered once history is populated */}
-      {history.length >= 2 && <MomentumSparkline history={history} />}
+      {history.length >= 1 && <MomentumSparkline history={history} />}
     </div>
   )
 }
