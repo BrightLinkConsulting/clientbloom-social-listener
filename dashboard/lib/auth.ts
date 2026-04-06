@@ -22,6 +22,49 @@ import { NextAuthOptions } from 'next-auth'
 import CredentialsProvider from 'next-auth/providers/credentials'
 import bcrypt from 'bcryptjs'
 
+// ── In-memory rate limiter ────────────────────────────────────────────────────
+// Tracks failed login attempts per IP and per email within a sliding window.
+// Module-level: persists across requests within the same Vercel function instance.
+// Covers the primary threat — rapid brute-force against a known email address.
+// For distributed attacks across many IPs, a Redis-backed limiter (Upstash) is
+// the next upgrade when the tenant count justifies it.
+const WINDOW_MS       = 15 * 60 * 1000   // 15-minute sliding window
+const EMAIL_MAX_FAILS = 5                 // lock email after 5 failures in window
+const IP_MAX_FAILS    = 20                // lock IP after 20 failures in window
+
+interface RateBucket { count: number; resetAt: number }
+const ipBuckets:    Map<string, RateBucket> = new Map()
+const emailBuckets: Map<string, RateBucket> = new Map()
+
+function getBucket(map: Map<string, RateBucket>, key: string): RateBucket {
+  const now = Date.now()
+  let b = map.get(key)
+  if (!b || b.resetAt <= now) {
+    b = { count: 0, resetAt: now + WINDOW_MS }
+    map.set(key, b)
+  }
+  return b
+}
+
+function rateLimitExceeded(map: Map<string, RateBucket>, key: string, max: number): boolean {
+  return getBucket(map, key).count >= max
+}
+
+function recordFailure(ip: string, email: string): void {
+  getBucket(ipBuckets, ip).count++
+  getBucket(emailBuckets, email).count++
+}
+
+function clearEmailBucket(email: string): void {
+  emailBuckets.delete(email)
+}
+
+function clientIp(req: any): string {
+  const forwarded = req?.headers?.['x-forwarded-for'] ?? ''
+  const raw = Array.isArray(forwarded) ? forwarded[0] : forwarded.split(',')[0]
+  return raw.trim() || 'unknown'
+}
+
 // ── Platform Airtable (tenant registry) ──────────────────────────────────────
 const PLATFORM_TOKEN   = process.env.PLATFORM_AIRTABLE_TOKEN  || ''
 const PLATFORM_BASE    = process.env.PLATFORM_AIRTABLE_BASE_ID || ''
@@ -56,27 +99,41 @@ export const authOptions: NextAuthOptions = {
         password: { label: 'Password', type: 'password' },
       },
 
-      async authorize(credentials) {
+      async authorize(credentials, req) {
         if (!credentials?.email || !credentials?.password) return null
+
+        const email = credentials.email.toLowerCase()
+        const ip    = clientIp(req)
+
+        // ── Rate limit check (before touching Airtable) ───────────────────
+        if (rateLimitExceeded(emailBuckets, email, EMAIL_MAX_FAILS)) {
+          console.warn(`[auth] Rate limit: too many failures for ${email}`)
+          return null
+        }
+        if (rateLimitExceeded(ipBuckets, ip, IP_MAX_FAILS)) {
+          console.warn(`[auth] Rate limit: too many failures from ${ip}`)
+          return null
+        }
 
         // ── Multi-tenant path (Platform Airtable configured) ──────────────
         if (PLATFORM_TOKEN && PLATFORM_BASE) {
-          const record = await findTenantByEmail(credentials.email)
-          if (!record) return null
+          const record = await findTenantByEmail(email)
+          if (!record) { recordFailure(ip, email); return null }
 
           const fields       = record.fields || {}
           const passwordHash = fields['Password Hash'] || ''
           const status       = fields['Status']        || 'Active'
 
-          if (status === 'Suspended') return null
+          if (status === 'Suspended') { recordFailure(ip, email); return null }
 
           const valid = await bcrypt.compare(credentials.password, passwordHash)
-          if (!valid) return null
+          if (!valid) { recordFailure(ip, email); return null }
 
+          clearEmailBucket(email)
           return {
             id:             record.id,
-            email:          credentials.email.toLowerCase(),
-            name:           fields['Company Name']        || credentials.email,
+            email,
+            name:           fields['Company Name']        || email,
             airtableToken:  fields['Airtable API Token']  || '',
             airtableBaseId: fields['Airtable Base ID']    || '',
             isAdmin:        fields['Is Admin']            ?? false,
@@ -94,9 +151,10 @@ export const authOptions: NextAuthOptions = {
         if (
           adminEmail &&
           adminPass &&
-          credentials.email.toLowerCase() === adminEmail.toLowerCase() &&
+          email === adminEmail.toLowerCase() &&
           credentials.password === adminPass
         ) {
+          clearEmailBucket(email)
           return {
             id:             'admin',
             email:          adminEmail,
@@ -107,6 +165,7 @@ export const authOptions: NextAuthOptions = {
           }
         }
 
+        recordFailure(ip, email)
         return null
       },
     }),
