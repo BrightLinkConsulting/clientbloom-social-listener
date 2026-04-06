@@ -2052,19 +2052,13 @@ function SystemStatusSection() {
     {
       label:  'Scanner',
       value:  'Runs at 6 AM + 6 PM PST',
-      detail: 'Scrapes Facebook groups and LinkedIn ICPs for new posts',
-      status: 'active' as const,
-    },
-    {
-      label:  'Facebook',
-      value:  'Active — groups monitored',
-      detail: 'Posts keyword-matched and scored before entering your feed',
+      detail: 'Scans LinkedIn ICP profiles and keyword searches for new posts',
       status: 'active' as const,
     },
     {
       label:  'LinkedIn',
       value:  'Active — ICP + keyword',
-      detail: 'Posts from your ICP pool scored for engagement opportunity',
+      detail: 'Posts from your ICP pool and keyword searches scored for engagement opportunity',
       status: 'active' as const,
     },
     {
@@ -2911,7 +2905,6 @@ function TeamSection() {
 // ---- Tab definitions ----
 const TABS = [
   { id: 'profile',  label: 'Profile'      },
-  { id: 'facebook', label: 'Facebook'     },
   { id: 'linkedin', label: 'LinkedIn'     },
   { id: 'ai',       label: 'AI & Scoring' },
   { id: 'system',   label: 'System'       },
@@ -2982,26 +2975,6 @@ export default function SettingsPage() {
         {/* ── Profile ── */}
         {activeTab === 'profile' && (
           <BusinessProfileSection />
-        )}
-
-        {/* ── Facebook ── */}
-        {activeTab === 'facebook' && (
-          <>
-            {loading && (
-              <div className="flex items-center justify-center gap-2 py-8 text-slate-500 text-sm">
-                <Spinner /> Loading sources...
-              </div>
-            )}
-            {loadError && (
-              <div className="px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/20 text-sm text-red-400">
-                {loadError}
-              </div>
-            )}
-            {!loading && !loadError && (
-              <FacebookGroupsSection sources={sources} onUpdate={fetchSources} />
-            )}
-            <FacebookKeywordsSection />
-          </>
         )}
 
         {/* ── LinkedIn ── */}
