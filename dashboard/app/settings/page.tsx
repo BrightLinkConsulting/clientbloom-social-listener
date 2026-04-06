@@ -80,7 +80,7 @@ function Nav() {
         <div className="flex items-center gap-3">
           <ClientBloomMark size={28} />
           <div>
-            <p className="text-sm font-semibold text-white leading-tight">ClientBloom Listener</p>
+            <p className="text-sm font-semibold text-white leading-tight">Scout by ClientBloom</p>
             <span className="text-xs text-emerald-400 flex items-center gap-1">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
               Live · 2× daily
@@ -352,27 +352,27 @@ function FacebookGroupsSection({ sources, onUpdate }: {
 // ---- LinkedIn Terms: preset suggestion bank ----
 const TERM_SUGGESTIONS = [
   {
-    label: 'Topics your ICP discusses',
+    label: 'Questions & community input',
     color: 'blue',
-    terms: [
-      'client retention',
-      'client success',
-      'client management',
-      'account management',
-      'client onboarding',
-      'agency operations',
-    ],
-  },
-  {
-    label: 'Advice & recommendations',
-    color: 'emerald',
     terms: [
       'looking for recommendations',
       'what tools do you use',
       'how do you handle',
       'anyone tried',
-      'lessons learned',
       'what worked for us',
+      'ask the community',
+    ],
+  },
+  {
+    label: 'Debates & hot takes',
+    color: 'emerald',
+    terms: [
+      'unpopular opinion',
+      'hot take',
+      'controversial but',
+      'change my mind',
+      'industry debate',
+      'this is broken',
     ],
   },
   {
@@ -383,18 +383,20 @@ const TERM_SUGGESTIONS = [
       'just switched',
       'we moved to',
       'we replaced',
+      'comparing options',
       'we decided to use',
     ],
   },
   {
-    label: 'Growth & team signals',
+    label: 'Growth & milestones',
     color: 'red',
     terms: [
-      'scaling the agency',
-      'growing our team',
       'just hired',
-      'new client win',
-      'expanding our services',
+      'excited to announce',
+      'just launched',
+      'we hit',
+      'lessons learned',
+      'reflecting on',
     ],
   },
 ]
@@ -548,7 +550,7 @@ function LinkedInTermsSection({ sources, onUpdate }: {
             <p className="text-xs font-semibold text-slate-300">Suggested terms — click any to add</p>
             <button onClick={() => setShowSuggestions(false)} className="text-xs text-slate-600 hover:text-slate-400 transition-colors">Done</button>
           </div>
-          <p className="text-xs text-slate-600 -mt-2">These are starting points. Swap the generic words for the specific topics your buyers actually post about on LinkedIn.</p>
+          <p className="text-xs text-slate-600 -mt-2">These are starting points. Replace the generic phrases with the specific language your buyers actually use when they post on LinkedIn.</p>
           {TERM_SUGGESTIONS.map(group => (
             <div key={group.label}>
               <p className="text-xs text-slate-500 font-medium mb-2">{group.label}</p>
@@ -583,7 +585,7 @@ function LinkedInTermsSection({ sources, onUpdate }: {
           <div className="flex items-center gap-2">
             <input
               type="text"
-              placeholder='e.g. "client retention agency" or "losing clients" or "agency churn"'
+              placeholder='e.g. "what tools do you use" or "just launched" or "lessons learned"'
               value={newTerm}
               onChange={e => setNewTerm(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && addTerm(newTerm)}
@@ -856,10 +858,11 @@ function ProfileDrawer({
 }
 
 const ICP_JOB_TITLES = [
-  'Agency Owner', 'Agency CEO', 'Agency Founder', 'Marketing Agency Owner',
-  'Digital Agency Owner', 'White Label Agency', 'GoHighLevel Agency',
-  'Head of Customer Success', 'VP of Customer Success', 'Director of Customer Success',
-  'Customer Success Manager', 'Client Success Manager', 'Account Manager',
+  'Founder', 'Co-Founder', 'CEO', 'Managing Director',
+  'VP of Sales', 'Head of Sales', 'Sales Director', 'Account Executive',
+  'VP of Marketing', 'Head of Marketing', 'Marketing Director', 'CMO',
+  'Head of Operations', 'COO', 'VP of Product', 'Director of Partnerships',
+  'Consultant', 'Business Owner', 'Entrepreneur', 'Independent Advisor',
 ]
 
 function LinkedInICPSection() {
@@ -887,8 +890,8 @@ function LinkedInICPSection() {
 
   // Discovery panel
   const [showDiscover, setShowDiscover] = useState(false)
-  const [discTitles, setDiscTitles]     = useState<string[]>(['Agency Owner', 'Agency CEO'])
-  const [discKeywords, setDiscKeywords] = useState<string[]>(['GoHighLevel', 'marketing agency'])
+  const [discTitles, setDiscTitles]     = useState<string[]>([])
+  const [discKeywords, setDiscKeywords] = useState<string[]>([])
   const [discMax, setDiscMax]           = useState(50)
   const [discTitleInput, setDiscTitleInput] = useState('')
   const [discKwInput, setDiscKwInput]       = useState('')
@@ -1032,7 +1035,7 @@ function LinkedInICPSection() {
   return (
     <Section
       title="LinkedIn ICP Pool"
-      description={`${active} of ${total} profiles monitored · Scout checks their LinkedIn activity 2× daily and scores every post for engagement opportunity`}
+      description={`${active} of ${total} profiles monitored · Scout checks their LinkedIn activity 2× daily and surfaces the best moments to show up in their conversations`}
     >
       {error && (
         <div className="mb-4 px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/20 text-xs text-red-400 flex items-start justify-between gap-2">
@@ -1312,7 +1315,7 @@ function LinkedInICPSection() {
             <div className="flex gap-2">
               <input
                 type="text"
-                placeholder="e.g. GoHighLevel, white label, SaaS..."
+                placeholder="e.g. SaaS, fintech, B2B consulting..."
                 value={discKwInput}
                 onChange={e => setDiscKwInput(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && addDiscKw()}
@@ -1641,37 +1644,14 @@ function FacebookKeywordsSection() {
   )
 }
 
-const SCORING_PROMPT = `You are a sales intelligence analyst supporting Joseph, a sales rep at ClientBloom.ai — an AI-powered client retention platform built specifically for marketing agencies and SaaS companies.
-
-ClientBloom helps agency owners track client health, detect churn risk early, and keep clients longer. Joseph's job is to engage in conversations that naturally lead people to discover ClientBloom — not to pitch it cold.
-
-WHAT MAKES A HIGH-SCORE POST (7-10):
-- Someone is actively venting, asking for help, or expressing frustration about client retention or churn
-- Someone is describing a specific client leaving, canceling, or going silent
-- Someone is asking how other agency owners handle difficult client situations or retention
-- Someone is building or looking for client health/success systems and hitting a wall
-- The post invites a response — it has a question, a struggle, or an emotional signal Joseph can genuinely respond to
-
-WHAT MAKES A LOW-SCORE POST (1-4):
-- Educational content (listicles, tips, how-to posts)
-- Promotional posts or people selling their own services
-- General agency advice with no specific pain
-- Questions about tools unrelated to retention
-
-COMMENT APPROACH RULES:
-- Never mention ClientBloom or pitch anything
-- Lead with something that shows you read their specific situation
-- Ask ONE question that continues the conversation
-- 2-3 sentences max. Peer-to-peer tone, not salesperson tone`
-
 // ---- Business Profile Section ----
 const SIGNAL_OPTIONS = [
-  { id: 'asking_for_help', label: 'Publicly asking for tool or service recommendations' },
-  { id: 'frustration', label: 'Expressing frustration with their current solution' },
-  { id: 'announcing_problem', label: 'Announcing a business challenge or problem' },
-  { id: 'growing_team', label: 'Looking to grow, hire, or scale' },
-  { id: 'shopping_alternatives', label: 'Comparing or shopping for alternatives' },
-  { id: 'milestone', label: 'Celebrating a milestone that signals a transition' },
+  { id: 'asking_for_help', label: 'Asking questions or seeking advice from their network' },
+  { id: 'industry_discussion', label: 'Starting or joining an industry debate or discussion' },
+  { id: 'growing_team', label: 'Talking about growing, hiring, or scaling their business' },
+  { id: 'shopping_alternatives', label: 'Comparing tools, vendors, or evaluating alternatives' },
+  { id: 'milestone', label: 'Announcing a milestone, promotion, or company change' },
+  { id: 'thought_leadership', label: 'Sharing bold takes or opinions you can thoughtfully add to' },
 ]
 
 function BusinessProfileSection() {
@@ -1730,7 +1710,7 @@ function BusinessProfileSection() {
   return (
     <Section
       title="Business Profile"
-      description="Tells Scout who you are and which LinkedIn posts represent a real opportunity. The more specific your ICP description, the sharper the AI scoring."
+      description="Tells Scout who you're trying to build relationships with and what kinds of conversations are worth joining. The more specific you are, the sharper the AI scoring."
     >
       <div className="space-y-4">
         <div className="grid grid-cols-2 gap-4">
@@ -1760,24 +1740,24 @@ function BusinessProfileSection() {
             value={profile.idealClient}
             onChange={e => setProfile(p => ({ ...p, idealClient: e.target.value }))}
             rows={2}
-            placeholder="e.g. Marketing agency owners with 10–50 clients who use GoHighLevel and struggle to retain clients."
+            placeholder="e.g. Series A SaaS founders in fintech, typically posting about growth, hiring, and product decisions."
             className="w-full bg-slate-800/60 border border-slate-700/60 rounded-lg px-3 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50 resize-none"
           />
         </div>
 
         <div>
-          <label className="block text-xs text-slate-500 mb-1.5">What problem do you solve for them?</label>
+          <label className="block text-xs text-slate-500 mb-1.5">What value do you deliver for them?</label>
           <textarea
             value={profile.problemSolved}
             onChange={e => setProfile(p => ({ ...p, problemSolved: e.target.value }))}
             rows={2}
-            placeholder="e.g. We help agencies track client health and get early warnings before clients churn."
+            placeholder="e.g. We help SaaS founders build their go-to-market motion and close their first 50 enterprise accounts."
             className="w-full bg-slate-800/60 border border-slate-700/60 rounded-lg px-3 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50 resize-none"
           />
         </div>
 
         <div>
-          <label className="block text-xs text-slate-500 mb-2">Signals to listen for</label>
+          <label className="block text-xs text-slate-500 mb-2">Conversation types to prioritize</label>
           <div className="grid grid-cols-2 gap-2">
             {SIGNAL_OPTIONS.map(s => {
               const on = profile.signalTypes.includes(s.id)
@@ -1893,7 +1873,7 @@ function ScoringPromptSection() {
   return (
     <Section
       title="AI Scoring Prompt"
-      description="The AI reads this before scoring every LinkedIn post. A well-tuned prompt is what separates a clean, actionable feed from one full of noise."
+      description="The AI reads this before scoring every LinkedIn post. A well-tuned prompt is what separates a feed full of real conversation opportunities from one full of noise."
     >
       {/* Mode switcher */}
       <div className="flex items-center gap-1 mb-5 p-1 rounded-lg bg-slate-900/60 border border-slate-700/40 w-fit">
@@ -1915,7 +1895,7 @@ function ScoringPromptSection() {
       {mode === 'build' && (
         <div className="space-y-4">
           <p className="text-xs text-slate-500 leading-relaxed">
-            Answer these questions and the AI will write a high-quality scoring prompt for you. The more specific you are, the better your results.
+            Answer these questions and the AI will write a custom scoring prompt tailored to your business. The more specific you are, the better your feed quality will be.
           </p>
 
           <div>
@@ -1923,16 +1903,16 @@ function ScoringPromptSection() {
               1. Who is your ideal client? <span className="text-slate-600 font-normal">(role, industry, company size)</span>
             </label>
             <textarea rows={2} value={idealClient} onChange={e => setIdealClient(e.target.value)}
-              placeholder="e.g. Marketing agency owners with 10–50 clients who use GoHighLevel and struggle to keep clients long-term."
+              placeholder="e.g. B2B SaaS founders, typically 10–100 employees, posting about growth strategy, hiring, and go-to-market."
               className={inputCls} />
           </div>
 
           <div>
             <label className="block text-xs font-medium text-slate-400 mb-1.5">
-              2. What problem do you solve for them?
+              2. What value do you deliver for them?
             </label>
             <textarea rows={2} value={problemSolved} onChange={e => setProblem(e.target.value)}
-              placeholder="e.g. We help agencies track client health and catch early warning signs before a client decides to leave."
+              placeholder="e.g. We help founders build and scale an outbound sales motion so they can close enterprise deals without hiring a full team."
               className={inputCls} />
           </div>
 
@@ -1941,7 +1921,7 @@ function ScoringPromptSection() {
               3. What does a high-value post look like? <span className="text-slate-600 font-normal">(optional — AI will infer if blank)</span>
             </label>
             <textarea rows={2} value={highValue} onChange={e => setHighValue(e.target.value)}
-              placeholder="e.g. Someone venting about losing a client, asking how others handle retention, or looking for a system to track client health."
+              placeholder="e.g. A founder asking for tool recommendations, sharing a scaling challenge, debating a go-to-market strategy, or announcing a new hire."
               className={inputCls} />
           </div>
 
@@ -1950,7 +1930,7 @@ function ScoringPromptSection() {
               4. What should be filtered out? <span className="text-slate-600 font-normal">(optional)</span>
             </label>
             <textarea rows={2} value={lowValue} onChange={e => setLowValue(e.target.value)}
-              placeholder="e.g. Promotional posts, educational tips, people selling their own services, general business advice with no specific pain."
+              placeholder="e.g. Promotional posts, content marketing, job listings, motivational quotes, pure thought leadership monologues with no comment angle."
               className={inputCls} />
           </div>
 
@@ -2058,7 +2038,7 @@ function SystemStatusSection() {
     {
       label:  'LinkedIn',
       value:  'Active — ICP + keyword',
-      detail: 'Posts from your ICP pool and keyword searches scored for engagement opportunity',
+      detail: 'Posts from your ICP pool and keyword searches scored for conversation value',
       status: 'active' as const,
     },
     {
@@ -2103,11 +2083,11 @@ function SystemStatusSection() {
 // ---- Slack Integration Section ----
 const SLACK_STEPS = [
   'Go to api.slack.com/apps and click "Create New App" → "From scratch".',
-  'Name it "ClientBloom Listener" and pick your Slack workspace.',
+  'Name it "Scout" and pick your Slack workspace.',
   'In the left menu click "OAuth & Permissions". Under "Bot Token Scopes" add: chat:write and channels:read.',
   'Scroll up and click "Install to Workspace" → Allow.',
   'Copy the "Bot OAuth Token" that starts with xoxb- and paste it below.',
-  'Invite the bot to your channel in Slack: type /invite @ClientBloom Listener in the channel.',
+  'Invite the bot to your channel in Slack: type /invite @Scout in the channel.',
   'Paste the channel name (without #) into the Channel Name field below.',
 ]
 
