@@ -481,8 +481,8 @@ function LinkedInTermsSection({ sources, onUpdate }: {
 
   return (
     <Section
-      title="LinkedIn Search Terms"
-      description={`${activeCount} of ${terms.length} terms active · keyword search runs 2× daily`}
+      title="LinkedIn Keyword Search"
+      description={`${activeCount} of ${terms.length} terms active · Scout searches LinkedIn for these phrases 2× daily`}
     >
       {/* How it works tip */}
       <div className="mb-5 flex gap-3 px-3.5 py-3 rounded-xl bg-slate-800/50 border border-slate-700/40">
@@ -583,7 +583,7 @@ function LinkedInTermsSection({ sources, onUpdate }: {
           <div className="flex items-center gap-2">
             <input
               type="text"
-              placeholder='e.g. "client success strategy" or "agency account management"'
+              placeholder='e.g. "client retention agency" or "losing clients" or "agency churn"'
               value={newTerm}
               onChange={e => setNewTerm(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && addTerm(newTerm)}
@@ -1032,7 +1032,7 @@ function LinkedInICPSection() {
   return (
     <Section
       title="LinkedIn ICP Pool"
-      description={`${active} of ${total} profiles being monitored · posts scored for engagement opportunity`}
+      description={`${active} of ${total} profiles monitored · Scout checks their LinkedIn activity 2× daily and scores every post for engagement opportunity`}
     >
       {error && (
         <div className="mb-4 px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/20 text-xs text-red-400 flex items-start justify-between gap-2">
@@ -1730,7 +1730,7 @@ function BusinessProfileSection() {
   return (
     <Section
       title="Business Profile"
-      description="Tells the AI who you are and who to listen for. The more specific, the sharper the results."
+      description="Tells Scout who you are and which LinkedIn posts represent a real opportunity. The more specific your ICP description, the sharper the AI scoring."
     >
       <div className="space-y-4">
         <div className="grid grid-cols-2 gap-4">
@@ -1892,8 +1892,8 @@ function ScoringPromptSection() {
 
   return (
     <Section
-      title="Scoring Prompt"
-      description="The AI reads this before evaluating every post. A well-written prompt is what separates a useful tool from a noisy one."
+      title="AI Scoring Prompt"
+      description="The AI reads this before scoring every LinkedIn post. A well-tuned prompt is what separates a clean, actionable feed from one full of noise."
     >
       {/* Mode switcher */}
       <div className="flex items-center gap-1 mb-5 p-1 rounded-lg bg-slate-900/60 border border-slate-700/40 w-fit">
@@ -2980,6 +2980,14 @@ export default function SettingsPage() {
         {/* ── LinkedIn ── */}
         {activeTab === 'linkedin' && (
           <>
+            {/* Context banner */}
+            <div className="rounded-xl bg-[#4F6BFF]/8 border border-[#4F6BFF]/20 px-5 py-4 flex gap-4 items-start">
+              <svg className="w-5 h-5 text-[#4F6BFF] mt-0.5 shrink-0" fill="currentColor" viewBox="0 0 24 24"><path d="M19 3a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h14m-.5 15.5v-5.3a3.26 3.26 0 00-3.26-3.26c-.85 0-1.84.52-2.32 1.3v-1.11h-2.79v8.37h2.79v-4.93c0-.77.62-1.4 1.39-1.4a1.4 1.4 0 011.4 1.4v4.93h2.79M6.88 8.56a1.68 1.68 0 001.68-1.68c0-.93-.75-1.69-1.68-1.69a1.69 1.69 0 00-1.69 1.69c0 .93.76 1.68 1.69 1.68m1.39 9.94v-8.37H5.5v8.37h2.77z"/></svg>
+              <div>
+                <p className="text-sm font-medium text-slate-200 mb-0.5">Scout is a LinkedIn-only tool</p>
+                <p className="text-xs text-slate-400 leading-relaxed">All posts come from two LinkedIn sources: <span className="text-slate-300 font-medium">Keyword Search</span> (finds public posts matching your terms) and <span className="text-slate-300 font-medium">ICP Profiles</span> (monitors specific people you're tracking). Configure both below for maximum coverage.</p>
+              </div>
+            </div>
             {loading && (
               <div className="flex items-center justify-center gap-2 py-8 text-slate-500 text-sm">
                 <Spinner /> Loading sources...

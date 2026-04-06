@@ -53,7 +53,7 @@ export default function LandingPage() {
 
           <div className="inline-flex items-center gap-2 bg-[#4F6BFF]/10 border border-[#4F6BFF]/20 rounded-full px-4 py-1.5 mb-8">
             <span className="w-1.5 h-1.5 rounded-full bg-[#4F6BFF] animate-pulse" />
-            <span className="text-[#4F6BFF] text-xs font-medium tracking-wide uppercase">AI-Powered Prospect Intelligence</span>
+            <span className="text-[#4F6BFF] text-xs font-medium tracking-wide uppercase">LinkedIn Prospect Intelligence</span>
           </div>
 
           <h1 className="text-5xl md:text-6xl lg:text-7xl font-bold text-white leading-[1.08] tracking-tight mb-6">
@@ -63,7 +63,7 @@ export default function LandingPage() {
           </h1>
 
           <p className="text-xl text-slate-400 max-w-2xl mx-auto leading-relaxed mb-10">
-            Scout monitors LinkedIn and Facebook for your exact ICPs, scores every post for engagement opportunity, and hands you a ready-to-paste comment written in your voice and tuned to your business. Start real conversations in seconds, not hours.
+            Scout monitors LinkedIn for your exact ICPs, scores every post for engagement opportunity, and hands you a ready-to-paste comment written in your voice and tuned to your business. Start real conversations in seconds, not hours.
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
@@ -93,7 +93,7 @@ export default function LandingPage() {
               </div>
               {[
                 { score: 9, platform: 'LinkedIn', name: 'Jennifer R.', title: 'Agency Owner', text: 'Spending 3+ hours a week manually reviewing client accounts. Has to be a better way. Anyone using AI for this?', tag: 'Pain Signal', tagColor: 'text-red-400 bg-red-400/10' },
-                { score: 8, platform: 'Facebook', name: 'Marcus T.', title: 'Marketing Consultant', text: 'My team keeps dropping the ball on client onboarding. Third time this quarter. Considering switching our entire ops stack.', tag: 'Decision Mode', tagColor: 'text-amber-400 bg-amber-400/10' },
+                { score: 8, platform: 'LinkedIn', name: 'Marcus T.', title: 'Marketing Consultant', text: 'My team keeps dropping the ball on client onboarding. Third time this quarter. Considering switching our entire ops stack.', tag: 'Decision Mode', tagColor: 'text-amber-400 bg-amber-400/10' },
                 { score: 7, platform: 'LinkedIn', name: 'Sarah K.', title: 'Business Coach', text: 'Lost two clients this month I thought were happy. Zero warning signs. How are you actually tracking client health?', tag: 'Retention Pain', tagColor: 'text-orange-400 bg-orange-400/10' },
               ].map((post, i) => (
                 <div key={i} className={`flex gap-3 py-3 ${i < 2 ? 'border-b border-slate-800/50' : ''}`}>
@@ -125,7 +125,7 @@ export default function LandingPage() {
         <div className="max-w-4xl mx-auto">
           <div className="text-center mb-16">
             <h2 className="text-4xl font-bold text-white mb-4">The conversation is happening.<br />You're just not in it.</h2>
-            <p className="text-slate-400 text-lg max-w-2xl mx-auto">Every day, your ideal clients are posting about the exact problems you solve. On LinkedIn. In Facebook groups. Public and visible — but invisible to you because there's no system watching.</p>
+            <p className="text-slate-400 text-lg max-w-2xl mx-auto">Every day, your ideal clients are posting about the exact problems you solve — on LinkedIn, in public, visible to anyone. But invisible to you because there's no system watching.</p>
           </div>
 
           <div className="grid md:grid-cols-3 gap-6">
@@ -178,7 +178,7 @@ export default function LandingPage() {
               {
                 step: '01',
                 title: 'Tell Scout who you\'re looking for',
-                body: 'Add your LinkedIn search terms and Facebook groups. If you sell to marketing agency owners, Scout watches where they hang out. Takes five minutes.',
+                body: 'Add your LinkedIn search terms and ICP profiles. If you sell to marketing agency owners, Scout finds where they post and watches continuously. Takes five minutes.',
                 detail: 'Configure once. Scout watches permanently.'
               },
               {
@@ -306,7 +306,7 @@ export default function LandingPage() {
               { icon: '🔗', title: 'CRM Integration', desc: 'One click pushes a contact and your notes to GoHighLevel or HubSpot. No switching tabs. No copy-paste. The context goes with them.' },
               { icon: '📡', title: 'Slack Daily Digest', desc: 'Each morning, the highest-opportunity posts land in your Slack. You know what\'s worth your attention before you open a browser.' },
               { icon: '🤖', title: 'ICP Discovery Engine', desc: 'Drop in a job title and keywords. Scout finds matching LinkedIn profiles automatically and adds them to your monitoring list.' },
-              { icon: '📊', title: 'Source Management', desc: 'Full control over which LinkedIn search terms and Facebook groups Scout watches. Add, pause, or remove anytime.' },
+              { icon: '📊', title: 'Source Management', desc: 'Full control over which LinkedIn search terms and ICP profiles Scout monitors. Add, pause, or remove anytime.' },
               { icon: '⚙️', title: 'Custom AI Scoring Prompt', desc: 'Train the scoring AI on your specific ICP. Tell it exactly what a high-value post looks like for your business. It learns your criteria.' },
             ].map((f, i) => (
               <div key={i} className="bg-[#0f1117] border border-slate-800 rounded-xl p-5 flex gap-4 hover:border-slate-700 transition-colors">
@@ -366,7 +366,7 @@ export default function LandingPage() {
                 {[
                   'You sell physical or digital products',
                   'You\'re looking for a generic content scheduler',
-                  'Your clients don\'t use LinkedIn or Facebook',
+                  'Your clients aren\'t active on LinkedIn',
                   'You want vanity metrics, not real pipeline',
                   'You close 100+ clients a month at low ticket'
                 ].map((item, i) => (
@@ -399,7 +399,7 @@ export default function LandingPage() {
               {[
                 'AI-scored intelligence feed',
                 'Ready-to-paste comment starters',
-                'LinkedIn + Facebook monitoring',
+                'LinkedIn ICP & keyword monitoring',
                 'ICP profile tracking',
                 'Engagement workflow with notes',
                 'GoHighLevel + HubSpot sync',
@@ -453,7 +453,7 @@ export default function LandingPage() {
               },
               {
                 q: 'How does Scout actually find the posts?',
-                a: 'Scout\'s backend agent runs twice daily, scanning your configured LinkedIn search terms and Facebook groups using dedicated APIs. Results are AI-scored for engagement opportunity and delivered to your Scout feed. The whole process is automated.'
+                a: 'Scout runs twice daily, scanning your configured LinkedIn search terms and ICP profiles using LinkedIn\'s API. Results are AI-scored for engagement opportunity and delivered to your Scout feed. The whole process is automated — no LinkedIn login, no manual searching.'
               },
               {
                 q: 'What does the AI scoring actually mean?',
@@ -465,7 +465,7 @@ export default function LandingPage() {
               },
               {
                 q: 'How is this different from just searching LinkedIn manually?',
-                a: 'Manual searching catches maybe 5–10% of relevant conversations — the ones that happen to appear when you happen to be scrolling. Scout watches your sources 24/7 and surfaces everything, sorted by opportunity. It\'s also persistent: you have a searchable record of every conversation, not a disappearing feed.'
+                a: 'Manual searching catches maybe 5–10% of relevant conversations — the ones that happen to appear when you happen to be scrolling. Scout watches your ICP profiles and search terms around the clock and surfaces everything, sorted by engagement opportunity. It\'s also persistent: you have a full history of every post you\'ve seen, engaged with, or replied to — not a disappearing feed.'
               },
               {
                 q: 'Who built this? Is ClientBloom a real company?',
@@ -481,7 +481,7 @@ export default function LandingPage() {
               },
               {
                 q: 'How does the suggested comment actually work — does it sound like AI?',
-                a: 'We spent a lot of time on this. Scout generates comments in first person from your specific business angle, and we\'ve built in hard rules against everything that makes AI writing obvious: no em-dashes, no "at the end of the day," no hollow phrases like "I completely understand your situation." Comments are kept short, casual, and a little imperfect on purpose — because that\'s what reads as human in a LinkedIn or Facebook comment thread. The goal is something you could paste, post, and nobody would guess it didn\'t come directly from you.'
+                a: 'We spent a lot of time on this. Scout generates comments in first person from your specific business angle, and we\'ve built in hard rules against everything that makes AI writing obvious: no em-dashes, no "at the end of the day," no hollow phrases like "I completely understand your situation." Comments are kept short, casual, and a little imperfect on purpose — because that\'s what reads as human in a LinkedIn comment thread. The goal is something you could paste, post, and nobody would guess it didn\'t come directly from you.'
               }
             ].map((item, i) => (
               <div key={i} className="bg-[#0f1117] border border-slate-800 rounded-xl overflow-hidden">

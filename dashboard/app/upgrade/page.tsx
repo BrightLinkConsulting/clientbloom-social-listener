@@ -140,7 +140,7 @@ export default function UpgradePage() {
 
             <ul className="space-y-2.5">
               {[
-                'LinkedIn + Facebook scanning, twice daily',
+                'LinkedIn ICP & keyword scanning, twice daily',
                 'AI relevance scoring on every post',
                 'Comment angle suggestions for each lead',
                 'GHL / CRM push integration',

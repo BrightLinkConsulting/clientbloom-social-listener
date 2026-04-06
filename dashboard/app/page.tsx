@@ -799,7 +799,7 @@ function ScanStatusPill({ health, lastScannedAt }: { health: ScanHealth | null; 
     return (
       <span className="text-xs text-amber-400 flex items-center gap-1">
         <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
-        {scanAt ? `LinkedIn done · Facebook collecting…` : 'Collecting…'}
+        {scanAt ? `LinkedIn scan running…` : 'Scanning…'}
       </span>
     )
   }
@@ -1129,7 +1129,7 @@ function FeedPage() {
             <p className="text-slate-600 text-xs max-w-xs">
               {filter === 'New'
                 ? scanHealth?.lastScanStatus === 'pending_fb'
-                  ? 'Facebook results are still being collected — check back in a minute.'
+                  ? 'LinkedIn scan is running — results will appear shortly.'
                   : scanHealth?.lastScanStatus === 'scanning'
                     ? 'Scan is running now — results will appear shortly.'
                     : 'Scout scans at 6 AM and 6 PM daily.'

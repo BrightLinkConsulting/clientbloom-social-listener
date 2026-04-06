@@ -59,7 +59,7 @@ function Step1({
     <div>
       <h2 className="text-2xl font-bold text-white mb-2">Tell us about your business</h2>
       <p className="text-slate-400 text-sm mb-8">
-        This trains the AI on who to listen for and what matters to you.
+        Scout uses this to score LinkedIn posts — the more specific your ICP description, the sharper the results.
       </p>
 
       <div className="space-y-5">
@@ -141,7 +141,7 @@ function Step2({
     <div>
       <h2 className="text-2xl font-bold text-white mb-2">What signals matter to you?</h2>
       <p className="text-slate-400 text-sm mb-8">
-        When someone posts one of these, we surface it in your inbox. Select all that apply.
+        When someone in your LinkedIn ICP posts one of these signals, Scout surfaces it in your inbox. Select all that apply.
       </p>
 
       <div className="space-y-2.5">
@@ -288,8 +288,8 @@ function Step3({
         </h2>
         <p className="text-slate-400 text-sm mb-8">
           {status === 'saving'
-            ? 'Saving your business profile so we know what to listen for.'
-            : 'Checking LinkedIn profiles and posts. This takes about 30 seconds.'}
+            ? 'Saving your business profile so Scout knows what to listen for on LinkedIn.'
+            : 'Searching LinkedIn for your ICP posts and scoring them. This takes about 30 seconds.'}
         </p>
 
         {/* Progress bar */}
@@ -332,9 +332,9 @@ function Step3({
   // idle state
   return (
     <div>
-      <h2 className="text-2xl font-bold text-white mb-2">Ready to run your first scan</h2>
+      <h2 className="text-2xl font-bold text-white mb-2">Ready to run your first LinkedIn scan</h2>
       <p className="text-slate-400 text-sm mb-8">
-        We'll scan your configured sources right now and put relevant posts in your inbox in about 30 seconds.
+        Scout will search LinkedIn for relevant posts right now and put the best ones in your inbox in about 30 seconds.
       </p>
 
       {/* Summary card */}
@@ -416,7 +416,7 @@ export default function OnboardingPage() {
           <ClientBloomMark size={32} />
           <div>
             <p className="text-sm font-semibold text-white leading-tight">Scout <span className="text-slate-500 font-normal">by ClientBloom</span></p>
-            <p className="text-xs text-slate-500">ICP listener · setup</p>
+            <p className="text-xs text-slate-500">LinkedIn ICP listener · setup</p>
           </div>
         </div>
 
