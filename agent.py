@@ -676,6 +676,16 @@ def run_morning_digest(config: dict) -> None:
 
 
 if __name__ == "__main__":
+    # ── DISABLED 2026-04-06 ──────────────────────────────────────────────────
+    # Scanning has been migrated to the Vercel Next.js cron pipeline
+    # (api/cron/scan → api/cron/scan-tenant). That system is LinkedIn-only,
+    # API-based (cheap), and fan-out parallel — N tenants in max(1 tenant time).
+    # This Python agent's Facebook browser scraping was costing ~$5/day and
+    # producing 0 posts above score threshold. Remove or re-enable only if
+    # a specific use case requires it again.
+    logger.info("[agent] Scraper disabled — all scanning handled by Vercel cron. Exiting.")
+    sys.exit(0)
+
     # Explicitly load .env values into os.environ (handles long/special keys dotenv misses)
     from dotenv import dotenv_values
     for k, v in dotenv_values(".env").items():
