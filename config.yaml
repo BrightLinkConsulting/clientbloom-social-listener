@@ -177,5 +177,5 @@ slack:
 
 # --- Scoring Thresholds ---
 scoring:
-  min_score_to_save: 5        # discard anything below this — 1-4 = not actionable for Joseph
+  min_score_to_save: 2        # TEMP DIAGNOSTIC: lowered from 5 to see Facebook post quality
   high_value_threshold: 8     # "High Value" badge in dashboard
