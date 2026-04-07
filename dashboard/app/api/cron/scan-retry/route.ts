@@ -95,12 +95,9 @@ async function getFailedTenants(): Promise<{
 }
 
 export async function GET(req: NextRequest) {
-  const cronSecret = process.env.CRON_SECRET || ''
-  if (cronSecret) {
-    const authHeader = req.headers.get('authorization') || ''
-    if (authHeader.replace('Bearer ', '') !== cronSecret) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+  const cronSecret = process.env.CRON_SECRET;
+  if (!cronSecret || req.headers.get('authorization') !== `Bearer ${cronSecret}`) {
+    return new Response('Unauthorized', { status: 401 });
   }
 
   console.log(`[scan-retry] Starting retry pass at ${new Date().toISOString()}`)
