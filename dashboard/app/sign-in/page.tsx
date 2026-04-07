@@ -3,6 +3,7 @@
 import { useState, FormEvent } from 'react'
 import { signIn } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 
 /** ClientBloom logo mark — SVG recreation of the 5-petal bloom icon */
 function ClientBloomMark({ size = 40 }: { size?: number }) {
@@ -111,7 +112,15 @@ export default function SignInPage() {
             </div>
 
             <div>
-              <label className="block text-slate-300 text-sm font-medium mb-1.5">Password</label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-slate-300 text-sm font-medium">Password</label>
+                <Link
+                  href="/forgot-password"
+                  className="text-slate-500 hover:text-slate-400 text-xs transition-colors"
+                >
+                  Forgot password?
+                </Link>
+              </div>
               <input
                 type="password"
                 required
