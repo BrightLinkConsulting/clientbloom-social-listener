@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, FormEvent, useEffect } from 'react'
+import { Suspense, useState, FormEvent } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 
@@ -28,7 +28,8 @@ function ScoutWordmark({ iconSize = 36 }: { iconSize?: number }) {
   )
 }
 
-export default function ResetPasswordPage() {
+/** Inner component — must be wrapped in Suspense because it calls useSearchParams() */
+function ResetPasswordContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
 
@@ -62,11 +63,7 @@ export default function ResetPasswordPage() {
       const res = await fetch('/api/auth/reset-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          token,
-          email,
-          newPassword: password,
-        }),
+        body: JSON.stringify({ token, email, newPassword: password }),
       })
 
       const data = await res.json()
@@ -76,7 +73,7 @@ export default function ResetPasswordPage() {
         setTimeout(() => router.push('/sign-in'), 3000)
       } else {
         setError(data.error || 'Something went wrong. Please try again.')
-        if (data.error.includes('expired')) {
+        if (data.error?.includes('expired')) {
           setInvalidLink(true)
         }
       }
@@ -89,18 +86,15 @@ export default function ResetPasswordPage() {
 
   return (
     <div className="min-h-screen bg-[#080a0f] flex flex-col items-center justify-center px-4">
-      {/* Background glow */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-[#4F6BFF]/5 rounded-full blur-3xl" />
       </div>
 
       <div className="w-full max-w-sm relative">
-        {/* Wordmark */}
         <div className="text-center mb-10">
           <ScoutWordmark iconSize={44} />
         </div>
 
-        {/* Card */}
         <div className="bg-[#0f1117] border border-slate-800 rounded-2xl p-8 shadow-2xl shadow-black/40">
           {invalidLink ? (
             <>
@@ -108,7 +102,6 @@ export default function ResetPasswordPage() {
               <p className="text-slate-400 text-sm mb-6">
                 This password reset link has expired or is invalid. Please request a new one.
               </p>
-
               <Link
                 href="/forgot-password"
                 className="block w-full bg-[#4F6BFF] hover:bg-[#3D57F5] active:bg-[#3347E0]
@@ -117,12 +110,10 @@ export default function ResetPasswordPage() {
               >
                 Request new reset link
               </Link>
-
               <Link
                 href="/sign-in"
                 className="block w-full bg-slate-800 hover:bg-slate-700 active:bg-slate-600
-                           text-slate-100 font-semibold rounded-xl py-3 text-sm text-center
-                           transition-all"
+                           text-slate-100 font-semibold rounded-xl py-3 text-sm text-center transition-all"
               >
                 Back to sign in
               </Link>
@@ -131,9 +122,8 @@ export default function ResetPasswordPage() {
             <>
               <h1 className="text-white font-bold text-2xl mb-3 tracking-tight">Password updated</h1>
               <p className="text-slate-400 text-sm mb-6">
-                Your password has been successfully reset. You'll be redirected to sign in shortly.
+                Your password has been successfully reset. You&apos;ll be redirected to sign in shortly.
               </p>
-
               <div className="flex items-center justify-center gap-2 text-slate-400 text-sm">
                 <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
@@ -145,9 +135,7 @@ export default function ResetPasswordPage() {
           ) : (
             <>
               <h1 className="text-white font-bold text-2xl mb-1 tracking-tight">Create new password</h1>
-              <p className="text-slate-500 text-sm mb-7">
-                Enter your new password below.
-              </p>
+              <p className="text-slate-500 text-sm mb-7">Enter your new password below.</p>
 
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
@@ -210,10 +198,7 @@ export default function ResetPasswordPage() {
               </form>
 
               <div className="mt-6 text-center">
-                <Link
-                  href="/sign-in"
-                  className="text-slate-400 hover:text-slate-300 text-sm transition-colors"
-                >
+                <Link href="/sign-in" className="text-slate-400 hover:text-slate-300 text-sm transition-colors">
                   Back to sign in
                 </Link>
               </div>
@@ -221,12 +206,26 @@ export default function ResetPasswordPage() {
           )}
         </div>
 
-        {/* Footer */}
         <div className="flex items-center justify-center gap-2 mt-8">
           <ClientBloomMark size={16} />
           <span className="text-slate-600 text-xs">ClientBloom.ai &copy; 2026</span>
         </div>
       </div>
     </div>
+  )
+}
+
+/** Suspense wrapper required by Next.js 14 for pages using useSearchParams() */
+export default function ResetPasswordPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-[#080a0f] flex items-center justify-center">
+          <div className="animate-pulse text-slate-500 text-sm">Loading...</div>
+        </div>
+      }
+    >
+      <ResetPasswordContent />
+    </Suspense>
   )
 }
