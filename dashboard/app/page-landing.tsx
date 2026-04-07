@@ -91,12 +91,23 @@ export default function LandingPage() {
             <span className="text-[#4F6BFF] text-xs font-medium tracking-wide uppercase">LinkedIn Relationship Intelligence</span>
           </div>
 
-          <h1 className="font-bold tracking-tight mb-6">
-            <span className="block text-white text-5xl md:text-7xl lg:text-8xl leading-[1.05]">
-              Your next client is on<br />
+          <h1 className="font-bold tracking-tight mb-4">
+            <span
+              className="block text-white leading-[1.05]"
+              style={{ fontSize: 'clamp(26px, calc(10.33vw - 4.96px), 106px)' }}
+            >
+              Your next client is on
+            </span>
+            <span
+              className="block text-white leading-[1.05]"
+              style={{ fontSize: 'clamp(30px, calc(11.95vw - 5.74px), 123px)' }}
+            >
               LinkedIn right now.
             </span>
-            <span className="block text-[#4F6BFF] text-4xl md:text-6xl lg:text-7xl whitespace-nowrap leading-[1.15] mt-1">
+            <span
+              className="block text-[#4F6BFF] whitespace-nowrap leading-[1.2] mt-2"
+              style={{ fontSize: 'clamp(18px, calc(7.1vw - 3.41px), 73px)' }}
+            >
               Scout puts you in front of them.
             </span>
           </h1>
