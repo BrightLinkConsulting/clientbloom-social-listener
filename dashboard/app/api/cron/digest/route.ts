@@ -11,7 +11,6 @@ export const maxDuration = 120
 
 const PLATFORM_TOKEN   = process.env.PLATFORM_AIRTABLE_TOKEN  || ''
 const PLATFORM_BASE_ID = process.env.PLATFORM_AIRTABLE_BASE_ID || ''
-const CRON_SECRET      = process.env.CRON_SECRET || ''
 
 async function getActiveTenants(): Promise<{ tenantId: string; email: string }[]> {
   const params = new URLSearchParams({
@@ -33,9 +32,9 @@ async function getActiveTenants(): Promise<{ tenantId: string; email: string }[]
 
 export async function GET(req: Request) {
   // Auth check
-  const auth = req.headers.get('authorization') || ''
-  if (CRON_SECRET && auth !== `Bearer ${CRON_SECRET}`) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const cronSecret = process.env.CRON_SECRET;
+  if (!cronSecret || req.headers.get('authorization') !== `Bearer ${cronSecret}`) {
+    return new Response('Unauthorized', { status: 401 });
   }
 
   const tenants = await getActiveTenants()
