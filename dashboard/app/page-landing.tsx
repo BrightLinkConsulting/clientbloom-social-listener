@@ -84,17 +84,21 @@ export default function LandingPage() {
 
       {/* ─── HERO ─── */}
       <section className="pt-32 pb-24 px-6">
-        <div className="max-w-4xl mx-auto text-center">
+        <div className="max-w-5xl mx-auto text-center">
 
           <div className="inline-flex items-center gap-2 bg-[#4F6BFF]/10 border border-[#4F6BFF]/20 rounded-full px-4 py-1.5 mb-8">
             <span className="w-1.5 h-1.5 rounded-full bg-[#4F6BFF] animate-pulse" />
             <span className="text-[#4F6BFF] text-xs font-medium tracking-wide uppercase">LinkedIn Relationship Intelligence</span>
           </div>
 
-          <h1 className="text-5xl md:text-6xl lg:text-7xl font-bold text-white leading-[1.08] tracking-tight mb-6">
-            Your next client is on<br />
-            LinkedIn right now.<br />
-            <span className="text-[#4F6BFF]">Scout puts you in front of them.</span>
+          <h1 className="font-bold tracking-tight mb-6">
+            <span className="block text-white text-5xl md:text-7xl lg:text-8xl leading-[1.05]">
+              Your next client is on<br />
+              LinkedIn right now.
+            </span>
+            <span className="block text-[#4F6BFF] text-4xl md:text-6xl lg:text-7xl whitespace-nowrap leading-[1.15] mt-1">
+              Scout puts you in front of them.
+            </span>
           </h1>
 
           <p className="text-xl text-slate-400 max-w-2xl mx-auto leading-relaxed mb-10">
