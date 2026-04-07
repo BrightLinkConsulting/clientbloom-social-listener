@@ -17,6 +17,12 @@
  *   RUN_FAILED – Actor errored on Apify's side
  *   NETWORK    – Connection error before Apify even responded
  *   HTTP_xxx   – Unexpected HTTP status
+ *
+ * Cost optimizations (A1-A5):
+ *   A2: Post deduplication — skip Claude scoring for posts already in Airtable
+ *   A3: Post age filtering — only process posts from last 7 days
+ *   A4: Apify result limits — cap posts fetched per actor call
+ *   A5: Per-tenant usage tracking — track scans/posts processed for billing
  */
 
 import { SHARED_BASE, PROV_TOKEN, tenantFilter, airtableCreate } from './airtable'
@@ -196,6 +202,60 @@ export function normalizeLinkedInKeywordPost(raw: any, searchTerm: string) {
   }
 }
 
+// ── NEW A2: Post deduplication ──────────────────────────────────────────────
+// Query Captured Posts table for this tenant, return a Set of post URLs.
+// Filters to posts captured in the last 30 days to keep query fast.
+async function getExistingPostUrls(tenantId: string): Promise<Set<string>> {
+  const thirtyDaysAgo = new Date()
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
+  const thirtyDaysAgoIso = thirtyDaysAgo.toISOString()
+  
+  const url = new URL(`https://api.airtable.com/v0/${SHARED_BASE}/${encodeURIComponent('Captured Posts')}`)
+  url.searchParams.set('filterByFormula', `AND(${tenantFilter(tenantId)},IS_AFTER({Captured At},'${thirtyDaysAgoIso}'))`)
+  url.searchParams.set('fields[]', 'Post URL')
+  url.searchParams.set('pageSize', '100')
+  
+  const records: any[] = []
+  let offset: string | undefined
+  
+  do {
+    if (offset) url.searchParams.set('offset', offset)
+    else url.searchParams.delete('offset')
+    
+    const res = await fetch(url.toString(), {
+      headers: { Authorization: `Bearer ${PROV_TOKEN}`, 'Content-Type': 'application/json' },
+    })
+    if (!res.ok) {
+      console.warn('[scan] Failed to fetch existing post URLs, skipping dedup:', res.status)
+      break
+    }
+    
+    const data = await res.json()
+    records.push(...(data.records || []))
+    offset = data.offset
+  } while (offset)
+  
+  return new Set(records.map(r => r.fields['Post URL'] as string).filter(Boolean))
+}
+
+// ── NEW A3: Post age filtering ──────────────────────────────────────────────
+// Filter posts to only recent ones (last 7 days) to save on scoring calls
+function filterPostsByAge(posts: any[], maxAgeDay = 7): any[] {
+  const sevenDaysAgo = new Date()
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - maxAgeDay)
+  
+  return posts.filter(post => {
+    const postDate = new Date(
+      post.publishedAt || 
+      post.date || 
+      post.createdAt || 
+      post.capturedAt || 
+      new Date()
+    )
+    return postDate >= sevenDaysAgo
+  })
+}
+
 // ── Scorer (exported for reuse by webhook / scan-collect) ────────────────────
 export async function scorePosts(
   anthropicKey: string,
@@ -284,6 +344,57 @@ export async function saveScoredPosts(tenantId: string, scored: any[]): Promise<
   }
 }
 
+// Import airtableBatchCreate (needs to be exported from airtable.ts)
+import { airtableBatchCreate } from './airtable'
+
+// ── NEW A5: Per-tenant usage tracking ────────────────────────────────────────
+async function incrementTenantScanCount(tenantId: string, postsProcessed: number): Promise<void> {
+  try {
+    const PLATFORM_BASE = process.env.PLATFORM_AIRTABLE_BASE_ID
+    const PLATFORM_TOKEN = process.env.PLATFORM_AIRTABLE_TOKEN
+    
+    if (!PLATFORM_BASE || !PLATFORM_TOKEN) return
+    
+    // Get tenant record
+    const url = new URL(`https://api.airtable.com/v0/${PLATFORM_BASE}/Tenants`)
+    url.searchParams.set('filterByFormula', `{Tenant ID}='${tenantId}'`)
+    url.searchParams.set('pageSize', '1')
+    
+    const res = await fetch(url.toString(), {
+      headers: { Authorization: `Bearer ${PLATFORM_TOKEN}` },
+    })
+    if (!res.ok) return
+    
+    const data = await res.json()
+    const tenantRecord = data.records?.[0]
+    if (!tenantRecord) return
+    
+    const recordId = tenantRecord.id
+    const currentScans = tenantRecord.fields['Scans This Month'] || 0
+    const currentPosts = tenantRecord.fields['Posts Processed This Month'] || 0
+    
+    // Update tenant record
+    await fetch(
+      `https://api.airtable.com/v0/${PLATFORM_BASE}/Tenants/${recordId}`,
+      {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${PLATFORM_TOKEN}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          fields: {
+            'Scans This Month': currentScans + 1,
+            'Posts Processed This Month': currentPosts + postsProcessed,
+          }
+        })
+      }
+    )
+  } catch (error) {
+    console.error('[scan] Failed to update usage count:', error)
+  }
+}
+
 // ── Filtered Airtable GET for a specific tenant ──────────────────────────────
 async function atGet(tenantId: string, table: string, extraFormula = '') {
   const base    = tenantFilter(tenantId)
@@ -294,53 +405,6 @@ async function atGet(tenantId: string, table: string, extraFormula = '') {
     headers: { Authorization: `Bearer ${PROV_TOKEN}`, 'Content-Type': 'application/json' },
   })
   return res.json()
-}
-
-// ── Facebook group scanning ───────────────────────────────────────────────────
-// Primary actor:  apify/facebook-groups-scraper
-// Reliability: 2-attempt retry with progressive timeout + memory tuning
-async function scanFacebookGroups(
-  apifyToken: string,
-  groupUrls: string[],
-  keywords: string[],
-): Promise<any[]> {
-  if (!groupUrls.length) return []
-  console.log(`[scan] Facebook: scanning ${groupUrls.length} group(s)`)
-
-  const baseInput = {
-    startUrls:   groupUrls.map(url => ({ url })),
-    maxComments: 0,
-    proxy:       { useApifyProxy: true },
-  }
-
-  const items = await runApifyActorWithRetry(
-    apifyToken,
-    'apify/facebook-groups-scraper',
-    // Primary: 3 posts, 512 MB, 90s — handles typical load
-    { ...baseInput, maxPosts: 3 },
-    { waitSecs: 90, memoryMbytes: 512 },
-    // Retry: 2 posts, 1 GB, 60s — more memory boots browser faster when slow
-    { ...baseInput, maxPosts: 2 },
-    { waitSecs: 60, memoryMbytes: 1024 },
-    'Facebook groups-scraper',
-  )
-
-  if (!items.length) {
-    console.log('[scan] Facebook: no items returned from actor (both attempts)')
-    return []
-  }
-
-  // Keyword filter — only keep posts containing at least one configured keyword
-  const lowerKeywords = keywords.map(k => k.toLowerCase())
-  const filtered = lowerKeywords.length > 0
-    ? items.filter((raw: any) => {
-        const postText = (raw.text || raw.message || raw.body || '').toLowerCase()
-        return lowerKeywords.some(kw => postText.includes(kw))
-      })
-    : items
-
-  console.log(`[scan] Facebook: ${items.length} posts fetched, ${filtered.length} passed keyword filter`)
-  return filtered.map(normalizeFacebookPost)
 }
 
 // ── LinkedIn scanning ─────────────────────────────────────────────────────────
@@ -449,33 +513,44 @@ export async function runScanForTenant(
     }
 
     // ── LinkedIn-only scan ───────────────────────────────────────────────────
-    // Facebook scraping removed: browser-based actor costs ~$5/day at minimal
-    // usage and produces 0 posts above score threshold in practice.
-    // LinkedIn (API-based actors) costs ~$0.10-0.40/day for unlimited tenants.
     const linkedinResult = await scanLinkedIn(APIFY_TOKEN, icpProfiles, linkedinTerms, fallbackTerm)
 
-    const allPosts    = linkedinResult.posts
+    let allPosts    = linkedinResult.posts
     const scanSources = linkedinResult.source || 'none'
 
-    console.log(`[scan] Total: ${linkedinResult.posts.length} LinkedIn posts`)
+    console.log(`[scan] Total: ${allPosts.length} LinkedIn posts before filtering`)
 
-    if (!allPosts.length) {
+    // A3: Filter to recent posts only
+    allPosts = filterPostsByAge(allPosts, 7)
+    console.log(`[scan] After age filter (7 days): ${allPosts.length} posts`)
+
+    // A2: Deduplicate against already-captured posts
+    const existingUrls = await getExistingPostUrls(tenantId)
+    const newPosts = allPosts.filter(post => !existingUrls.has(post.postUrl || ''))
+    console.log(`[scan] After deduplication: ${newPosts.length} new posts (${existingUrls.size} already in Airtable)`)
+
+    if (!newPosts.length) {
+      // A5: Still track the scan even if no new posts
+      await incrementTenantScanCount(tenantId, 0)
       return {
-        tenantId, postsFound: 0, scanned: 0, scanSource: scanSources,
-        message: 'No posts returned from sources.',
+        tenantId, postsFound: 0, scanned: allPosts.length, scanSource: scanSources,
+        message: 'No new posts — all existing or too old.',
       }
     }
 
     // 3. Score
-    const scored = await scorePosts(ANTHROPIC_KEY, allPosts, businessContext, customPrompt)
+    const scored = await scorePosts(ANTHROPIC_KEY, newPosts, businessContext, customPrompt)
 
     // 4. Save
     const saved = await saveScoredPosts(tenantId, scored)
 
+    // A5: Track usage
+    await incrementTenantScanCount(tenantId, newPosts.length)
+
     return {
       tenantId,
       postsFound: saved,
-      scanned:    allPosts.length,
+      scanned:    newPosts.length,
       scanSource: scanSources,
       message: saved > 0
         ? `Found ${saved} relevant post${saved !== 1 ? 's' : ''}.`
