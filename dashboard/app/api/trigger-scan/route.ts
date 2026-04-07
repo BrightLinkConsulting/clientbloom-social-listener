@@ -38,9 +38,71 @@ async function getTenantApifyKey(tenantId: string): Promise<string | undefined> 
   }
 }
 
+async function getTenantRecord(tenantId: string) {
+  if (!PLATFORM_TOKEN || !PLATFORM_BASE) return null
+  try {
+    const filter = tenantId === 'owner'
+      ? `OR({Tenant ID}='owner',{Tenant ID}='')`
+      : `{Tenant ID}='${tenantId}'`
+    const url = new URL(`https://api.airtable.com/v0/${PLATFORM_BASE}/${encodeURIComponent('Tenants')}`)
+    url.searchParams.set('filterByFormula', filter)
+    url.searchParams.set('fields[]', 'Last Manual Scan At')
+    url.searchParams.set('maxRecords', '1')
+    const resp = await fetch(url.toString(), {
+      headers: { Authorization: `Bearer ${PLATFORM_TOKEN}` },
+    })
+    if (!resp.ok) return null
+    const data = await resp.json()
+    return data.records?.[0] || null
+  } catch {
+    return null
+  }
+}
+
+async function updateTenantLastScan(recordId: string, timestamp: string) {
+  if (!PLATFORM_TOKEN || !PLATFORM_BASE) return
+  try {
+    await fetch(
+      `https://api.airtable.com/v0/${PLATFORM_BASE}/${encodeURIComponent('Tenants')}/${recordId}`,
+      {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${PLATFORM_TOKEN}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          fields: { 'Last Manual Scan At': timestamp },
+        }),
+      }
+    )
+  } catch (e) {
+    console.error('[trigger-scan] Failed to update Last Manual Scan At:', e)
+  }
+}
+
 export async function POST() {
   const tenant = await getTenantConfig()
   if (!tenant) return tenantError()
+
+  // Check 30-minute cooldown on manual scans
+  const tenantRecord = await getTenantRecord(tenant.tenantId)
+  if (tenantRecord) {
+    const lastScanAt = tenantRecord.fields?.['Last Manual Scan At']
+    if (lastScanAt) {
+      const lastScanTime = new Date(lastScanAt).getTime()
+      const minutesSinceLastScan = (Date.now() - lastScanTime) / 1000 / 60
+      if (minutesSinceLastScan < 30) {
+        const waitMinutes = Math.ceil(30 - minutesSinceLastScan)
+        return NextResponse.json(
+          {
+            error: `Please wait ${waitMinutes} more minute${waitMinutes === 1 ? '' : 's'} before scanning again.`,
+            retryAfter: Math.ceil((30 - minutesSinceLastScan) * 60), // seconds
+          },
+          { status: 429 }
+        )
+      }
+    }
+  }
 
   // Use tenant's own Apify key if assigned by admin; otherwise fall back to shared pool
   const apifyKey = await getTenantApifyKey(tenant.tenantId)
@@ -48,6 +110,11 @@ export async function POST() {
 
   if (result.error) {
     return NextResponse.json({ error: result.error }, { status: 500 })
+  }
+
+  // Record the scan time for cooldown enforcement
+  if (tenantRecord) {
+    await updateTenantLastScan(tenantRecord.id, new Date().toISOString())
   }
 
   return NextResponse.json(result)
