@@ -875,15 +875,49 @@ interface DaySnapshot {
 
 // ── Sparkline chart ───────────────────────────────────────────────────────────
 function MomentumSparkline({ history }: { history: DaySnapshot[] }) {
-  const DAYS     = 14
-  const BAR_W    = 10
-  const BAR_GAP  = 3
-  const H        = 44
-  const today    = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' })
+  const [period, setPeriod]       = useState<7 | 14 | 30>(14)
+  const [hoveredIdx, setHovered]  = useState<number | null>(null)
+  const [tooltipX, setTooltipX]   = useState(0)
+  const containerRef              = useRef<HTMLDivElement>(null)
 
-  // Build a full 14-day window ending today
-  const days: { date: string; delta: number; isToday: boolean }[] = []
+  const DAYS    = period
+  const BAR_W   = period === 7 ? 18 : period === 14 ? 10 : 6
+  const BAR_GAP = period === 7 ? 5  : period === 14 ? 3  : 2
+  const H       = 44
+  const today   = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' })
+
+  // Build full window ending today
+  type DayPoint = { date: string; delta: number; engaged: number; replied: number; crm: number; isToday: boolean }
+  const days: DayPoint[] = []
   for (let i = DAYS - 1; i >= 0; i--) {
+    const d   = new Date()
+    d.setDate(d.getDate() - i)
+    const key = d.toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' })
+    const idx = history.findIndex(s => s.date === key)
+    let delta = 0, eng = 0, rep = 0, crm = 0
+    if (idx > 0) {
+      const cur  = history[idx]
+      const prev = history[idx - 1]
+      eng   = Math.max(0, cur.engaged - prev.engaged)
+      rep   = Math.max(0, cur.replied - prev.replied)
+      crm   = Math.max(0, cur.crm     - prev.crm)
+      delta = eng + rep * 2 + crm
+    } else if (idx === 0) {
+      eng   = history[0].engaged
+      rep   = history[0].replied
+      crm   = history[0].crm
+      delta = eng + rep * 2 + crm
+    }
+    days.push({ date: key, delta, engaged: eng, replied: rep, crm, isToday: key === today })
+  }
+
+  const maxDelta   = Math.max(1, ...days.map(d => d.delta))
+  const peakIdx    = days.reduce((best, d, i) => d.delta > days[best].delta ? i : best, 0)
+
+  // Trend: compare current period total vs previous period of same length
+  const currentTotal  = days.reduce((s, d) => s + d.delta, 0)
+  const prevDays: DayPoint[] = []
+  for (let i = DAYS * 2 - 1; i >= DAYS; i--) {
     const d   = new Date()
     d.setDate(d.getDate() - i)
     const key = d.toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' })
@@ -893,104 +927,187 @@ function MomentumSparkline({ history }: { history: DaySnapshot[] }) {
       const cur  = history[idx]
       const prev = history[idx - 1]
       delta = Math.max(0, (cur.engaged - prev.engaged) + (cur.replied - prev.replied) * 2 + (cur.crm - prev.crm))
-    } else if (idx === 0) {
-      // First ever snapshot — use absolute value
-      delta = (history[0].engaged + history[0].replied * 2 + history[0].crm)
     }
-    days.push({ date: key, delta, isToday: key === today })
+    prevDays.push({ date: key, delta, engaged: 0, replied: 0, crm: 0, isToday: false })
   }
+  const prevTotal = prevDays.reduce((s, d) => s + d.delta, 0)
+  const trendPct  = prevTotal === 0 ? null : Math.round(((currentTotal - prevTotal) / prevTotal) * 100)
 
-  const maxDelta = Math.max(1, ...days.map(d => d.delta))
-
-  const totalW = DAYS * BAR_W + (DAYS - 1) * BAR_GAP
-  const svgW   = totalW
-
+  const svgW    = DAYS * BAR_W + (DAYS - 1) * BAR_GAP
   const dayLabels = ['S','M','T','W','T','F','S']
+
+  // Tooltip content for hovered bar
+  const hovered = hoveredIdx !== null ? days[hoveredIdx] : null
+  const tooltipDate = hovered
+    ? new Date(hovered.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+    : ''
 
   return (
     <div className="mt-3 pt-3 border-t border-slate-800/60">
+      {/* Header row: period tabs + trend */}
       <div className="flex items-center justify-between mb-2">
-        <span className="text-[10px] text-slate-600 uppercase tracking-wider">14-day activity</span>
-        <span className="text-[10px] text-slate-600">engagements per day</span>
+        <div className="flex items-center gap-1">
+          {([7, 14, 30] as const).map(p => (
+            <button
+              key={p}
+              onClick={() => { setPeriod(p); setHovered(null) }}
+              className={`text-[10px] px-2 py-0.5 rounded-full transition-colors ${
+                period === p
+                  ? 'bg-slate-700 text-slate-200'
+                  : 'text-slate-600 hover:text-slate-400'
+              }`}
+            >
+              {p}D
+            </button>
+          ))}
+        </div>
+        <div className="flex items-center gap-2">
+          {trendPct !== null && currentTotal > 0 && (
+            <span className={`text-[10px] font-medium ${
+              trendPct > 5  ? 'text-emerald-400' :
+              trendPct < -5 ? 'text-red-400' :
+              'text-slate-500'
+            }`}>
+              {trendPct > 0 ? `↑${trendPct}%` : trendPct < 0 ? `↓${Math.abs(trendPct)}%` : '→ flat'}
+              <span className="text-slate-600 font-normal"> vs prev</span>
+            </span>
+          )}
+          <span className="text-[10px] text-slate-600">per day</span>
+        </div>
       </div>
-      <svg
-        width="100%"
-        viewBox={`0 0 ${svgW} ${H + 14}`}
-        preserveAspectRatio="none"
-        className="overflow-visible"
-        style={{ display: 'block' }}
-      >
-        <defs>
-          {/* Glow filter for active bars */}
-          <filter id="glow-bar" x="-50%" y="-50%" width="200%" height="200%">
-            <feGaussianBlur stdDeviation="2.5" result="blur" />
-            <feMerge>
-              <feMergeNode in="blur" />
-              <feMergeNode in="SourceGraphic" />
-            </feMerge>
-          </filter>
-          {/* Stronger glow for high-activity days */}
-          <filter id="glow-bar-strong" x="-80%" y="-80%" width="260%" height="260%">
-            <feGaussianBlur stdDeviation="4" result="blur" />
-            <feMerge>
-              <feMergeNode in="blur" />
-              <feMergeNode in="SourceGraphic" />
-            </feMerge>
-          </filter>
-          <linearGradient id="bar-grad-hi" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#34d399" />
-            <stop offset="100%" stopColor="#3b82f6" />
-          </linearGradient>
-          <linearGradient id="bar-grad-mid" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#60a5fa" />
-            <stop offset="100%" stopColor="#818cf8" />
-          </linearGradient>
-          <linearGradient id="bar-grad-today" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#a78bfa" />
-            <stop offset="100%" stopColor="#6366f1" />
-          </linearGradient>
-        </defs>
 
-        {days.map((day, i) => {
-          const x        = i * (BAR_W + BAR_GAP)
-          const pct      = day.delta / maxDelta
-          const minH     = 3
-          const barH     = day.delta === 0 ? minH : Math.max(minH, Math.round(pct * H))
-          const y        = H - barH
-          const isHigh   = pct >= 0.6
-          const isMid    = pct >= 0.2
-          const fill     = day.isToday ? 'url(#bar-grad-today)' : isHigh ? 'url(#bar-grad-hi)' : isMid ? 'url(#bar-grad-mid)' : '#1e293b'
-          const opacity  = day.delta === 0 ? 0.35 : 1
-          const filter   = isHigh ? 'url(#glow-bar-strong)' : isMid ? 'url(#glow-bar)' : undefined
-          const weekDay  = new Date(day.date + 'T12:00:00').getDay()
-          const labelTxt = dayLabels[weekDay]
+      {/* Chart container — position:relative so tooltip can be absolute */}
+      <div ref={containerRef} className="relative select-none">
+        <svg
+          width="100%"
+          viewBox={`0 0 ${svgW} ${H + 14}`}
+          preserveAspectRatio="none"
+          className="overflow-visible"
+          style={{ display: 'block' }}
+          onMouseLeave={() => setHovered(null)}
+        >
+          <defs>
+            <filter id="glow-bar" x="-50%" y="-50%" width="200%" height="200%">
+              <feGaussianBlur stdDeviation="2.5" result="blur" />
+              <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+            </filter>
+            <filter id="glow-bar-strong" x="-80%" y="-80%" width="260%" height="260%">
+              <feGaussianBlur stdDeviation="4" result="blur" />
+              <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+            </filter>
+            <filter id="glow-bar-peak" x="-100%" y="-100%" width="300%" height="300%">
+              <feGaussianBlur stdDeviation="5" result="blur" />
+              <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+            </filter>
+            <linearGradient id="bar-grad-hi" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#34d399" /><stop offset="100%" stopColor="#3b82f6" />
+            </linearGradient>
+            <linearGradient id="bar-grad-mid" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#60a5fa" /><stop offset="100%" stopColor="#818cf8" />
+            </linearGradient>
+            <linearGradient id="bar-grad-today" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#a78bfa" /><stop offset="100%" stopColor="#6366f1" />
+            </linearGradient>
+            <linearGradient id="bar-grad-hover" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#f9fafb" /><stop offset="100%" stopColor="#94a3b8" />
+            </linearGradient>
+          </defs>
 
-          return (
-            <g key={day.date} opacity={opacity}>
-              <rect
-                x={x}
-                y={y}
-                width={BAR_W}
-                height={barH}
-                rx={2.5}
-                fill={fill}
-                filter={filter}
-              />
-              {/* Subtle day-of-week label below */}
-              <text
-                x={x + BAR_W / 2}
-                y={H + 12}
-                textAnchor="middle"
-                fontSize="6"
-                fill={day.isToday ? '#a78bfa' : '#374151'}
-                fontFamily="system-ui, sans-serif"
-              >
-                {labelTxt}
-              </text>
-            </g>
-          )
-        })}
-      </svg>
+          {days.map((day, i) => {
+            const x         = i * (BAR_W + BAR_GAP)
+            const pct       = day.delta / maxDelta
+            const minH      = 3
+            const barH      = day.delta === 0 ? minH : Math.max(minH, Math.round(pct * H))
+            const y         = H - barH
+            const isHigh    = pct >= 0.6
+            const isMid     = pct >= 0.2
+            const isPeak    = i === peakIdx && day.delta > 0
+            const isHov     = i === hoveredIdx
+            const fill      = isHov             ? 'url(#bar-grad-hover)'
+                            : day.isToday       ? 'url(#bar-grad-today)'
+                            : isPeak            ? 'url(#bar-grad-hi)'
+                            : isHigh            ? 'url(#bar-grad-hi)'
+                            : isMid             ? 'url(#bar-grad-mid)'
+                            : '#1e293b'
+            const opacity   = day.delta === 0 && !isHov ? 0.35 : 1
+            const filter    = isHov ? 'url(#glow-bar)' : isPeak ? 'url(#glow-bar-peak)' : isHigh ? 'url(#glow-bar-strong)' : isMid ? 'url(#glow-bar)' : undefined
+            const weekDay   = new Date(day.date + 'T12:00:00').getDay()
+            const labelTxt  = dayLabels[weekDay]
+            const hitX      = x - 2
+            const hitW      = BAR_W + 4
+
+            return (
+              <g key={day.date} opacity={opacity}>
+                <rect x={x} y={y} width={BAR_W} height={barH} rx={2.5} fill={fill} filter={filter} />
+                {/* Invisible wider hit area for easier hover */}
+                <rect
+                  x={hitX} y={0} width={hitW} height={H + 14}
+                  fill="transparent"
+                  onMouseEnter={(e) => {
+                    setHovered(i)
+                    // Compute tooltip x as fraction of container width
+                    const rect = containerRef.current?.getBoundingClientRect()
+                    if (rect) {
+                      const barCenterFrac = (x + BAR_W / 2) / svgW
+                      setTooltipX(barCenterFrac * 100)
+                    }
+                  }}
+                />
+                <text
+                  x={x + BAR_W / 2}
+                  y={H + 12}
+                  textAnchor="middle"
+                  fontSize="6"
+                  fill={isHov ? '#e2e8f0' : day.isToday ? '#a78bfa' : '#374151'}
+                  fontFamily="system-ui, sans-serif"
+                >
+                  {labelTxt}
+                </text>
+              </g>
+            )
+          })}
+        </svg>
+
+        {/* Hover tooltip */}
+        {hovered && (
+          <div
+            className="absolute bottom-full mb-1 pointer-events-none z-20"
+            style={{
+              left: `${tooltipX}%`,
+              transform: 'translateX(-50%)',
+              minWidth: '110px',
+            }}
+          >
+            <div className="bg-slate-800 border border-slate-700/80 rounded-lg px-2.5 py-1.5 shadow-xl">
+              <div className="text-[10px] text-slate-400 mb-1 whitespace-nowrap">{tooltipDate}</div>
+              {hovered.delta === 0 ? (
+                <div className="text-[11px] text-slate-500">No activity</div>
+              ) : (
+                <div className="space-y-0.5">
+                  {hovered.engaged > 0 && (
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-[10px] text-blue-400">Engaged</span>
+                      <span className="text-[11px] font-semibold text-blue-300">{hovered.engaged}</span>
+                    </div>
+                  )}
+                  {hovered.replied > 0 && (
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-[10px] text-emerald-400">Replied</span>
+                      <span className="text-[11px] font-semibold text-emerald-300">{hovered.replied}</span>
+                    </div>
+                  )}
+                  {hovered.crm > 0 && (
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-[10px] text-violet-400">CRM</span>
+                      <span className="text-[11px] font-semibold text-violet-300">{hovered.crm}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
