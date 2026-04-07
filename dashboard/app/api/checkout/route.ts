@@ -33,7 +33,7 @@ export async function POST() {
 async function createCheckoutSession() {
   const secretKey = (process.env.STRIPE_SECRET_KEY || '').trim()
   const priceId   = (process.env.STRIPE_PRICE_ID   || '').trim()
-  const baseUrl   = (process.env.NEXT_PUBLIC_BASE_URL || 'https://cb-dashboard-xi.vercel.app').replace(/\/$/, '')
+  const baseUrl   = (process.env.NEXT_PUBLIC_BASE_URL || 'https://scout.clientbloom.ai').replace(/\/$/, '')
 
   if (!secretKey || !priceId) {
     console.error('[checkout] Missing env vars — STRIPE_SECRET_KEY or STRIPE_PRICE_ID not set')

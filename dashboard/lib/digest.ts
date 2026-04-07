@@ -11,7 +11,8 @@ import { postSlackMessage } from '@/lib/slack'
 
 const AIRTABLE_BASE  = 'https://api.airtable.com/v0'
 const MIN_SCORE      = 5
-const DASHBOARD_URL  = process.env.NEXT_PUBLIC_BASE_URL || 'https://cb-dashboard-xi.vercel.app'
+// Never fall back to the old staging URL — use production domain
+const DASHBOARD_URL  = (process.env.NEXT_PUBLIC_BASE_URL || 'https://scout.clientbloom.ai').replace(/\/$/, '')
 
 export interface DigestResult {
   sent:      boolean
@@ -88,14 +89,10 @@ function todayMidnightUTC(): string {
 }
 
 interface BriefStats {
-  newToday:          number
-  linkedin:          number
-  topScore:          number
-  totalActive:       number
-  totalEngaged:      number
-  totalReplied:      number
-  relationshipScore: number
-  momentumTrend:     'up' | 'flat' | 'down' | 'new'
+  newToday:      number
+  topScore:      number
+  totalActive:   number   // inbox count — excludes skipped/archived, matches dashboard Inbox tab
+  momentumTrend: 'up' | 'flat' | 'down' | 'new'
 }
 
 async function getBriefStats(tenantId: string): Promise<BriefStats> {
@@ -113,11 +110,12 @@ async function getBriefStats(tenantId: string): Promise<BriefStats> {
     pageSize: '100',
   })
 
-  // Query 2 — full pipeline (paginated — critical for accurate totals)
+  // Query 2 — active pipeline only (excludes skipped + archived so counts match the dashboard inbox view)
   const pipelineParams = new URLSearchParams({
     filterByFormula: `AND(
       ${tenantFilter(tenantId)},
-      {Engagement Status}!='archived'
+      {Engagement Status}!='archived',
+      {Action}!='Skip'
     )`,
     'fields[]':  'Action',
     'fields[1]': 'Engagement Status',
@@ -129,26 +127,21 @@ async function getBriefStats(tenantId: string): Promise<BriefStats> {
     fetchAllRecords('Captured Posts', pipelineParams),
   ])
 
-  let linkedin = 0, topScore = 0
+  let topScore = 0
   for (const r of todayPosts) {
     const score = r.fields?.['Relevance Score'] || 0
-    linkedin++
     if (score > topScore) topScore = score
   }
 
-  let totalActive = 0, totalEngaged = 0, totalReplied = 0
+  // Count inbox posts only (skipped/archived excluded by pipelineParams query)
+  // 'replied' and 'Engaged' are still in the result set so we can derive totalActive accurately
+  let totalActive = 0
   for (const r of pipelinePosts) {
     const action = r.fields?.['Action'] || 'New'
     const status = r.fields?.['Engagement Status'] || ''
-    if (status === 'replied')      totalReplied++
-    else if (action === 'Engaged') totalEngaged++
-    else                           totalActive++
+    // Only count posts sitting in the inbox — not yet engaged or replied
+    if (status !== 'replied' && action !== 'Engaged') totalActive++
   }
-
-  // Relationship score — same formula as the frontend MomentumWidget
-  const totalSurfaced       = totalActive + totalEngaged + totalReplied
-  const rawScore            = ((totalEngaged + totalReplied * 2) / Math.max(1, totalSurfaced)) * 150
-  const relationshipScore   = Math.min(100, Math.round(rawScore))
 
   // Read stored momentum history to determine trend
   let momentumTrend: BriefStats['momentumTrend'] = 'new'
@@ -179,12 +172,8 @@ async function getBriefStats(tenantId: string): Promise<BriefStats> {
 
   return {
     newToday: todayPosts.length,
-    linkedin,
     topScore,
     totalActive,
-    totalEngaged,
-    totalReplied,
-    relationshipScore,
     momentumTrend,
   }
 }
@@ -200,44 +189,48 @@ function formatDate(): string {
 function buildBriefBlocks(stats: BriefStats): { blocks: object[]; fallback: string } {
   const {
     newToday, topScore,
-    totalActive, totalEngaged, totalReplied,
-    relationshipScore, momentumTrend,
+    totalActive, momentumTrend,
   } = stats
 
-  const platformLine = newToday > 0 && topScore >= 7
-    ? `↳ top score *${topScore}/10*`
-    : null
+  // ── New posts line ─────────────────────────────────────────────────────────
+  // Primary hook: did something new surface today?
+  let newPostsText: string
+  if (newToday > 0) {
+    const noun = newToday !== 1 ? 'conversations' : 'conversation'
+    const scoreHint = topScore >= 7 ? ` — top match scored *${topScore}/10*` : ''
+    newPostsText = `*${newToday} new ${noun}* surfaced in your feed today${scoreHint}`
+  } else {
+    newPostsText = `No new posts matched your filters today — your sources are still running`
+  }
 
-  const pipelineTotal = totalActive + totalEngaged + totalReplied
-
-  const newLeadsText = newToday > 0
-    ? `*${newToday} new ${newToday !== 1 ? 'conversations' : 'conversation'}* added to your feed today`
-    : `No new posts matched your filters today — your sources are still running`
-
-  // Momentum section
+  // ── Momentum / inbox line ──────────────────────────────────────────────────
+  // Drive urgency without exposing confusing all-time metrics.
+  // totalActive now excludes skipped posts, matching the dashboard Inbox count.
   const trendIcon = momentumTrend === 'up'   ? '📈'
                   : momentumTrend === 'down' ? '⚠️'
                   : momentumTrend === 'flat' ? '→'
                   : '🚀'
 
-  const trendText = momentumTrend === 'up'
-    ? `Engagement building — keep it going`
+  const trendMsg = momentumTrend === 'up'
+    ? 'Engagement is building — keep it going'
     : momentumTrend === 'down'
-    ? `Engagement dropped lately — ${totalActive} posts waiting in your inbox`
+    ? 'Engagement has dipped — a good time to catch up'
     : momentumTrend === 'flat'
-    ? `Engagement steady — ${totalActive} posts waiting`
-    : `${totalActive} posts waiting for your first engagement`
+    ? 'Engagement is steady — keep showing up'
+    : 'Your feed is live and ready'
 
-  const momentumLine = `${trendIcon}  Relationship Score: *${relationshipScore}/100*  ·  ${trendText}`
+  const inboxHint = totalActive > 0
+    ? `  ·  *${totalActive}* ${totalActive !== 1 ? 'posts' : 'post'} waiting in your inbox`
+    : ''
 
-  const pipelineLine = pipelineTotal > 0
-    ? `${totalEngaged} engaged  ·  ${totalReplied} replied  ·  *${totalActive} in inbox*`
-    : null
+  const momentumLine = `${trendIcon}  ${trendMsg}${inboxHint}`
 
+  // ── Fallback (plain-text for notifications / accessibility) ───────────────
   const fallback = newToday > 0
-    ? `Scout: ${newToday} new ${newToday !== 1 ? 'conversations' : 'conversation'} today. Score: ${relationshipScore}/100. ${totalActive} in inbox.`
-    : `Scout: No new posts today. Score: ${relationshipScore}/100. ${totalActive} waiting in inbox.`
+    ? `Scout: ${newToday} new ${newToday !== 1 ? 'conversations' : 'conversation'} today. ${totalActive > 0 ? `${totalActive} posts in your inbox.` : ''}`
+    : `Scout: No new posts today. ${totalActive > 0 ? `${totalActive} posts in your inbox.` : 'All caught up.'}`
 
+  // ── Blocks ─────────────────────────────────────────────────────────────────
   const blocks: object[] = [
     {
       type: 'section',
@@ -246,33 +239,25 @@ function buildBriefBlocks(stats: BriefStats): { blocks: object[]; fallback: stri
     { type: 'divider' },
     {
       type: 'section',
-      text: { type: 'mrkdwn', text: [newLeadsText, platformLine].filter(Boolean).join('\n') },
+      text: { type: 'mrkdwn', text: newPostsText },
+    },
+    { type: 'divider' },
+    {
+      type: 'section',
+      text: { type: 'mrkdwn', text: momentumLine },
+    },
+    { type: 'divider' },
+    {
+      type: 'actions',
+      elements: [{
+        type:      'button',
+        style:     'primary',
+        text:      { type: 'plain_text', text: 'Open Scout →', emoji: true },
+        url:       DASHBOARD_URL,
+        action_id: 'open_scout',
+      }],
     },
   ]
-
-  if (pipelineLine) {
-    blocks.push({
-      type: 'context',
-      elements: [{ type: 'mrkdwn', text: pipelineLine }],
-    })
-  }
-
-  blocks.push({ type: 'divider' })
-  blocks.push({
-    type: 'section',
-    text: { type: 'mrkdwn', text: momentumLine },
-  })
-  blocks.push({ type: 'divider' })
-  blocks.push({
-    type: 'actions',
-    elements: [{
-      type:      'button',
-      style:     'primary',
-      text:      { type: 'plain_text', text: 'Open Scout →', emoji: true },
-      url:       DASHBOARD_URL,
-      action_id: 'open_scout',
-    }],
-  })
 
   return { blocks, fallback }
 }

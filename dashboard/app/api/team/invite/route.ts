@@ -19,7 +19,7 @@ import bcrypt                         from 'bcryptjs'
 const PLATFORM_TOKEN = process.env.PLATFORM_AIRTABLE_TOKEN   || ''
 const PLATFORM_BASE  = process.env.PLATFORM_AIRTABLE_BASE_ID || ''
 const RESEND_KEY     = process.env.RESEND_API_KEY             || ''
-const BASE_URL       = (process.env.NEXT_PUBLIC_BASE_URL || 'https://cb-dashboard-xi.vercel.app').replace(/\/$/, '')
+const BASE_URL       = (process.env.NEXT_PUBLIC_BASE_URL || 'https://scout.clientbloom.ai').replace(/\/$/, '')
 const FROM           = 'Scout <noreply@clientbloom.ai>'
 
 function generateTempPassword(): string {
