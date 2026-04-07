@@ -25,7 +25,7 @@
  *   A5: Per-tenant usage tracking — track scans/posts processed for billing
  */
 
-import { SHARED_BASE, PROV_TOKEN, tenantFilter, airtableCreate } from './airtable'
+import { SHARED_BASE, PROV_TOKEN, tenantFilter, airtableCreate, airtableBatchCreate } from './airtable'
 
 const DEFAULT_SCAN_PROMPT = `You are a LinkedIn relationship intelligence AI. Score each post for relationship-building conversation value (1-10).
 
@@ -343,9 +343,6 @@ export async function saveScoredPosts(tenantId: string, scored: any[]): Promise<
     return saved
   }
 }
-
-// Import airtableBatchCreate (needs to be exported from airtable.ts)
-import { airtableBatchCreate } from './airtable'
 
 // ── NEW A5: Per-tenant usage tracking ────────────────────────────────────────
 async function incrementTenantScanCount(tenantId: string, postsProcessed: number): Promise<void> {
