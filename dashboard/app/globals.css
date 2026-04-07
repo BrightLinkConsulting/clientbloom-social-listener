@@ -11,3 +11,20 @@ body {
 * {
   box-sizing: border-box;
 }
+
+/* ── Gradient text blob animations ── */
+@keyframes gradient-1 {
+  0%   { transform: translate(0%, 0%) scale(1); }
+  50%  { transform: translate(15%, -20%) scale(1.15); }
+  100% { transform: translate(-10%, 10%) scale(0.95); }
+}
+@keyframes gradient-2 {
+  0%   { transform: translate(0%, 0%) scale(1); }
+  50%  { transform: translate(-20%, 15%) scale(1.2); }
+  100% { transform: translate(10%, -10%) scale(0.9); }
+}
+@keyframes gradient-3 {
+  0%   { transform: translate(0%, 0%) scale(1.05); }
+  50%  { transform: translate(20%, 10%) scale(0.9); }
+  100% { transform: translate(-15%, -15%) scale(1.1); }
+}

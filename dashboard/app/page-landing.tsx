@@ -5,8 +5,45 @@
 
 import Link from 'next/link'
 import { FaqAccordion } from './_components/FaqAccordion'
+import { NeonButton } from '@/components/ui/neon-button'
+import AnimatedTextCycle from '@/components/ui/animated-text-cycle'
+import { GradientText } from '@/components/ui/gradient-text'
+import { AnimatedTestimonials, type Testimonial } from '@/components/blocks/animated-testimonials'
 
 const CHECKOUT_URL = '/api/checkout'
+
+const TESTIMONIALS: Testimonial[] = [
+  {
+    id: 1,
+    name: 'Sarah M.',
+    role: 'Fractional CMO',
+    company: 'Independent Consultant',
+    content: 'I engaged with 3 prospects this week who were already aware of me from my LinkedIn comments. Two of them booked calls before I ever pitched.',
+    rating: 5,
+    initials: 'SM',
+    accentColor: 'linear-gradient(135deg, #4F6BFF, #7C3AED)',
+  },
+  {
+    id: 2,
+    name: 'David K.',
+    role: 'B2B Consultant',
+    company: 'DK Consulting',
+    content: "Scout replaced cold outreach entirely for my firm. I'm closing deals with people who already feel like they know me.",
+    rating: 5,
+    initials: 'DK',
+    accentColor: 'linear-gradient(135deg, #00B96B, #4F6BFF)',
+  },
+  {
+    id: 3,
+    name: 'Rachel T.',
+    role: 'Agency Owner',
+    company: 'Growth Agency',
+    content: 'My connection acceptance rate jumped in the first two weeks. Being visible before the ask changes everything.',
+    rating: 5,
+    initials: 'RT',
+    accentColor: 'linear-gradient(135deg, #E91E8C, #7C3AED)',
+  },
+]
 
 /** ClientBloom logo mark — SVG recreation of the 5-petal bloom icon */
 function ClientBloomMark({ size = 28 }: { size?: number }) {
@@ -75,9 +112,9 @@ export default function LandingPage() {
             <a href="#how-it-works" className="text-slate-400 hover:text-slate-200 text-sm transition-colors hidden md:block">How it works</a>
             <a href="#pricing" className="text-slate-400 hover:text-slate-200 text-sm transition-colors hidden md:block">Pricing</a>
             <Link href="/sign-in" className="text-slate-400 hover:text-slate-200 text-sm transition-colors">Sign in</Link>
-            <a href={CHECKOUT_URL} className="bg-[#4F6BFF] hover:bg-[#3D57F5] text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors">
+            <NeonButton href={CHECKOUT_URL} variant="solid" size="sm">
               Start for $79/mo
-            </a>
+            </NeonButton>
           </div>
         </div>
       </nav>
@@ -88,7 +125,11 @@ export default function LandingPage() {
 
           <div className="inline-flex items-center gap-2 bg-[#4F6BFF]/10 border border-[#4F6BFF]/20 rounded-full px-4 py-1.5 mb-8">
             <span className="w-1.5 h-1.5 rounded-full bg-[#4F6BFF] animate-pulse" />
-            <span className="text-[#4F6BFF] text-xs font-medium tracking-wide uppercase">LinkedIn Relationship Intelligence</span>
+            <AnimatedTextCycle
+              words={['Post Scoring', 'Profile Monitoring', 'Comment Generation', 'ICP Intelligence']}
+              interval={3000}
+              className="text-[#4F6BFF] text-xs font-medium tracking-wide uppercase"
+            />
           </div>
 
           <h1 className="font-bold tracking-tight mb-4">
@@ -105,10 +146,12 @@ export default function LandingPage() {
               LinkedIn right now.
             </span>
             <span
-              className="block text-[#4F6BFF] whitespace-nowrap leading-[1.2] mt-2"
+              className="block whitespace-nowrap leading-[1.2] mt-2"
               style={{ fontSize: 'clamp(14px, 5vw, 56px)' }}
             >
-              Scout puts you in front of them.
+              <GradientText className="text-white font-bold tracking-tight">
+                Scout puts you in front of them.
+              </GradientText>
             </span>
           </h1>
 
@@ -117,13 +160,10 @@ export default function LandingPage() {
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-            <a
-              href={CHECKOUT_URL}
-              className="inline-flex items-center gap-2 bg-[#4F6BFF] hover:bg-[#3D57F5] text-white font-semibold px-8 py-4 rounded-xl text-base transition-all hover:scale-[1.02] shadow-lg shadow-[#4F6BFF]/25"
-            >
+            <NeonButton href={CHECKOUT_URL} variant="solid" size="lg">
               Get Scout — $79/month
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
-            </a>
+            </NeonButton>
             <a href="#how-it-works" className="text-slate-400 hover:text-slate-200 text-sm transition-colors flex items-center gap-1.5">
               See how it works
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
@@ -242,46 +282,19 @@ export default function LandingPage() {
       </section>
 
       {/* ─── SOCIAL PROOF ─── */}
-      <section className="py-24 px-6 border-t border-slate-800/50 bg-gradient-to-b from-[#0a0c10] to-[#0f1117]/50">
-        <div className="max-w-4xl mx-auto">
-          <div className="text-center mb-16">
-            <h2 className="text-4xl font-bold text-white mb-4">Trusted by consultants and GTM teams closing warmer, faster</h2>
-          </div>
-
-          <div className="grid md:grid-cols-3 gap-8 mb-12">
-            {[
-              {
-                quote: 'I engaged with 3 prospects this week who were already aware of me from my LinkedIn comments. Two of them booked calls before I ever pitched.',
-                author: 'Sarah M.',
-                title: 'Fractional CMO'
-              },
-              {
-                quote: 'Scout replaced cold outreach entirely for my firm. I\'m closing deals with people who already feel like they know me.',
-                author: 'David K.',
-                title: 'B2B Consultant'
-              },
-              {
-                quote: 'My connection acceptance rate jumped in the first two weeks. Being visible before the ask changes everything.',
-                author: 'Rachel T.',
-                title: 'Agency Owner'
-              }
-            ].map((item, i) => (
-              <div key={i} className="bg-[#0f1117] border border-slate-800 rounded-xl p-8">
-                <div className="text-[#4F6BFF] text-3xl mb-4">"</div>
-                <p className="text-slate-300 text-base leading-relaxed mb-6 italic">{item.quote}</p>
-                <div>
-                  <p className="text-white font-semibold text-sm">{item.author}</p>
-                  <p className="text-slate-500 text-xs">{item.title}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-
+      <div className="border-t border-slate-800/50 bg-gradient-to-b from-[#0a0c10] to-[#0f1117]/50">
+        <AnimatedTestimonials
+          title="Trusted by consultants and GTM teams"
+          subtitle="Real results from scouts who show up consistently in the right conversations."
+          badgeText="Trusted by consultants & agencies"
+          testimonials={TESTIMONIALS}
+        />
+        <div className="max-w-4xl mx-auto px-6 pb-24">
           <div className="grid md:grid-cols-3 gap-8 text-center">
             {[
               { stat: '3.2x', label: 'higher reply rates vs. cold outreach' },
               { stat: '60%+', label: 'connection acceptance from monitored prospects' },
-              { stat: '14 days', label: 'free trial — see results in your first week' }
+              { stat: '14 days', label: 'free trial — see results in your first week' },
             ].map((item, i) => (
               <div key={i}>
                 <div className="text-3xl font-bold text-[#4F6BFF] mb-2">{item.stat}</div>
@@ -290,7 +303,7 @@ export default function LandingPage() {
             ))}
           </div>
         </div>
-      </section>
+      </div>
 
       {/* ─── PRICING ─── */}
       <section id="pricing" className="py-24 px-6 border-t border-slate-800/50">
@@ -302,13 +315,10 @@ export default function LandingPage() {
             <div className="text-5xl font-bold text-white mb-2">$79<span className="text-xl text-slate-400 font-normal">/month</span></div>
             <p className="text-slate-400 text-sm mb-8">2 monitored topics, 1 monitored persona, unlimited post history.</p>
 
-            <a
-              href={CHECKOUT_URL}
-              className="inline-flex items-center gap-2 bg-[#4F6BFF] hover:bg-[#3D57F5] text-white font-semibold px-8 py-4 rounded-xl transition-all hover:scale-[1.02] shadow-lg shadow-[#4F6BFF]/25"
-            >
+            <NeonButton href={CHECKOUT_URL} variant="solid" size="lg">
               Start 14-Day Free Trial
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
-            </a>
+            </NeonButton>
 
             <div className="mt-8 space-y-3 text-left text-slate-400 text-sm">
               <div className="flex items-center gap-3">
@@ -363,13 +373,10 @@ export default function LandingPage() {
             Scout automates that presence. At $79/month, it pays for itself the first time a prospect reaches out because they already know who you are.
           </p>
 
-          <a
-            href={CHECKOUT_URL}
-            className="inline-flex items-center gap-2 bg-[#4F6BFF] hover:bg-[#3D57F5] text-white font-semibold px-10 py-5 rounded-xl text-lg transition-all hover:scale-[1.02] shadow-xl shadow-[#4F6BFF]/25"
-          >
+          <NeonButton href={CHECKOUT_URL} variant="solid" size="lg" className="text-lg px-10 py-5">
             Get Scout — $79/month
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
-          </a>
+          </NeonButton>
           <p className="text-slate-600 text-sm mt-4">Setup takes under 10 minutes. Your Scout feed is live today.</p>
         </div>
       </section>
