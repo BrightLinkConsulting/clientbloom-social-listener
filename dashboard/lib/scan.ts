@@ -425,10 +425,16 @@ async function scanLinkedIn(
     return { source: 'icp_profiles', posts: items.map(normalizeLinkedInIcpPost) }
   }
 
-  // Run all configured keyword terms in parallel (up to 4) — each is an independent
-  // API-based actor call (cheap, ~$0.001/run) with no shared browser state.
-  const terms = linkedinTerms.length > 0 ? linkedinTerms : (fallbackTerm ? [fallbackTerm] : [])
+  // Run keyword terms in parallel — each is an independent API-based actor call.
+  // Hard cap at 10 terms: beyond this, signal-to-noise degrades and Apify cost grows linearly.
+  // The UI enforces MAX_ACTIVE_TERMS=10 already; this is the server-side safety net.
+  const MAX_TERMS = 10
+  const rawTerms = linkedinTerms.length > 0 ? linkedinTerms : (fallbackTerm ? [fallbackTerm] : [])
+  const terms = rawTerms.slice(0, MAX_TERMS)
   if (terms.length === 0) return { posts: [], source: '' }
+  if (rawTerms.length > MAX_TERMS) {
+    console.warn(`[scan] LinkedIn: ${rawTerms.length} terms configured — capped at ${MAX_TERMS} to control cost`)
+  }
 
   console.log(`[scan] LinkedIn: keyword search for ${terms.length} term(s): ${terms.join(', ')}`)
   const results = await Promise.all(

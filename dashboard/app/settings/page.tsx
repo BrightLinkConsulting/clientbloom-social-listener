@@ -408,6 +408,75 @@ const colorMap: Record<string, string> = {
   emerald: 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20',
 }
 
+// ---- LinkedIn Terms: industry starter packs ----
+// Each pack gives a user an instant, high-signal starting point for their vertical.
+// Terms are chosen for the language decision-makers in that industry actually post about.
+const INDUSTRY_PACKS: { label: string; value: string; terms: string[] }[] = [
+  {
+    label: 'Agency / Marketing Agency',
+    value: 'agency',
+    terms: ['client retention', 'agency growth', 'losing a client', 'client churn', 'retainer model', 'agency operations', 'client onboarding'],
+  },
+  {
+    label: 'B2B SaaS',
+    value: 'saas',
+    terms: ['product led growth', 'reducing churn', 'customer onboarding', 'time to value', 'SaaS pricing', 'expansion revenue', 'churn rate'],
+  },
+  {
+    label: 'Customer Success',
+    value: 'customer-success',
+    terms: ['customer health score', 'churn prevention', 'renewal strategy', 'expansion playbook', 'QBR prep', 'CS team scaling', 'customer onboarding'],
+  },
+  {
+    label: 'Sales / Revenue',
+    value: 'sales',
+    terms: ['pipeline review', 'cold outreach', 'deal closing', 'quota attainment', 'discovery call', 'objection handling', 'sales process'],
+  },
+  {
+    label: 'HR / Talent / Recruiting',
+    value: 'hr',
+    terms: ['talent acquisition', 'employee retention', 'reducing turnover', 'hiring mistakes', 'candidate experience', 'employer brand', 'performance review'],
+  },
+  {
+    label: 'Finance / CFO / Accounting',
+    value: 'finance',
+    terms: ['cash flow management', 'financial planning', 'runway extension', 'unit economics', 'cost cutting', 'budgeting process', 'fundraising round'],
+  },
+  {
+    label: 'Consulting / Professional Services',
+    value: 'consulting',
+    terms: ['scope creep', 'client management', 'retainer clients', 'proposal writing', 'consulting fees', 'client results', 'consulting business'],
+  },
+  {
+    label: 'E-commerce / DTC',
+    value: 'ecommerce',
+    terms: ['customer acquisition cost', 'repeat purchase rate', 'abandoned cart', 'DTC growth', 'conversion rate', 'email revenue', 'DTC margins'],
+  },
+  {
+    label: 'Healthcare / Wellness',
+    value: 'healthcare',
+    terms: ['patient retention', 'practice growth', 'patient experience', 'healthcare marketing', 'referral marketing', 'telehealth', 'wellness business'],
+  },
+  {
+    label: 'Real Estate',
+    value: 'real-estate',
+    terms: ['real estate investing', 'deal flow', 'property management', 'multifamily investing', 'passive income real estate', 'real estate portfolio', 'cap rate'],
+  },
+  {
+    label: 'Coaching / Solopreneurs',
+    value: 'coaching',
+    terms: ['coaching business', 'high ticket offer', 'client transformation', 'scaling services', 'lead generation coaching', 'online coaching', 'group program'],
+  },
+  {
+    label: 'Legal / Law Firms',
+    value: 'legal',
+    terms: ['law firm growth', 'client acquisition lawyer', 'legal operations', 'billing rates', 'in-house counsel', 'law practice management', 'legal tech'],
+  },
+]
+
+const MAX_ACTIVE_TERMS = 10
+const WARN_ACTIVE_TERMS = 8
+
 // ---- LinkedIn Terms Section ----
 function LinkedInTermsSection({ sources, onUpdate }: {
   sources: Source[]
@@ -415,6 +484,9 @@ function LinkedInTermsSection({ sources, onUpdate }: {
 }) {
   const [showAdd, setShowAdd] = useState(false)
   const [showSuggestions, setShowSuggestions] = useState(false)
+  const [showPackPicker, setShowPackPicker] = useState(false)
+  const [selectedIndustry, setSelectedIndustry] = useState('')
+  const [loadingPack, setLoadingPack] = useState(false)
   const [newTerm, setNewTerm] = useState('')
   const [adding, setAdding] = useState(false)
   const [addingPreset, setAddingPreset] = useState<string | null>(null)
@@ -425,6 +497,7 @@ function LinkedInTermsSection({ sources, onUpdate }: {
   const terms = sources.filter(s => s.type === 'linkedin_term')
   const activeCount = terms.filter(t => t.active).length
   const existingValues = new Set(terms.map(t => t.value.toLowerCase()))
+  const atCap = activeCount >= MAX_ACTIVE_TERMS
 
   const handleToggle = async (source: Source) => {
     setToggling(source.id)
@@ -461,6 +534,10 @@ function LinkedInTermsSection({ sources, onUpdate }: {
     const t = term.trim()
     if (!t) { setError('Enter a search term.'); return }
     if (existingValues.has(t.toLowerCase())) return
+    if (activeCount >= MAX_ACTIVE_TERMS) {
+      setError(`You've reached the ${MAX_ACTIVE_TERMS}-term limit. Pause or remove a term before adding another.`)
+      return
+    }
     if (isPreset) setAddingPreset(t)
     else setAdding(true)
     setError('')
@@ -479,6 +556,31 @@ function LinkedInTermsSection({ sources, onUpdate }: {
       setAdding(false)
       setAddingPreset(null)
     }
+  }
+
+  const loadIndustryPack = async () => {
+    if (!selectedIndustry) return
+    const pack = INDUSTRY_PACKS.find(p => p.value === selectedIndustry)
+    if (!pack) return
+    setLoadingPack(true)
+    setError('')
+    const termsToAdd = pack.terms.filter(t => !existingValues.has(t.toLowerCase()))
+    let added = 0
+    for (const t of termsToAdd) {
+      if (activeCount + added >= MAX_ACTIVE_TERMS) break
+      try {
+        const resp = await fetch('/api/sources', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: t, type: 'linkedin_term', value: t, priority: 'high' }),
+        })
+        if (resp.ok) added++
+      } catch { /* skip failed terms */ }
+    }
+    setLoadingPack(false)
+    setShowPackPicker(false)
+    setSelectedIndustry('')
+    onUpdate()
   }
 
   return (
@@ -539,8 +641,40 @@ function LinkedInTermsSection({ sources, onUpdate }: {
         </div>
       )}
 
+      {/* Empty state — prompt to use a starter pack */}
       {terms.length === 0 && (
-        <p className="text-xs text-slate-600 mb-5">No search terms yet — add some below to start finding posts.</p>
+        <div className="mb-5 rounded-xl border border-slate-700/40 bg-slate-900/60 p-4 space-y-3">
+          <div className="flex items-start gap-3">
+            <span className="text-lg leading-none mt-0.5">🎯</span>
+            <div>
+              <p className="text-xs font-semibold text-slate-200 mb-1">Start with a starter pack</p>
+              <p className="text-xs text-slate-500 leading-relaxed">
+                Pick your industry and Scout will add 6–7 high-signal terms that match how your buyers actually post on LinkedIn. You can edit or remove any of them after.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <select
+              value={selectedIndustry}
+              onChange={e => setSelectedIndustry(e.target.value)}
+              className="flex-1 min-w-[200px] text-xs bg-slate-800 border border-slate-700/50 rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:border-blue-500/50"
+            >
+              <option value="">Select your industry…</option>
+              {INDUSTRY_PACKS.map(p => (
+                <option key={p.value} value={p.value}>{p.label}</option>
+              ))}
+            </select>
+            <button
+              onClick={loadIndustryPack}
+              disabled={!selectedIndustry || loadingPack}
+              className="text-xs px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white font-medium transition-colors flex items-center gap-1.5"
+            >
+              {loadingPack && <Spinner />}
+              Load Pack
+            </button>
+          </div>
+          <p className="text-xs text-slate-600">Prefer to build your own? Use <span className="text-slate-400">Browse suggestions</span> or <span className="text-slate-400">Add custom term</span> below.</p>
+        </div>
       )}
 
       {/* Suggestions panel */}
@@ -611,20 +745,86 @@ function LinkedInTermsSection({ sources, onUpdate }: {
         </div>
       )}
 
+      {/* Term count guardrails */}
+      {atCap && (
+        <div className="mb-4 flex gap-2.5 px-3.5 py-3 rounded-xl bg-red-500/10 border border-red-500/20">
+          <span className="text-red-400 text-sm shrink-0">⛔</span>
+          <div>
+            <p className="text-xs font-semibold text-red-300">Limit reached — {MAX_ACTIVE_TERMS} active terms</p>
+            <p className="text-xs text-red-400/80 mt-0.5 leading-relaxed">
+              Each term runs a separate LinkedIn search every scan. More terms add cost and noise — not better results. Pause or remove a term before adding another.
+            </p>
+          </div>
+        </div>
+      )}
+      {!atCap && activeCount >= WARN_ACTIVE_TERMS && (
+        <div className="mb-4 flex gap-2.5 px-3.5 py-3 rounded-xl bg-amber-500/10 border border-amber-500/20">
+          <span className="text-amber-400 text-sm shrink-0">⚠️</span>
+          <p className="text-xs text-amber-400/90 leading-relaxed">
+            <span className="font-semibold">{activeCount} active terms.</span> Scout searches each one independently — above {MAX_ACTIVE_TERMS} the signal-to-noise ratio drops. Aim for 5–8 tightly focused phrases.
+          </p>
+        </div>
+      )}
+
+      {/* Starter pack picker — for accounts that already have some terms */}
+      {showPackPicker && terms.length > 0 && (
+        <div className="mb-4 rounded-xl border border-slate-700/40 bg-slate-900/60 p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-semibold text-slate-300">Load a starter pack</p>
+            <button onClick={() => { setShowPackPicker(false); setSelectedIndustry('') }} className="text-xs text-slate-600 hover:text-slate-400 transition-colors">Cancel</button>
+          </div>
+          <p className="text-xs text-slate-500 -mt-1">Only terms you don't already have will be added. Won't exceed the {MAX_ACTIVE_TERMS}-term limit.</p>
+          <div className="flex items-center gap-2 flex-wrap">
+            <select
+              value={selectedIndustry}
+              onChange={e => setSelectedIndustry(e.target.value)}
+              className="flex-1 min-w-[200px] text-xs bg-slate-800 border border-slate-700/50 rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:border-blue-500/50"
+            >
+              <option value="">Select your industry…</option>
+              {INDUSTRY_PACKS.map(p => (
+                <option key={p.value} value={p.value}>{p.label}</option>
+              ))}
+            </select>
+            <button
+              onClick={loadIndustryPack}
+              disabled={!selectedIndustry || loadingPack || atCap}
+              className="text-xs px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white font-medium transition-colors flex items-center gap-1.5"
+            >
+              {loadingPack && <Spinner />}
+              Load Pack
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Action buttons */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 flex-wrap">
         <button
-          onClick={() => { setShowSuggestions(v => !v); setShowAdd(false) }}
-          className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-slate-700/50 text-slate-400 hover:text-white hover:border-slate-600 transition-colors"
+          onClick={() => { setShowSuggestions(v => !v); setShowAdd(false); setShowPackPicker(false) }}
+          disabled={atCap}
+          className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-slate-700/50 text-slate-400 hover:text-white hover:border-slate-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
         >
           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.347.346A3.51 3.51 0 0114.5 18H9.5a3.51 3.51 0 01-2.471-1.024l-.347-.346z" />
           </svg>
           Browse suggestions
         </button>
+        {terms.length > 0 && (
+          <button
+            onClick={() => { setShowPackPicker(v => !v); setShowAdd(false); setShowSuggestions(false) }}
+            disabled={atCap}
+            className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-slate-700/50 text-slate-400 hover:text-white hover:border-slate-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+            </svg>
+            Starter packs
+          </button>
+        )}
         <button
-          onClick={() => { setShowAdd(v => !v); setShowSuggestions(false) }}
-          className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-300 transition-colors"
+          onClick={() => { setShowAdd(v => !v); setShowSuggestions(false); setShowPackPicker(false) }}
+          disabled={atCap}
+          className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-300 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
         >
           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
