@@ -90,8 +90,10 @@ function todayMidnightUTC(): string {
 
 interface TopPost {
   authorName: string
-  text:       string   // truncated to ~120 chars for Slack teaser
+  subtitle:   string   // cleaned role/company from Group Name (e.g. "Head of CS @ Notion")
+  text:       string   // first sentence, max ~120 chars
   score:      number
+  postUrl:    string   // LinkedIn post URL for the View Post button
 }
 
 interface BriefStats {
@@ -103,8 +105,8 @@ interface BriefStats {
 async function getBriefStats(tenantId: string): Promise<BriefStats> {
   const since = todayMidnightUTC()
 
-  // Query — today's new posts, sorted by score desc, with teaser fields
-  // We fetch up to 100 (paginated). The count is newToday; top 5 become the Slack teasers.
+  // Query — today's new posts, sorted by score desc, with all card fields
+  // Paginated. Count = newToday; top 3 become the Slack post cards.
   const todayParams = new URLSearchParams({
     filterByFormula: `AND(
       ${tenantFilter(tenantId)},
@@ -115,6 +117,8 @@ async function getBriefStats(tenantId: string): Promise<BriefStats> {
     'fields[]':  'Relevance Score',
     'fields[1]': 'Author Name',
     'fields[2]': 'Post Text',
+    'fields[3]': 'Group Name',
+    'fields[4]': 'Post URL',
     'sort[0][field]':     'Relevance Score',
     'sort[0][direction]': 'desc',
     pageSize: '100',
@@ -122,14 +126,26 @@ async function getBriefStats(tenantId: string): Promise<BriefStats> {
 
   const todayPosts = await fetchAllRecords('Captured Posts', todayParams)
 
-  // Build top-5 teasers (already sorted by score desc from Airtable)
-  const topPosts: TopPost[] = todayPosts.slice(0, 5).map(r => {
+  // Build top-3 cards (Airtable already sorted by score desc)
+  const topPosts: TopPost[] = todayPosts.slice(0, 3).map(r => {
+    // Subtitle: strip "LinkedIn ICP: " prefix and anything after " | "
+    const groupRaw = (r.fields?.['Group Name'] || '') as string
+    const subtitle = groupRaw.startsWith('LinkedIn ICP: ')
+      ? groupRaw.slice('LinkedIn ICP: '.length).split(' | ')[0].trim()
+      : ''
+
+    // First sentence, capped at 120 chars
     const raw  = (r.fields?.['Post Text'] || '') as string
-    const text = raw.length > 120 ? raw.slice(0, 120).trimEnd() + '…' : raw
+    const sentenceMatch = raw.match(/^.+?[.!?](?=\s|$)/)
+    const sentence = sentenceMatch ? sentenceMatch[0] : raw
+    const text = sentence.length > 120 ? sentence.slice(0, 120).trimEnd() + '…' : sentence
+
     return {
       authorName: (r.fields?.['Author Name'] || 'Unknown') as string,
+      subtitle,
       text,
-      score: (r.fields?.['Relevance Score'] || 0) as number,
+      score:   (r.fields?.['Relevance Score'] || 0) as number,
+      postUrl: (r.fields?.['Post URL']         || '') as string,
     }
   })
 
@@ -178,37 +194,14 @@ function formatDate(): string {
 function buildBriefBlocks(stats: BriefStats): { blocks: object[]; fallback: string } {
   const { newToday, topPosts, momentumTrend } = stats
 
-  // ── Header line ────────────────────────────────────────────────────────────
   const dateStr = formatDate()
-
-  // ── New posts section ──────────────────────────────────────────────────────
-  // If posts surfaced today, list the top 5 as teasers — just enough to make
-  // the user want to click through. No suggested angles, no full content.
-  let newPostsText: string
-  if (newToday > 0 && topPosts.length > 0) {
-    const noun    = newToday !== 1 ? 'conversations' : 'conversation'
-    const heading = `*${newToday} new ${noun}* surfaced in your feed today:`
-    const list    = topPosts.map(p => {
-      const scoreTag = `_(${p.score}/10)_`
-      const preview  = p.text
-        ? `  "${p.text}"`
-        : ''
-      return `• *${p.authorName}* ${scoreTag}${preview}`
-    }).join('\n')
-    newPostsText = `${heading}\n\n${list}`
-  } else if (newToday > 0) {
-    newPostsText = `*${newToday} new ${newToday !== 1 ? 'conversations' : 'conversation'}* surfaced in your feed today`
-  } else {
-    newPostsText = `No new posts matched your filters today — your sources are still running`
-  }
 
   // ── Momentum line ──────────────────────────────────────────────────────────
   const trendIcon = momentumTrend === 'up'   ? '📈'
                   : momentumTrend === 'down' ? '⚠️'
                   : momentumTrend === 'flat' ? '→'
                   : '🚀'
-
-  const trendMsg = momentumTrend === 'up'
+  const trendMsg  = momentumTrend === 'up'
     ? 'Engagement is building — keep it going'
     : momentumTrend === 'down'
     ? 'Engagement has dipped — good time to catch up'
@@ -216,41 +209,90 @@ function buildBriefBlocks(stats: BriefStats): { blocks: object[]; fallback: stri
     ? 'Engagement is steady — keep showing up'
     : 'Your feed is live and ready'
 
-  const momentumLine = `${trendIcon}  ${trendMsg}`
-
-  // ── Fallback (plain text for push notifications / accessibility) ───────────
+  // ── Fallback plain text ────────────────────────────────────────────────────
   const fallback = newToday > 0
     ? `Scout: ${newToday} new ${newToday !== 1 ? 'conversations' : 'conversation'} in your feed today. Open Scout to engage.`
     : `Scout Daily Brief: No new posts today — your sources are still running.`
 
   // ── Blocks ─────────────────────────────────────────────────────────────────
   const blocks: object[] = [
+    // Header
     {
       type: 'section',
       text: { type: 'mrkdwn', text: `🔍 *Scout Daily Brief*  ·  ${dateStr}` },
     },
     { type: 'divider' },
-    {
-      type: 'section',
-      text: { type: 'mrkdwn', text: newPostsText },
-    },
-    { type: 'divider' },
-    {
-      type: 'section',
-      text: { type: 'mrkdwn', text: momentumLine },
-    },
-    { type: 'divider' },
-    {
-      type: 'actions',
-      elements: [{
-        type:      'button',
-        style:     'primary',
-        text:      { type: 'plain_text', text: 'Open Scout →', emoji: true },
-        url:       DASHBOARD_URL,
-        action_id: 'open_scout',
-      }],
-    },
   ]
+
+  if (newToday > 0 && topPosts.length > 0) {
+    // Intro line
+    const noun = newToday !== 1 ? 'conversations' : 'conversation'
+    blocks.push({
+      type: 'section',
+      text: {
+        type: 'mrkdwn',
+        text: `*${newToday} new ${noun}* in your feed today — here are a few waiting for you:`,
+      },
+    })
+
+    // Post cards — one section per post with View Post button as accessory
+    for (let i = 0; i < topPosts.length; i++) {
+      const p = topPosts[i]
+      blocks.push({ type: 'divider' })
+
+      // Card body: bold name + score, subtitle on line 2, excerpt on line 3
+      const nameLine     = `*${p.authorName}*  _(${p.score}/10)_`
+      const subtitleLine = p.subtitle ? `_${p.subtitle}_` : null
+      const excerptLine  = p.text     ? `"${p.text}"`     : null
+      const cardText     = [nameLine, subtitleLine, excerptLine].filter(Boolean).join('\n')
+
+      const card: any = {
+        type: 'section',
+        text: { type: 'mrkdwn', text: cardText },
+      }
+
+      // Only add the button if we have a valid post URL
+      if (p.postUrl) {
+        card.accessory = {
+          type:      'button',
+          text:      { type: 'plain_text', text: 'View Post →', emoji: false },
+          url:       p.postUrl,
+          action_id: `view_post_${i}`,
+        }
+      }
+
+      blocks.push(card)
+    }
+
+    blocks.push({ type: 'divider' })
+  } else {
+    // No posts today
+    blocks.push({
+      type: 'section',
+      text: {
+        type: 'mrkdwn',
+        text: `No new posts matched your filters today — your sources are still running`,
+      },
+    })
+    blocks.push({ type: 'divider' })
+  }
+
+  // Momentum line + CTA
+  blocks.push({
+    type: 'section',
+    text: { type: 'mrkdwn', text: `${trendIcon}  ${trendMsg}` },
+  })
+  blocks.push({ type: 'divider' })
+  blocks.push({
+    type: 'actions',
+    elements: [{
+      type:      'button',
+      style:     'primary',
+      text:      { type: 'plain_text', text: 'Open Scout →', emoji: true },
+      url:       DASHBOARD_URL,
+      action_id: 'open_scout',
+    }],
+  })
 
   return { blocks, fallback }
 }
