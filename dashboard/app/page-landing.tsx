@@ -113,7 +113,7 @@ export default function LandingPage() {
           </h1>
 
           <p className="text-xl text-slate-400 max-w-2xl mx-auto leading-relaxed mb-10">
-            Sales Navigator helps you interrupt the right people. Scout shows up in the conversations your buyers are already having — and hands you the perfect thing to say. Build real relationships before anyone asks you to pitch.
+            Scout helps you show up in the conversations your buyers are already having when it matters most and hands you the perfect thing to say to build real relationships before ever making your pitch.
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
