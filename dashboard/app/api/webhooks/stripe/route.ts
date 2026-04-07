@@ -253,6 +253,19 @@ export async function POST(req: NextRequest) {
           // Non-fatal — tenant can still log in; provisioning can be retried
         }
 
+        // 2.5. Calculate and store trial end date
+        try {
+          const trialEndAt = new Date()
+          trialEndAt.setDate(trialEndAt.getDate() + 14)
+          await updateTenantRecord(tenantRecord.id, {
+            'Trial Ends At': trialEndAt.toISOString(),
+          })
+          console.log(`[webhook] Trial expires for ${email} on ${trialEndAt.toISOString()}`)
+        } catch (trialErr: any) {
+          console.error(`[webhook] Failed to set trial end date for ${email}:`, trialErr.message)
+          // Non-fatal
+        }
+
         // 3. Send welcome email + admin notification
         await sendWelcomeEmail(email, companyName, password)
         await sendAdminNotification(
