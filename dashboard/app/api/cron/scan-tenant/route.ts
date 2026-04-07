@@ -33,12 +33,9 @@ export const maxDuration = 300
 
 export async function POST(req: NextRequest) {
   // ── Auth ────────────────────────────────────────────────────────────────────
-  const cronSecret = process.env.CRON_SECRET || ''
-  if (cronSecret) {
-    const token = (req.headers.get('authorization') || '').replace('Bearer ', '')
-    if (token !== cronSecret) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+  const cronSecret = process.env.CRON_SECRET;
+  if (!cronSecret || req.headers.get('authorization') !== `Bearer ${cronSecret}`) {
+    return new Response('Unauthorized', { status: 401 });
   }
 
   // ── Parse body ───────────────────────────────────────────────────────────────
