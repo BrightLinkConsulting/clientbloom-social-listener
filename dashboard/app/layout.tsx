@@ -10,7 +10,7 @@ export const metadata: Metadata = {
     title: 'Scout by ClientBloom — LinkedIn Relationship Intelligence',
     description: 'Monitor prospects, score posts by ICP relevance, engage at exactly the right moment. 14-day free trial.',
     type: 'website',
-    url: 'https://app.clientbloom.ai',
+    url: 'https://scout.clientbloom.ai',
   },
   twitter: {
     card: 'summary_large_image',
@@ -43,7 +43,7 @@ const structuredData = {
     'Multi-tenant agency workspace',
     'Custom scoring prompts per tenant',
   ],
-  url: 'https://app.clientbloom.ai',
+  url: 'https://scout.clientbloom.ai',
   provider: {
     '@type': 'Organization',
     name: 'ClientBloom',

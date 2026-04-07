@@ -375,17 +375,74 @@ export default function LandingPage() {
       </section>
 
       {/* ─── FOOTER ─── */}
-      <footer className="border-t border-slate-800/50 py-8 px-6">
-        <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
-            <ClientBloomMark size={20} />
-            <span className="text-slate-500 text-sm">Scout by ClientBloom.ai</span>
+      <footer className="border-t border-slate-800/50 pt-16 pb-10 px-6">
+        <div className="max-w-5xl mx-auto">
+
+          {/* Top: logo + nav columns */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-10 mb-14">
+
+            {/* PRODUCT */}
+            <div>
+              <p className="text-slate-500 text-xs font-semibold tracking-widest uppercase mb-5">Product</p>
+              <ul className="space-y-3">
+                <li><a href="#how-it-works" className="text-slate-400 hover:text-white text-sm transition-colors">How It Works</a></li>
+                <li><a href="#pricing" className="text-slate-400 hover:text-white text-sm transition-colors">Pricing</a></li>
+                <li><Link href="/sign-in" className="text-slate-400 hover:text-white text-sm transition-colors">Sign In</Link></li>
+                <li><a href={CHECKOUT_URL} className="text-slate-400 hover:text-white text-sm transition-colors">Get Started</a></li>
+              </ul>
+            </div>
+
+            {/* COMPARE */}
+            <div>
+              <p className="text-slate-500 text-xs font-semibold tracking-widest uppercase mb-5">Compare</p>
+              <ul className="space-y-3">
+                <li><Link href="/compare" className="text-slate-400 hover:text-white text-sm transition-colors">Scout vs. Alternatives</Link></li>
+                <li><Link href="/about" className="text-slate-400 hover:text-white text-sm transition-colors">About Scout</Link></li>
+                <li><Link href="/blog" className="text-slate-400 hover:text-white text-sm transition-colors">Blog</Link></li>
+              </ul>
+            </div>
+
+            {/* LEGAL */}
+            <div>
+              <p className="text-slate-500 text-xs font-semibold tracking-widest uppercase mb-5">Legal</p>
+              <ul className="space-y-3">
+                <li><Link href="/privacy-policy" className="text-slate-400 hover:text-white text-sm transition-colors">Privacy Policy</Link></li>
+                <li><Link href="/terms" className="text-slate-400 hover:text-white text-sm transition-colors">Terms of Service</Link></li>
+              </ul>
+            </div>
+
+            {/* COMPANY */}
+            <div>
+              <p className="text-slate-500 text-xs font-semibold tracking-widest uppercase mb-5">Company</p>
+              <ul className="space-y-3">
+                <li><a href="mailto:info@clientbloom.ai" className="text-slate-400 hover:text-white text-sm transition-colors">Contact</a></li>
+                <li><a href="https://clientbloom.ai" target="_blank" rel="noopener noreferrer" className="text-slate-400 hover:text-white text-sm transition-colors">ClientBloom.ai</a></li>
+              </ul>
+            </div>
+
           </div>
-          <div className="flex items-center gap-6">
-            <Link href="/sign-in" className="text-slate-600 hover:text-slate-400 text-sm transition-colors">Sign In</Link>
-            <a href="mailto:info@clientbloom.ai" className="text-slate-600 hover:text-slate-400 text-sm transition-colors">Contact</a>
-            <span className="text-slate-700 text-sm">© 2026 ClientBloom.ai</span>
+
+          {/* Divider */}
+          <div className="border-t border-slate-800/50 pt-8">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="flex items-center gap-2.5">
+                <ClientBloomMark size={18} />
+                <span className="text-slate-500 text-sm font-medium">Scout by ClientBloom</span>
+              </div>
+              <p className="text-slate-600 text-xs text-center sm:text-right max-w-lg leading-relaxed">
+                Scout is an independent product of BrightLink Consulting and is not affiliated with, endorsed by, or sponsored by LinkedIn Corporation. LinkedIn® is a registered trademark of LinkedIn Corporation.
+              </p>
+            </div>
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mt-5">
+              <span className="text-slate-700 text-xs">© 2026 Scout by ClientBloom. All rights reserved.</span>
+              <div className="flex items-center gap-5">
+                <Link href="/privacy-policy" className="text-slate-700 hover:text-slate-400 text-xs transition-colors">Privacy</Link>
+                <Link href="/terms" className="text-slate-700 hover:text-slate-400 text-xs transition-colors">Terms</Link>
+                <a href="mailto:info@clientbloom.ai" className="text-slate-700 hover:text-slate-400 text-xs transition-colors">info@clientbloom.ai</a>
+              </div>
+            </div>
           </div>
+
         </div>
       </footer>
 
