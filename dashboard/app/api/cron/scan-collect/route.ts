@@ -52,12 +52,9 @@ async function getBusinessContext(tenantId: string): Promise<{ context: string; 
 
 export async function GET(req: NextRequest) {
   // Verify cron secret
-  const cronSecret = process.env.CRON_SECRET || ''
-  if (cronSecret) {
-    const authHeader = req.headers.get('authorization') || ''
-    if (authHeader.replace('Bearer ', '') !== cronSecret) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+  const cronSecret = process.env.CRON_SECRET;
+  if (!cronSecret || req.headers.get('authorization') !== `Bearer ${cronSecret}`) {
+    return new Response('Unauthorized', { status: 401 });
   }
 
   const APIFY_TOKEN   = process.env.APIFY_API_TOKEN || ''
