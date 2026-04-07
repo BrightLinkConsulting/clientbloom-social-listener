@@ -243,28 +243,45 @@ export async function scorePosts(
 // ── Save scored posts to Airtable ────────────────────────────────────────────
 export async function saveScoredPosts(tenantId: string, scored: any[]): Promise<number> {
   const qualifying = scored.filter(p => p.score >= 5)
-  let saved = 0
-  for (const p of qualifying) {
-    try {
-      await airtableCreate('Captured Posts', tenantId, {
-        'Post ID':            p.postId || p.id,
-        'Platform':           p.platform || 'LinkedIn',
-        'Group Name':         p.groupName || '',
-        'Author Name':        p.authorName || '',
-        'Author Profile URL': p.authorUrl || '',
-        'Post Text':          p.text || p.content || '',
-        'Post URL':           p.postUrl || '',
-        'Keywords Matched':   '',
-        'Relevance Score':    p.score || 5,
-        'Score Reason':       p.reason || '',
-        'Comment Approach':   p.comment_approach || '',
-        'Captured At':        p.capturedAt || new Date().toISOString(),
-        'Action':             'New',
-      })
-      saved++
-    } catch { /* skip duplicates — Airtable rejects duplicate Post IDs */ }
+  
+  // Collect all records to save, then batch-create them
+  const recordsToSave = qualifying.map(p => ({
+    fields: {
+      'Post ID':            p.postId || p.id,
+      'Platform':           p.platform || 'LinkedIn',
+      'Group Name':         p.groupName || '',
+      'Author Name':        p.authorName || '',
+      'Author Profile URL': p.authorUrl || '',
+      'Post Text':          p.text || p.content || '',
+      'Post URL':           p.postUrl || '',
+      'Keywords Matched':   '',
+      'Relevance Score':    p.score || 5,
+      'Score Reason':       p.reason || '',
+      'Comment Approach':   p.comment_approach || '',
+      'Captured At':        p.capturedAt || new Date().toISOString(),
+      'Action':             'New',
+    }
+  }))
+  
+  if (recordsToSave.length === 0) {
+    return 0
   }
-  return saved
+  
+  try {
+    await airtableBatchCreate('Captured Posts', tenantId, recordsToSave)
+    return recordsToSave.length
+  } catch (error) {
+    console.error('[saveScoredPosts] Batch create failed:', error)
+    // Fallback: try individual creates
+    let saved = 0
+    for (const record of recordsToSave) {
+      try {
+        await airtableCreate('Captured Posts', tenantId, record.fields)
+        saved++
+      } catch { /* skip duplicates */ }
+    }
+    return saved
+  }
 }
 
 // ── Filtered Airtable GET for a specific tenant ──────────────────────────────
