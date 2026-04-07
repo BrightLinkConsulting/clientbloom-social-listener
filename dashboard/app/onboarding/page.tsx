@@ -237,6 +237,11 @@ function Step3({
 
       // Mark onboarding complete
       localStorage.setItem('cb_onboarded', 'true')
+      
+      // Persist onboarding state server-side
+      try {
+        await fetch('/api/onboarding/complete', { method: 'POST' })
+      } catch { /* non-fatal */ }
     } catch (e: any) {
       clearInterval(progressInterval)
       setErrorMsg(e.message || 'Something went wrong')
@@ -265,8 +270,11 @@ function Step3({
         )}
         {postsFound === 0 && <div className="mb-8" />}
         <button
-          onClick={() => {
+          onClick={async () => {
             localStorage.setItem('cb_onboarded', 'true')
+            try {
+              await fetch('/api/onboarding/complete', { method: 'POST' })
+            } catch { /* non-fatal */ }
             router.push('/')
           }}
           className="w-full py-3.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-sm transition-colors"
@@ -319,7 +327,13 @@ function Step3({
         <div className="flex gap-3">
           <button onClick={() => setStatus('idle')} className="flex-1 py-3 rounded-xl border border-slate-700 text-slate-400 hover:text-white text-sm transition-colors">Try again</button>
           <button
-            onClick={() => { localStorage.setItem('cb_onboarded', 'true'); router.push('/') }}
+            onClick={async () => {
+              localStorage.setItem('cb_onboarded', 'true')
+              try {
+                await fetch('/api/onboarding/complete', { method: 'POST' })
+              } catch { /* non-fatal */ }
+              router.push('/')
+            }}
             className="flex-1 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm transition-colors"
           >
             Skip for now
@@ -370,7 +384,13 @@ function Step3({
       </button>
 
       <button
-        onClick={() => { localStorage.setItem('cb_onboarded', 'true'); onComplete() }}
+        onClick={async () => {
+          localStorage.setItem('cb_onboarded', 'true')
+          try {
+            await fetch('/api/onboarding/complete', { method: 'POST' })
+          } catch { /* non-fatal */ }
+          onComplete()
+        }}
         className="mt-3 w-full py-2.5 text-xs text-slate-600 hover:text-slate-400 transition-colors"
       >
         Skip and go to dashboard
