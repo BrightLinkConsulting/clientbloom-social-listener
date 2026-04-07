@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import './globals.css'
 import Providers from './components/providers'
 
 export const metadata: Metadata = {
@@ -18,6 +19,38 @@ export const metadata: Metadata = {
   },
 }
 
+const structuredData = {
+  '@context': 'https://schema.org',
+  '@type': 'SoftwareApplication',
+  name: 'Scout by ClientBloom',
+  applicationCategory: 'BusinessApplication',
+  operatingSystem: 'Web',
+  description:
+    'LinkedIn relationship intelligence platform that monitors prospects, scores posts by ICP relevance using AI, and generates personalized comment starters to warm up deals before you pitch.',
+  offers: {
+    '@type': 'Offer',
+    price: '79.00',
+    priceCurrency: 'USD',
+    availability: 'https://schema.org/InStock',
+    description: '14-day free trial included',
+  },
+  featureList: [
+    'AI post scoring 1-10 by ICP relevance',
+    'LinkedIn prospect profile monitoring',
+    'LinkedIn keyword search monitoring',
+    'Personalized comment starter generation',
+    'CRM integration',
+    'Multi-tenant agency workspace',
+    'Custom scoring prompts per tenant',
+  ],
+  url: 'https://app.clientbloom.ai',
+  provider: {
+    '@type': 'Organization',
+    name: 'ClientBloom',
+    url: 'https://clientbloom.ai',
+  },
+}
+
 export default function RootLayout({
   children,
 }: {
@@ -26,66 +59,13 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
-        <script src="https://cdn.tailwindcss.com" async={false} />
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `
-              tailwind.config = {
-                theme: {
-                  extend: {
-                    colors: {
-                      brand: { 500: '#4F6BFF', 600: '#3D57F5' }
-                    }
-                  }
-                }
-              }
-            `
-          }}
-        />
-        <style dangerouslySetInnerHTML={{__html: `
-          body { background-color: #0a0c10; color: #e2e8f0; margin: 0; font-family: ui-sans-serif, system-ui, sans-serif; }
-          * { box-sizing: border-box; }
-        `}} />
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{
-            __html: JSON.stringify({
-              '@context': 'https://schema.org',
-              '@type': 'SoftwareApplication',
-              name: 'Scout by ClientBloom',
-              applicationCategory: 'BusinessApplication',
-              operatingSystem: 'Web',
-              description: 'LinkedIn relationship intelligence platform that monitors prospects, scores posts by ICP relevance using AI, and generates personalized comment starters to warm up deals before you pitch.',
-              offers: {
-                '@type': 'Offer',
-                price: '79.00',
-                priceCurrency: 'USD',
-                availability: 'https://schema.org/InStock',
-                description: '14-day free trial included'
-              },
-              featureList: [
-                'AI post scoring 1-10 by ICP relevance',
-                'LinkedIn prospect profile monitoring',
-                'LinkedIn keyword search monitoring',
-                'Personalized comment starter generation',
-                'CRM integration',
-                'Multi-tenant agency workspace',
-                'Custom scoring prompts per tenant'
-              ],
-              url: 'https://app.clientbloom.ai',
-              provider: {
-                '@type': 'Organization',
-                name: 'ClientBloom',
-                url: 'https://clientbloom.ai'
-              }
-            })
-          }}
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
         />
       </head>
-      <body className="min-h-screen bg-[#0a0c10] text-slate-200 antialiased">
-        <Providers>
-          {children}
-        </Providers>
+      <body className="min-h-screen antialiased">
+        <Providers>{children}</Providers>
       </body>
     </html>
   )
