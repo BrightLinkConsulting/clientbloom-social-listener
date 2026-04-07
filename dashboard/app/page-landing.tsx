@@ -94,19 +94,19 @@ export default function LandingPage() {
           <h1 className="font-bold tracking-tight mb-4">
             <span
               className="block text-white leading-[1.05]"
-              style={{ fontSize: 'clamp(26px, calc(10.33vw - 4.96px), 106px)' }}
+              style={{ fontSize: 'clamp(20px, 7.3vw, 81px)' }}
             >
               Your next client is on
             </span>
             <span
               className="block text-white leading-[1.05]"
-              style={{ fontSize: 'clamp(30px, calc(11.95vw - 5.74px), 123px)' }}
+              style={{ fontSize: 'clamp(23px, 8.4vw, 94px)' }}
             >
               LinkedIn right now.
             </span>
             <span
               className="block text-[#4F6BFF] whitespace-nowrap leading-[1.2] mt-2"
-              style={{ fontSize: 'clamp(18px, calc(7.1vw - 3.41px), 73px)' }}
+              style={{ fontSize: 'clamp(14px, 5vw, 56px)' }}
             >
               Scout puts you in front of them.
             </span>
