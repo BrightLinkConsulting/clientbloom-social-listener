@@ -781,6 +781,11 @@ interface ScanHealth {
   fbPending:      boolean
 }
 
+// A scan is considered overdue if the last successful scan is >14h old.
+// Normal cadence is 12h (6 AM + 6 PM PDT); 14h gives a 2h grace window
+// before we surface a warning to the user.
+const SCAN_OVERDUE_MS = 14 * 60 * 60 * 1000
+
 function ScanStatusPill({ health, lastScannedAt }: { health: ScanHealth | null; lastScannedAt: string | null }) {
   // Determine display state from scan health (preferred) or fallback to lastScannedAt from posts
   const scanAt = health?.lastScanAt || lastScannedAt
@@ -814,6 +819,22 @@ function ScanStatusPill({ health, lastScannedAt }: { health: ScanHealth | null; 
   }
 
   if (scanAt) {
+    // Check if the scan is overdue — show amber warning instead of green
+    const scanAge = Date.now() - new Date(scanAt).getTime()
+    const isOverdue = scanAge > SCAN_OVERDUE_MS
+
+    if (isOverdue) {
+      return (
+        <span
+          className="text-xs text-amber-400 flex items-center gap-1"
+          title="Scan is overdue. The watchdog will automatically retry within the hour."
+        >
+          <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+          Scan overdue · {timeAgo(scanAt)} · auto-recovery active
+        </span>
+      )
+    }
+
     return (
       <span className="text-xs text-emerald-400 flex items-center gap-1">
         <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
