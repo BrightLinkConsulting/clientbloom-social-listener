@@ -64,6 +64,37 @@ export async function airtableCreate(
   )
 }
 
+
+// ── Batch create records (POST multiple records with max 10 per request) ───
+export async function airtableBatchCreate(
+  table: string,
+  tenantId: string,
+  records: Array<{ fields: Record<string, unknown> }>
+): Promise<void> {
+  // Airtable batch create supports max 10 records per request
+  const chunkSize = 10
+  for (let i = 0; i < records.length; i += chunkSize) {
+    const batch = records.slice(i, i + chunkSize)
+    // Inject tenantId into all records
+    const recordsWithTenant = batch.map(r => ({
+      fields: { ...r.fields, 'Tenant ID': tenantId }
+    }))
+    const resp = await fetch(
+      `https://api.airtable.com/v0/${SHARED_BASE}/${encodeURIComponent(table)}`,
+      {
+        method: 'POST',
+        headers: airtableHeaders(),
+        body: JSON.stringify({ records: recordsWithTenant }),
+      }
+    )
+    if (!resp.ok) {
+      throw new Error(
+        `Batch create failed for ${table} (batch ${Math.floor(i / chunkSize) + 1}): ${resp.statusText}`
+      )
+    }
+  }
+}
+
 // ── Update record (PATCH — no filter needed, uses record ID directly) ──────
 export async function airtableUpdate(
   table: string,
