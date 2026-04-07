@@ -125,12 +125,9 @@ async function dispatchTenantScan(
 // ── Main handler ───────────────────────────────────────────────────────────────
 export async function GET(req: NextRequest) {
   // Verify cron secret — Vercel injects this automatically for scheduled invocations
-  const cronSecret = process.env.CRON_SECRET || ''
-  if (cronSecret) {
-    const token = (req.headers.get('authorization') || '').replace('Bearer ', '')
-    if (token !== cronSecret) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+  const cronSecret = process.env.CRON_SECRET;
+  if (!cronSecret || req.headers.get('authorization') !== `Bearer ${cronSecret}`) {
+    return new Response('Unauthorized', { status: 401 });
   }
 
   const started = Date.now()
