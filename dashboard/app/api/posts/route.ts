@@ -63,16 +63,31 @@ export async function GET(request: NextRequest) {
 
   const postsUrl = `${AIRTABLE_BASE}/${SHARED_BASE}/${encodeURIComponent(tableName)}?${params}`
 
-  // Meta query — just action/status/time fields, still filtered by tenant
-  const metaFormula = tenantFilter(tenantId)
-  const metaParams = new URLSearchParams({
+  // Meta query — paginated so tab counts are accurate beyond Airtable's 100-record cap
+  const authHeader = { 'Authorization': `Bearer ${PROV_TOKEN}` }
+
+  const metaFormula  = tenantFilter(tenantId)
+  const metaParams   = new URLSearchParams({
     filterByFormula: metaFormula,
     'fields[]':  'Action',
     'fields[1]': 'Captured At',
     'fields[2]': 'Engagement Status',
     pageSize: '100',
   })
-  const metaUrl = `${AIRTABLE_BASE}/${SHARED_BASE}/${encodeURIComponent(tableName)}?${metaParams}`
+
+  // Paginate meta records so counts reflect the full dataset, not just the first page
+  const allMetaRecords: any[] = []
+  let metaOffset: string | undefined
+  do {
+    if (metaOffset) metaParams.set('offset', metaOffset)
+    else metaParams.delete('offset')
+    const r    = await fetch(`${AIRTABLE_BASE}/${SHARED_BASE}/${encodeURIComponent(tableName)}?${metaParams}`, {
+      headers: authHeader, next: { revalidate: 0 },
+    })
+    const data = await r.json()
+    allMetaRecords.push(...(data.records || []))
+    metaOffset = data.offset
+  } while (metaOffset)
 
   // Sources query — filtered by tenant
   const sourcesFormula = `AND(${tenantFilter(tenantId)}, {Type}='facebook_group', {Active}=1)`
@@ -83,11 +98,8 @@ export async function GET(request: NextRequest) {
   })
   const sourcesUrl = `${AIRTABLE_BASE}/${SHARED_BASE}/Sources?${sourcesParams}`
 
-  const authHeader = { 'Authorization': `Bearer ${PROV_TOKEN}` }
-
-  const [postsResp, metaResp, sourcesResp] = await Promise.all([
+  const [postsResp, sourcesResp] = await Promise.all([
     fetch(postsUrl,   { headers: authHeader, next: { revalidate: 0 } }),
-    fetch(metaUrl,    { headers: authHeader, next: { revalidate: 0 } }),
     fetch(sourcesUrl, { headers: authHeader, next: { revalidate: 0 } }),
   ])
 
@@ -95,16 +107,15 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: await postsResp.text() }, { status: postsResp.status })
   }
 
-  const [postsData, metaData, sourcesData] = await Promise.all([
+  const [postsData, sourcesData] = await Promise.all([
     postsResp.json(),
-    metaResp.json(),
     sourcesResp.ok ? sourcesResp.json() : Promise.resolve({ records: [] }),
   ])
 
   const actionCounts: Record<string, number> = { New: 0, Engaged: 0, Replied: 0, Skipped: 0, Archived: 0 }
   let lastScrapedAt: string | null = null
 
-  for (const record of metaData.records || []) {
+  for (const record of allMetaRecords) {
     const f  = record.fields || {}
     const a  = f['Action']            || 'New'
     const es = f['Engagement Status'] || ''

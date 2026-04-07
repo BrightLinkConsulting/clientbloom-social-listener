@@ -88,17 +88,23 @@ function todayMidnightUTC(): string {
   return midnightUTC.toISOString()
 }
 
+interface TopPost {
+  authorName: string
+  text:       string   // truncated to ~120 chars for Slack teaser
+  score:      number
+}
+
 interface BriefStats {
   newToday:      number
-  topScore:      number
-  totalActive:   number   // inbox count — excludes skipped/archived, matches dashboard Inbox tab
+  topPosts:      TopPost[]   // up to 5, sorted by score desc
   momentumTrend: 'up' | 'flat' | 'down' | 'new'
 }
 
 async function getBriefStats(tenantId: string): Promise<BriefStats> {
   const since = todayMidnightUTC()
 
-  // Query 1 — today's new posts (since midnight PDT, paginated)
+  // Query — today's new posts, sorted by score desc, with teaser fields
+  // We fetch up to 100 (paginated). The count is newToday; top 5 become the Slack teasers.
   const todayParams = new URLSearchParams({
     filterByFormula: `AND(
       ${tenantFilter(tenantId)},
@@ -106,42 +112,26 @@ async function getBriefStats(tenantId: string): Promise<BriefStats> {
       IS_AFTER({Captured At}, '${since}'),
       {Engagement Status}!='archived'
     )`,
-    'fields[]': 'Relevance Score',
+    'fields[]':  'Relevance Score',
+    'fields[1]': 'Author Name',
+    'fields[2]': 'Post Text',
+    'sort[0][field]':     'Relevance Score',
+    'sort[0][direction]': 'desc',
     pageSize: '100',
   })
 
-  // Query 2 — active pipeline only (excludes skipped + archived so counts match the dashboard inbox view)
-  const pipelineParams = new URLSearchParams({
-    filterByFormula: `AND(
-      ${tenantFilter(tenantId)},
-      {Engagement Status}!='archived',
-      {Action}!='Skip'
-    )`,
-    'fields[]':  'Action',
-    'fields[1]': 'Engagement Status',
-    pageSize: '100',
+  const todayPosts = await fetchAllRecords('Captured Posts', todayParams)
+
+  // Build top-5 teasers (already sorted by score desc from Airtable)
+  const topPosts: TopPost[] = todayPosts.slice(0, 5).map(r => {
+    const raw  = (r.fields?.['Post Text'] || '') as string
+    const text = raw.length > 120 ? raw.slice(0, 120).trimEnd() + '…' : raw
+    return {
+      authorName: (r.fields?.['Author Name'] || 'Unknown') as string,
+      text,
+      score: (r.fields?.['Relevance Score'] || 0) as number,
+    }
   })
-
-  const [todayPosts, pipelinePosts] = await Promise.all([
-    fetchAllRecords('Captured Posts', todayParams),
-    fetchAllRecords('Captured Posts', pipelineParams),
-  ])
-
-  let topScore = 0
-  for (const r of todayPosts) {
-    const score = r.fields?.['Relevance Score'] || 0
-    if (score > topScore) topScore = score
-  }
-
-  // Count inbox posts only (skipped/archived excluded by pipelineParams query)
-  // 'replied' and 'Engaged' are still in the result set so we can derive totalActive accurately
-  let totalActive = 0
-  for (const r of pipelinePosts) {
-    const action = r.fields?.['Action'] || 'New'
-    const status = r.fields?.['Engagement Status'] || ''
-    // Only count posts sitting in the inbox — not yet engaged or replied
-    if (status !== 'replied' && action !== 'Engaged') totalActive++
-  }
 
   // Read stored momentum history to determine trend
   let momentumTrend: BriefStats['momentumTrend'] = 'new'
@@ -172,8 +162,7 @@ async function getBriefStats(tenantId: string): Promise<BriefStats> {
 
   return {
     newToday: todayPosts.length,
-    topScore,
-    totalActive,
+    topPosts,
     momentumTrend,
   }
 }
@@ -187,25 +176,33 @@ function formatDate(): string {
 }
 
 function buildBriefBlocks(stats: BriefStats): { blocks: object[]; fallback: string } {
-  const {
-    newToday, topScore,
-    totalActive, momentumTrend,
-  } = stats
+  const { newToday, topPosts, momentumTrend } = stats
 
-  // ── New posts line ─────────────────────────────────────────────────────────
-  // Primary hook: did something new surface today?
+  // ── Header line ────────────────────────────────────────────────────────────
+  const dateStr = formatDate()
+
+  // ── New posts section ──────────────────────────────────────────────────────
+  // If posts surfaced today, list the top 5 as teasers — just enough to make
+  // the user want to click through. No suggested angles, no full content.
   let newPostsText: string
-  if (newToday > 0) {
-    const noun = newToday !== 1 ? 'conversations' : 'conversation'
-    const scoreHint = topScore >= 7 ? ` — top match scored *${topScore}/10*` : ''
-    newPostsText = `*${newToday} new ${noun}* surfaced in your feed today${scoreHint}`
+  if (newToday > 0 && topPosts.length > 0) {
+    const noun    = newToday !== 1 ? 'conversations' : 'conversation'
+    const heading = `*${newToday} new ${noun}* surfaced in your feed today:`
+    const list    = topPosts.map(p => {
+      const scoreTag = `_(${p.score}/10)_`
+      const preview  = p.text
+        ? `  "${p.text}"`
+        : ''
+      return `• *${p.authorName}* ${scoreTag}${preview}`
+    }).join('\n')
+    newPostsText = `${heading}\n\n${list}`
+  } else if (newToday > 0) {
+    newPostsText = `*${newToday} new ${newToday !== 1 ? 'conversations' : 'conversation'}* surfaced in your feed today`
   } else {
     newPostsText = `No new posts matched your filters today — your sources are still running`
   }
 
-  // ── Momentum / inbox line ──────────────────────────────────────────────────
-  // Drive urgency without exposing confusing all-time metrics.
-  // totalActive now excludes skipped posts, matching the dashboard Inbox count.
+  // ── Momentum line ──────────────────────────────────────────────────────────
   const trendIcon = momentumTrend === 'up'   ? '📈'
                   : momentumTrend === 'down' ? '⚠️'
                   : momentumTrend === 'flat' ? '→'
@@ -214,27 +211,23 @@ function buildBriefBlocks(stats: BriefStats): { blocks: object[]; fallback: stri
   const trendMsg = momentumTrend === 'up'
     ? 'Engagement is building — keep it going'
     : momentumTrend === 'down'
-    ? 'Engagement has dipped — a good time to catch up'
+    ? 'Engagement has dipped — good time to catch up'
     : momentumTrend === 'flat'
     ? 'Engagement is steady — keep showing up'
     : 'Your feed is live and ready'
 
-  const inboxHint = totalActive > 0
-    ? `  ·  *${totalActive}* ${totalActive !== 1 ? 'posts' : 'post'} waiting in your inbox`
-    : ''
+  const momentumLine = `${trendIcon}  ${trendMsg}`
 
-  const momentumLine = `${trendIcon}  ${trendMsg}${inboxHint}`
-
-  // ── Fallback (plain-text for notifications / accessibility) ───────────────
+  // ── Fallback (plain text for push notifications / accessibility) ───────────
   const fallback = newToday > 0
-    ? `Scout: ${newToday} new ${newToday !== 1 ? 'conversations' : 'conversation'} today. ${totalActive > 0 ? `${totalActive} posts in your inbox.` : ''}`
-    : `Scout: No new posts today. ${totalActive > 0 ? `${totalActive} posts in your inbox.` : 'All caught up.'}`
+    ? `Scout: ${newToday} new ${newToday !== 1 ? 'conversations' : 'conversation'} in your feed today. Open Scout to engage.`
+    : `Scout Daily Brief: No new posts today — your sources are still running.`
 
   // ── Blocks ─────────────────────────────────────────────────────────────────
   const blocks: object[] = [
     {
       type: 'section',
-      text: { type: 'mrkdwn', text: `🔍 *Scout Daily Brief*  ·  ${formatDate()}` },
+      text: { type: 'mrkdwn', text: `🔍 *Scout Daily Brief*  ·  ${dateStr}` },
     },
     { type: 'divider' },
     {
