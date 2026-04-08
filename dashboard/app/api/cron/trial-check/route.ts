@@ -409,15 +409,3 @@ export async function GET(req: Request) {
   })
 }
 
-// Helper used by JOB 1 loop
-async function updateTenant(recordId: string, fields: Record<string, unknown>) {
-  const res = await fetch(
-    `https://api.airtable.com/v0/${PLATFORM_BASE}/Tenants/${recordId}`,
-    {
-      method: 'PATCH',
-      headers: { Authorization: `Bearer ${PLATFORM_TOKEN}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ fields }),
-    }
-  )
-  if (!res.ok) throw new Error(await res.text())
-}
