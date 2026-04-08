@@ -1259,8 +1259,11 @@ function FeedPage() {
     }
   }, [session, router])
 
-  // First-run: redirect to onboarding if no posts exist and never onboarded
+  // First-run: redirect to onboarding if no posts exist and never onboarded.
+  // Only runs after NextAuth session is confirmed — avoids misfiring on 401s
+  // when session hasn't hydrated yet, which would loop back to the feed.
   useEffect(() => {
+    if (status !== 'authenticated') return
     const onboarded = localStorage.getItem('cb_onboarded')
     if (!onboarded) {
       // Give the data a moment to load before deciding
@@ -1279,7 +1282,7 @@ function FeedPage() {
       }, 800)
       return () => clearTimeout(check)
     }
-  }, [router])
+  }, [status, router])
 
   const fetchPosts = useCallback(async (silent = false) => {
     if (!silent) setLoading(true)
