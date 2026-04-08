@@ -145,14 +145,16 @@ export const authOptions: NextAuthOptions = {
         }
 
         // ── Single-tenant fallback (existing Mike deployment) ─────────────
-        const adminEmail = (process.env.ADMIN_EMAIL    || '').trim()
-        const adminPass  = (process.env.ADMIN_PASSWORD || '').trim()
+        // ADMIN_PASSWORD is expected to be a bcrypt hash in production.
+        // Plain-text comparison is intentionally avoided here.
+        const adminEmail    = (process.env.ADMIN_EMAIL    || '').trim()
+        const adminPassHash = (process.env.ADMIN_PASSWORD || '').trim()
 
         if (
           adminEmail &&
-          adminPass &&
+          adminPassHash &&
           email === adminEmail.toLowerCase() &&
-          credentials.password === adminPass
+          (await bcrypt.compare(credentials.password, adminPassHash).catch(() => false))
         ) {
           clearEmailBucket(email)
           return {

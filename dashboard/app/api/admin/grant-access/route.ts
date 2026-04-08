@@ -180,7 +180,7 @@ export async function POST(req: Request) {
       body: JSON.stringify({
         from:    FROM,
         to:      [cleanEmail],
-        subject: `Your 7-day Scout trial starts now`,
+        subject: `Your 14-day Scout trial starts now`,
         html,
       }),
     })

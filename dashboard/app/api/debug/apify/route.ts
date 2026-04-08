@@ -38,13 +38,11 @@ async function testActor(
 }
 
 export async function GET(req: NextRequest) {
-  // Auth guard
+  // Auth guard — always enforced regardless of whether CRON_SECRET is set
   const cronSecret = process.env.CRON_SECRET || ''
-  if (cronSecret) {
-    const token = (req.headers.get('authorization') || '').replace('Bearer ', '')
-    if (token !== cronSecret) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+  const token = (req.headers.get('authorization') || '').replace('Bearer ', '')
+  if (!cronSecret || token !== cronSecret) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
   const APIFY_TOKEN = process.env.APIFY_API_TOKEN || ''

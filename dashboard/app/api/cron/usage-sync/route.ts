@@ -90,9 +90,9 @@ async function patchTenant(
     },
     body: JSON.stringify({
       fields: {
-        'Posts This Month':  postCount,
-        'Est Cost':          estCost,
-        'Usage Synced At':   syncedAt,
+        'Post Count':      postCount,
+        'Est Cost':        estCost,
+        'Usage Synced At': syncedAt,
       },
     }),
   })

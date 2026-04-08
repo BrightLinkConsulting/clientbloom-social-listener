@@ -12,7 +12,7 @@
  * ── What it does ─────────────────────────────────────────────────────────────
  * 1. Reads all tenant Scan Health records
  * 2. Finds tenants whose last successful scan is older than 14h
- *    (skips tenants currently scanning or pending a Facebook run)
+ *    (skips tenants currently mid-scan)
  * 3. Triggers /api/cron/scan (the normal orchestrator) to re-run all tenants
  * 4. Sends a Slack + email alert so the team knows a recovery happened
  *
@@ -77,7 +77,7 @@ async function getStaleTenants(): Promise<
       .filter((t: { tenantId: string; lastScanAt: string | null; status: string | null }) => {
         if (!t.tenantId) return false
         // Skip tenants actively mid-scan — they're fine
-        if (t.status === 'scanning' || t.status === 'pending_fb') return false
+        if (t.status === 'scanning') return false
         // Stale = never scanned OR last scan older than threshold
         if (!t.lastScanAt) return true
         return new Date(t.lastScanAt).getTime() < staleThreshold

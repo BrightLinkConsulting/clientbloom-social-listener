@@ -27,7 +27,7 @@ async function getTenantRecord(email: string) {
   if (!PLATFORM_TOKEN || !PLATFORM_BASE) return null
   const url =
     `https://api.airtable.com/v0/${PLATFORM_BASE}/${encodeURIComponent(TENANTS_TABLE)}` +
-    `?filterByFormula=${encodeURIComponent(`{Email}='${email.toLowerCase()}'`)}&maxRecords=1`
+    `?filterByFormula=${encodeURIComponent(`{Email}='${email.toLowerCase().replace(/'/g, "\\'")}'`)}&maxRecords=1`
 
   const resp = await fetch(url, {
     headers: { Authorization: `Bearer ${PLATFORM_TOKEN}` },

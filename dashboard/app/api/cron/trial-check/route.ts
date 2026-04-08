@@ -58,19 +58,6 @@ async function fetchTrialTenants() {
   return fetchAllPages(url)
 }
 
-async function fetchExpiredTrials() {
-  const now = new Date().toISOString()
-  const url = new URL(`https://api.airtable.com/v0/${PLATFORM_BASE}/Tenants`)
-  url.searchParams.set(
-    'filterByFormula',
-    `AND({Plan}='Trial',{Status}='Active',IS_BEFORE({Trial Ends At},'${now}'))`
-  )
-  url.searchParams.set('fields[]', 'Email')
-  url.searchParams.append('fields[]', 'Company Name')
-  url.searchParams.append('fields[]', 'Trial Email Day')
-  url.searchParams.set('pageSize', '100')
-  return fetchAllPages(url)
-}
 
 async function updateTenant(recordId: string, fields: Record<string, unknown>) {
   const res = await fetch(
@@ -255,7 +242,7 @@ function getExpiredEmail(firstName: string, upgradeUrl: string) {
           <h2 style="margin:0 0 16px;font-size:20px">Your trial has ended</h2>
           <p style="color:#444;line-height:1.7;font-size:14px">Hi ${firstName},</p>
           <p style="color:#444;line-height:1.7;font-size:14px">
-            Your 7-day Scout trial has ended. Your captured leads and engagement history are still there — locked until you subscribe.
+            Your Scout trial has ended. Your captured leads and engagement history are still there — locked until you subscribe.
           </p>
           <a href="${upgradeUrl}" style="display:inline-block;background:#4F6BFF;color:#fff;font-weight:700;padding:14px 28px;border-radius:10px;text-decoration:none;font-size:15px;margin:16px 0 8px">Unlock my leads →</a>
           <p style="font-size:13px;color:#888;margin:0">Starter $49 · Pro $99 · Agency $249 · Cancel anytime</p>
@@ -311,7 +298,8 @@ export async function GET(req: Request) {
   }
 
   try {
-    // ── JOB 1: Send sequence emails for active trial tenants ───────────────
+    // One call fetches all active Trial tenants.
+    // Expired ones are identified in JS (avoids IS_BEFORE on a text field).
     const activeTrials = await fetchTrialTenants()
     console.log(`[trial-check] Found ${activeTrials.length} active trial tenants`)
 
@@ -330,10 +318,28 @@ export async function GET(req: Request) {
 
         if (!trialEndsAt) continue
 
-        // Calculate which day of the trial we're on
-        const trialStartAt    = new Date(trialEndsAt.getTime() - 7 * 24 * 60 * 60 * 1000)
-        const daysSinceStart  = Math.floor((now.getTime() - trialStartAt.getTime()) / (24 * 60 * 60 * 1000))
-        const targetDay       = Math.min(daysSinceStart + 1, 7)  // Day 1 was sent at signup
+        // ── JOB 2: Mark expired trials ───────────────────────────────────
+        if (trialEndsAt < now) {
+          await updateTenant(record.id, {
+            'Status':          'trial_expired',
+            'Trial Email Day': 7,
+          })
+          // Send expiry email only if Day 7 sequence email wasn't already sent
+          if (currentDay < 7) {
+            const expired = getExpiredEmail(firstName, upgradeUrl)
+            await sendEmail(email, expired.subject, expired.html)
+          }
+          results.expired++
+          console.log(`[trial-check] Marked ${email} as trial_expired`)
+          continue
+        }
+
+        // ── JOB 1: Send sequence emails ───────────────────────────────────
+        // Email sequence covers the last 7 days of the trial.
+        // Day 1 is the welcome email sent at signup — this cron sends days 2–7.
+        const trialStartAt   = new Date(trialEndsAt.getTime() - 7 * 24 * 60 * 60 * 1000)
+        const daysSinceStart = Math.floor((now.getTime() - trialStartAt.getTime()) / (24 * 60 * 60 * 1000))
+        const targetDay      = Math.min(daysSinceStart + 1, 7)
 
         // Already sent up to this day
         if (currentDay >= targetDay) {
@@ -350,7 +356,6 @@ export async function GET(req: Request) {
           }
         }
 
-        // Get the email for targetDay (days 2-7, Day 1 sent at signup)
         const emailContent = getTrialEmailContent(targetDay, firstName, upgradeUrl)
         if (!emailContent) {
           results.emailsSkipped++
@@ -360,7 +365,6 @@ export async function GET(req: Request) {
         const sent = await sendEmail(email, emailContent.subject, emailContent.html)
 
         if (sent) {
-          // Update Trial Email Day and Last Sent At
           await updateTenant(record.id, {
             'Trial Email Day':          targetDay,
             'Trial Last Email Sent At': now.toISOString(),
@@ -372,37 +376,6 @@ export async function GET(req: Request) {
         }
       } catch (e: any) {
         console.error('[trial-check] Error processing tenant:', e.message)
-        results.errors++
-      }
-    }
-
-    // ── JOB 2: Mark expired trials ─────────────────────────────────────────
-    const expiredTrials = await fetchExpiredTrials()
-    console.log(`[trial-check] Found ${expiredTrials.length} expired trial tenants`)
-
-    for (const record of expiredTrials) {
-      try {
-        const email     = record.fields['Email'] || ''
-        const name      = record.fields['Company Name'] || email.split('@')[0]
-        const firstName = name.split(' ')[0] || 'there'
-
-        // Mark as expired in Airtable
-        await updateTenant(record.id, {
-          'Status':          'trial_expired',
-          'Trial Email Day': 7,
-        })
-
-        // Send expiry email (only if Day 7 email wasn't already sent)
-        const currentDay = record.fields['Trial Email Day'] || 0
-        if (currentDay < 7) {
-          const expired = getExpiredEmail(firstName, upgradeUrl)
-          await sendEmail(email, expired.subject, expired.html)
-        }
-
-        results.expired++
-        console.log(`[trial-check] Marked ${email} as trial_expired`)
-      } catch (e: any) {
-        console.error('[trial-check] Error expiring tenant:', e.message)
         results.errors++
       }
     }

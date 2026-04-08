@@ -6,6 +6,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getTenantConfig, tenantError } from '@/lib/tenant'
 import { SHARED_BASE, PROV_TOKEN, tenantFilter } from '@/lib/airtable'
+import { escapeAirtableString } from '@/lib/tier'
 
 const AIRTABLE_BASE = 'https://api.airtable.com/v0'
 
@@ -42,7 +43,7 @@ export async function GET(request: NextRequest) {
       filters.push(`{Action}='${action}'`)
     }
   }
-  if (platform && platform !== 'all') filters.push(`{Platform}='${platform}'`)
+  if (platform && platform !== 'all') filters.push(`{Platform}='${escapeAirtableString(platform)}'`)
   if (minScore && minScore !== '0')   filters.push(`{Relevance Score}>=${minScore}`)
 
   const formula = filters.length > 1

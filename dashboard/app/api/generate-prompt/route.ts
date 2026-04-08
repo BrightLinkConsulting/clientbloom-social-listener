@@ -1,9 +1,13 @@
 import { NextResponse } from 'next/server'
+import { getTenantConfig, tenantError } from '@/lib/tenant'
 
 export const maxDuration = 30
 
 // POST — take guided answers, call Claude, return a high-quality scoring prompt
 export async function POST(req: Request) {
+  const tenant = await getTenantConfig()
+  if (!tenant) return tenantError()
+
   try {
     const { idealClient, problemSolved, highValueSignals, lowValueSignals, commentStyle } = await req.json()
 

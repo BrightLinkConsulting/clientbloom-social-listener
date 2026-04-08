@@ -8,14 +8,16 @@ Scout is a B2B SaaS lead intelligence tool built by ClientBloom.ai. Low-ticket b
 ## Tech Stack — Do Not Change Without Explicit Approval
 - Frontend: Next.js + React + TypeScript (TSX)
 - Backend: Next.js API routes
-- Database: Airtable (primary data store)
-- Auth: NextAuth.js
-- Job scheduling: Cron routes + Upstash
-- Email: Resend
-- Scraping/enrichment: Apify (per-tenant tracked)
-- Rate limiting: Upstash
-- Deployment: Vercel
-- Payments: Stripe
+- Database: Airtable (primary data store — TWO bases: shared tenant data + platform base)
+- Auth: NextAuth.js (credentials provider, JWT, 24h session)
+- Job scheduling: Vercel Cron (8 active jobs in dashboard/vercel.json)
+- Email: Resend (domain clientbloom.ai, all senders via info@clientbloom.ai)
+- Scraping: Apify — LinkedIn ONLY (2 actors: harvestapi/linkedin-profile-posts, apimaestro/linkedin-posts-search-scraper-no-cookies)
+- AI Scoring: Anthropic Claude API (claude-haiku-4-5-20251001)
+- Rate limiting: In-memory (module-level, per Vercel instance) — no Upstash
+- Deployment: Vercel (auto-deploy on push to main)
+- Payments: Stripe (Checkout + webhooks, metadata.tier for plan detection)
+- Facebook scraping: PERMANENTLY REMOVED (commit b906384, April 8 2026)
 
 ## Current Phase: Phase 2 (as of April 2026)
 Work is organized into four tracks from Scout_Phase2_Locked_Plan.md.
@@ -65,7 +67,7 @@ Still open:
 ### After generating code, run this review:
 - SECURITY: auth on all routes, CRON_SECRET enforced on all cron routes, no hardcoded secrets, Stripe webhook signature verified
 - DATA: Airtable writes batched where possible, formula injection not possible, per-tenant data isolation enforced
-- API: auth check + authorization check on every route, rate limiting via Upstash on public routes
+- API: auth check + authorization check on every route, public routes (trial/start, checkout) are intentionally unauthenticated
 - BILLING: Stripe webhook handler verifies signature, trial_expired state handled correctly, upgrade flow works
 - UX: error states exist, loading states exist, mobile responsive, no localStorage for important state
 

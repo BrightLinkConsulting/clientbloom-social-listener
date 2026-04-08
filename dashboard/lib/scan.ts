@@ -11,7 +11,7 @@
  *   Facebook → REMOVED (browser-based actor: high cost, near-zero qualifying posts)
  *
  * Error categories logged for each failure:
- *   TIMEOUT    – Apify actor exceeded waitSecs (most common Facebook failure)
+ *   TIMEOUT    – Apify actor exceeded waitSecs
  *   AUTH       – Bad API token
  *   RATE_LIMIT – Too many requests to Apify
  *   RUN_FAILED – Actor errored on Apify's side
@@ -323,53 +323,6 @@ export async function saveScoredPosts(tenantId: string, scored: any[]): Promise<
   }
 }
 
-// ── NEW A5: Per-tenant usage tracking ────────────────────────────────────────
-async function incrementTenantScanCount(tenantId: string, postsProcessed: number): Promise<void> {
-  try {
-    const PLATFORM_BASE = process.env.PLATFORM_AIRTABLE_BASE_ID
-    const PLATFORM_TOKEN = process.env.PLATFORM_AIRTABLE_TOKEN
-    
-    if (!PLATFORM_BASE || !PLATFORM_TOKEN) return
-    
-    // Get tenant record
-    const url = new URL(`https://api.airtable.com/v0/${PLATFORM_BASE}/Tenants`)
-    url.searchParams.set('filterByFormula', `{Tenant ID}='${tenantId}'`)
-    url.searchParams.set('pageSize', '1')
-    
-    const res = await fetch(url.toString(), {
-      headers: { Authorization: `Bearer ${PLATFORM_TOKEN}` },
-    })
-    if (!res.ok) return
-    
-    const data = await res.json()
-    const tenantRecord = data.records?.[0]
-    if (!tenantRecord) return
-    
-    const recordId = tenantRecord.id
-    const currentScans = tenantRecord.fields['Scans This Month'] || 0
-    const currentPosts = tenantRecord.fields['Posts Processed This Month'] || 0
-    
-    // Update tenant record
-    await fetch(
-      `https://api.airtable.com/v0/${PLATFORM_BASE}/Tenants/${recordId}`,
-      {
-        method: 'PATCH',
-        headers: {
-          Authorization: `Bearer ${PLATFORM_TOKEN}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          fields: {
-            'Scans This Month': currentScans + 1,
-            'Posts Processed This Month': currentPosts + postsProcessed,
-          }
-        })
-      }
-    )
-  } catch (error) {
-    console.error('[scan] Failed to update usage count:', error)
-  }
-}
 
 // ── Filtered Airtable GET for a specific tenant ──────────────────────────────
 async function atGet(tenantId: string, table: string, extraFormula = '') {
@@ -441,7 +394,6 @@ export interface ScanResult {
   scanSource: string
   message:    string
   error?:     string
-  fbPending?: boolean  // legacy field — kept for API compatibility
 }
 
 // apifyTokenOverride: tenant's own Apify key (set by admin for account isolation).
@@ -512,8 +464,6 @@ export async function runScanForTenant(
     console.log(`[scan] After deduplication: ${newPosts.length} new posts (${existingUrls.size} already in Airtable)`)
 
     if (!newPosts.length) {
-      // A5: Still track the scan even if no new posts
-      await incrementTenantScanCount(tenantId, 0)
       return {
         tenantId, postsFound: 0, scanned: allPosts.length, scanSource: scanSources,
         message: 'No new posts — all existing or too old.',
@@ -525,9 +475,6 @@ export async function runScanForTenant(
 
     // 4. Save
     const saved = await saveScoredPosts(tenantId, scored)
-
-    // A5: Track usage
-    await incrementTenantScanCount(tenantId, newPosts.length)
 
     return {
       tenantId,

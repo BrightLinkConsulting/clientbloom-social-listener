@@ -14,13 +14,10 @@
  * Vercel Pro supports up to 1,000 concurrent function invocations.
  * If tenant count exceeds that, batch dispatches into groups of 900.
  *
- * ── Five-layer reliability (unchanged — each worker implements these) ─────────
- *   1. Improved timeout + memory — FB 30s→90s, progressive memory scaling
- *   2. In-scan retry — reduced scope + more RAM on second attempt
- *   3. Async Facebook fallback — if both sync attempts fail, fires async Apify
- *      run and stores pending run ID in Scan Health
- *   4. /api/cron/scan-collect (15 min later) — collects any webhook misses
- *   5. /api/cron/scan-retry (20 min later) — re-runs tenants with 0 results
+ * ── Three-layer reliability (LinkedIn only — Facebook removed April 8 2026) ────
+ *   1. In-scan retry — reduced scope + more RAM on second attempt
+ *   2. /api/cron/scan-collect (15 min later) — collects any in-flight Apify runs
+ *   3. /api/cron/scan-retry (20 min later) — re-runs tenants with 0 results
  *
  * ── Protected by CRON_SECRET ─────────────────────────────────────────────────
  * Vercel automatically injects Authorization: Bearer <CRON_SECRET> for cron

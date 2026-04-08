@@ -198,18 +198,12 @@ export async function POST(req: NextRequest) {
   const rawBody = await req.text()
   const sig     = req.headers.get('stripe-signature') || ''
 
+  let event: Stripe.Event
   try {
-    stripe.webhooks.constructEvent(rawBody, sig, webhookSecret)
+    event = stripe.webhooks.constructEvent(rawBody, sig, webhookSecret)
   } catch {
     console.warn('[webhook] Invalid Stripe signature — rejecting request')
     return NextResponse.json({ error: 'Invalid signature' }, { status: 400 })
-  }
-
-  let event: Stripe.Event
-  try {
-    event = JSON.parse(rawBody) as Stripe.Event
-  } catch {
-    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
   }
 
   console.log(`[webhook] Received: ${event.type}`)

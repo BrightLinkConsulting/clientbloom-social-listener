@@ -9,15 +9,18 @@
  *   - Last Scan At      (date/time)
  *   - Last Scan Status  (text: success | partial | failed | pending)
  *   - Last Posts Found  (number)
- *   - Last Scan Source  (text: linkedin | facebook_groups | both | none)
+ *   - Last Scan Source  (text: linkedin | none)
  *   - Last Error        (text, optional)
- *   - FB Run ID         (text — Apify run ID for in-flight async Facebook scan)
- *   - FB Run At         (date/time — when the async FB run was started)
- *   - FB Dataset ID     (text — Apify dataset ID to fetch results from)
+ *   - FB Run ID         (text — legacy, no longer populated)
+ *   - FB Run At         (date/time — legacy, no longer populated)
+ *   - FB Dataset ID     (text — legacy, no longer populated)
  *
  * SETUP: Create a table called "Scan Health" in your Airtable base with the
  * fields above. The system degrades gracefully if the table doesn't exist —
  * scans still run, health tracking is just skipped.
+ *
+ * NOTE: FB* fields remain in the schema for backward compat with existing
+ * Airtable tables but are never written after commit b906384 (April 8 2026).
  */
 
 import { SHARED_BASE, PROV_TOKEN, tenantFilter } from './airtable'
@@ -132,38 +135,4 @@ export async function upsertScanHealth(
   }
 }
 
-// ── Get all tenants with pending async Facebook runs ─────────────────────────
-// Used by scan-collect to know which runs to check on.
-export interface PendingFbRun {
-  tenantId:   string
-  fbRunId:    string
-  fbDatasetId: string
-  fbRunAt:    string
-  recordId:   string
-  apifyKey?:  string
-}
-
-export async function getPendingFbRuns(): Promise<PendingFbRun[]> {
-  try {
-    const url = new URL(`https://api.airtable.com/v0/${SHARED_BASE}/${encodeURIComponent(TABLE)}`)
-    // pending status + run started within last 3 hours
-    url.searchParams.set('filterByFormula', `AND({Last Scan Status}='pending_fb',{FB Run ID}!='')`)
-    url.searchParams.set('pageSize', '50')
-
-    const res = await fetch(url.toString(), { headers: headers() })
-    if (!res.ok) return []
-
-    const data = await res.json()
-    return (data.records || [])
-      .map((r: any) => ({
-        tenantId:    r.fields['Tenant ID']   || '',
-        fbRunId:     r.fields['FB Run ID']   || '',
-        fbDatasetId: r.fields['FB Dataset ID'] || '',
-        fbRunAt:     r.fields['FB Run At']   || '',
-        recordId:    r.id,
-      }))
-      .filter((r: PendingFbRun) => r.tenantId && r.fbRunId)
-  } catch {
-    return []
-  }
-}
+// getPendingFbRuns() removed — Facebook scraping decommissioned April 8 2026 (commit b906384)
