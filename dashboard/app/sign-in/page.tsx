@@ -90,6 +90,65 @@ function ClientBloomMark({ size = 40 }: { size?: number }) {
 }
 
 /* ─────────────────────────────────────────────
+   Typewriter headline — cycles through endings
+───────────────────────────────────────────── */
+const HEADLINE_ENDINGS = [
+  'posted on LinkedIn.',
+  'asked for a recommendation.',
+  'complained about their vendor.',
+  'shared their biggest challenge.',
+  'announced a new budget.',
+  'said they\'re evaluating options.',
+]
+
+function TypewriterHeadline() {
+  const [endingIndex, setEndingIndex] = useState(0)
+  const [displayed,   setDisplayed]   = useState('')
+  const [isDeleting,  setIsDeleting]  = useState(false)
+
+  useEffect(() => {
+    const target = HEADLINE_ENDINGS[endingIndex]
+
+    if (!isDeleting && displayed === target) {
+      // Fully typed — pause then start deleting
+      const t = setTimeout(() => setIsDeleting(true), 2200)
+      return () => clearTimeout(t)
+    }
+
+    if (isDeleting && displayed === '') {
+      // Fully deleted — move to next phrase
+      setIsDeleting(false)
+      setEndingIndex(i => (i + 1) % HEADLINE_ENDINGS.length)
+      return
+    }
+
+    const speed = isDeleting ? 38 : 68
+    const t = setTimeout(() => {
+      setDisplayed(prev =>
+        isDeleting
+          ? prev.slice(0, -1)
+          : target.slice(0, prev.length + 1)
+      )
+    }, speed)
+
+    return () => clearTimeout(t)
+  }, [displayed, isDeleting, endingIndex])
+
+  return (
+    <h2 className="text-4xl font-bold text-white leading-tight mb-4">
+      Your next client just<br />
+      <span className="text-[#4F6BFF]">{displayed}</span>
+      {/* blinking cursor */}
+      <span
+        className="inline-block w-[2px] h-[1em] bg-[#4F6BFF] ml-0.5 align-middle"
+        style={{ animation: 'blink 1s step-end infinite' }}
+      />
+      <style>{`@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }`}</style>
+    </h2>
+  )
+}
+
+/* ─────────────────────────────────────────────
    Mock LinkedIn post data for the live feed
 ───────────────────────────────────────────── */
 const MOCK_POSTS = [
@@ -304,9 +363,7 @@ export default function SignInPage() {
           </div>
 
           {/* Headline */}
-          <h2 className="text-4xl font-bold text-white leading-tight mb-4">
-            Your next client just<br />posted on LinkedIn.
-          </h2>
+          <TypewriterHeadline />
           <p className="text-slate-500 text-sm leading-relaxed mb-6">
             Scout surfaces the posts your ICP is writing right now — scored by conversation opportunity.
           </p>
