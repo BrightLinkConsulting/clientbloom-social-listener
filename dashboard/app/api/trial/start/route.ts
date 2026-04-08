@@ -141,7 +141,7 @@ async function sendTrialDay1Email(email: string, name: string): Promise<void> {
     method: 'POST',
     headers: { Authorization: `Bearer ${RESEND_KEY}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      from: 'Mike at Scout <mike@clientbloom.ai>',
+      from: 'Mike at Scout <info@clientbloom.ai>',
       to:   [email],
       subject: 'Welcome — your 30-Day LinkedIn Authority Challenge starts today',
       html,
@@ -161,7 +161,7 @@ async function sendAdminNotification(email: string, name: string): Promise<void>
     method: 'POST',
     headers: { Authorization: `Bearer ${RESEND_KEY}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      from:    'Scout Alerts <noreply@clientbloom.ai>',
+      from:    'Scout Alerts <info@clientbloom.ai>',
       to:      [ADMIN_EMAIL],
       subject: `[Scout] New trial signup — ${email}`,
       html:    `<p><strong>New no-CC trial signup</strong></p><p><strong>Name:</strong> ${safeName}</p><p><strong>Email:</strong> ${safeEmail}</p><p><strong>Trial ends:</strong> 7 days from now</p>`,

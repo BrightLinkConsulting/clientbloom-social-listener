@@ -275,7 +275,7 @@ async function sendEmail(to: string, subject: string, html: string): Promise<boo
       method: 'POST',
       headers: { Authorization: `Bearer ${RESEND_KEY}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        from: 'Mike at Scout <mike@clientbloom.ai>',
+        from: 'Mike at Scout <info@clientbloom.ai>',
         to:   [to],
         subject,
         html,

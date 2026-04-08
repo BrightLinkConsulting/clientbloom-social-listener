@@ -81,7 +81,7 @@ async function sendPasswordResetEmail(email: string, resetToken: string): Promis
       method: 'POST',
       headers: { Authorization: `Bearer ${RESEND_KEY}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        from: 'Scout Support <support@clientbloom.ai>',
+        from: 'Scout Support <info@clientbloom.ai>',
         to: [email],
         subject: 'Reset Your Scout Password',
         html,

@@ -13,7 +13,7 @@ const PLATFORM_TOKEN = process.env.PLATFORM_AIRTABLE_TOKEN   || ''
 const PLATFORM_BASE  = process.env.PLATFORM_AIRTABLE_BASE_ID || ''
 const RESEND_KEY     = process.env.RESEND_API_KEY             || ''
 const BASE_URL_SITE  = (process.env.NEXT_PUBLIC_BASE_URL || 'https://scout.clientbloom.ai').replace(/\/$/, '')
-const FROM           = 'Scout <noreply@clientbloom.ai>'
+const FROM           = 'Scout <info@clientbloom.ai>'
 
 function generateTempPassword(): string {
   const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789'

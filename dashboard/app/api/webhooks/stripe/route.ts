@@ -147,7 +147,7 @@ async function sendWelcomeEmail(email: string, companyName: string, password: st
     method: 'POST',
     headers: { Authorization: `Bearer ${resendKey}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      from: 'Scout by ClientBloom <noreply@clientbloom.ai>',
+      from: 'Scout by ClientBloom <info@clientbloom.ai>',
       to: [email],
       subject: 'Your Scout account is ready',
       html,
@@ -164,7 +164,7 @@ async function sendAdminNotification(event: string, email: string, details: stri
     method: 'POST',
     headers: { Authorization: `Bearer ${resendKey}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      from: 'Scout Alerts <noreply@clientbloom.ai>',
+      from: 'Scout Alerts <info@clientbloom.ai>',
       to: [adminEmail],
       subject: `[Scout] ${event} — ${email}`,
       html: `<p><strong>${event}</strong></p><p>${email}</p><p>${details}</p>`,

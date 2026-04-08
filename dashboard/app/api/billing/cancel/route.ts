@@ -50,7 +50,7 @@ async function sendCancellationEmail(email: string, name: string, periodEnd: Dat
     method: 'POST',
     headers: { Authorization: `Bearer ${RESEND_KEY}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      from: 'Scout by ClientBloom <noreply@clientbloom.ai>',
+      from: 'Scout by ClientBloom <info@clientbloom.ai>',
       to:   [email],
       subject: 'Your Scout subscription has been canceled',
       html: `
