@@ -21,7 +21,7 @@ const PLATFORM_BASE  = process.env.PLATFORM_AIRTABLE_BASE_ID || ''
 const RESEND_KEY     = process.env.RESEND_API_KEY             || ''
 const BASE_URL_SITE  = (process.env.NEXT_PUBLIC_BASE_URL || 'https://scout.clientbloom.ai').replace(/\/$/, '')
 const FROM           = 'Scout <info@clientbloom.ai>'
-const TRIAL_DAYS     = 14
+const TRIAL_DAYS     = 7
 
 function generateTempPassword(): string {
   const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789'
@@ -116,13 +116,13 @@ export async function POST(req: Request) {
     const html = `
       <div style="font-family:sans-serif;max-width:520px;margin:0 auto;color:#1a1a1a">
         <div style="background:#4F6BFF;padding:20px 28px;border-radius:12px 12px 0 0">
-          <p style="color:#fff;font-size:16px;font-weight:700;margin:0">Welcome to Scout — 14-Day Free Trial</p>
+          <p style="color:#fff;font-size:16px;font-weight:700;margin:0">Welcome to Scout — 7-Day Free Trial</p>
         </div>
         <div style="background:#f9f9f9;padding:28px 32px;border-radius:0 0 12px 12px;border:1px solid #e5e5e5;border-top:none">
           <h2 style="margin:0 0 8px;font-size:20px">Your Scout trial is ready 🎉</h2>
           <p style="color:#555;margin:0 0 24px;font-size:14px;line-height:1.6">
             Hey${displayName !== cleanEmail ? ` ${displayName}` : ''},
-            you have full Scout access for the next 14 days — completely free.
+            you have full Scout access for the next 7 days — completely free.
             Sign in below, complete the 2-minute setup, and Scout will start finding
             high-intent LinkedIn leads for you automatically.
           </p>
@@ -180,7 +180,7 @@ export async function POST(req: Request) {
       body: JSON.stringify({
         from:    FROM,
         to:      [cleanEmail],
-        subject: `Your 14-day Scout trial starts now`,
+        subject: `Your 7-day Scout trial starts now`,
         html,
       }),
     })
