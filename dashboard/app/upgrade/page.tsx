@@ -89,9 +89,8 @@ export default function UpgradePage() {
   useEffect(() => {
     if (status === 'loading') return
     if (status === 'unauthenticated') { router.replace('/sign-in'); return }
-    if (paidPlan) { router.replace('/'); return }
     setChecking(false)
-  }, [status, paidPlan, router])
+  }, [status, router])
 
   useEffect(() => {
     if (checking) return
@@ -226,14 +225,18 @@ export default function UpgradePage() {
                 {/* CTA */}
                 <button
                   onClick={() => handleUpgrade(tier.key)}
-                  disabled={upgrading !== null}
+                  disabled={upgrading !== null || plan === `Scout ${tier.name}` || plan === 'Owner'}
                   className={`w-full py-3.5 rounded-xl font-semibold text-sm transition-all disabled:opacity-60 disabled:cursor-not-allowed ${
                     tier.highlight
                       ? 'bg-[#4F6BFF] hover:bg-[#3d5aee] text-white'
                       : 'bg-slate-800 hover:bg-slate-700 text-white border border-slate-700'
                   }`}
                 >
-                  {upgrading === tier.key ? 'Redirecting to Stripe…' : tier.cta}
+                  {upgrading === tier.key
+                    ? 'Redirecting to Stripe…'
+                    : plan === `Scout ${tier.name}` || (plan === 'Owner' && tier.key === 'agency')
+                    ? 'Current Plan'
+                    : tier.cta}
                 </button>
               </div>
             ))}
@@ -244,7 +247,7 @@ export default function UpgradePage() {
             <p className="text-xs text-slate-600">All plans billed monthly · Cancel anytime · No setup fees · Your trial data is preserved</p>
             <p className="text-xs text-slate-600">
               Questions?{' '}
-              <a href="mailto:mike@clientbloom.ai" className="text-slate-500 hover:text-slate-300 underline underline-offset-2 transition-colors">
+              <a href="mailto:info@clientbloom.ai" className="text-slate-500 hover:text-slate-300 underline underline-offset-2 transition-colors">
                 Reach out directly
               </a>
             </p>
