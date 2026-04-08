@@ -24,6 +24,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import crypto from 'crypto'
 import { provisionNewTenant } from '@/lib/provision'
+import { planFromPriceId } from '@/lib/tier'
 
 // ── Airtable helpers (platform Tenants table) ──────────────────────────────
 const PLATFORM_TOKEN  = process.env.PLATFORM_AIRTABLE_TOKEN   || ''
@@ -209,69 +210,65 @@ export async function POST(req: NextRequest) {
         const customerId = typeof session.customer === 'string' ? session.customer : ''
         const subId      = typeof session.subscription === 'string' ? session.subscription : ''
 
+        // Detect which tier was purchased from the line items price ID
+        const lineItems  = (session as any).line_items?.data || []
+        const priceId    = lineItems[0]?.price?.id || ''
+        const planName   = priceId ? planFromPriceId(priceId) : 'Scout Pro'
+
         if (!email) {
           console.error('[webhook] No email on checkout session:', session.id)
           break
         }
 
-        // Idempotency: don't re-provision if tenant already exists
+        // Idempotency: if tenant already exists (trial user upgrading), update their plan
         const existing = await findTenantByEmail(email)
         if (existing) {
           const fields: Record<string, any> = {}
-          if (!existing.fields['Stripe Customer ID'] && customerId)  fields['Stripe Customer ID']  = customerId
-          if (!existing.fields['Stripe Subscription ID'] && subId)   fields['Stripe Subscription ID'] = subId
-          if (existing.fields['Status'] === 'Suspended')             fields['Status'] = 'Active'
-          if (Object.keys(fields).length) await updateTenantRecord(existing.id, fields)
-          console.log(`[webhook] Tenant already exists for ${email}, updated Stripe IDs`)
+          if (customerId)  fields['Stripe Customer ID']     = customerId
+          if (subId)       fields['Stripe Subscription ID'] = subId
+          if (planName)    fields['Plan']                   = planName
+          if (priceId)     fields['Stripe Price ID']        = priceId
+          fields['Status']          = 'Active'
+          fields['Trial Ends At']   = ''   // clear trial expiry on paid conversion
+          fields['Trial Email Day'] = 0    // stop trial email sequence
+          await updateTenantRecord(existing.id, fields)
+          console.log(`[webhook] Trial user ${email} upgraded to ${planName}`)
           break
         }
 
-        // Generate login credentials
+        // Brand new user (direct purchase, skipped trial)
         const password     = generatePassword()
         const passwordHash = await hashPassword(password)
         const companyName  = session.customer_details?.name || email.split('@')[0]
 
-        // 1. Create Tenant record in the platform Tenants table
+        // 1. Create Tenant record
         const tenantRecord = await createTenantRecord({
           'Email':                  email.toLowerCase(),
           'Company Name':           companyName,
           'Password Hash':          passwordHash,
           'Status':                 'Active',
-          'Plan':                   'Scout $79',
+          'Plan':                   planName,
+          'Trial Type':             'cc',
+          'Stripe Price ID':        priceId,
           'Is Admin':               false,
           'Stripe Customer ID':     customerId,
           'Stripe Subscription ID': subId,
         })
 
-        // 2. Auto-provision: generate Tenant ID + seed Business Profile
-        //    No Airtable setup required from the customer
+        // 2. Auto-provision
         try {
           const tenantId = await provisionNewTenant(tenantRecord.id, companyName)
-          console.log(`[webhook] Provisioned tenant ID ${tenantId} for ${email}`)
+          console.log(`[webhook] Provisioned tenant ID ${tenantId} for ${email} (${planName})`)
         } catch (provErr: any) {
           console.error(`[webhook] provisionNewTenant failed for ${email}:`, provErr.message)
-          // Non-fatal — tenant can still log in; provisioning can be retried
-        }
-
-        // 2.5. Calculate and store trial end date
-        try {
-          const trialEndAt = new Date()
-          trialEndAt.setDate(trialEndAt.getDate() + 14)
-          await updateTenantRecord(tenantRecord.id, {
-            'Trial Ends At': trialEndAt.toISOString(),
-          })
-          console.log(`[webhook] Trial expires for ${email} on ${trialEndAt.toISOString()}`)
-        } catch (trialErr: any) {
-          console.error(`[webhook] Failed to set trial end date for ${email}:`, trialErr.message)
-          // Non-fatal
         }
 
         // 3. Send welcome email + admin notification
         await sendWelcomeEmail(email, companyName, password)
         await sendAdminNotification(
-          'New signup',
+          `New direct purchase — ${planName}`,
           email,
-          `Company: ${companyName} | Subscription: ${subId}`
+          `Company: ${companyName} | Plan: ${planName} | Subscription: ${subId}`
         )
 
         console.log(`[webhook] Provisioned new tenant: ${email}`)

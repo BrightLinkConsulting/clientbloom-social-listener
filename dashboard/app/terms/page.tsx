@@ -52,7 +52,7 @@ export default function TermsOfService() {
 
           <section>
             <h2 className="text-xl font-semibold text-white mb-4">3. Subscriptions and Billing</h2>
-            <p>Scout is offered as a monthly subscription at $79/month (or as otherwise displayed at the time of purchase). Subscriptions are billed monthly in advance via Stripe.</p>
+            <p>Scout is offered as a monthly subscription starting at $49/month (or as otherwise displayed at the time of purchase). Subscriptions are billed monthly in advance via Stripe.</p>
             <ul className="list-disc list-inside space-y-2 mt-4 text-slate-300">
               <li>Your subscription renews automatically each month until cancelled</li>
               <li>You may cancel at any time from your account settings; cancellation takes effect at the end of the current billing period</li>

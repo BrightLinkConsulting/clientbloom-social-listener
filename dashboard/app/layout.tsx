@@ -4,11 +4,11 @@ import Providers from './components/providers'
 
 export const metadata: Metadata = {
   title: 'Scout by ClientBloom — LinkedIn Relationship Intelligence',
-  description: 'Scout monitors your LinkedIn prospects, scores their posts 1–10 by ICP relevance, and tells you exactly when to engage — so you warm up deals before you ever pitch. 14-day free trial.',
+  description: 'Scout monitors your LinkedIn prospects, scores their posts 1–10 by ICP relevance, and tells you exactly when to engage — so you warm up deals before you ever pitch. 7-day free trial.',
   keywords: 'LinkedIn relationship intelligence, LinkedIn prospect monitoring, AI LinkedIn engagement, warm LinkedIn outreach, LinkedIn comment tool',
   openGraph: {
     title: 'Scout by ClientBloom — LinkedIn Relationship Intelligence',
-    description: 'Monitor prospects, score posts by ICP relevance, engage at exactly the right moment. 14-day free trial.',
+    description: 'Monitor prospects, score posts by ICP relevance, engage at exactly the right moment. 7-day free trial.',
     type: 'website',
     url: 'https://scout.clientbloom.ai',
   },
@@ -32,7 +32,7 @@ const structuredData = {
     price: '79.00',
     priceCurrency: 'USD',
     availability: 'https://schema.org/InStock',
-    description: '14-day free trial included',
+    description: '7-day free trial included',
   },
   featureList: [
     'AI post scoring 1-10 by ICP relevance',

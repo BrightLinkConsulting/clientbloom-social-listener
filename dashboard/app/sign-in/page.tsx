@@ -473,8 +473,8 @@ export default function SignInPage() {
           {/* Footer link */}
           <div className="flex items-center justify-center gap-1 mt-6 text-slate-600 text-xs">
             <span>New to Scout?</span>
-            <a href="/api/checkout" className="text-[#4F6BFF] hover:text-[#7C8FFF] transition-colors ml-1">
-              Start your free trial
+            <a href="/sign-up" className="text-[#4F6BFF] hover:text-[#7C8FFF] transition-colors ml-1">
+              Start your free 7-day trial
             </a>
           </div>
         </div>
