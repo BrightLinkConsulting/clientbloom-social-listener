@@ -343,6 +343,7 @@ function PostCard({
         <div className="flex items-start justify-between gap-3 mb-3">
           <div className="flex items-center gap-2 flex-wrap min-w-0">
             <ScoreBadge score={score} />
+            <span className="text-xs text-slate-500">{f['Group Name']}</span>
             {date && (
               <>
                 <span className="text-slate-700 text-xs">·</span>
@@ -1237,13 +1238,11 @@ function FeedPage() {
   const [posts, setPosts] = useState<Post[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<ActionFilter>('New')
-  const [sourceFilter, setSourceFilter] = useState<'all' | 'keyword' | 'icp'>('all')
-  const [icpFilter, setIcpFilter]       = useState('all')   // 'all' or a LinkedIn profile URL
+  const [groupFilter, setGroupFilter] = useState('all')
   const [updating, setUpdating] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
   const [actionCounts, setActionCounts] = useState<Record<string, number>>({})
-  const [icpProfiles,    setIcpProfiles]    = useState<{ name: string; profileUrl: string; jobTitle: string; company: string }[]>([])
-  const [icpProfileUrls, setIcpProfileUrls] = useState<Set<string>>(new Set())
+  const [availableGroups, setAvailableGroups] = useState<string[]>([])
   const [lastScannedAt, setLastScrapedAt] = useState<string | null>(null)
   const [lastRefreshed, setLastRefreshed] = useState<Date>(new Date())
   const [error, setError] = useState<string | null>(null)
@@ -1289,8 +1288,7 @@ function FeedPage() {
     setError(null)
     try {
       const params = new URLSearchParams({ action: filter, limit: '100' })
-      // Server-side ICP person filter — only when a specific person is selected
-      if (sourceFilter === 'icp' && icpFilter !== 'all') params.set('icp', icpFilter)
+      if (groupFilter !== 'all') params.set('group', groupFilter)
 
       const res = await fetch(`/api/posts?${params}`)
       if (!res.ok) throw new Error('Failed to load posts')
@@ -1298,16 +1296,15 @@ function FeedPage() {
 
       setPosts(data.records || [])
       if (data.actionCounts) setActionCounts(data.actionCounts)
+      if (data.availableGroups) setAvailableGroups(data.availableGroups)
       if (data.lastScannedAt) setLastScrapedAt(data.lastScannedAt)
-      if (data.icpProfiles)   setIcpProfiles(data.icpProfiles)
-      if (data.icpProfileUrls) setIcpProfileUrls(new Set(data.icpProfileUrls))
       setLastRefreshed(new Date())
     } catch (e: any) {
       setError(e.message)
     } finally {
       setLoading(false)
     }
-  }, [filter, sourceFilter, icpFilter])
+  }, [filter, groupFilter])
 
   // Initial load + re-fetch when filters change
   useEffect(() => { fetchPosts() }, [fetchPosts])
@@ -1517,45 +1514,18 @@ function FeedPage() {
 
             {/* Fixed right-side controls — always visible, never inside the scroll area */}
             <div className="flex items-center gap-2 py-1.5 shrink-0">
-
-              {/* Source type pills */}
-              <div className="flex items-center bg-slate-800/60 border border-slate-700/50 rounded-lg p-0.5">
-                {(['all', 'keyword', 'icp'] as const).map(type => (
-                  <button
-                    key={type}
-                    onClick={() => {
-                      setSourceFilter(type)
-                      setIcpFilter('all')
-                    }}
-                    className={`text-xs px-2.5 py-1 rounded-md transition-all whitespace-nowrap ${
-                      sourceFilter === type
-                        ? 'bg-slate-700 text-white font-medium'
-                        : 'text-slate-500 hover:text-slate-300'
-                    }`}
-                  >
-                    {type === 'all'     ? 'All'      : null}
-                    {type === 'keyword' ? 'Keyword'  : null}
-                    {type === 'icp'     ? 'ICP'      : null}
-                  </button>
-                ))}
-              </div>
-
-              {/* ICP person picker — only visible when ICP tab is active */}
-              {sourceFilter === 'icp' && icpProfiles.length > 0 && (
+              {availableGroups.length > 0 && (
                 <select
-                  value={icpFilter}
-                  onChange={e => setIcpFilter(e.target.value)}
-                  className="text-xs bg-slate-800/80 border border-slate-700/60 rounded-lg px-2.5 py-1 text-slate-300 focus:outline-none focus:border-[#4F6BFF]/60 max-w-[180px] truncate"
+                  value={groupFilter}
+                  onChange={e => setGroupFilter(e.target.value)}
+                  className="text-xs bg-slate-800/80 border border-slate-700/60 rounded-lg px-2.5 py-1 text-slate-400 focus:outline-none focus:border-blue-500/50 max-w-[160px] truncate"
                 >
-                  <option value="all">All ICPs</option>
-                  {icpProfiles.map(p => (
-                    <option key={p.profileUrl} value={p.profileUrl}>
-                      {p.name}{p.company ? ` · ${p.company}` : ''}
-                    </option>
+                  <option value="all">All groups</option>
+                  {availableGroups.map(g => (
+                    <option key={g} value={g}>{g}</option>
                   ))}
                 </select>
               )}
-
               <button
                 onClick={() => fetchPosts()}
                 className="text-xs px-3 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 transition-colors whitespace-nowrap"
@@ -1625,16 +1595,7 @@ function FeedPage() {
               </p>
             </div>
             <div className="space-y-3">
-              {posts
-                .filter(post => {
-                  const authorUrl  = post.fields['Author Profile URL'] || ''
-                  const hasKeyword = !!(post.fields['Keywords Matched']?.trim())
-                  const isIcp      = icpProfileUrls.has(authorUrl)
-                  if (sourceFilter === 'keyword') return hasKeyword
-                  if (sourceFilter === 'icp')     return isIcp
-                  return true
-                })
-                .map(post => (
+              {posts.map(post => (
                 <PostCard
                   key={post.id}
                   post={post}

@@ -1,14 +1,6 @@
 /**
  * /api/posts — Server-side Airtable proxy.
- * Returns filtered posts + metadata: action counts, last scrape time, ICP profiles.
- *
- * Filter params:
- *   action    — New | Engaged | Replied | Skipped | Archived | all
- *   platform  — LinkedIn | Facebook | all
- *   minScore  — minimum relevance score (0 = no filter)
- *   icp       — LinkedIn profile URL to filter by author (server-side, efficient)
- *   limit     — max records (default 100)
- *   offset    — Airtable pagination offset
+ * Returns filtered posts + metadata: action counts, last scrape time, available groups.
  */
 
 import { NextRequest, NextResponse } from 'next/server'
@@ -28,7 +20,7 @@ export async function GET(request: NextRequest) {
   const action   = searchParams.get('action')   || 'New'
   const platform = searchParams.get('platform')
   const minScore = searchParams.get('minScore') || '0'
-  const icp      = searchParams.get('icp')      || ''   // LinkedIn profile URL for ICP filter
+  const group    = searchParams.get('group')    || ''
   const limit    = searchParams.get('limit')    || '100'
   const offset   = searchParams.get('offset')  || ''
 
@@ -53,7 +45,7 @@ export async function GET(request: NextRequest) {
   }
   if (platform && platform !== 'all') filters.push(`{Platform}='${platform}'`)
   if (minScore && minScore !== '0')   filters.push(`{Relevance Score}>=${minScore}`)
-  if (icp      && icp      !== 'all') filters.push(`{Author Profile URL}='${icp.replace(/'/g, "\\'")}'`)
+  if (group    && group    !== 'all') filters.push(`{Group Name}='${group.replace(/'/g, "\\'")}'`)
 
   const formula = filters.length > 1
     ? `AND(${filters.join(', ')})`
@@ -97,32 +89,27 @@ export async function GET(request: NextRequest) {
     metaOffset = data.offset
   } while (metaOffset)
 
-  // ICP profiles query — used by feed to classify posts and populate person filter
-  const icpParams = new URLSearchParams({
-    filterByFormula: `AND(${tenantFilter(tenantId)}, {Active}=1)`,
-    'fields[]':  'Name',
-    'fields[1]': 'Profile URL',
-    'fields[2]': 'Job Title',
-    'fields[3]': 'Company',
-    sort: '',
-    'sort[0][field]':     'Name',
-    'sort[0][direction]': 'asc',
+  // Sources query — filtered by tenant
+  const sourcesFormula = `AND(${tenantFilter(tenantId)}, {Type}='facebook_group', {Active}=1)`
+  const sourcesParams = new URLSearchParams({
+    filterByFormula: sourcesFormula,
+    'fields[]': 'Name',
     pageSize: '100',
   })
-  const icpUrl = `${AIRTABLE_BASE}/${SHARED_BASE}/${encodeURIComponent('LinkedIn ICPs')}?${icpParams}`
+  const sourcesUrl = `${AIRTABLE_BASE}/${SHARED_BASE}/Sources?${sourcesParams}`
 
-  const [postsResp, icpResp] = await Promise.all([
-    fetch(postsUrl, { headers: authHeader, next: { revalidate: 0 } }),
-    fetch(icpUrl,   { headers: authHeader, next: { revalidate: 0 } }),
+  const [postsResp, sourcesResp] = await Promise.all([
+    fetch(postsUrl,   { headers: authHeader, next: { revalidate: 0 } }),
+    fetch(sourcesUrl, { headers: authHeader, next: { revalidate: 0 } }),
   ])
 
   if (!postsResp.ok) {
     return NextResponse.json({ error: await postsResp.text() }, { status: postsResp.status })
   }
 
-  const [postsData, icpData] = await Promise.all([
+  const [postsData, sourcesData] = await Promise.all([
     postsResp.json(),
-    icpResp.ok ? icpResp.json() : Promise.resolve({ records: [] }),
+    sourcesResp.ok ? sourcesResp.json() : Promise.resolve({ records: [] }),
   ])
 
   const actionCounts: Record<string, number> = { New: 0, Engaged: 0, Replied: 0, Skipped: 0, Archived: 0 }
@@ -147,27 +134,16 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  // Build ICP profile list for feed filter
-  const icpProfiles = (icpData.records || [])
-    .map((r: any) => ({
-      name:       r.fields?.Name        || '',
-      profileUrl: r.fields?.['Profile URL'] || '',
-      jobTitle:   r.fields?.['Job Title']   || '',
-      company:    r.fields?.Company     || '',
-    }))
-    .filter((p: any) => p.profileUrl)  // must have a URL to be useful as a filter
-
-  // Build a Set of ICP profile URLs for fast client-side lookup
-  const icpProfileUrls = icpProfiles.map((p: any) => p.profileUrl)
+  const availableGroups = (sourcesData.records || [])
+    .map((r: any) => r.fields?.Name || '')
+    .filter(Boolean)
+    .sort()
 
   return NextResponse.json({
     ...postsData,
     actionCounts,
-    lastScannedAt: lastScrapedAt,
-    lastScrapedAt,
-    icpProfiles,
-    icpProfileUrls,
-    // Keep availableGroups as empty array for any external callers that check it
-    availableGroups: [],
+    lastScannedAt: lastScrapedAt,   // canonical name used by the feed
+    lastScrapedAt,                  // keep old key for any external callers
+    availableGroups,
   })
 }
