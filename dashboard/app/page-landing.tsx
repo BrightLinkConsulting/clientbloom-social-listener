@@ -134,10 +134,11 @@ export default function LandingPage() {
 
           <h1 className="font-bold tracking-tight mb-4">
             <span
-              className="block text-white leading-[1.05]"
+              className="block leading-[1.05]"
               style={{ fontSize: 'clamp(20px, 7.3vw, 81px)' }}
             >
-              Your next client is on
+              <GradientText className="font-bold tracking-tight">Your next client</GradientText>
+              <span className="text-white"> is on</span>
             </span>
             <span
               className="block text-white leading-[1.05]"
