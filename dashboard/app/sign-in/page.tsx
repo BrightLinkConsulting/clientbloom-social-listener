@@ -5,7 +5,9 @@ import { signIn } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 
-/** Animated canvas dot-grid background */
+/* ─────────────────────────────────────────────
+   Animated canvas dot-grid background
+───────────────────────────────────────────── */
 function DotMatrixCanvas({ className = '' }: { className?: string }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
@@ -25,7 +27,7 @@ function DotMatrixCanvas({ className = '' }: { className?: string }) {
     function setup() {
       w = canvas.offsetWidth
       h = canvas.offsetHeight
-      canvas.width = w
+      canvas.width  = w
       canvas.height = h
       dots = []
       const cols = Math.ceil(w / SPACING) + 1
@@ -33,10 +35,10 @@ function DotMatrixCanvas({ className = '' }: { className?: string }) {
       for (let c = 0; c < cols; c++) {
         for (let row = 0; row < rows; row++) {
           dots.push({
-            x: c * SPACING,
-            y: row * SPACING,
+            x:     c   * SPACING,
+            y:     row * SPACING,
             phase: Math.random() * Math.PI * 2,
-            amp: 0.25 + Math.random() * 0.45,
+            amp:   0.25 + Math.random() * 0.45,
           })
         }
       }
@@ -47,9 +49,9 @@ function DotMatrixCanvas({ className = '' }: { className?: string }) {
       ctx.clearRect(0, 0, w, h)
       t += 0.007
       for (const d of dots) {
-        const pulse = Math.sin(t + d.phase) * d.amp
+        const pulse   = Math.sin(t + d.phase) * d.amp
         const opacity = 0.055 + pulse * 0.05
-        const radius = 1.1 + pulse * 0.35
+        const radius  = 1.1  + pulse * 0.35
         ctx.beginPath()
         ctx.arc(d.x, d.y, Math.max(0.5, radius), 0, Math.PI * 2)
         ctx.fillStyle = `rgba(${r},${g},${b},${opacity})`
@@ -72,7 +74,9 @@ function DotMatrixCanvas({ className = '' }: { className?: string }) {
   return <canvas ref={canvasRef} className={`absolute inset-0 w-full h-full ${className}`} />
 }
 
-/** ClientBloom logo mark */
+/* ─────────────────────────────────────────────
+   ClientBloom logo mark
+───────────────────────────────────────────── */
 function ClientBloomMark({ size = 40 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -80,11 +84,159 @@ function ClientBloomMark({ size = 40 }: { size?: number }) {
       <ellipse cx="20" cy="52" rx="13" ry="25" fill="#E91E8C" />
       <ellipse cx="80" cy="52" rx="13" ry="25" fill="#00B96B" />
       <ellipse cx="50" cy="79" rx="24" ry="13" fill="#7C3AED" />
-      <circle cx="50" cy="50" r="13" fill="#7C3AED" />
+      <circle  cx="50" cy="50" r="13"          fill="#7C3AED" />
     </svg>
   )
 }
 
+/* ─────────────────────────────────────────────
+   Mock LinkedIn post data for the live feed
+───────────────────────────────────────────── */
+const MOCK_POSTS = [
+  {
+    initials: 'SL',
+    color:    '#7C3AED',
+    author:   'Sarah L.',
+    title:    'VP of Marketing · SaaS',
+    excerpt:  "We just lost our third agency this year. At some point you have to ask if the problem is the vendors or the strategy...",
+    score:    94,
+  },
+  {
+    initials: 'JR',
+    color:    '#E91E8C',
+    author:   'James R.',
+    title:    'Founder · B2B Consulting',
+    excerpt:  "Hot take: most 'client retention' problems are actually onboarding problems in disguise. Fight me.",
+    score:    91,
+  },
+  {
+    initials: 'AM',
+    color:    '#00B96B',
+    author:   'Aisha M.',
+    title:    'Head of Growth · FinTech',
+    excerpt:  "Anyone else finding that their best customers came from referrals of churned customers? The irony is real.",
+    score:    88,
+  },
+  {
+    initials: 'TK',
+    color:    '#F7B731',
+    author:   'Tom K.',
+    title:    'CEO · Digital Agency',
+    excerpt:  "We're evaluating three new vendors this quarter. Would love recommendations from people who've actually switched recently.",
+    score:    96,
+  },
+  {
+    initials: 'PB',
+    color:    '#4F6BFF',
+    author:   'Priya B.',
+    title:    'CMO · E-commerce',
+    excerpt:  "The agency we hired six months ago still doesn't understand our customer. Thinking about bringing it all in-house.",
+    score:    87,
+  },
+  {
+    initials: 'DW',
+    color:    '#E91E8C',
+    author:   'Derek W.',
+    title:    'Director of Ops · Mid-Market',
+    excerpt:  "Open to conversations with consultants who specialize in revenue operations. DMs open, please no cold pitches.",
+    score:    93,
+  },
+  {
+    initials: 'NL',
+    color:    '#00B96B',
+    author:   'Nina L.',
+    title:    'Chief Revenue Officer',
+    excerpt:  "We hit our Q1 number but at the cost of our team. Time to rethink how we're running outbound before Q2 starts.",
+    score:    89,
+  },
+]
+
+/* ─────────────────────────────────────────────
+   Scrolling live feed ticker
+───────────────────────────────────────────── */
+function LiveFeedTicker() {
+  // Duplicate posts so the loop is seamless
+  const posts = [...MOCK_POSTS, ...MOCK_POSTS]
+
+  return (
+    <div className="relative w-full overflow-hidden rounded-xl" style={{ height: 340 }}>
+
+      {/* Top + bottom fade masks */}
+      <div
+        className="absolute inset-x-0 top-0 z-10 h-12 pointer-events-none"
+        style={{ background: 'linear-gradient(to bottom, #080a0f 0%, transparent 100%)' }}
+      />
+      <div
+        className="absolute inset-x-0 bottom-0 z-10 h-16 pointer-events-none"
+        style={{ background: 'linear-gradient(to top, #080a0f 0%, transparent 100%)' }}
+      />
+
+      {/* Scrolling column */}
+      <div
+        className="flex flex-col gap-3"
+        style={{
+          animation: 'scrollUp 28s linear infinite',
+          willChange: 'transform',
+        }}
+      >
+        {posts.map((post, i) => (
+          <div
+            key={i}
+            className="rounded-xl border border-slate-800/70 bg-[#0d1018]/80 backdrop-blur-sm px-4 py-3 mx-0.5"
+          >
+            <div className="flex items-start gap-3">
+              {/* Avatar */}
+              <div
+                className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold"
+                style={{ background: post.color }}
+              >
+                {post.initials}
+              </div>
+
+              <div className="min-w-0 flex-1">
+                {/* Author row */}
+                <div className="flex items-center justify-between gap-2 mb-1">
+                  <div>
+                    <span className="text-white text-xs font-semibold">{post.author}</span>
+                    <span className="text-slate-600 text-xs ml-1">· {post.title}</span>
+                  </div>
+                  {/* Score badge */}
+                  <div
+                    className="flex-shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-md"
+                    style={{
+                      background: post.score >= 93 ? 'rgba(79,107,255,0.15)' : 'rgba(79,107,255,0.08)',
+                      color:      post.score >= 93 ? '#818cf8' : '#6272b8',
+                      border:     '1px solid rgba(79,107,255,0.2)',
+                    }}
+                  >
+                    {post.score}
+                  </div>
+                </div>
+
+                {/* Excerpt */}
+                <p className="text-slate-500 text-xs leading-relaxed line-clamp-2">
+                  {post.excerpt}
+                </p>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* CSS keyframe injected inline */}
+      <style>{`
+        @keyframes scrollUp {
+          0%   { transform: translateY(0); }
+          100% { transform: translateY(-50%); }
+        }
+      `}</style>
+    </div>
+  )
+}
+
+/* ─────────────────────────────────────────────
+   Page
+───────────────────────────────────────────── */
 export default function SignInPage() {
   const router   = useRouter()
   const [email,    setEmail]    = useState('')
@@ -131,7 +283,7 @@ export default function SignInPage() {
       {/* ─── Centered two-column layout ─── */}
       <div className="relative z-10 w-full max-w-4xl flex flex-col lg:flex-row items-center gap-12 lg:gap-16">
 
-        {/* ── LEFT: branding (desktop only) ── */}
+        {/* ── LEFT: branding + live feed (desktop only) ── */}
         <div className="hidden lg:flex flex-col flex-1 min-w-0">
 
           {/* Logo */}
@@ -143,6 +295,7 @@ export default function SignInPage() {
             </div>
           </div>
 
+          {/* AI-Powered badge */}
           <div className="inline-flex items-center gap-2 bg-[#4F6BFF]/10 border border-[#4F6BFF]/20 rounded-full px-3 py-1 mb-8 w-fit">
             <span className="w-1.5 h-1.5 rounded-full bg-[#4F6BFF] animate-pulse" />
             <span className="text-[#4F6BFF] text-xs font-medium tracking-wide uppercase">
@@ -150,31 +303,31 @@ export default function SignInPage() {
             </span>
           </div>
 
-          <h2 className="text-4xl font-bold text-white leading-tight mb-6">
-            Your next client is<br />already posting.
+          {/* Headline */}
+          <h2 className="text-4xl font-bold text-white leading-tight mb-4">
+            Your next client just<br />posted on LinkedIn.
           </h2>
-          <p className="text-slate-400 text-base leading-relaxed mb-10">
-            Scout monitors your ICP&apos;s LinkedIn activity, scores every post by conversation opportunity, and hands you the perfect thing to say — before the competition even notices.
+          <p className="text-slate-500 text-sm leading-relaxed mb-6">
+            Scout surfaces the posts your ICP is writing right now — scored by conversation opportunity.
           </p>
 
-          <div className="space-y-4">
-            {[
-              { icon: '⚡', text: 'Intelligence feed updated twice daily' },
-              { icon: '🎯', text: 'AI-scored posts ranked by entry point quality' },
-              { icon: '💬', text: 'Comment suggestions that sound like you' },
-            ].map((item, i) => (
-              <div key={i} className="flex items-center gap-3">
-                <span className="text-sm">{item.icon}</span>
-                <span className="text-slate-400 text-sm">{item.text}</span>
-              </div>
-            ))}
+          {/* Live feed header */}
+          <div className="flex items-center gap-2 mb-3">
+            <span
+              className="w-1.5 h-1.5 rounded-full bg-emerald-400"
+              style={{ boxShadow: '0 0 6px #34d399', animation: 'pulse 1.5s ease-in-out infinite' }}
+            />
+            <span className="text-emerald-400 text-[11px] font-semibold tracking-widest uppercase">Live Intelligence Feed</span>
           </div>
+
+          {/* Scrolling post cards */}
+          <LiveFeedTicker />
         </div>
 
         {/* ── RIGHT: sign-in form ── */}
         <div className="w-full lg:w-[400px] lg:flex-shrink-0">
 
-          {/* Mobile logo (hidden on desktop) */}
+          {/* Mobile logo */}
           <div className="lg:hidden flex items-center justify-center gap-3 mb-10">
             <ClientBloomMark size={40} />
             <div>
