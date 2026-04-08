@@ -18,11 +18,11 @@ function ClientBloomMark({ size = 32 }: { size?: number }) {
 }
 
 const SIGNALS = [
-  { id: 'questions', label: 'Asking questions or seeking advice from their network' },
+  { id: 'asking_for_help', label: 'Asking questions or seeking advice from their network' },
   { id: 'industry_discussion', label: 'Starting or joining an industry debate or discussion' },
   { id: 'milestone', label: 'Announcing a milestone, promotion, or company change' },
-  { id: 'scaling', label: 'Talking about growing, hiring, or scaling their business' },
-  { id: 'evaluating', label: 'Comparing tools, vendors, or evaluating alternatives' },
+  { id: 'growing_team', label: 'Talking about growing, hiring, or scaling their business' },
+  { id: 'shopping_alternatives', label: 'Comparing tools, vendors, or evaluating alternatives' },
   { id: 'thought_leadership', label: 'Sharing bold takes or opinions you can thoughtfully add to' },
 ]
 
@@ -465,3 +465,4 @@ export default function OnboardingPage() {
     </div>
   )
 }
+
