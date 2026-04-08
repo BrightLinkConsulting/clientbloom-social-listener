@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import './globals.css'
 import Providers from './components/providers'
+import TrialBanner from './components/TrialBanner'
 
 export const metadata: Metadata = {
   title: 'Scout by ClientBloom — LinkedIn Relationship Intelligence',
