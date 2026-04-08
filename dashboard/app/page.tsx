@@ -1247,29 +1247,28 @@ function FeedPage() {
   const [crmType, setCrmType] = useState('None')
   const [scanHealth, setScanHealth] = useState<ScanHealth | null>(null)
   const [momentumHistory, setMomentumHistory] = useState<DaySnapshot[]>([])
+  const [trialExpiredGate, setTrialExpiredGate] = useState(false)
   const historySyncedRef = useRef(false)
   const refreshTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
-  // Trial expiry gate — redirect to /upgrade if trial has ended and user is not on a paid plan
+  // Trial expiry gate — show overlay modal instead of hard-redirecting so the
+  // user can see what they are missing behind the gate before choosing a plan.
   useEffect(() => {
     const plan        = (session?.user as any)?.plan || ''
     const trialEndsAt = (session?.user as any)?.trialEndsAt || null
     if (!isPaidPlan(plan) && trialEndsAt && new Date() > new Date(trialEndsAt)) {
-      router.replace('/upgrade')
+      setTrialExpiredGate(true)
     }
-  }, [session, router])
+  }, [session])
 
   // First-run: redirect to onboarding if the tenant hasn't completed setup.
-  // Uses the JWT `onboarded` field (set from Airtable at sign-in) so there's
-  // no API call, no timeout race, and no dependency on posts existing yet.
-  // localStorage is checked as a fallback for sessions issued before this
-  // field existed and for the window between completing onboarding and
-  // signing in again (JWT doesn't refresh mid-session).
+  // Uses the JWT `onboarded` field (set from Airtable at sign-in and updated
+  // mid-session via NextAuth update() after onboarding completes — no API call,
+  // no timeout race, no localStorage dependency).
   useEffect(() => {
     if (status !== 'authenticated') return
     const sessionOnboarded = (session?.user as any)?.onboarded ?? false
-    const localOnboarded   = localStorage.getItem('cb_onboarded')
-    if (!sessionOnboarded && !localOnboarded) {
+    if (!sessionOnboarded) {
       router.push('/onboarding')
     }
   }, [status, session, router])
@@ -1469,6 +1468,64 @@ function FeedPage() {
 
   return (
     <div className="min-h-screen bg-[#0a0c10] text-white">
+
+      {/* ── Trial Expired Gate ── */}
+      {trialExpiredGate && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm">
+          <div className="relative bg-[#0d1117] border border-slate-700/60 rounded-2xl p-8 max-w-md w-full mx-4 shadow-2xl">
+            {/* Icon */}
+            <div className="flex flex-col items-center text-center mb-6">
+              <div className="w-14 h-14 rounded-full bg-amber-500/10 border border-amber-500/20 flex items-center justify-center mb-4">
+                <svg className="w-7 h-7 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <h2 className="text-xl font-bold text-white mb-2">Your trial has ended</h2>
+              <p className="text-slate-400 text-sm leading-relaxed">
+                Your 14-day Scout trial is over. Upgrade to keep monitoring LinkedIn for new client conversations — your data is still here.
+              </p>
+            </div>
+
+            {/* Feature list */}
+            <div className="bg-slate-800/50 border border-slate-700/40 rounded-xl p-4 mb-6">
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">What you get back</p>
+              <div className="space-y-2">
+                {[
+                  'LinkedIn conversation monitoring',
+                  'AI-scored post feed',
+                  'Comment draft suggestions',
+                  'Daily Slack digest',
+                  'CRM integration (GHL + HubSpot)',
+                ].map(f => (
+                  <div key={f} className="flex items-center gap-2.5 text-sm text-slate-300">
+                    <svg className="w-4 h-4 text-emerald-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    {f}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* CTAs */}
+            <div className="space-y-3">
+              <button
+                onClick={() => { window.location.href = '/api/billing/upgrade?tier=pro' }}
+                className="w-full py-3.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-sm transition-colors"
+              >
+                Upgrade to Pro — $99/mo →
+              </button>
+              <button
+                onClick={() => { window.location.href = '/upgrade' }}
+                className="w-full py-2.5 text-sm text-slate-500 hover:text-slate-300 transition-colors"
+              >
+                See all plans
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <Nav lastScannedAt={lastScannedAt} scanHealth={scanHealth} />
 
       {/* Tab bar + filters */}

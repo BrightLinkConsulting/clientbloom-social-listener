@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { useSession } from 'next-auth/react'
 
 // ---- ClientBloom bloom mark ----
 function ClientBloomMark({ size = 32 }: { size?: number }) {
@@ -193,10 +194,12 @@ function Step3({
   data,
   onBack,
   onComplete,
+  onMarkComplete,
 }: {
   data: any
   onBack: () => void
   onComplete: () => void
+  onMarkComplete: () => Promise<void>
 }) {
   const [status, setStatus] = useState<'idle' | 'saving' | 'scanning' | 'done' | 'error'>('idle')
   const [postsFound, setPostsFound] = useState(0)
@@ -235,13 +238,8 @@ function Step3({
       setPostsFound(result.postsFound || 0)
       setStatus('done')
 
-      // Mark onboarding complete
-      localStorage.setItem('cb_onboarded', 'true')
-      
-      // Persist onboarding state server-side
-      try {
-        await fetch('/api/onboarding/complete', { method: 'POST' })
-      } catch { /* non-fatal */ }
+      // Persist onboarding complete server-side and refresh JWT
+      await onMarkComplete()
     } catch (e: any) {
       clearInterval(progressInterval)
       setErrorMsg(e.message || 'Something went wrong')
@@ -271,10 +269,7 @@ function Step3({
         {postsFound === 0 && <div className="mb-8" />}
         <button
           onClick={async () => {
-            localStorage.setItem('cb_onboarded', 'true')
-            try {
-              await fetch('/api/onboarding/complete', { method: 'POST' })
-            } catch { /* non-fatal */ }
+            await onMarkComplete()
             router.push('/')
           }}
           className="w-full py-3.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-sm transition-colors"
@@ -328,10 +323,7 @@ function Step3({
           <button onClick={() => setStatus('idle')} className="flex-1 py-3 rounded-xl border border-slate-700 text-slate-400 hover:text-white text-sm transition-colors">Try again</button>
           <button
             onClick={async () => {
-              localStorage.setItem('cb_onboarded', 'true')
-              try {
-                await fetch('/api/onboarding/complete', { method: 'POST' })
-              } catch { /* non-fatal */ }
+              await onMarkComplete()
               router.push('/')
             }}
             className="flex-1 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm transition-colors"
@@ -385,10 +377,7 @@ function Step3({
 
       <button
         onClick={async () => {
-          localStorage.setItem('cb_onboarded', 'true')
-          try {
-            await fetch('/api/onboarding/complete', { method: 'POST' })
-          } catch { /* non-fatal */ }
+          await onMarkComplete()
           onComplete()
         }}
         className="mt-3 w-full py-2.5 text-xs text-slate-600 hover:text-slate-400 transition-colors"
@@ -408,6 +397,7 @@ function Step3({
 // ── Main Onboarding Page ─────────────────────────────────────────────────────
 export default function OnboardingPage() {
   const router = useRouter()
+  const { update: updateSession } = useSession()
   const [step, setStep] = useState(0)
   const [profile, setProfile] = useState({
     businessName: '',
@@ -427,6 +417,16 @@ export default function OnboardingPage() {
         ? prev.signalTypes.filter(s => s !== id)
         : [...prev.signalTypes, id],
     }))
+
+  // Marks onboarding complete server-side and refreshes the JWT so the
+  // feed redirect guard clears immediately — no localStorage needed.
+  const markOnboardingComplete = async () => {
+    try {
+      await fetch('/api/onboarding/complete', { method: 'POST' })
+    } catch { /* non-fatal */ }
+    // Refresh JWT so session.user.onboarded becomes true in this session
+    await updateSession({ onboarded: true })
+  }
 
   return (
     <div className="min-h-screen bg-[#0a0c10] text-white flex items-center justify-center px-5 py-12">
@@ -458,6 +458,7 @@ export default function OnboardingPage() {
             data={profile}
             onBack={() => setStep(1)}
             onComplete={() => router.push('/')}
+            onMarkComplete={markOnboardingComplete}
           />
         )}
       </div>
