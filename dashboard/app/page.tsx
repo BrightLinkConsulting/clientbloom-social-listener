@@ -257,7 +257,7 @@ function PostCard({
     : ''
 
   const preview  = text.length > 240 ? text.slice(0, 240) + '…' : text
-  const platform = f['Platform'] || 'LinkedIn'
+  const platform = f['Platform'] || 'Facebook'
 
   const handleNotesSave = async () => {
     try {
@@ -778,6 +778,7 @@ interface ScanHealth {
   lastScanAt:     string | null
   lastScanStatus: string | null
   lastPostsFound: number
+  fbPending:      boolean
 }
 
 // A scan is considered overdue if the last successful scan is >14h old.
@@ -799,7 +800,7 @@ function ScanStatusPill({ health, lastScannedAt }: { health: ScanHealth | null; 
     )
   }
 
-  if (status === 'pending_fb') {
+  if (status === 'pending_fb' || health?.fbPending) {
     return (
       <span className="text-xs text-amber-400 flex items-center gap-1">
         <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
@@ -1231,7 +1232,7 @@ export default function RootPage() {
 // ---- Main Feed ----
 function FeedPage() {
   const router = useRouter()
-  const { data: session, status, update: updateSession } = useSession()
+  const { data: session, status } = useSession()
   const userEmail = (session?.user as any)?.email || ''
   const [posts, setPosts] = useState<Post[]>([])
   const [loading, setLoading] = useState(true)
@@ -1264,27 +1265,13 @@ function FeedPage() {
   // Uses the JWT `onboarded` field (set from Airtable at sign-in and updated
   // mid-session via NextAuth update() after onboarding completes — no API call,
   // no timeout race, no localStorage dependency).
-  //
-  // Self-healing: if a JWT was created before the `onboarded` or `isAdmin`
-  // fields were added to the token, silently refresh the session so the flag
-  // is correct going forward — no logout required.
   useEffect(() => {
     if (status !== 'authenticated') return
     const sessionOnboarded = (session?.user as any)?.onboarded ?? false
-    const isAdminUser      = (session?.user as any)?.isAdmin   ?? false
-    const plan             = (session?.user as any)?.plan      || ''
-
-    if (sessionOnboarded) return // already marked onboarded — nothing to do
-
-    // Admin users and paid-plan users bypass onboarding entirely.
-    // Silently patch the JWT so this doesn't re-trigger on every render.
-    if (isAdminUser || isPaidPlan(plan)) {
-      updateSession({ onboarded: true }).catch(() => {})
-      return
+    if (!sessionOnboarded) {
+      router.push('/onboarding')
     }
-
-    router.push('/onboarding')
-  }, [status, session, router, updateSession])
+  }, [status, session, router])
 
   const fetchPosts = useCallback(async (silent = false) => {
     if (!silent) setLoading(true)
@@ -1320,19 +1307,38 @@ function FeedPage() {
   }, [])
 
   // Fetch scan health on mount + every 3 minutes
+  // Also re-poll every 30s while a Facebook run is pending (fbPending)
   useEffect(() => {
+    let pollInterval: ReturnType<typeof setInterval> | null = null
+
     const fetchHealth = async () => {
       try {
         const res = await fetch('/api/scan-status')
         if (!res.ok) return
         const data = await res.json()
         setScanHealth(data)
+
+        // If Facebook is still collecting, poll faster (30s) until it's done
+        if (data.fbPending) {
+          if (!pollInterval) {
+            pollInterval = setInterval(fetchHealth, 30 * 1000)
+          }
+        } else {
+          if (pollInterval) {
+            clearInterval(pollInterval)
+            pollInterval = null
+          }
+        }
       } catch { /* non-fatal */ }
     }
 
     fetchHealth()
-    const interval = setInterval(fetchHealth, 3 * 60 * 1000)
-    return () => clearInterval(interval)
+    const baseInterval = setInterval(fetchHealth, 3 * 60 * 1000)
+
+    return () => {
+      clearInterval(baseInterval)
+      if (pollInterval) clearInterval(pollInterval)
+    }
   }, [])
 
   // Auto-refresh every 5 minutes (silent — no loading spinner)
@@ -1476,7 +1482,7 @@ function FeedPage() {
               </div>
               <h2 className="text-xl font-bold text-white mb-2">Your trial has ended</h2>
               <p className="text-slate-400 text-sm leading-relaxed">
-                Your 14-day Scout trial is over. Upgrade to keep monitoring LinkedIn for new client conversations — your data is still here.
+                Your 7-day Scout trial is over. Upgrade to keep monitoring LinkedIn for new client conversations — your data is still here.
               </p>
             </div>
 
@@ -1641,5 +1647,4 @@ function FeedPage() {
     </div>
   )
 }
-
 
