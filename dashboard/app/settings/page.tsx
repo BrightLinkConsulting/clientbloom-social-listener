@@ -847,7 +847,13 @@ const ICP_JOB_TITLES = [
   'Consultant', 'Business Owner', 'Entrepreneur', 'Independent Advisor',
 ]
 
+const TRIAL_PROFILE_LIMIT = 25
+
 function LinkedInICPSection() {
+  const { data: icpSession } = useSession()
+  const icpPlan          = (icpSession?.user as any)?.plan || 'Trial'
+  const isTrial          = icpPlan === 'Trial'
+
   const [profiles, setProfiles]       = useState<IcpProfile[]>([])
   const [loading, setLoading]         = useState(true)
   const [toggling, setToggling]       = useState<string | null>(null)
@@ -927,6 +933,10 @@ function LinkedInICPSection() {
   }
 
   const handleAddManual = async () => {
+    if (isTrial && profiles.length >= TRIAL_PROFILE_LIMIT) {
+      setError(`Free trial is limited to ${TRIAL_PROFILE_LIMIT} profiles. Upgrade to monitor more.`)
+      return
+    }
     if (!newUrl.trim()) { setError('LinkedIn profile URL is required.'); return }
     if (!newUrl.includes('linkedin.com/in/')) {
       setError('Must be a LinkedIn profile URL (linkedin.com/in/...)')
@@ -957,7 +967,13 @@ function LinkedInICPSection() {
     }
   }
 
+  const trialAtProfileLimit = isTrial && profiles.length >= TRIAL_PROFILE_LIMIT
+
   const handleDiscover = async () => {
+    if (trialAtProfileLimit) {
+      setError(`Free trial is limited to ${TRIAL_PROFILE_LIMIT} profiles. Upgrade to discover and monitor more.`)
+      return
+    }
     if (!discTitles.length) { setError('Add at least one job title to search.'); return }
     setDiscovering(true)
     setDiscResult('')
@@ -1023,6 +1039,24 @@ function LinkedInICPSection() {
         <div className="mb-4 px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/20 text-xs text-red-400 flex items-start justify-between gap-2">
           <span>{error}</span>
           <button onClick={() => setError('')} className="shrink-0 opacity-60 hover:opacity-100">×</button>
+        </div>
+      )}
+
+      {/* Trial profile cap banner */}
+      {isTrial && !loading && (
+        <div className={`rounded-xl px-3 py-2.5 mb-4 flex items-center gap-2 text-xs border ${
+          profiles.length >= TRIAL_PROFILE_LIMIT
+            ? 'bg-red-500/10 border-red-500/20 text-red-400'
+            : 'bg-violet-500/10 border-violet-500/20 text-violet-300'
+        }`}>
+          <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          {profiles.length >= TRIAL_PROFILE_LIMIT ? (
+            <>Profile limit reached ({TRIAL_PROFILE_LIMIT}/{TRIAL_PROFILE_LIMIT}). <a href="/upgrade" className="ml-1 font-semibold underline underline-offset-2 hover:text-violet-200 transition-colors">Upgrade to add more.</a></>
+          ) : (
+            <>{profiles.length} of {TRIAL_PROFILE_LIMIT} free trial profile slots used</>
+          )}
         </div>
       )}
 
@@ -1815,6 +1849,10 @@ const SLACK_STEPS = [
 ]
 
 function SlackIntegrationSection() {
+  const { data: slackSession } = useSession()
+  const slackPlan = (slackSession?.user as any)?.plan || 'Trial'
+  const slackUnlocked = slackPlan === 'Scout Pro' || slackPlan === 'Scout Agency' || slackPlan === 'Owner'
+
   const [botToken,      setBotToken]      = useState('')
   const [channelId,     setChannelId]     = useState('')
   const [channelName,   setChannelName]   = useState('')
@@ -2061,6 +2099,10 @@ const CRM_INSTRUCTIONS: Record<string, { title: string; steps: string[] }> = {
 }
 
 function CRMIntegrationSection() {
+  const { data: crmSession } = useSession()
+  const crmPlan = (crmSession?.user as any)?.plan || 'Trial'
+  const crmUnlocked = crmPlan === 'Scout Pro' || crmPlan === 'Scout Agency' || crmPlan === 'Owner'
+
   const [crmType,       setCrmType]       = useState('None')
   const [crmApiKey,     setCrmApiKey]     = useState('')
   const [crmPipelineId, setCrmPipelineId] = useState('')
@@ -2137,6 +2179,30 @@ function CRMIntegrationSection() {
   const instructions = crmType !== 'None' ? CRM_INSTRUCTIONS[crmType] : null
 
   if (loading) return null
+
+  if (!crmUnlocked) {
+    return (
+      <Section
+        title="CRM Integration"
+        description="Push engaged contacts directly into your CRM with one click from the feed."
+      >
+        <div className="rounded-xl bg-slate-800/30 border border-violet-700/30 px-4 py-4 flex items-start gap-3">
+          <svg className="w-4 h-4 text-violet-400 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+          </svg>
+          <div>
+            <p className="text-xs font-semibold text-violet-300 mb-1">Available on Pro and Agency plans</p>
+            <p className="text-xs text-slate-500 leading-relaxed">
+              Connect GoHighLevel or HubSpot to push engaged contacts into your CRM with a single click directly from the Scout feed.
+            </p>
+            <a href="/upgrade" className="inline-block mt-2 text-xs font-semibold text-violet-400 hover:text-violet-300 transition-colors underline underline-offset-2 decoration-violet-600">
+              Upgrade to unlock →
+            </a>
+          </div>
+        </div>
+      </Section>
+    )
+  }
 
   return (
     <Section
@@ -2424,6 +2490,10 @@ interface TeamMember {
 }
 
 function TeamSection() {
+  const { data: teamSession } = useSession()
+  const teamPlan   = (teamSession?.user as any)?.plan || 'Trial'
+  const isTrialTeam = teamPlan === 'Trial'
+
   const [members,     setMembers]     = useState<TeamMember[]>([])
   const [loadingList, setLoadingList] = useState(true)
   const [inviteEmail, setInviteEmail] = useState('')
@@ -2569,7 +2639,22 @@ function TeamSection() {
         ) : null}
 
         {/* Invite form */}
-        {atLimit ? (
+        {isTrialTeam ? (
+          <div className="rounded-xl bg-slate-800/30 border border-violet-700/30 px-4 py-4 flex items-start gap-3">
+            <svg className="w-4 h-4 text-violet-400 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+            </svg>
+            <div>
+              <p className="text-xs font-semibold text-violet-300 mb-1">Team access is a paid feature</p>
+              <p className="text-xs text-slate-500 leading-relaxed">
+                Inviting teammates is available on any paid plan. Upgrade to give your team read-only access to the Scout feed.
+              </p>
+              <a href="/upgrade" className="inline-block mt-2 text-xs font-semibold text-violet-400 hover:text-violet-300 transition-colors underline underline-offset-2 decoration-violet-600">
+                Upgrade to unlock →
+              </a>
+            </div>
+          </div>
+        ) : atLimit ? (
           <div className="rounded-xl bg-slate-800/30 border border-slate-700/30 px-4 py-3 text-xs text-slate-500">
             You've reached the limit of 1 team member on this plan. Remove the existing member to invite someone new.
           </div>
