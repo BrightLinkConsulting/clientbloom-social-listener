@@ -141,7 +141,7 @@ export const authOptions: NextAuthOptions = {
             tenantId:       fields['Tenant ID']           || 'owner',
             plan:           fields['Plan']                || '',
             trialEndsAt:    fields['Trial Ends At']       || null,
-            onboarded:      fields['Onboarded']           ?? false,
+            onboarded:      fields['Is Admin'] ? true : (fields['Onboarded'] ?? false),
           }
         }
 
