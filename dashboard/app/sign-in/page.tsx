@@ -116,32 +116,26 @@ export default function SignInPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#080a0f] flex">
+    <div className="min-h-screen bg-[#080a0f] flex flex-col items-center justify-center relative overflow-hidden px-6 py-12">
 
-      {/* ─── LEFT PANEL: branding + dot matrix (desktop only) ─── */}
-      <div className="hidden lg:flex flex-col relative flex-1 overflow-hidden bg-[#07090e]">
-        <DotMatrixCanvas />
+      {/* ─── Full-screen animated dot background ─── */}
+      <DotMatrixCanvas />
+      <div
+        className="absolute inset-0 pointer-events-none"
+        style={{
+          background:
+            'radial-gradient(ellipse 90% 70% at 50% 50%, rgba(79,107,255,0.07) 0%, #080a0f 68%)',
+        }}
+      />
 
-        {/* Radial gradient overlay to focus the glow */}
-        <div
-          className="absolute inset-0 pointer-events-none"
-          style={{
-            background:
-              'radial-gradient(ellipse 80% 60% at 50% 50%, rgba(79,107,255,0.06) 0%, #07090e 70%)',
-          }}
-        />
+      {/* ─── Centered two-column layout ─── */}
+      <div className="relative z-10 w-full max-w-4xl flex flex-col lg:flex-row items-center gap-12 lg:gap-16">
 
-        {/* Vignette on the right edge to blend into the form panel */}
-        <div
-          className="absolute inset-y-0 right-0 w-32 pointer-events-none"
-          style={{ background: 'linear-gradient(to right, transparent, #07090e)' }}
-        />
-
-        {/* Content */}
-        <div className="relative z-10 flex flex-col h-full px-16 py-16">
+        {/* ── LEFT: branding (desktop only) ── */}
+        <div className="hidden lg:flex flex-col flex-1 min-w-0">
 
           {/* Logo */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 mb-10">
             <ClientBloomMark size={32} />
             <div>
               <div className="text-white font-bold text-lg tracking-tight leading-none">Scout</div>
@@ -149,50 +143,36 @@ export default function SignInPage() {
             </div>
           </div>
 
-          {/* Center content */}
-          <div className="flex-1 flex flex-col justify-center max-w-md">
-            <div className="inline-flex items-center gap-2 bg-[#4F6BFF]/10 border border-[#4F6BFF]/20 rounded-full px-3 py-1 mb-8 w-fit">
-              <span className="w-1.5 h-1.5 rounded-full bg-[#4F6BFF] animate-pulse" />
-              <span className="text-[#4F6BFF] text-xs font-medium tracking-wide uppercase">
-                AI-Powered ICP Listener
-              </span>
-            </div>
-
-            <h2 className="text-4xl font-bold text-white leading-tight mb-6">
-              Your next client is<br />already posting.
-            </h2>
-            <p className="text-slate-400 text-base leading-relaxed mb-10">
-              Scout monitors your ICP&apos;s LinkedIn activity, scores every post by conversation opportunity, and hands you the perfect thing to say — before the competition even notices.
-            </p>
-
-            <div className="space-y-4">
-              {[
-                { icon: '⚡', text: 'Intelligence feed updated twice daily' },
-                { icon: '🎯', text: 'AI-scored posts ranked by entry point quality' },
-                { icon: '💬', text: 'Comment suggestions that sound like you' },
-              ].map((item, i) => (
-                <div key={i} className="flex items-center gap-3">
-                  <span className="text-sm">{item.icon}</span>
-                  <span className="text-slate-400 text-sm">{item.text}</span>
-                </div>
-              ))}
-            </div>
+          <div className="inline-flex items-center gap-2 bg-[#4F6BFF]/10 border border-[#4F6BFF]/20 rounded-full px-3 py-1 mb-8 w-fit">
+            <span className="w-1.5 h-1.5 rounded-full bg-[#4F6BFF] animate-pulse" />
+            <span className="text-[#4F6BFF] text-xs font-medium tracking-wide uppercase">
+              AI-Powered ICP Listener
+            </span>
           </div>
 
-          <p className="text-slate-700 text-xs">© 2026 Scout by ClientBloom</p>
+          <h2 className="text-4xl font-bold text-white leading-tight mb-6">
+            Your next client is<br />already posting.
+          </h2>
+          <p className="text-slate-400 text-base leading-relaxed mb-10">
+            Scout monitors your ICP&apos;s LinkedIn activity, scores every post by conversation opportunity, and hands you the perfect thing to say — before the competition even notices.
+          </p>
+
+          <div className="space-y-4">
+            {[
+              { icon: '⚡', text: 'Intelligence feed updated twice daily' },
+              { icon: '🎯', text: 'AI-scored posts ranked by entry point quality' },
+              { icon: '💬', text: 'Comment suggestions that sound like you' },
+            ].map((item, i) => (
+              <div key={i} className="flex items-center gap-3">
+                <span className="text-sm">{item.icon}</span>
+                <span className="text-slate-400 text-sm">{item.text}</span>
+              </div>
+            ))}
+          </div>
         </div>
-      </div>
 
-      {/* ─── RIGHT PANEL: sign-in form ─── */}
-      <div className="flex flex-col items-center justify-center w-full lg:w-[480px] lg:flex-shrink-0 px-8 py-12 relative">
-
-        {/* Mobile dot background (hidden on desktop) */}
-        <div className="lg:hidden absolute inset-0 overflow-hidden">
-          <DotMatrixCanvas />
-          <div className="absolute inset-0 bg-[#080a0f]/80" />
-        </div>
-
-        <div className="w-full max-w-sm relative z-10">
+        {/* ── RIGHT: sign-in form ── */}
+        <div className="w-full lg:w-[400px] lg:flex-shrink-0">
 
           {/* Mobile logo (hidden on desktop) */}
           <div className="lg:hidden flex items-center justify-center gap-3 mb-10">
@@ -280,16 +260,18 @@ export default function SignInPage() {
             </form>
           </div>
 
-          {/* Footer links */}
+          {/* Footer link */}
           <div className="flex items-center justify-center gap-1 mt-6 text-slate-600 text-xs">
             <span>New to Scout?</span>
             <a href="/api/checkout" className="text-[#4F6BFF] hover:text-[#7C8FFF] transition-colors ml-1">
               Start your free trial
             </a>
           </div>
-
         </div>
       </div>
+
+      {/* Copyright */}
+      <p className="relative z-10 text-slate-700 text-xs mt-12">© 2026 Scout by ClientBloom</p>
 
     </div>
   )
