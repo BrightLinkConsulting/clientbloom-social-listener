@@ -37,7 +37,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Stripe not configured' }, { status: 500 })
   }
 
-  const session = await getServerSession(authOptions as any)
+  const session = await getServerSession(authOptions as any) as any
   if (!session?.user) {
     return NextResponse.redirect(new URL('/sign-in', BASE_URL))
   }

@@ -87,7 +87,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Not configured' }, { status: 500 })
   }
 
-  const session = await getServerSession(authOptions as any)
+  const session = await getServerSession(authOptions as any) as any
   if (!session?.user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }

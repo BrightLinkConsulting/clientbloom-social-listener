@@ -30,7 +30,7 @@ export async function GET(req: NextRequest) {
   }
 
   // Must be authenticated
-  const session = await getServerSession(authOptions as any)
+  const session = await getServerSession(authOptions as any) as any
   if (!session?.user) {
     return NextResponse.redirect(new URL('/sign-in', BASE_URL))
   }
