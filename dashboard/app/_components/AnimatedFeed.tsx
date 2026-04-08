@@ -87,33 +87,60 @@ export function AnimatedFeed() {
   return (
     <div className="mt-16 relative max-w-2xl mx-auto">
 
-      {/* Card shell */}
-      <div className="bg-[#0f1117] border border-slate-800 rounded-2xl shadow-2xl overflow-hidden">
+      {/* Subtle glow behind the card */}
+      <div
+        className="absolute inset-0 rounded-2xl pointer-events-none"
+        style={{
+          boxShadow: '0 0 60px 12px rgba(79, 107, 255, 0.12), 0 0 120px 24px rgba(124, 58, 237, 0.07)',
+          zIndex: 0,
+        }}
+      />
 
-        {/* Header — static */}
-        <div className="flex items-center gap-3 px-4 py-3 border-b border-slate-800">
+      {/* Card shell */}
+      <div
+        className="relative rounded-2xl border border-slate-800 text-left shadow-2xl overflow-hidden"
+        style={{
+          background: '#0f1117',
+          zIndex: 1,
+        }}
+      >
+        {/* ── Sticky opaque header ── */}
+        <div
+          className="flex items-center gap-3 px-4 py-3 border-b border-slate-800"
+          style={{ background: '#0f1117', position: 'relative', zIndex: 10 }}
+        >
           <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse flex-shrink-0" />
           <span className="text-xs text-slate-400">Live intelligence feed — updated twice daily</span>
           <span className="ml-auto text-xs text-[#4F6BFF] font-medium">14 new posts</span>
         </div>
 
-        {/* Scrolling rows */}
-        <div className="relative" style={{ height: 340 }}>
+        {/* ── Scrolling rows window ── */}
+        <div className="relative overflow-hidden" style={{ height: 320 }}>
 
-          {/* Bottom fade — stronger than top since it covers the CTA below */}
+          {/* Top mask — solid card color → transparent, hides posts scrolling under header */}
           <div
-            className="absolute inset-x-0 bottom-0 z-10 h-20 pointer-events-none"
-            style={{ background: 'linear-gradient(to top, #0f1117 0%, transparent 100%)' }}
+            className="absolute inset-x-0 top-0 pointer-events-none"
+            style={{
+              height: 48,
+              background: 'linear-gradient(to bottom, #0f1117 40%, transparent 100%)',
+              zIndex: 10,
+            }}
           />
+
+          {/* Bottom mask — solid card color → transparent */}
           <div
-            className="absolute inset-x-0 top-0 z-10 h-10 pointer-events-none"
-            style={{ background: 'linear-gradient(to bottom, #0f1117 0%, transparent 100%)' }}
+            className="absolute inset-x-0 bottom-0 pointer-events-none"
+            style={{
+              height: 80,
+              background: 'linear-gradient(to top, #0f1117 40%, transparent 100%)',
+              zIndex: 10,
+            }}
           />
 
           {/* Scrolling list */}
           <div
             style={{
-              animation: 'feedScrollUp 32s linear infinite',
+              animation: 'feedScrollUp 42s linear infinite',
               willChange: 'transform',
             }}
           >
@@ -122,13 +149,9 @@ export function AnimatedFeed() {
                 key={i}
                 className={`flex gap-3 px-4 py-3 ${i % POSTS.length < POSTS.length - 1 ? 'border-b border-slate-800/50' : ''}`}
               >
-                {/* Score badge */}
-                <div
-                  className={`w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-bold ${scoreStyle(post.score)}`}
-                >
+                <div className={`w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-bold ${scoreStyle(post.score)}`}>
                   {post.score}
                 </div>
-
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1 flex-wrap">
                     <span className="text-slate-300 text-xs font-medium">{post.name}</span>
@@ -136,9 +159,7 @@ export function AnimatedFeed() {
                     <span className="text-slate-500 text-xs">{post.title}</span>
                     <span className="text-slate-600 text-xs">·</span>
                     <span className="text-slate-600 text-xs">{post.platform}</span>
-                    <span
-                      className={`ml-auto text-[10px] font-medium px-1.5 py-0.5 rounded border ${post.tagColor}`}
-                    >
+                    <span className={`ml-auto text-[10px] font-medium px-1.5 py-0.5 rounded border ${post.tagColor}`}>
                       {post.tag}
                     </span>
                   </div>
@@ -150,11 +171,13 @@ export function AnimatedFeed() {
         </div>
       </div>
 
-      {/* Page-level fade from hero into next section */}
+      {/* Page-level fade blending card into the section below */}
       <div
-        className="absolute inset-x-0 bottom-0 h-24 pointer-events-none"
+        className="absolute inset-x-0 bottom-0 pointer-events-none"
         style={{
+          height: 80,
           background: 'linear-gradient(to top, #080a0f 0%, transparent 100%)',
+          zIndex: 2,
           bottom: '-1px',
         }}
       />
