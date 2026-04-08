@@ -13,6 +13,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import Stripe from 'stripe'
+import { escapeAirtableString } from '@/lib/tier'
 
 const PLATFORM_TOKEN = process.env.PLATFORM_AIRTABLE_TOKEN   || ''
 const PLATFORM_BASE  = process.env.PLATFORM_AIRTABLE_BASE_ID || ''
@@ -22,7 +23,7 @@ const BASE_URL       = (process.env.NEXT_PUBLIC_BASE_URL || 'https://scout.clien
 async function getTenantRecord(email: string) {
   const url =
     `https://api.airtable.com/v0/${PLATFORM_BASE}/Tenants` +
-    `?filterByFormula=${encodeURIComponent(`{Email}='${email.toLowerCase()}'`)}&maxRecords=1`
+    `?filterByFormula=${encodeURIComponent(`{Email}='${escapeAirtableString(email.toLowerCase())}'`)}&maxRecords=1`
   const res = await fetch(url, { headers: { Authorization: `Bearer ${PLATFORM_TOKEN}` } })
   if (!res.ok) return null
   const data = await res.json()

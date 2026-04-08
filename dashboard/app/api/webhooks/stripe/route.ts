@@ -24,7 +24,23 @@ import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import crypto from 'crypto'
 import { provisionNewTenant } from '@/lib/provision'
-import { planFromPriceId } from '@/lib/tier'
+import { planFromPriceId, escapeAirtableString } from '@/lib/tier'
+
+// Tier → plan name mapping (duplicated from lib/tier for use without process.env at module scope)
+const TIER_TO_PLAN: Record<string, string> = {
+  starter: 'Scout Starter',
+  pro:     'Scout Pro',
+  agency:  'Scout Agency',
+}
+// Tier → price ID (read at runtime so env vars are resolved)
+function priceIdForTier(tier: string): string {
+  const map: Record<string, string | undefined> = {
+    starter: process.env.STRIPE_PRICE_STARTER,
+    pro:     process.env.STRIPE_PRICE_PRO,
+    agency:  process.env.STRIPE_PRICE_AGENCY,
+  }
+  return map[tier] || ''
+}
 
 // ── Airtable helpers (platform Tenants table) ──────────────────────────────
 const PLATFORM_TOKEN  = process.env.PLATFORM_AIRTABLE_TOKEN   || ''
@@ -35,7 +51,7 @@ const BASE_URL        = (process.env.NEXT_PUBLIC_BASE_URL || '').replace(/\/$/, 
 async function findTenantByEmail(email: string) {
   const url =
     `https://api.airtable.com/v0/${PLATFORM_BASE}/${encodeURIComponent(TENANTS_TABLE)}` +
-    `?filterByFormula=${encodeURIComponent(`{Email}='${email.toLowerCase()}'`)}&maxRecords=1`
+    `?filterByFormula=${encodeURIComponent(`{Email}='${escapeAirtableString(email.toLowerCase())}'`)}&maxRecords=1`
 
   const resp = await fetch(url, { headers: { Authorization: `Bearer ${PLATFORM_TOKEN}` } })
   if (!resp.ok) return null
@@ -46,7 +62,7 @@ async function findTenantByEmail(email: string) {
 async function findTenantByStripeCustomerId(customerId: string) {
   const url =
     `https://api.airtable.com/v0/${PLATFORM_BASE}/${encodeURIComponent(TENANTS_TABLE)}` +
-    `?filterByFormula=${encodeURIComponent(`{Stripe Customer ID}='${customerId}'`)}&maxRecords=1`
+    `?filterByFormula=${encodeURIComponent(`{Stripe Customer ID}='${escapeAirtableString(customerId)}'`)}&maxRecords=1`
 
   const resp = await fetch(url, { headers: { Authorization: `Bearer ${PLATFORM_TOKEN}` } })
   if (!resp.ok) return null
@@ -210,10 +226,11 @@ export async function POST(req: NextRequest) {
         const customerId = typeof session.customer === 'string' ? session.customer : ''
         const subId      = typeof session.subscription === 'string' ? session.subscription : ''
 
-        // Detect which tier was purchased from the line items price ID
-        const lineItems  = (session as any).line_items?.data || []
-        const priceId    = lineItems[0]?.price?.id || ''
-        const planName   = priceId ? planFromPriceId(priceId) : 'Scout Pro'
+        // Detect tier from session metadata (set during checkout creation in /api/billing/upgrade).
+        // NOTE: line_items are NOT included in webhook payloads by default — do not rely on them.
+        const tier     = (session.metadata?.tier || 'pro').toLowerCase()
+        const planName = TIER_TO_PLAN[tier] || 'Scout Pro'
+        const priceId  = priceIdForTier(tier)
 
         if (!email) {
           console.error('[webhook] No email on checkout session:', session.id)
@@ -229,8 +246,8 @@ export async function POST(req: NextRequest) {
           if (planName)    fields['Plan']                   = planName
           if (priceId)     fields['Stripe Price ID']        = priceId
           fields['Status']          = 'Active'
-          fields['Trial Ends At']   = ''   // clear trial expiry on paid conversion
-          fields['Trial Email Day'] = 0    // stop trial email sequence
+          fields['Trial Ends At']   = null  // clear trial expiry on paid conversion (null = empty date)
+          fields['Trial Email Day'] = 0     // stop trial email sequence
           await updateTenantRecord(existing.id, fields)
           console.log(`[webhook] Trial user ${email} upgraded to ${planName}`)
           break

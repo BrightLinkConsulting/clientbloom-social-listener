@@ -12,6 +12,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import Stripe from 'stripe'
+import { escapeAirtableString } from '@/lib/tier'
 
 const BASE_URL = (process.env.NEXT_PUBLIC_BASE_URL || 'https://scout.clientbloom.ai').replace(/\/$/, '')
 
@@ -23,7 +24,7 @@ async function getStripeCustomerId(email: string): Promise<string | null> {
 
   const url =
     `https://api.airtable.com/v0/${base}/Tenants` +
-    `?filterByFormula=${encodeURIComponent(`{Email}='${email.toLowerCase()}'`)}&maxRecords=1`
+    `?filterByFormula=${encodeURIComponent(`{Email}='${escapeAirtableString(email.toLowerCase())}'`)}&maxRecords=1`
 
   const res  = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
   if (!res.ok) return null

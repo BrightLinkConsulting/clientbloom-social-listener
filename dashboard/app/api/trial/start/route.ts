@@ -20,6 +20,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { provisionNewTenant } from '@/lib/provision'
+import { escapeAirtableString } from '@/lib/tier'
 
 const PLATFORM_TOKEN = process.env.PLATFORM_AIRTABLE_TOKEN   || ''
 const PLATFORM_BASE  = process.env.PLATFORM_AIRTABLE_BASE_ID || ''
@@ -49,7 +50,7 @@ async function hashPassword(plain: string): Promise<string> {
 async function findTenantByEmail(email: string) {
   const url =
     `https://api.airtable.com/v0/${PLATFORM_BASE}/Tenants` +
-    `?filterByFormula=${encodeURIComponent(`{Email}='${email}'`)}&maxRecords=1`
+    `?filterByFormula=${encodeURIComponent(`{Email}='${escapeAirtableString(email)}'`)}&maxRecords=1`
   const res = await fetch(url, { headers: { Authorization: `Bearer ${PLATFORM_TOKEN}` } })
   if (!res.ok) return null
   const data = await res.json()
@@ -148,8 +149,14 @@ async function sendTrialDay1Email(email: string, name: string): Promise<void> {
   })
 }
 
+function escapeHtml(str: string): string {
+  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')
+}
+
 async function sendAdminNotification(email: string, name: string): Promise<void> {
   if (!RESEND_KEY) return
+  const safeName  = escapeHtml(name)
+  const safeEmail = escapeHtml(email)
   await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: { Authorization: `Bearer ${RESEND_KEY}`, 'Content-Type': 'application/json' },
@@ -157,7 +164,7 @@ async function sendAdminNotification(email: string, name: string): Promise<void>
       from:    'Scout Alerts <noreply@clientbloom.ai>',
       to:      [ADMIN_EMAIL],
       subject: `[Scout] New trial signup — ${email}`,
-      html:    `<p><strong>New no-CC trial signup</strong></p><p><strong>Name:</strong> ${name}</p><p><strong>Email:</strong> ${email}</p><p><strong>Trial ends:</strong> 7 days from now</p>`,
+      html:    `<p><strong>New no-CC trial signup</strong></p><p><strong>Name:</strong> ${safeName}</p><p><strong>Email:</strong> ${safeEmail}</p><p><strong>Trial ends:</strong> 7 days from now</p>`,
     }),
   })
 }
@@ -195,12 +202,12 @@ export async function POST(req: NextRequest) {
     const existingStatus = existing.fields['Status'] || ''
     if (existingStatus === 'trial_expired') {
       return NextResponse.json(
-        { error: 'Your trial has expired. Please upgrade to continue using Scout.', redirect: '/upgrade' },
+        { error: 'Your trial has expired. Please upgrade to continue using Scout.', action: 'upgrade' },
         { status: 409 }
       )
     }
     return NextResponse.json(
-      { error: 'An account with this email already exists. Please sign in instead.', redirect: '/sign-in' },
+      { error: 'An account with this email already exists. Please sign in instead.', action: 'sign_in' },
       { status: 409 }
     )
   }

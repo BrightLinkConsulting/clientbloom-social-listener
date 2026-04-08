@@ -27,9 +27,27 @@ const BASE_URL       = (process.env.NEXT_PUBLIC_BASE_URL || 'https://scout.clien
 export const maxDuration = 60
 
 // ── Airtable helpers ───────────────────────────────────────────────────────
+
+/** Fetch all pages from an Airtable URL. Handles offset-based pagination. */
+async function fetchAllPages(baseUrl: URL): Promise<any[]> {
+  const records: any[] = []
+  let offset: string | undefined
+
+  do {
+    const url = new URL(baseUrl.toString())
+    if (offset) url.searchParams.set('offset', offset)
+    const res = await fetch(url.toString(), { headers: { Authorization: `Bearer ${PLATFORM_TOKEN}` } })
+    if (!res.ok) throw new Error(`Airtable fetch failed: ${res.status}`)
+    const data = await res.json()
+    records.push(...(data.records || []))
+    offset = data.offset  // undefined when last page
+  } while (offset)
+
+  return records
+}
+
 async function fetchTrialTenants() {
   const url = new URL(`https://api.airtable.com/v0/${PLATFORM_BASE}/Tenants`)
-  // Active trial accounts (no Stripe subscription = no-CC trial)
   url.searchParams.set('filterByFormula', `AND({Plan}='Trial',{Status}='Active')`)
   url.searchParams.set('fields[]', 'Email')
   url.searchParams.append('fields[]', 'Company Name')
@@ -37,11 +55,7 @@ async function fetchTrialTenants() {
   url.searchParams.append('fields[]', 'Trial Email Day')
   url.searchParams.append('fields[]', 'Trial Last Email Sent At')
   url.searchParams.set('pageSize', '100')
-
-  const res = await fetch(url.toString(), { headers: { Authorization: `Bearer ${PLATFORM_TOKEN}` } })
-  if (!res.ok) throw new Error('Failed to fetch trial tenants')
-  const data = await res.json()
-  return data.records || []
+  return fetchAllPages(url)
 }
 
 async function fetchExpiredTrials() {
@@ -55,11 +69,7 @@ async function fetchExpiredTrials() {
   url.searchParams.append('fields[]', 'Company Name')
   url.searchParams.append('fields[]', 'Trial Email Day')
   url.searchParams.set('pageSize', '100')
-
-  const res = await fetch(url.toString(), { headers: { Authorization: `Bearer ${PLATFORM_TOKEN}` } })
-  if (!res.ok) throw new Error('Failed to fetch expired trials')
-  const data = await res.json()
-  return data.records || []
+  return fetchAllPages(url)
 }
 
 async function updateTenant(recordId: string, fields: Record<string, unknown>) {
