@@ -257,7 +257,7 @@ function PostCard({
     : ''
 
   const preview  = text.length > 240 ? text.slice(0, 240) + '…' : text
-  const platform = f['Platform'] || 'Facebook'
+  const platform = f['Platform'] || 'LinkedIn'
 
   const handleNotesSave = async () => {
     try {
@@ -1307,38 +1307,19 @@ function FeedPage() {
   }, [])
 
   // Fetch scan health on mount + every 3 minutes
-  // Also re-poll every 30s while a Facebook run is pending (fbPending)
   useEffect(() => {
-    let pollInterval: ReturnType<typeof setInterval> | null = null
-
     const fetchHealth = async () => {
       try {
         const res = await fetch('/api/scan-status')
         if (!res.ok) return
         const data = await res.json()
         setScanHealth(data)
-
-        // If Facebook is still collecting, poll faster (30s) until it's done
-        if (data.fbPending) {
-          if (!pollInterval) {
-            pollInterval = setInterval(fetchHealth, 30 * 1000)
-          }
-        } else {
-          if (pollInterval) {
-            clearInterval(pollInterval)
-            pollInterval = null
-          }
-        }
       } catch { /* non-fatal */ }
     }
 
     fetchHealth()
-    const baseInterval = setInterval(fetchHealth, 3 * 60 * 1000)
-
-    return () => {
-      clearInterval(baseInterval)
-      if (pollInterval) clearInterval(pollInterval)
-    }
+    const interval = setInterval(fetchHealth, 3 * 60 * 1000)
+    return () => clearInterval(interval)
   }, [])
 
   // Auto-refresh every 5 minutes (silent — no loading spinner)

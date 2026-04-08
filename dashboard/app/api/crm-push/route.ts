@@ -60,7 +60,7 @@ async function pushToGHL(apiKey: string, body: any) {
       firstName,
       lastName,
       source: 'ClientBloom Listener',
-      tags: ['clientbloom-listener', body.platform?.toLowerCase() === 'linkedin' ? 'linkedin-icp' : 'facebook-lead'],
+      tags: ['clientbloom-listener', 'linkedin-icp'],
     }),
   })
 

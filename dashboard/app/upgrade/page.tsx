@@ -56,7 +56,6 @@ const TIERS = [
       'CRM integration (GHL + HubSpot)',
       'Slack daily digest',
       'Up to 5 user seats',
-      'Multi-client workspace isolation — Q3',
     ],
     cta:        'Get Agency',
     highlight:  false,
@@ -212,11 +211,8 @@ export default function UpgradePage() {
                 {/* Features */}
                 <ul className="space-y-2 flex-1">
                   {tier.features.map(feat => (
-                    <li key={feat} className={`flex items-start gap-2.5 text-sm ${feat.includes('Q3') ? 'text-slate-500' : 'text-slate-300'}`}>
-                      {feat.includes('Q3')
-                        ? <span className="w-4 h-4 shrink-0 mt-0.5 flex items-center justify-center text-slate-600 text-xs">◷</span>
-                        : CHECK_ICON
-                      }
+                    <li key={feat} className="flex items-start gap-2.5 text-sm text-slate-300">
+                      {CHECK_ICON}
                       {feat}
                     </li>
                   ))}

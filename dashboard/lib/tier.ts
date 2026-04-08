@@ -43,7 +43,7 @@ export function getTierLimits(plan: string): TierLimits {
         profiles: 15,
         scansPerDay: 2,
         commentCredits: Infinity,
-        workspaces: 5,   // UI deferred to Q3 — stored here for future enforcement
+        workspaces: 5,
         seats: 5,
         postHistoryDays: 0,
       }
