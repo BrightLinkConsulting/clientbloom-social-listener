@@ -14,6 +14,7 @@
 
 import { NextResponse }              from 'next/server'
 import { getTenantConfig, tenantError } from '@/lib/tenant'
+import { escapeAirtableString }       from '@/lib/tier'
 import bcrypt                         from 'bcryptjs'
 
 const PLATFORM_TOKEN = process.env.PLATFORM_AIRTABLE_TOKEN   || ''
@@ -56,7 +57,7 @@ export async function POST(req: Request) {
 
     // Check they're not already a member of this tenant
     const checkFormula = encodeURIComponent(
-      `AND({Tenant ID}='${caller.tenantId}',{Email}='${cleanEmail}')`
+      `AND({Tenant ID}='${escapeAirtableString(caller.tenantId)}',{Email}='${escapeAirtableString(cleanEmail)}')`
     )
     const checkResp = await fetch(
       `https://api.airtable.com/v0/${PLATFORM_BASE}/Tenants?filterByFormula=${checkFormula}&maxRecords=1`,

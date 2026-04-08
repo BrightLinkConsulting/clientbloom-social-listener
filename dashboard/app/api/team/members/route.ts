@@ -5,8 +5,9 @@
  * Only the admin (Is Feed Only = false) may call this endpoint.
  */
 
-import { NextResponse }        from 'next/server'
+import { NextResponse }              from 'next/server'
 import { getTenantConfig, tenantError } from '@/lib/tenant'
+import { escapeAirtableString }       from '@/lib/tier'
 
 const PLATFORM_TOKEN = process.env.PLATFORM_AIRTABLE_TOKEN   || ''
 const PLATFORM_BASE  = process.env.PLATFORM_AIRTABLE_BASE_ID || ''
@@ -26,7 +27,7 @@ export async function GET() {
 
   try {
     const formula  = encodeURIComponent(
-      `AND({Tenant ID}='${caller.tenantId}',{Is Feed Only}=1)`
+      `AND({Tenant ID}='${escapeAirtableString(caller.tenantId)}',{Is Feed Only}=1)`
     )
     const url = `https://api.airtable.com/v0/${PLATFORM_BASE}/Tenants?filterByFormula=${formula}&fields[]=Email&fields[]=Company Name&fields[]=Status&fields[]=Created At`
 

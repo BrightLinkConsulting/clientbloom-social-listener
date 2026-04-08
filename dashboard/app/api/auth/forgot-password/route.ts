@@ -111,6 +111,20 @@ export async function POST(req: NextRequest) {
 
     // If tenant exists, store the hashed token
     if (tenantRecord) {
+      // Rate-limit: if a reset token was issued within the last 5 minutes, skip re-sending.
+      // Token expiry is set to now+1h, so expiresAt > now+55min means it was issued <5 min ago.
+      const existingExpiry: string = tenantRecord.fields['Password Reset Expires At'] || ''
+      if (existingExpiry) {
+        const expiryMs = new Date(existingExpiry).getTime()
+        if (expiryMs > Date.now() + 55 * 60 * 1000) {
+          // Silently return success — don't reveal rate limit to prevent email enumeration
+          return NextResponse.json({
+            success: true,
+            message: "If an account exists with this email, we've sent a password reset link.",
+          })
+        }
+      }
+
       const expiresAt = new Date(Date.now() + 3600000).toISOString() // 1 hour from now
 
       await fetch(

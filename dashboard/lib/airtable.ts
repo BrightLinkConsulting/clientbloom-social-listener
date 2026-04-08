@@ -12,6 +12,13 @@
 export const SHARED_BASE  = process.env.PLATFORM_AIRTABLE_BASE_ID      || ''
 export const PROV_TOKEN   = process.env.AIRTABLE_PROVISIONING_TOKEN     || ''
 
+// ── Helpers ────────────────────────────────────────────────────────────────
+
+/** Escapes a string for safe use inside an Airtable single-quoted formula literal. */
+function escapeFormula(value: string): string {
+  return value.replace(/\\/g, '\\\\').replace(/'/g, "\\'")
+}
+
 // ── Headers ────────────────────────────────────────────────────────────────
 export function airtableHeaders(): Record<string, string> {
   return {
@@ -23,11 +30,40 @@ export function airtableHeaders(): Record<string, string> {
 // ── Tenant filter formula ──────────────────────────────────────────────────
 // The 'owner' tenant also matches records with no Tenant ID (backward compat
 // for Mike's data that existed before the multi-tenant migration).
+// tenantId is escaped to prevent Airtable formula injection.
 export function tenantFilter(tenantId: string): string {
   if (tenantId === 'owner') {
     return `OR({Tenant ID}='owner',{Tenant ID}='')`
   }
-  return `{Tenant ID}='${tenantId}'`
+  return `{Tenant ID}='${escapeFormula(tenantId)}'`
+}
+
+// ── Ownership verification ─────────────────────────────────────────────────
+// Fetches a record by ID and checks that its Tenant ID matches the caller.
+// Use before any update/delete that takes a record ID from user input to
+// prevent cross-tenant IDOR (Insecure Direct Object Reference) attacks.
+export async function verifyRecordTenant(
+  table: string,
+  recordId: string,
+  tenantId: string,
+): Promise<boolean> {
+  try {
+    const resp = await fetch(
+      `https://api.airtable.com/v0/${SHARED_BASE}/${encodeURIComponent(table)}/${recordId}` +
+        `?fields[]=Tenant+ID`,
+      { headers: airtableHeaders() },
+    )
+    if (!resp.ok) return false
+    const data = await resp.json()
+    const recordTenantId: string = data.fields?.['Tenant ID'] ?? ''
+    // 'owner' tenant also owns records with empty Tenant ID (backward compat)
+    if (tenantId === 'owner') {
+      return recordTenantId === 'owner' || recordTenantId === ''
+    }
+    return recordTenantId === tenantId
+  } catch {
+    return false
+  }
 }
 
 // ── List records (GET with tenant filtering) ───────────────────────────────

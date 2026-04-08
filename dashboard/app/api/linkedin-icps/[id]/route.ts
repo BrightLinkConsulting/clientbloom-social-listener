@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getTenantConfig, tenantError } from '@/lib/tenant'
-import { airtableUpdate, airtableDelete } from '@/lib/airtable'
+import { airtableUpdate, airtableDelete, verifyRecordTenant } from '@/lib/airtable'
 
 const TABLE = 'LinkedIn ICPs'
 
@@ -10,6 +10,12 @@ export async function PATCH(
 ) {
   const tenant = await getTenantConfig()
   if (!tenant) return tenantError()
+
+  // Ownership check — prevent cross-tenant IDOR
+  const owned = await verifyRecordTenant(TABLE, params.id, tenant.tenantId)
+  if (!owned) {
+    return NextResponse.json({ error: 'Not found.' }, { status: 404 })
+  }
 
   try {
     const body   = await req.json()
@@ -37,6 +43,12 @@ export async function DELETE(
 ) {
   const tenant = await getTenantConfig()
   if (!tenant) return tenantError()
+
+  // Ownership check — prevent cross-tenant IDOR
+  const owned = await verifyRecordTenant(TABLE, params.id, tenant.tenantId)
+  if (!owned) {
+    return NextResponse.json({ error: 'Not found.' }, { status: 404 })
+  }
 
   try {
     const resp = await airtableDelete(TABLE, params.id)

@@ -12,7 +12,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { getTenantConfig, tenantError } from '@/lib/tenant'
-import { airtableUpdate, SHARED_BASE, PROV_TOKEN } from '@/lib/airtable'
+import { airtableUpdate, verifyRecordTenant, SHARED_BASE, PROV_TOKEN } from '@/lib/airtable'
 
 const TABLE = 'Captured Posts'
 
@@ -24,6 +24,13 @@ export async function PATCH(
   if (!tenant) return tenantError()
 
   const { id } = params
+
+  // Ownership check — prevent cross-tenant IDOR
+  const owned = await verifyRecordTenant(TABLE, id, tenant.tenantId)
+  if (!owned) {
+    return NextResponse.json({ error: 'Not found.' }, { status: 404 })
+  }
+
   const body = await request.json()
   const { action, notes, appendReplyLog, crmContactId, crmPushedAt } = body
 

@@ -19,7 +19,7 @@
 
 import { NextResponse } from 'next/server'
 import { getTenantConfig, tenantError } from '@/lib/tenant'
-import { airtableList, airtableUpdate } from '@/lib/airtable'
+import { airtableList, airtableUpdate, verifyRecordTenant } from '@/lib/airtable'
 
 function parseName(fullName: string): { firstName: string; lastName: string } {
   const parts = (fullName || '').trim().split(/\s+/)
@@ -121,6 +121,15 @@ export async function POST(req: Request) {
   try {
     const body = await req.json()
     const { recordId } = body
+
+    // Ownership check — verify the post record belongs to this tenant before
+    // writing CRM metadata back to it (prevents cross-tenant IDOR)
+    if (recordId) {
+      const owned = await verifyRecordTenant('Captured Posts', recordId, tenantId)
+      if (!owned) {
+        return NextResponse.json({ error: 'Not found.' }, { status: 404 })
+      }
+    }
 
     // Fetch CRM settings from this tenant's Business Profile
     const bpResp = await airtableList('Business Profile', tenantId, { pageSize: '1' })

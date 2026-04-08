@@ -178,7 +178,15 @@ export const authOptions: NextAuthOptions = {
   session: { strategy: 'jwt', maxAge: 24 * 60 * 60 },
 
   callbacks: {
-    jwt({ token, user }) {
+    jwt({ token, user, trigger, session: sessionUpdate }) {
+      // Allow client-side session.update() to refresh individual JWT fields
+      // without a full re-login. Used by the onboarding flow to set onboarded=true
+      // immediately after completion so the redirect guard clears in the same session.
+      if (trigger === 'update' && sessionUpdate) {
+        if ((sessionUpdate as any).onboarded !== undefined) {
+          token.onboarded = (sessionUpdate as any).onboarded
+        }
+      }
       // Persist tenant credentials in the JWT on sign-in
       if (user) {
         token.airtableToken  = (user as any).airtableToken

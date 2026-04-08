@@ -6,10 +6,9 @@
  *
  * Security measures:
  * - Email normalization (lowercase, Gmail + alias stripping)
- * - IP-based rate limiting (max 2 accounts per IP per 30 days)
- * - Duplicate email check before creating record
+ * - Duplicate email check before creating record (idempotent — 409 on same email)
  * - Trial Ends At is treated as required — returns 500 if Airtable write fails
- * - Idempotent: calling twice with same email returns 409 Conflict
+ * - TODO: add IP-based rate limiting via Upstash/Redis if abuse becomes a concern
  *
  * On success:
  * - Airtable Tenant record is created with Plan='Trial', Status='Active'
