@@ -119,8 +119,6 @@ export async function GET(req: NextRequest) {
       lastPostsFound: result.postsFound,
       lastScanSource: result.scanSource,
       lastError:      result.error || '',
-      fbRunId:        '',   // clear any stale pending run
-      fbDatasetId:    '',
     })
 
     if (result.error || result.scanned === 0) {
@@ -147,3 +145,4 @@ export async function GET(req: NextRequest) {
     results,
   })
 }
+
