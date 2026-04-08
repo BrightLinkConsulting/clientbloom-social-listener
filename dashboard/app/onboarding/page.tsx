@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 
@@ -397,7 +397,7 @@ function Step3({
 // ── Main Onboarding Page ─────────────────────────────────────────────────────
 export default function OnboardingPage() {
   const router = useRouter()
-  const { update: updateSession } = useSession()
+  const { data: session, status, update: updateSession } = useSession()
   const [step, setStep] = useState(0)
   const [profile, setProfile] = useState({
     businessName: '',
@@ -407,7 +407,18 @@ export default function OnboardingPage() {
     signalTypes: [] as string[],
   })
 
-  const updateProfile = (key: string, value: string) =>
+
+  // ── Already-onboarded guard ──────────────────────────────────────────────
+  // If the user lands on /onboarding after completing setup (e.g. clicking the
+  // welcome email CTA from a second device), skip the wizard and send them to
+  // the dashboard instead of making them redo it.
+  useEffect(() => {
+    if (status !== 'authenticated') return
+    const onboarded = (session?.user as any)?.onboarded ?? false
+    if (onboarded) router.replace('/')
+  }, [status, session, router])
+
+    const updateProfile = (key: string, value: string) =>
     setProfile(prev => ({ ...prev, [key]: value }))
 
   const toggleSignal = (id: string) =>
