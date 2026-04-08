@@ -2758,14 +2758,13 @@ function PlanBillingSection() {
         </p>
       </div>
 
-      {/* Agency workspace note */}
+      {/* Agency plan capacity note */}
       {plan === 'Scout Agency' && (
         <div className="rounded-2xl bg-purple-900/10 border border-purple-700/30 p-5">
-          <p className="text-sm font-semibold text-purple-300 mb-1">Multi-client workspace isolation — coming Q3</p>
+          <p className="text-sm font-semibold text-purple-300 mb-1">Agency plan — extended limits</p>
           <p className="text-xs text-slate-400 leading-relaxed">
-            Your Agency plan includes up to 5 isolated client workspaces with separate feeds, keyword sets, and ICP profiles per client.
-            This feature is in development and ships Q3. In the meantime, you have access to all 20 keyword searches and 15 ICP profiles
-            within your single workspace — more than enough to manage multiple clients today.
+            Your Agency plan includes 20 keyword searches, 15 ICP profiles, and 5 seats —
+            giving your team full capacity to manage outreach across multiple clients from a single workspace.
           </p>
         </div>
       )}

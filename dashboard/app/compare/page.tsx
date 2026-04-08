@@ -31,7 +31,7 @@ export default function ComparePage() {
     { feature: 'Keyword monitoring (track topics, not just people)', scout: true, extrovert: false },
     { feature: 'Profile / prospect monitoring', scout: true, extrovert: true },
     { feature: 'Custom scoring prompts per account', scout: true, extrovert: false },
-    { feature: 'Agency / multi-client workspace', scout: true, extrovert: false },
+    { feature: 'Agency plan (5 seats, extended limits)', scout: true, extrovert: false },
     { feature: 'AI-generated comment starters', scout: true, extrovert: true },
     { feature: 'CRM integrations', scout: true, extrovert: true },
     { feature: 'Pricing', scout: false, extrovert: false },
