@@ -1231,7 +1231,7 @@ export default function RootPage() {
 // ---- Main Feed ----
 function FeedPage() {
   const router = useRouter()
-  const { data: session, status } = useSession()
+  const { data: session, status, update: updateSession } = useSession()
   const userEmail = (session?.user as any)?.email || ''
   const [posts, setPosts] = useState<Post[]>([])
   const [loading, setLoading] = useState(true)
@@ -1264,17 +1264,27 @@ function FeedPage() {
   // Uses the JWT `onboarded` field (set from Airtable at sign-in and updated
   // mid-session via NextAuth update() after onboarding completes — no API call,
   // no timeout race, no localStorage dependency).
+  //
+  // Self-healing: if a JWT was created before the `onboarded` or `isAdmin`
+  // fields were added to the token, silently refresh the session so the flag
+  // is correct going forward — no logout required.
   useEffect(() => {
     if (status !== 'authenticated') return
     const sessionOnboarded = (session?.user as any)?.onboarded ?? false
     const isAdminUser      = (session?.user as any)?.isAdmin   ?? false
-    // Admin users bypass onboarding — they manage the platform, not use it as
-    // a new tenant. This prevents admin accounts from being trapped in onboarding
-    // if the Onboarded field in Airtable is not yet set on the tenant record.
-    if (!sessionOnboarded && !isAdminUser) {
-      router.push('/onboarding')
+    const plan             = (session?.user as any)?.plan      || ''
+
+    if (sessionOnboarded) return // already marked onboarded — nothing to do
+
+    // Admin users and paid-plan users bypass onboarding entirely.
+    // Silently patch the JWT so this doesn't re-trigger on every render.
+    if (isAdminUser || isPaidPlan(plan)) {
+      updateSession({ onboarded: true }).catch(() => {})
+      return
     }
-  }, [status, session, router])
+
+    router.push('/onboarding')
+  }, [status, session, router, updateSession])
 
   const fetchPosts = useCallback(async (silent = false) => {
     if (!silent) setLoading(true)
@@ -1631,4 +1641,5 @@ function FeedPage() {
     </div>
   )
 }
+
 
