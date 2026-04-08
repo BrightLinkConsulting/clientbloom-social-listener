@@ -137,8 +137,19 @@ export default function LandingPage() {
               className="block leading-[1.05]"
               style={{ fontSize: 'clamp(20px, 7.3vw, 81px)' }}
             >
-              <GradientText className="font-bold tracking-tight">Your next client</GradientText>
+              <span
+                style={{
+                  background: 'linear-gradient(90deg, #4F6BFF 0%, #7C3AED 50%, #E91E8C 100%)',
+                  backgroundSize: '200% auto',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  backgroundClip: 'text',
+                  animation: 'gradientShift 5s ease-in-out infinite alternate',
+                  display: 'inline',
+                }}
+              >Your next client</span>
               <span className="text-white"> is on</span>
+              <style>{`@keyframes gradientShift{0%{background-position:0% center}100%{background-position:100% center}}`}</style>
             </span>
             <span
               className="block text-white leading-[1.05]"

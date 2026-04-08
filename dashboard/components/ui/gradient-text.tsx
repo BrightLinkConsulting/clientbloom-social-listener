@@ -1,17 +1,19 @@
 'use client'
 import React from 'react'
+import { motion, MotionProps } from 'framer-motion'
 import { cn } from '@/lib/utils'
 
-interface GradientTextProps extends React.HTMLAttributes<HTMLElement> {
+interface GradientTextProps
+  extends Omit<React.HTMLAttributes<HTMLElement>, keyof MotionProps> {
   className?: string
   children: React.ReactNode
   as?: React.ElementType
 }
 
 /**
- * GradientText — animated gradient applied directly to text via background-clip.
- * Colors: indigo (#4F6BFF) → purple (#7C3AED) → pink (#E91E8C)
- * Matches the ClientBloom / Scout brand palette.
+ * GradientText — animated colour blobs via mix-blend-mode overlay.
+ * Creates the moving coloured bar effect behind white text.
+ * Used for: "Scout puts you in front of them."
  */
 function GradientText({
   className,
@@ -19,30 +21,35 @@ function GradientText({
   as: Component = 'span',
   ...props
 }: GradientTextProps) {
+  const MotionComponent = (motion as any).create
+    ? (motion as any).create(Component)
+    : (motion as any)[Component as string] || motion.span
+
   return (
-    <>
-      <Component
-        className={cn('inline-block', className)}
-        style={{
-          background:
-            'linear-gradient(90deg, #4F6BFF 0%, #7C3AED 50%, #E91E8C 100%)',
-          backgroundSize: '200% auto',
-          WebkitBackgroundClip: 'text',
-          WebkitTextFillColor: 'transparent',
-          backgroundClip: 'text',
-          animation: 'gradientShift 5s ease-in-out infinite alternate',
-        }}
-        {...props}
-      >
-        {children}
-      </Component>
-      <style>{`
-        @keyframes gradientShift {
-          0%   { background-position: 0%   center; }
-          100% { background-position: 100% center; }
-        }
-      `}</style>
-    </>
+    <MotionComponent
+      className={cn(
+        'relative inline-flex overflow-hidden',
+        className
+      )}
+      {...props}
+    >
+      {children}
+      {/* Animated colour blobs via mix-blend-mode overlay */}
+      <span className="pointer-events-none absolute inset-0 mix-blend-lighten">
+        <span
+          className="pointer-events-none absolute -top-1/2 h-[40vw] w-[40vw] animate-[gradient-1_10s_ease-in-out_infinite_alternate] opacity-60 blur-[2rem]"
+          style={{ background: 'hsl(225 100% 65%)', mixBlendMode: 'overlay' }}
+        />
+        <span
+          className="pointer-events-none absolute right-0 top-0 h-[40vw] w-[40vw] animate-[gradient-2_12s_ease-in-out_infinite_alternate] opacity-50 blur-[2rem]"
+          style={{ background: 'hsl(260 100% 70%)', mixBlendMode: 'overlay' }}
+        />
+        <span
+          className="pointer-events-none absolute bottom-0 left-0 h-[40vw] w-[40vw] animate-[gradient-3_14s_ease-in-out_infinite_alternate] opacity-40 blur-[2rem]"
+          style={{ background: 'hsl(195 100% 60%)', mixBlendMode: 'overlay' }}
+        />
+      </span>
+    </MotionComponent>
   )
 }
 
