@@ -5,6 +5,18 @@ import { useSession, signOut } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { getTierLimits, isPaidPlan } from '@/lib/tier'
 
+function ClientBloomMark({ size = 28 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <ellipse cx="50" cy="21" rx="24" ry="13" fill="#F7B731" />
+      <ellipse cx="20" cy="52" rx="13" ry="25" fill="#E91E8C" />
+      <ellipse cx="80" cy="52" rx="13" ry="25" fill="#00B96B" />
+      <ellipse cx="50" cy="79" rx="24" ry="13" fill="#7C3AED" />
+      <circle cx="50" cy="50" r="13" fill="#7C3AED" />
+    </svg>
+  )
+}
+
 const TIERS = [
   {
     key:         'starter',
@@ -122,7 +134,7 @@ export default function UpgradePage() {
       <header className="border-b border-slate-800/60 bg-[#0a0c10]/80 backdrop-blur-md">
         <div className="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-7 h-7 rounded-lg bg-[#4F6BFF] flex items-center justify-center text-white font-bold text-xs">S</div>
+            <ClientBloomMark size={28} />
             <span className="text-sm font-semibold text-white">Scout by ClientBloom</span>
           </div>
           <button
