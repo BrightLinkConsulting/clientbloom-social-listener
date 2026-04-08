@@ -879,6 +879,100 @@ export default function AdminPage() {
               </div>
             )}
 
+            {/* ── Trial Pipeline — rep outreach view ── */}
+            {(() => {
+              const now = Date.now()
+              const trialUsers = tenants.filter(t => t.plan === 'Trial' && t.trialEndsAt)
+              const urgent  = trialUsers.filter(t => {
+                const d = Math.ceil((new Date(t.trialEndsAt!).getTime() - now) / 86400000)
+                return d >= 0 && d <= 2
+              }).sort((a, b) => new Date(a.trialEndsAt!).getTime() - new Date(b.trialEndsAt!).getTime())
+              const watchlist = trialUsers.filter(t => {
+                const d = Math.ceil((new Date(t.trialEndsAt!).getTime() - now) / 86400000)
+                return d >= 3 && d <= 7
+              }).sort((a, b) => new Date(a.trialEndsAt!).getTime() - new Date(b.trialEndsAt!).getTime())
+              const expired = tenants.filter(t => t.status === 'trial_expired').slice(0, 5)
+
+              if (trialUsers.length === 0 && expired.length === 0) return null
+
+              return (
+                <div className="bg-[#0f1117] border border-slate-800 rounded-xl overflow-hidden">
+                  <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between">
+                    <div>
+                      <h2 className="font-semibold text-white">Trial Pipeline</h2>
+                      <p className="text-xs text-slate-500 mt-0.5">Who to reach out to before they churn</p>
+                    </div>
+                    <span className="text-xs bg-slate-800 text-slate-400 px-2.5 py-1 rounded-full">{trialUsers.length} active trial{trialUsers.length !== 1 ? 's' : ''}</span>
+                  </div>
+
+                  {urgent.length > 0 && (
+                    <div className="px-6 py-4 border-b border-slate-800">
+                      <p className="text-xs font-semibold text-red-400 uppercase tracking-wider mb-3">🔴 Reach out now — expires in ≤2 days</p>
+                      <div className="space-y-2">
+                        {urgent.map(t => {
+                          const daysLeft = Math.ceil((new Date(t.trialEndsAt!).getTime() - now) / 86400000)
+                          return (
+                            <div key={t.id} className="flex items-center justify-between bg-red-900/10 border border-red-900/30 rounded-lg px-4 py-3">
+                              <div>
+                                <p className="text-sm font-medium text-white">{t.companyName || t.email}</p>
+                                <p className="text-xs text-slate-500">{t.email}</p>
+                              </div>
+                              <div className="text-right">
+                                <span className="text-xs font-semibold text-red-400">
+                                  {daysLeft <= 0 ? 'Expires today' : `${daysLeft}d left`}
+                                </span>
+                                <p className="text-xs text-slate-600 mt-0.5">{new Date(t.trialEndsAt!).toLocaleDateString()}</p>
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {watchlist.length > 0 && (
+                    <div className="px-6 py-4 border-b border-slate-800">
+                      <p className="text-xs font-semibold text-amber-400 uppercase tracking-wider mb-3">🟡 Watch list — expires in 3–7 days</p>
+                      <div className="space-y-2">
+                        {watchlist.map(t => {
+                          const daysLeft = Math.ceil((new Date(t.trialEndsAt!).getTime() - now) / 86400000)
+                          return (
+                            <div key={t.id} className="flex items-center justify-between bg-amber-900/10 border border-amber-900/30 rounded-lg px-4 py-3">
+                              <div>
+                                <p className="text-sm font-medium text-white">{t.companyName || t.email}</p>
+                                <p className="text-xs text-slate-500">{t.email}</p>
+                              </div>
+                              <div className="text-right">
+                                <span className="text-xs font-semibold text-amber-400">{daysLeft}d left</span>
+                                <p className="text-xs text-slate-600 mt-0.5">{new Date(t.trialEndsAt!).toLocaleDateString()}</p>
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {expired.length > 0 && (
+                    <div className="px-6 py-4">
+                      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">⚫ Recently expired — haven't upgraded</p>
+                      <div className="space-y-2">
+                        {expired.map(t => (
+                          <div key={t.id} className="flex items-center justify-between px-4 py-3 rounded-lg bg-slate-800/30 border border-slate-800">
+                            <div>
+                              <p className="text-sm font-medium text-slate-400">{t.companyName || t.email}</p>
+                              <p className="text-xs text-slate-600">{t.email}</p>
+                            </div>
+                            <span className="text-xs text-slate-600">Expired {new Date(t.trialEndsAt!).toLocaleDateString()}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )
+            })()}
+
             {/* Suspend enforcement note (Task 7) */}
             <div className="bg-[#0f1117] border border-slate-800 rounded-xl p-5 flex items-start gap-4">
               <div className="w-8 h-8 rounded-lg bg-emerald-900/20 flex items-center justify-center shrink-0">

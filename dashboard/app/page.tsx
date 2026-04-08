@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useSession, signOut } from 'next-auth/react'
+import { isPaidPlan } from '@/lib/tier'
 import LandingPage from './page-landing'
 
 // ---- Types ----
@@ -1250,6 +1251,15 @@ function FeedPage() {
   const [momentumHistory, setMomentumHistory] = useState<DaySnapshot[]>([])
   const historySyncedRef = useRef(false)
   const refreshTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  // Trial expiry gate — redirect to /upgrade if trial has ended and user is not on a paid plan
+  useEffect(() => {
+    const plan        = (session?.user as any)?.plan || ''
+    const trialEndsAt = (session?.user as any)?.trialEndsAt || null
+    if (!isPaidPlan(plan) && trialEndsAt && new Date() > new Date(trialEndsAt)) {
+      router.replace('/upgrade')
+    }
+  }, [session, router])
 
   // First-run: redirect to onboarding if no posts exist and never onboarded
   useEffect(() => {
