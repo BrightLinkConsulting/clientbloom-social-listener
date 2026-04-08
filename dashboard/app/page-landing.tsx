@@ -261,6 +261,186 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* ─── COMPARISON ─── */}
+      <section className="py-24 px-6 border-t border-slate-800/50">
+        <div className="max-w-5xl mx-auto">
+          <div className="text-center mb-14">
+            <div className="inline-flex items-center gap-2 bg-[#4F6BFF]/10 border border-[#4F6BFF]/20 rounded-full px-3 py-1 mb-6">
+              <span className="text-[#4F6BFF] text-xs font-medium tracking-wide uppercase">How Scout compares</span>
+            </div>
+            <h2 className="text-4xl font-bold text-white mb-4">
+              "Isn't this just Sales Navigator?"
+            </h2>
+            <p className="text-slate-400 text-lg max-w-2xl mx-auto">
+              Sales Navigator finds people. Scout finds what those people are saying — and hands you the perfect moment to join the conversation.
+            </p>
+          </div>
+
+          {/* Comparison table */}
+          <div className="grid grid-cols-4 gap-0 rounded-2xl overflow-hidden border border-slate-800">
+
+            {/* Column headers */}
+            <div className="bg-[#0a0c10] px-5 py-5 border-b border-slate-800 border-r border-slate-800">
+              <p className="text-slate-500 text-xs font-semibold uppercase tracking-widest">Feature</p>
+            </div>
+
+            {/* LinkedIn Manual */}
+            <div className="bg-[#0a0c10] px-5 py-5 border-b border-slate-800 border-r border-slate-800 text-center">
+              <p className="text-slate-400 text-sm font-semibold">LinkedIn</p>
+              <p className="text-slate-600 text-xs mt-0.5">Manual scrolling</p>
+            </div>
+
+            {/* Sales Navigator */}
+            <div className="bg-[#0a0c10] px-5 py-5 border-b border-slate-800 border-r border-slate-800 text-center">
+              <p className="text-slate-400 text-sm font-semibold">Sales Navigator</p>
+              <p className="text-slate-600 text-xs mt-0.5">~$99–$149/mo</p>
+            </div>
+
+            {/* Scout — highlighted */}
+            <div className="bg-[#4F6BFF]/8 px-5 py-5 border-b border-[#4F6BFF]/30 text-center relative"
+              style={{ background: 'rgba(79,107,255,0.06)' }}>
+              <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-[#4F6BFF] to-[#7C3AED]" />
+              <p className="text-white text-sm font-bold">Scout</p>
+              <p className="text-[#4F6BFF] text-xs mt-0.5 font-medium">$79/mo</p>
+            </div>
+
+            {(() => {
+              const rows = [
+                {
+                  feature: 'Monitors ICP posts automatically',
+                  manual: false,
+                  salenav: 'partial',
+                  scout: true,
+                  note: 'Sales Nav sends some alerts, but misses most posts',
+                },
+                {
+                  feature: 'AI scores each post by conversation opportunity',
+                  manual: false,
+                  salenav: false,
+                  scout: true,
+                },
+                {
+                  feature: 'Suggests what to comment — in your voice',
+                  manual: false,
+                  salenav: false,
+                  scout: true,
+                },
+                {
+                  feature: 'Consistent daily coverage (works while you sleep)',
+                  manual: false,
+                  salenav: 'partial',
+                  scout: true,
+                  note: 'Sales Nav requires you to check manually',
+                },
+                {
+                  feature: 'Searchable post history',
+                  manual: false,
+                  salenav: false,
+                  scout: true,
+                },
+                {
+                  feature: 'CRM sync (GoHighLevel, HubSpot)',
+                  manual: false,
+                  salenav: 'partial',
+                  scout: true,
+                  note: 'Sales Nav syncs contact data, not engagement context',
+                },
+                {
+                  feature: 'Built for engagement — not cold outreach',
+                  manual: false,
+                  salenav: false,
+                  scout: true,
+                },
+                {
+                  feature: 'Setup in under 10 minutes',
+                  manual: true,
+                  salenav: false,
+                  scout: true,
+                },
+              ]
+
+              const Check = () => (
+                <div className="flex items-center justify-center">
+                  <div className="w-6 h-6 rounded-full bg-emerald-500/15 flex items-center justify-center">
+                    <svg className="w-3.5 h-3.5 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                </div>
+              )
+
+              const Cross = () => (
+                <div className="flex items-center justify-center">
+                  <div className="w-6 h-6 rounded-full bg-red-500/10 flex items-center justify-center">
+                    <svg className="w-3 h-3 text-red-500/70" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </div>
+                </div>
+              )
+
+              const Partial = () => (
+                <div className="flex items-center justify-center">
+                  <div className="w-6 h-6 rounded-full bg-amber-500/10 flex items-center justify-center">
+                    <span className="text-amber-400/80 text-xs font-bold leading-none">~</span>
+                  </div>
+                </div>
+              )
+
+              const cell = (val: boolean | string) => {
+                if (val === true) return <Check />
+                if (val === 'partial') return <Partial />
+                return <Cross />
+              }
+
+              return rows.map((row, i) => {
+                const isLast = i === rows.length - 1
+                const borderB = isLast ? '' : 'border-b border-slate-800/70'
+                return (
+                  <>
+                    <div key={`f-${i}`} className={`bg-[#0d0f14] px-5 py-4 ${borderB} border-r border-slate-800`}>
+                      <p className="text-slate-300 text-sm">{row.feature}</p>
+                      {row.note && <p className="text-slate-600 text-xs mt-1 leading-snug">{row.note}</p>}
+                    </div>
+                    <div key={`m-${i}`} className={`bg-[#0d0f14] px-5 py-4 ${borderB} border-r border-slate-800 flex items-center justify-center`}>
+                      {cell(row.manual)}
+                    </div>
+                    <div key={`s-${i}`} className={`bg-[#0d0f14] px-5 py-4 ${borderB} border-r border-slate-800 flex items-center justify-center`}>
+                      {cell(row.salenav)}
+                    </div>
+                    <div key={`sc-${i}`} className={`px-5 py-4 ${borderB} flex items-center justify-center`}
+                      style={{ background: 'rgba(79,107,255,0.04)' }}>
+                      {cell(row.scout)}
+                    </div>
+                  </>
+                )
+              })
+            })()}
+
+            {/* Price row */}
+            <div className="bg-[#0a0c10] px-5 py-5 border-r border-slate-800">
+              <p className="text-slate-400 text-sm font-semibold">Monthly cost</p>
+            </div>
+            <div className="bg-[#0a0c10] px-5 py-5 border-r border-slate-800 text-center">
+              <p className="text-slate-400 text-sm">Free</p>
+              <p className="text-slate-600 text-xs mt-0.5">Your time isn't</p>
+            </div>
+            <div className="bg-[#0a0c10] px-5 py-5 border-r border-slate-800 text-center">
+              <p className="text-slate-400 text-sm">$99–$149/mo</p>
+              <p className="text-slate-600 text-xs mt-0.5">Per seat</p>
+            </div>
+            <div className="px-5 py-5 text-center" style={{ background: 'rgba(79,107,255,0.06)' }}>
+              <p className="text-white text-sm font-bold">$79/mo</p>
+              <p className="text-[#4F6BFF] text-xs mt-0.5">14-day free trial</p>
+            </div>
+          </div>
+
+          <p className="text-center text-slate-600 text-xs mt-6">
+            ~ = partial support with significant limitations
+          </p>
+        </div>
+      </section>
+
       {/* ─── SOCIAL PROOF ─── */}
       <div className="border-t border-slate-800/50 bg-gradient-to-b from-[#0a0c10] to-[#0f1117]/50">
         <AnimatedTestimonials
