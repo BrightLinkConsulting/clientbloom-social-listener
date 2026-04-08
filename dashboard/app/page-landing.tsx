@@ -162,7 +162,7 @@ export default function LandingPage() {
               style={{ fontSize: 'clamp(14px, 5vw, 56px)' }}
             >
               <GradientText className="text-white font-bold tracking-tight">
-                Scout puts you in front of them.
+                Scout puts you in front of them
               </GradientText>
             </span>
           </h1>
