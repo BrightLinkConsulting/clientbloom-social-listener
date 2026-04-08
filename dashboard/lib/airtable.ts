@@ -12,10 +12,19 @@
 export const SHARED_BASE  = process.env.PLATFORM_AIRTABLE_BASE_ID      || ''
 export const PROV_TOKEN   = process.env.AIRTABLE_PROVISIONING_TOKEN     || ''
 
-// ── Helpers ────────────────────────────────────────────────────────────────
+// ── Formula helpers ────────────────────────────────────────────────────────
 
-/** Escapes a string for safe use inside an Airtable single-quoted formula literal. */
-function escapeFormula(value: string): string {
+/**
+ * Escapes a string for safe use inside an Airtable single-quoted formula literal.
+ * Airtable formula strings are single-quoted; an unescaped ' or \ in the value
+ * would break the formula and could enable formula injection.
+ *
+ * Examples:
+ *   O'Brien       →  O\'Brien
+ *   back\slash    →  back\\slash
+ *   t_x', '1'='1 →  t_x\', \'1\'=\'1   (injection attempt neutralized)
+ */
+export function escapeAirtableString(value: string): string {
   return value.replace(/\\/g, '\\\\').replace(/'/g, "\\'")
 }
 
@@ -35,7 +44,7 @@ export function tenantFilter(tenantId: string): string {
   if (tenantId === 'owner') {
     return `OR({Tenant ID}='owner',{Tenant ID}='')`
   }
-  return `{Tenant ID}='${escapeFormula(tenantId)}'`
+  return `{Tenant ID}='${escapeAirtableString(tenantId)}'`
 }
 
 // ── Ownership verification ─────────────────────────────────────────────────

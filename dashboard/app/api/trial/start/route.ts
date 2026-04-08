@@ -5,27 +5,54 @@
  * This is the entry point for all new Scout users — Stripe is NOT touched here.
  *
  * Security measures:
+ * - IP rate-limited: 10 requests per IP per hour (in-memory, sliding window)
  * - Email normalization (lowercase, Gmail + alias stripping)
  * - Duplicate email check before creating record (idempotent — 409 on same email)
  * - Trial Ends At is treated as required — returns 500 if Airtable write fails
- * - TODO: add IP-based rate limiting via Upstash/Redis if abuse becomes a concern
  *
  * On success:
  * - Airtable Tenant record is created with Plan='Trial', Status='Active'
  * - Day 1 trial email is triggered via Resend
  * - Admin notification is sent
- * - Auto-provision is triggered (creates tenant data base + seeds Business Profile)
+ * - Auto-provision is triggered (generates Tenant ID, seeds Business Profile)
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { provisionNewTenant } from '@/lib/provision'
-import { escapeAirtableString } from '@/lib/tier'
+import { provisionNewTenant }        from '@/lib/provision'
+import { escapeAirtableString }      from '@/lib/tier'
 
 const PLATFORM_TOKEN = process.env.PLATFORM_AIRTABLE_TOKEN   || ''
 const PLATFORM_BASE  = process.env.PLATFORM_AIRTABLE_BASE_ID || ''
 const RESEND_KEY     = process.env.RESEND_API_KEY             || ''
 const BASE_URL       = (process.env.NEXT_PUBLIC_BASE_URL || 'https://scout.clientbloom.ai').replace(/\/$/, '')
 const ADMIN_EMAIL    = process.env.ADMIN_EMAIL || 'twp1996@gmail.com'
+
+// ── IP rate limiter (in-memory, module-level) ─────────────────────────────
+// 10 attempts per IP per hour — generous enough for legitimate use, tight enough
+// to block automated trial-account farming. Upgrade to Redis (Upstash) when
+// the platform scales beyond a single Vercel function instance.
+const WINDOW_MS  = 60 * 60 * 1000
+const IP_MAX     = 10
+
+interface RateBucket { count: number; resetAt: number }
+const ipBuckets: Map<string, RateBucket> = new Map()
+
+function checkIpRateLimit(ip: string): boolean {
+  const now = Date.now()
+  let b = ipBuckets.get(ip)
+  if (!b || b.resetAt <= now) {
+    b = { count: 0, resetAt: now + WINDOW_MS }
+    ipBuckets.set(ip, b)
+  }
+  if (b.count >= IP_MAX) return false
+  b.count++
+  return true
+}
+
+function getClientIp(req: NextRequest): string {
+  const forwarded = req.headers.get('x-forwarded-for') ?? ''
+  return forwarded.split(',')[0].trim() || 'unknown'
+}
 
 // ── Email normalization ────────────────────────────────────────────────────
 function normalizeEmail(raw: string): string {
@@ -172,6 +199,14 @@ async function sendAdminNotification(email: string, name: string): Promise<void>
 export async function POST(req: NextRequest) {
   if (!PLATFORM_TOKEN || !PLATFORM_BASE) {
     return NextResponse.json({ error: 'Platform not configured' }, { status: 500 })
+  }
+
+  // IP rate limit — checked before any Airtable interaction
+  if (!checkIpRateLimit(getClientIp(req))) {
+    return NextResponse.json(
+      { error: 'Too many requests. Please try again later.' },
+      { status: 429 }
+    )
   }
 
   let body: { name?: string; email?: string; password?: string }

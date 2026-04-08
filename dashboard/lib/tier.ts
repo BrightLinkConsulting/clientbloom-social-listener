@@ -130,10 +130,6 @@ export function tierKey(plan: string): 'starter' | 'pro' | 'agency' | 'trial' | 
   }
 }
 
-/**
- * Safely escapes a string for use inside an Airtable formula string literal.
- * Airtable uses single-quoted strings; a ' in the value would break the formula.
- */
-export function escapeAirtableString(value: string): string {
-  return value.replace(/\\/g, '\\\\').replace(/'/g, "\\'")
-}
+// escapeAirtableString lives in lib/airtable.ts — import from there.
+// Re-exported here for backward compat with existing imports.
+export { escapeAirtableString } from './airtable'

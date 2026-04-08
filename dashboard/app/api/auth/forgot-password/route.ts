@@ -1,21 +1,50 @@
 /**
  * POST /api/auth/forgot-password
  *
- * Initiates password reset flow.
- * 1. Finds tenant by email
- * 2. Generates secure reset token
- * 3. Hashes and stores token + expiry in Airtable
- * 4. Sends reset email via Resend with unhashed token
- * Returns success for all emails (privacy — don't reveal if email exists)
+ * Initiates password reset flow for the given email address.
+ *   1. IP rate-limited: 5 requests per IP per hour (in-memory, sliding window)
+ *   2. Token reuse guard: silently no-ops if a valid token was issued < 5 min ago
+ *   3. Generates a cryptographically secure reset token (UUID + timestamp)
+ *   4. Stores the SHA-256 hash of the token in Airtable (token itself only in email)
+ *   5. Sends reset link via Resend
+ *
+ * Always returns HTTP 200 with a generic success message to prevent
+ * email enumeration — callers cannot distinguish "email found" from "email not found".
  */
 
 import { NextRequest, NextResponse } from 'next/server'
 import crypto from 'crypto'
 
-const PLATFORM_TOKEN = process.env.PLATFORM_AIRTABLE_TOKEN || ''
-const PLATFORM_BASE = process.env.PLATFORM_AIRTABLE_BASE_ID || ''
-const RESEND_KEY = process.env.RESEND_API_KEY || ''
-const BASE_URL = (process.env.NEXT_PUBLIC_BASE_URL || 'https://app.clientbloom.ai').replace(/\/$/, '')
+const PLATFORM_TOKEN = process.env.PLATFORM_AIRTABLE_TOKEN  || ''
+const PLATFORM_BASE  = process.env.PLATFORM_AIRTABLE_BASE_ID || ''
+const RESEND_KEY     = process.env.RESEND_API_KEY             || ''
+const BASE_URL       = (process.env.NEXT_PUBLIC_BASE_URL || 'https://app.clientbloom.ai').replace(/\/$/, '')
+
+// ── IP rate limiter (in-memory, module-level) ─────────────────────────────
+// 5 requests per IP per hour. Resets per-IP on window expiry.
+// Upgrade to Redis (Upstash) when multi-instance Vercel deployments are needed.
+const WINDOW_MS = 60 * 60 * 1000
+const IP_MAX    = 5
+
+interface RateBucket { count: number; resetAt: number }
+const ipBuckets: Map<string, RateBucket> = new Map()
+
+function checkIpRateLimit(ip: string): boolean {
+  const now = Date.now()
+  let b = ipBuckets.get(ip)
+  if (!b || b.resetAt <= now) {
+    b = { count: 0, resetAt: now + WINDOW_MS }
+    ipBuckets.set(ip, b)
+  }
+  if (b.count >= IP_MAX) return false
+  b.count++
+  return true
+}
+
+function getClientIp(req: NextRequest): string {
+  const forwarded = req.headers.get('x-forwarded-for') ?? ''
+  return forwarded.split(',')[0].trim() || 'unknown'
+}
 
 async function findTenantByEmail(email: string) {
   if (!PLATFORM_TOKEN || !PLATFORM_BASE) return null
@@ -95,6 +124,15 @@ async function sendPasswordResetEmail(email: string, resetToken: string): Promis
 }
 
 export async function POST(req: NextRequest) {
+  // IP rate limit — checked before any Airtable queries to minimise cost of abuse
+  if (!checkIpRateLimit(getClientIp(req))) {
+    // Return generic success to avoid leaking rate-limit state to attackers
+    return NextResponse.json({
+      success: true,
+      message: "If an account exists with this email, we've sent a password reset link.",
+    })
+  }
+
   const { email } = await req.json()
 
   if (!email || typeof email !== 'string') {
