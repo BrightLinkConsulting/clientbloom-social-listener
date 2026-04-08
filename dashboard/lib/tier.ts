@@ -129,3 +129,11 @@ export function tierKey(plan: string): 'starter' | 'pro' | 'agency' | 'trial' | 
     default:              return null
   }
 }
+
+/**
+ * Safely escapes a string for use inside an Airtable formula string literal.
+ * Airtable uses single-quoted strings; a ' in the value would break the formula.
+ */
+export function escapeAirtableString(value: string): string {
+  return value.replace(/\\/g, '\\\\').replace(/'/g, "\\'")
+}
