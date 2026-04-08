@@ -1267,7 +1267,11 @@ function FeedPage() {
   useEffect(() => {
     if (status !== 'authenticated') return
     const sessionOnboarded = (session?.user as any)?.onboarded ?? false
-    if (!sessionOnboarded) {
+    const isAdminUser      = (session?.user as any)?.isAdmin   ?? false
+    // Admin users bypass onboarding — they manage the platform, not use it as
+    // a new tenant. This prevents admin accounts from being trapped in onboarding
+    // if the Onboarded field in Airtable is not yet set on the tenant record.
+    if (!sessionOnboarded && !isAdminUser) {
       router.push('/onboarding')
     }
   }, [status, session, router])
@@ -1627,3 +1631,4 @@ function FeedPage() {
     </div>
   )
 }
+
