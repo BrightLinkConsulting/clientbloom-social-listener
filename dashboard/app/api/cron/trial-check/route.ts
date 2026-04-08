@@ -1,7 +1,7 @@
 /**
  * /api/cron/trial-check — Trial expiry enforcement + 7-day email sequence
  *
- * Runs every 6 hours (0 */6 * * * in vercel.json).
+ * Runs every 6 hours (schedule: "0 *\/6 * * *" in vercel.json).
  *
  * Two jobs in one:
  *
