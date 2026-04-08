@@ -276,8 +276,17 @@ export default function LandingPage() {
             </p>
           </div>
 
-          {/* Comparison table */}
-          <div className="grid grid-cols-4 gap-0 rounded-2xl overflow-hidden border border-slate-800">
+          {/* Comparison table — with ambient glow */}
+          <div className="relative">
+            {/* Glow layer behind the table */}
+            <div
+              className="absolute inset-0 rounded-2xl pointer-events-none"
+              style={{
+                boxShadow: '0 0 70px 14px rgba(79,107,255,0.11), 0 0 140px 28px rgba(124,58,237,0.06)',
+                zIndex: 0,
+              }}
+            />
+          <div className="relative grid grid-cols-4 gap-0 rounded-2xl overflow-hidden border border-slate-800" style={{ zIndex: 1 }}>
 
             {/* Column headers */}
             <div className="bg-[#0a0c10] px-5 py-5 border-b border-slate-800 border-r border-slate-800">
@@ -435,9 +444,23 @@ export default function LandingPage() {
             </div>
           </div>
 
+          </div>{/* close glow wrapper */}
+
           <p className="text-center text-slate-600 text-xs mt-6">
             ~ = partial support with significant limitations
           </p>
+
+          {/* Post-comparison CTA — high-intent moment */}
+          <div className="mt-12 flex flex-col items-center gap-4">
+            <NeonButton href={CHECKOUT_URL} variant="solid" size="lg">
+              Start Your Free 14-Day Trial
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
+              </svg>
+            </NeonButton>
+            <p className="text-slate-600 text-sm">No credit card required. Setup takes under 10 minutes.</p>
+          </div>
+
         </div>
       </section>
 
