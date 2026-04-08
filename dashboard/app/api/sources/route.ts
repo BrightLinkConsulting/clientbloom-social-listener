@@ -49,8 +49,8 @@ export async function POST(request: Request) {
   if (!name || !type || !value) {
     return NextResponse.json({ error: 'name, type, and value are required' }, { status: 400 })
   }
-  if (!['facebook_group', 'linkedin_term'].includes(type)) {
-    return NextResponse.json({ error: 'type must be facebook_group or linkedin_term' }, { status: 400 })
+  if (type !== 'linkedin_term') {
+    return NextResponse.json({ error: 'type must be linkedin_term' }, { status: 400 })
   }
 
   const resp = await airtableCreate(TABLE, tenantId, {

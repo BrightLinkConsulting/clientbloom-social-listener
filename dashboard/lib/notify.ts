@@ -28,7 +28,7 @@ const ADMIN_EMAIL   = process.env.ADMIN_EMAIL           || 'twp1996@gmail.com'
 const SLACK_WEBHOOK = process.env.SLACK_WEBHOOK_URL     || ''
 // Use NEXT_PUBLIC_BASE_URL when set; fall back to the production domain — never the old staging URL
 const BASE_URL      = (process.env.NEXT_PUBLIC_BASE_URL || 'https://scout.clientbloom.ai').replace(/\/$/, '')
-const FROM          = 'Scout Alerts <noreply@clientbloom.ai>'
+const FROM          = 'Scout Alerts <info@clientbloom.ai>'
 
 // ── Shared Slack helper ───────────────────────────────────────────────────────
 async function postToSlack(text: string): Promise<void> {

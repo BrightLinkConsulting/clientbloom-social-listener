@@ -2,20 +2,12 @@
  * GET /api/cron/scan-retry
  *
  * Safety-net cron — fires 20 minutes after each main scan.
- * Reruns the full scan for any tenant whose last scan produced 0 posts
- * AND whose async Facebook fallback (if started) is not pending.
- *
- * This handles the scenario where:
- *   - Both sync Facebook attempts failed
- *   - The async fallback also failed (rare, but possible)
- *   - Retry gives the whole pipeline one more clean shot
+ * Reruns the full LinkedIn scan for any tenant whose last scan
+ * produced 0 posts (failed, no_results, or scanning status).
  *
  * Schedule (vercel.json):
  *   6:20 AM PDT  → "20 13 * * *" UTC
  *   6:20 PM PDT  → "20 1 * * *" UTC
- *
- * We skip tenants with pending_fb status — those are in flight via the
- * async/webhook path and will land via scan-collect or webhook.
  */
 
 import { NextRequest, NextResponse } from 'next/server'

@@ -150,28 +150,7 @@ export async function runApifyActorWithRetry(
   return second.items
 }
 
-// ── Post normalizers (exported so webhook can reuse them) ────────────────────
-export function normalizeFacebookPost(raw: any) {
-  const groupName  = raw.groupName  || raw.group?.name  || 'Facebook Group'
-  const authorName = raw.authorName || raw.user?.name   || raw.author?.name  || ''
-  const authorUrl  = raw.authorUrl  || raw.user?.url    || raw.author?.url   || ''
-  const postUrl    = raw.url        || raw.postUrl      || raw.link          || ''
-  const postId     = raw.postId     || raw.id           || postUrl           || String(Math.random())
-  const text       = raw.text       || raw.message      || raw.body         || ''
-  return {
-    id:         postId,
-    postId,
-    text,
-    content:    text,
-    authorName,
-    authorUrl,
-    postUrl,
-    platform:   'Facebook',
-    groupName:  `FB: ${groupName}`,
-    capturedAt: new Date().toISOString(),
-  }
-}
-
+// ── Post normalizers ──────────────────────────────────────────────────────────
 export function normalizeLinkedInIcpPost(raw: any) {
   return {
     id:         raw.id || raw.linkedinUrl || String(Math.random()),
