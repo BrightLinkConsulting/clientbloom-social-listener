@@ -146,7 +146,7 @@ async function sendTrialDay1Email(email: string, name: string): Promise<void> {
           <strong>Your first move:</strong> Complete your quick setup — tell Scout what keywords describe your ideal client's pain, and add 1–2 LinkedIn profiles you want to monitor. Then hit <strong>Scan Now</strong> to pull your first batch of posts immediately.
         </p>
 
-        <a href="${BASE_URL}/onboarding"
+        <a href="${BASE_URL}/"
            style="display:inline-block;background:#4F6BFF;color:#fff;font-weight:700;padding:14px 28px;border-radius:10px;text-decoration:none;font-size:15px;margin-bottom:8px">
           Set up Scout now →
         </a>
@@ -296,3 +296,4 @@ export async function POST(req: NextRequest) {
     trialEndsAt: trialEndsAt.toISOString(),
   })
 }
+
