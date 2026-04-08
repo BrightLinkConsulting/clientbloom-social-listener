@@ -343,7 +343,6 @@ function PostCard({
         <div className="flex items-start justify-between gap-3 mb-3">
           <div className="flex items-center gap-2 flex-wrap min-w-0">
             <ScoreBadge score={score} />
-            <span className="text-xs text-slate-500">{f['Group Name']}</span>
             {date && (
               <>
                 <span className="text-slate-700 text-xs">·</span>
@@ -1238,11 +1237,10 @@ function FeedPage() {
   const [posts, setPosts] = useState<Post[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<ActionFilter>('New')
-  const [groupFilter, setGroupFilter] = useState('all')
+
   const [updating, setUpdating] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
   const [actionCounts, setActionCounts] = useState<Record<string, number>>({})
-  const [availableGroups, setAvailableGroups] = useState<string[]>([])
   const [lastScannedAt, setLastScrapedAt] = useState<string | null>(null)
   const [lastRefreshed, setLastRefreshed] = useState<Date>(new Date())
   const [error, setError] = useState<string | null>(null)
@@ -1288,7 +1286,6 @@ function FeedPage() {
     setError(null)
     try {
       const params = new URLSearchParams({ action: filter, limit: '100' })
-      if (groupFilter !== 'all') params.set('group', groupFilter)
 
       const res = await fetch(`/api/posts?${params}`)
       if (!res.ok) throw new Error('Failed to load posts')
@@ -1296,7 +1293,7 @@ function FeedPage() {
 
       setPosts(data.records || [])
       if (data.actionCounts) setActionCounts(data.actionCounts)
-      if (data.availableGroups) setAvailableGroups(data.availableGroups)
+
       if (data.lastScannedAt) setLastScrapedAt(data.lastScannedAt)
       setLastRefreshed(new Date())
     } catch (e: any) {
@@ -1304,7 +1301,7 @@ function FeedPage() {
     } finally {
       setLoading(false)
     }
-  }, [filter, groupFilter])
+  }, [filter])
 
   // Initial load + re-fetch when filters change
   useEffect(() => { fetchPosts() }, [fetchPosts])
@@ -1512,20 +1509,8 @@ function FeedPage() {
             })}
             </div>{/* end scrollable tab strip */}
 
-            {/* Fixed right-side controls — always visible, never inside the scroll area */}
+            {/* Fixed right-side controls */}
             <div className="flex items-center gap-2 py-1.5 shrink-0">
-              {availableGroups.length > 0 && (
-                <select
-                  value={groupFilter}
-                  onChange={e => setGroupFilter(e.target.value)}
-                  className="text-xs bg-slate-800/80 border border-slate-700/60 rounded-lg px-2.5 py-1 text-slate-400 focus:outline-none focus:border-blue-500/50 max-w-[160px] truncate"
-                >
-                  <option value="all">All groups</option>
-                  {availableGroups.map(g => (
-                    <option key={g} value={g}>{g}</option>
-                  ))}
-                </select>
-              )}
               <button
                 onClick={() => fetchPosts()}
                 className="text-xs px-3 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 transition-colors whitespace-nowrap"

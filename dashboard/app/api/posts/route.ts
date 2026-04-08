@@ -1,6 +1,6 @@
 /**
  * /api/posts — Server-side Airtable proxy.
- * Returns filtered posts + metadata: action counts, last scrape time, available groups.
+ * Returns filtered posts + metadata: action counts, last scrape time.
  */
 
 import { NextRequest, NextResponse } from 'next/server'
@@ -20,7 +20,6 @@ export async function GET(request: NextRequest) {
   const action   = searchParams.get('action')   || 'New'
   const platform = searchParams.get('platform')
   const minScore = searchParams.get('minScore') || '0'
-  const group    = searchParams.get('group')    || ''
   const limit    = searchParams.get('limit')    || '100'
   const offset   = searchParams.get('offset')  || ''
 
@@ -45,7 +44,6 @@ export async function GET(request: NextRequest) {
   }
   if (platform && platform !== 'all') filters.push(`{Platform}='${platform}'`)
   if (minScore && minScore !== '0')   filters.push(`{Relevance Score}>=${minScore}`)
-  if (group    && group    !== 'all') filters.push(`{Group Name}='${group.replace(/'/g, "\\'")}'`)
 
   const formula = filters.length > 1
     ? `AND(${filters.join(', ')})`
@@ -66,8 +64,8 @@ export async function GET(request: NextRequest) {
   // Meta query — paginated so tab counts are accurate beyond Airtable's 100-record cap
   const authHeader = { 'Authorization': `Bearer ${PROV_TOKEN}` }
 
-  const metaFormula  = tenantFilter(tenantId)
-  const metaParams   = new URLSearchParams({
+  const metaFormula = tenantFilter(tenantId)
+  const metaParams  = new URLSearchParams({
     filterByFormula: metaFormula,
     'fields[]':  'Action',
     'fields[1]': 'Captured At',
@@ -89,28 +87,13 @@ export async function GET(request: NextRequest) {
     metaOffset = data.offset
   } while (metaOffset)
 
-  // Sources query — filtered by tenant
-  const sourcesFormula = `AND(${tenantFilter(tenantId)}, {Type}='facebook_group', {Active}=1)`
-  const sourcesParams = new URLSearchParams({
-    filterByFormula: sourcesFormula,
-    'fields[]': 'Name',
-    pageSize: '100',
-  })
-  const sourcesUrl = `${AIRTABLE_BASE}/${SHARED_BASE}/Sources?${sourcesParams}`
-
-  const [postsResp, sourcesResp] = await Promise.all([
-    fetch(postsUrl,   { headers: authHeader, next: { revalidate: 0 } }),
-    fetch(sourcesUrl, { headers: authHeader, next: { revalidate: 0 } }),
-  ])
+  const postsResp = await fetch(postsUrl, { headers: authHeader, next: { revalidate: 0 } })
 
   if (!postsResp.ok) {
     return NextResponse.json({ error: await postsResp.text() }, { status: postsResp.status })
   }
 
-  const [postsData, sourcesData] = await Promise.all([
-    postsResp.json(),
-    sourcesResp.ok ? sourcesResp.json() : Promise.resolve({ records: [] }),
-  ])
+  const postsData = await postsResp.json()
 
   const actionCounts: Record<string, number> = { New: 0, Engaged: 0, Replied: 0, Skipped: 0, Archived: 0 }
   let lastScrapedAt: string | null = null
@@ -134,16 +117,10 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  const availableGroups = (sourcesData.records || [])
-    .map((r: any) => r.fields?.Name || '')
-    .filter(Boolean)
-    .sort()
-
   return NextResponse.json({
     ...postsData,
     actionCounts,
-    lastScannedAt: lastScrapedAt,   // canonical name used by the feed
-    lastScrapedAt,                  // keep old key for any external callers
-    availableGroups,
+    lastScannedAt: lastScrapedAt,
+    lastScrapedAt,
   })
 }
