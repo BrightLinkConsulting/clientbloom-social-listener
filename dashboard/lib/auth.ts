@@ -141,6 +141,7 @@ export const authOptions: NextAuthOptions = {
             tenantId:       fields['Tenant ID']           || 'owner',
             plan:           fields['Plan']                || '',
             trialEndsAt:    fields['Trial Ends At']       || null,
+            onboarded:      fields['Onboarded']           ?? false,
           }
         }
 
@@ -164,6 +165,7 @@ export const authOptions: NextAuthOptions = {
             airtableToken:  process.env.AIRTABLE_API_TOKEN  || '',
             airtableBaseId: process.env.AIRTABLE_BASE_ID    || '',
             isAdmin:        true,
+            onboarded:      true,
           }
         }
 
@@ -186,6 +188,7 @@ export const authOptions: NextAuthOptions = {
         token.tenantId       = (user as any).tenantId || 'owner'
         token.plan           = (user as any).plan || ''
         token.trialEndsAt    = (user as any).trialEndsAt || null
+        token.onboarded      = (user as any).onboarded ?? false
       }
       return token
     },
@@ -200,6 +203,7 @@ export const authOptions: NextAuthOptions = {
         ;(session.user as any).tenantId       = token.tenantId || 'owner'
         ;(session.user as any).plan           = token.plan || ''
         ;(session.user as any).trialEndsAt    = token.trialEndsAt || null
+        ;(session.user as any).onboarded      = token.onboarded ?? false
       }
       return session
     },

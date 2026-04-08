@@ -1232,7 +1232,7 @@ export default function RootPage() {
 // ---- Main Feed ----
 function FeedPage() {
   const router = useRouter()
-  const { data: session } = useSession()
+  const { data: session, status } = useSession()
   const userEmail = (session?.user as any)?.email || ''
   const [posts, setPosts] = useState<Post[]>([])
   const [loading, setLoading] = useState(true)
@@ -1259,30 +1259,20 @@ function FeedPage() {
     }
   }, [session, router])
 
-  // First-run: redirect to onboarding if no posts exist and never onboarded.
-  // Only runs after NextAuth session is confirmed — avoids misfiring on 401s
-  // when session hasn't hydrated yet, which would loop back to the feed.
+  // First-run: redirect to onboarding if the tenant hasn't completed setup.
+  // Uses the JWT `onboarded` field (set from Airtable at sign-in) so there's
+  // no API call, no timeout race, and no dependency on posts existing yet.
+  // localStorage is checked as a fallback for sessions issued before this
+  // field existed and for the window between completing onboarding and
+  // signing in again (JWT doesn't refresh mid-session).
   useEffect(() => {
     if (status !== 'authenticated') return
-    const onboarded = localStorage.getItem('cb_onboarded')
-    if (!onboarded) {
-      // Give the data a moment to load before deciding
-      const check = setTimeout(async () => {
-        try {
-          const res = await fetch('/api/posts?action=all&limit=5')
-          const data = await res.json()
-          const hasPosts = (data.records?.length || 0) > 0
-          if (!hasPosts) {
-            router.push('/onboarding')
-          } else {
-            // Existing user with posts — mark as onboarded, don't redirect
-            localStorage.setItem('cb_onboarded', 'true')
-          }
-        } catch { /* stay on feed */ }
-      }, 800)
-      return () => clearTimeout(check)
+    const sessionOnboarded = (session?.user as any)?.onboarded ?? false
+    const localOnboarded   = localStorage.getItem('cb_onboarded')
+    if (!sessionOnboarded && !localOnboarded) {
+      router.push('/onboarding')
     }
-  }, [status, router])
+  }, [status, session, router])
 
   const fetchPosts = useCallback(async (silent = false) => {
     if (!silent) setLoading(true)
