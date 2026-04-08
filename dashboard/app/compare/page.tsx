@@ -24,7 +24,7 @@ function ClientBloomMark({ size = 28 }: { size?: number }) {
 }
 
 export default function ComparePage() {
-  const CHECKOUT_URL = '/api/checkout'
+  const CHECKOUT_URL = '/sign-up'
 
   const features = [
     { feature: 'AI post scoring (1–10 by ICP relevance)', scout: true, extrovert: false },
@@ -50,7 +50,7 @@ export default function ComparePage() {
           </Link>
           <div className="flex items-center gap-4">
             <a href={CHECKOUT_URL} className="bg-[#4F6BFF] hover:bg-[#3D57F5] text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors">
-              Start for $79/mo
+              Start Free Trial
             </a>
           </div>
         </div>
@@ -83,7 +83,7 @@ export default function ComparePage() {
                       return (
                         <tr key={i} className={`border-b border-slate-800 ${i % 2 ? 'bg-[#0a0c10]' : ''}`}>
                           <td className="px-6 py-4 text-slate-300">{row.feature}</td>
-                          <td className="text-center px-6 py-4 text-slate-300 font-medium">$79/month</td>
+                          <td className="text-center px-6 py-4 text-slate-300 font-medium">from $49/month</td>
                           <td className="text-center px-6 py-4 text-slate-300 font-medium">$75–$99/month</td>
                         </tr>
                       )
@@ -91,7 +91,7 @@ export default function ComparePage() {
                       return (
                         <tr key={i} className={`border-b border-slate-800 ${i % 2 ? 'bg-[#0a0c10]' : ''}`}>
                           <td className="px-6 py-4 text-slate-300">{row.feature}</td>
-                          <td className="text-center px-6 py-4 text-slate-300 font-medium">14 days</td>
+                          <td className="text-center px-6 py-4 text-slate-300 font-medium">7 days</td>
                           <td className="text-center px-6 py-4 text-slate-300 font-medium">14 days</td>
                         </tr>
                       )

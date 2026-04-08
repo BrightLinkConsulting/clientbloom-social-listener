@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useState, useEffect, useCallback } from 'react'
 import { useSession, signOut } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
+import { getTierLimits, getPlanDisplay, isPaidPlan } from '@/lib/tier'
 
 // ---- Types ----
 interface Source {
@@ -474,13 +475,15 @@ const INDUSTRY_PACKS: { label: string; value: string; terms: string[] }[] = [
   },
 ]
 
-const MAX_ACTIVE_TERMS = 10
+// MAX_ACTIVE_TERMS is now tier-aware — see getTierLimits() in lib/tier.ts
+// The component reads the session plan and calls getTierLimits(plan).keywords
 const WARN_ACTIVE_TERMS = 8
 
 // ---- LinkedIn Terms Section ----
-function LinkedInTermsSection({ sources, onUpdate }: {
+function LinkedInTermsSection({ sources, onUpdate, planLimit = 10 }: {
   sources: Source[]
   onUpdate: () => void
+  planLimit?: number
 }) {
   const [showAdd, setShowAdd] = useState(false)
   const [showSuggestions, setShowSuggestions] = useState(false)
@@ -497,7 +500,7 @@ function LinkedInTermsSection({ sources, onUpdate }: {
   const terms = sources.filter(s => s.type === 'linkedin_term')
   const activeCount = terms.filter(t => t.active).length
   const existingValues = new Set(terms.map(t => t.value.toLowerCase()))
-  const atCap = activeCount >= MAX_ACTIVE_TERMS
+  const atCap = activeCount >= planLimit
 
   const handleToggle = async (source: Source) => {
     setToggling(source.id)
@@ -534,8 +537,8 @@ function LinkedInTermsSection({ sources, onUpdate }: {
     const t = term.trim()
     if (!t) { setError('Enter a search term.'); return }
     if (existingValues.has(t.toLowerCase())) return
-    if (activeCount >= MAX_ACTIVE_TERMS) {
-      setError(`You've reached the ${MAX_ACTIVE_TERMS}-term limit. Pause or remove a term before adding another.`)
+    if (activeCount >= planLimit) {
+      setError(`You've reached the ${planLimit}-term limit. Pause or remove a term before adding another.`)
       return
     }
     if (isPreset) setAddingPreset(t)
@@ -567,7 +570,7 @@ function LinkedInTermsSection({ sources, onUpdate }: {
     const termsToAdd = pack.terms.filter(t => !existingValues.has(t.toLowerCase()))
     let added = 0
     for (const t of termsToAdd) {
-      if (activeCount + added >= MAX_ACTIVE_TERMS) break
+      if (activeCount + added >= planLimit) break
       try {
         const resp = await fetch('/api/sources', {
           method: 'POST',
@@ -750,7 +753,7 @@ function LinkedInTermsSection({ sources, onUpdate }: {
         <div className="mb-4 flex gap-2.5 px-3.5 py-3 rounded-xl bg-red-500/10 border border-red-500/20">
           <span className="text-red-400 text-sm shrink-0">⛔</span>
           <div>
-            <p className="text-xs font-semibold text-red-300">Limit reached — {MAX_ACTIVE_TERMS} active terms</p>
+            <p className="text-xs font-semibold text-red-300">Limit reached — {planLimit} active terms</p>
             <p className="text-xs text-red-400/80 mt-0.5 leading-relaxed">
               Each term runs a separate LinkedIn search every scan. More terms add cost and noise — not better results. Pause or remove a term before adding another.
             </p>
@@ -761,7 +764,7 @@ function LinkedInTermsSection({ sources, onUpdate }: {
         <div className="mb-4 flex gap-2.5 px-3.5 py-3 rounded-xl bg-amber-500/10 border border-amber-500/20">
           <span className="text-amber-400 text-sm shrink-0">⚠️</span>
           <p className="text-xs text-amber-400/90 leading-relaxed">
-            <span className="font-semibold">{activeCount} active terms.</span> Scout searches each one independently — above {MAX_ACTIVE_TERMS} the signal-to-noise ratio drops. Aim for 5–8 tightly focused phrases.
+            <span className="font-semibold">{activeCount} active terms.</span> Scout searches each one independently — above {planLimit} the signal-to-noise ratio drops. Aim for 5–8 tightly focused phrases.
           </p>
         </div>
       )}
@@ -773,7 +776,7 @@ function LinkedInTermsSection({ sources, onUpdate }: {
             <p className="text-xs font-semibold text-slate-300">Load a starter pack</p>
             <button onClick={() => { setShowPackPicker(false); setSelectedIndustry('') }} className="text-xs text-slate-600 hover:text-slate-400 transition-colors">Cancel</button>
           </div>
-          <p className="text-xs text-slate-500 -mt-1">Only terms you don't already have will be added. Won't exceed the {MAX_ACTIVE_TERMS}-term limit.</p>
+          <p className="text-xs text-slate-500 -mt-1">Only terms you don't already have will be added. Won't exceed the {planLimit}-term limit.</p>
           <div className="flex items-center gap-2 flex-wrap">
             <select
               value={selectedIndustry}
@@ -2812,7 +2815,7 @@ function AccountSection() {
           </div>
           <div>
             <p className="text-xs text-slate-500 mb-1">Plan</p>
-            <p className="text-sm text-white font-medium">Scout $79 / mo</p>
+            <p className="text-sm text-white font-medium">{(session?.user as any)?.plan || 'Trial'}</p>
           </div>
         </div>
       </Section>
@@ -3082,14 +3085,183 @@ function TeamSection() {
   )
 }
 
+// ---- Plan & Billing Section ----
+function PlanBillingSection() {
+  const { data: session } = useSession()
+  const user        = session?.user as any
+  const plan        = user?.plan || 'Trial'
+  const trialEndsAt = user?.trialEndsAt ? new Date(user.trialEndsAt) : null
+  const limits      = getTierLimits(plan)
+  const display     = getPlanDisplay(plan)
+  const paidPlan    = isPaidPlan(plan)
+  const isTrial     = plan === 'Trial'
+  const isExpired   = isTrial && trialEndsAt && new Date() > trialEndsAt
+  const daysLeft    = trialEndsAt ? Math.ceil((trialEndsAt.getTime() - Date.now()) / 86400000) : null
+
+  const [canceling, setCanceling] = useState(false)
+  const [cancelMsg, setCancelMsg] = useState('')
+
+  async function handleCancel() {
+    if (!confirm('Cancel your subscription? You keep access until the end of the current billing period.')) return
+    setCanceling(true)
+    try {
+      const res  = await fetch('/api/billing/cancel', { method: 'POST' })
+      const data = await res.json()
+      if (res.ok) {
+        const until = data.accessUntil ? new Date(data.accessUntil).toLocaleDateString() : ''
+        setCancelMsg(`Subscription canceled. Access continues until ${until}.`)
+      } else {
+        setCancelMsg(data.error || 'Cancellation failed — please try again.')
+      }
+    } catch {
+      setCancelMsg('Network error — please try again.')
+    } finally {
+      setCanceling(false)
+    }
+  }
+
+  function GaugeBar({ used, limit, label }: { used: number; limit: number; label: string }) {
+    const pct    = limit === 0 ? 100 : Math.min((used / limit) * 100, 100)
+    const color  = pct < 70 ? '#4F6BFF' : pct < 85 ? '#F59E0B' : '#EF4444'
+    return (
+      <div>
+        <div className="flex justify-between items-center mb-1.5">
+          <span className="text-xs text-slate-400">{label}</span>
+          <span className="text-xs font-medium text-slate-300">
+            {limit === Infinity || limit === 0 ? 'Unlimited' : `${used} / ${limit}`}
+          </span>
+        </div>
+        {(limit !== Infinity && limit > 0) && (
+          <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
+            <div
+              className="h-full rounded-full transition-all"
+              style={{ width: `${pct}%`, background: color }}
+            />
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Current plan card */}
+      <div className="rounded-2xl bg-[#0f1117] border border-slate-700/50 p-6 space-y-4">
+        <div className="flex items-start justify-between gap-4 flex-wrap">
+          <div>
+            <p className="text-xs text-slate-500 mb-1 uppercase tracking-wider font-medium">Current plan</p>
+            <p className="text-2xl font-bold text-white">{display.name}</p>
+            <p className="text-slate-400 text-sm">{display.price}</p>
+          </div>
+          <div className="flex flex-col items-end gap-2">
+            {isTrial && !isExpired && daysLeft !== null && (
+              <span className={`text-xs px-3 py-1 rounded-full font-medium ${
+                daysLeft <= 2 ? 'bg-red-900/30 border border-red-700/40 text-red-400' :
+                daysLeft <= 4 ? 'bg-amber-900/30 border border-amber-700/40 text-amber-400' :
+                'bg-emerald-900/30 border border-emerald-700/40 text-emerald-400'
+              }`}>
+                {daysLeft <= 0 ? 'Ends today' : `${daysLeft} day${daysLeft === 1 ? '' : 's'} left`}
+              </span>
+            )}
+            {isExpired && (
+              <span className="text-xs px-3 py-1 rounded-full font-medium bg-red-900/30 border border-red-700/40 text-red-400">
+                Trial expired
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Action buttons */}
+        <div className="flex flex-wrap gap-3 pt-2">
+          {(isTrial || isExpired) && (
+            <a
+              href="/upgrade"
+              className="bg-[#4F6BFF] hover:bg-[#3d5aee] text-white font-semibold px-4 py-2 rounded-lg text-sm transition-colors"
+            >
+              {isExpired ? 'Reactivate with a paid plan' : 'Upgrade now'}
+            </a>
+          )}
+          {paidPlan && (
+            <a
+              href="/api/billing/portal"
+              className="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-medium px-4 py-2 rounded-lg text-sm transition-colors"
+            >
+              Manage subscription / invoices
+            </a>
+          )}
+          {paidPlan && !cancelMsg && (
+            <button
+              onClick={handleCancel}
+              disabled={canceling}
+              className="text-slate-500 hover:text-red-400 text-sm transition-colors disabled:opacity-50"
+            >
+              {canceling ? 'Canceling…' : 'Cancel subscription'}
+            </button>
+          )}
+        </div>
+        {cancelMsg && (
+          <p className="text-sm text-amber-400 bg-amber-900/20 border border-amber-800/30 rounded-xl px-4 py-3">
+            {cancelMsg}
+          </p>
+        )}
+      </div>
+
+      {/* Usage fuel gauge */}
+      <div className="rounded-2xl bg-[#0f1117] border border-slate-700/50 p-6 space-y-5">
+        <div>
+          <p className="text-sm font-semibold text-white mb-1">Usage</p>
+          <p className="text-xs text-slate-500">Your current usage against plan limits. Limits reset each billing cycle.</p>
+        </div>
+
+        <div className="space-y-4">
+          <GaugeBar
+            used={0}
+            limit={limits.keywords}
+            label="LinkedIn keyword searches"
+          />
+          <GaugeBar
+            used={0}
+            limit={limits.profiles}
+            label="ICP profiles monitored"
+          />
+          {limits.commentCredits !== Infinity && (
+            <GaugeBar
+              used={0}
+              limit={limits.commentCredits}
+              label="AI comment suggestions this month"
+            />
+          )}
+        </div>
+
+        <p className="text-xs text-slate-600">
+          Live usage counts coming soon. Limits are enforced in Settings → LinkedIn.
+        </p>
+      </div>
+
+      {/* Agency workspace note */}
+      {plan === 'Scout Agency' && (
+        <div className="rounded-2xl bg-purple-900/10 border border-purple-700/30 p-5">
+          <p className="text-sm font-semibold text-purple-300 mb-1">Multi-client workspace isolation — coming Q3</p>
+          <p className="text-xs text-slate-400 leading-relaxed">
+            Your Agency plan includes up to 5 isolated client workspaces with separate feeds, keyword sets, and ICP profiles per client.
+            This feature is in development and ships Q3. In the meantime, you have access to all 20 keyword searches and 15 ICP profiles
+            within your single workspace — more than enough to manage multiple clients today.
+          </p>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ---- Tab definitions ----
 const TABS = [
-  { id: 'profile',  label: 'Profile'      },
-  { id: 'linkedin', label: 'LinkedIn'     },
-  { id: 'ai',       label: 'AI & Scoring' },
-  { id: 'system',   label: 'System'       },
-  { id: 'account',  label: 'Account'      },
-  { id: 'team',     label: 'Team'         },
+  { id: 'profile',  label: 'Profile'        },
+  { id: 'linkedin', label: 'LinkedIn'       },
+  { id: 'ai',       label: 'AI & Scoring'   },
+  { id: 'system',   label: 'System'         },
+  { id: 'billing',  label: 'Plan & Billing' },
+  { id: 'account',  label: 'Account'        },
+  { id: 'team',     label: 'Team'           },
 ] as const
 type TabId = typeof TABS[number]['id']
 
@@ -3179,7 +3351,7 @@ export default function SettingsPage() {
               </div>
             )}
             {!loading && !loadError && (
-              <LinkedInTermsSection sources={sources} onUpdate={fetchSources} />
+              <LinkedInTermsSection sources={sources} onUpdate={fetchSources} planLimit={getTierLimits((session?.user as any)?.plan || 'Trial').keywords} />
             )}
             <LinkedInICPSection />
           </>
@@ -3218,6 +3390,11 @@ export default function SettingsPage() {
             <SlackIntegrationSection />
             <CRMIntegrationSection />
           </div>
+        )}
+
+        {/* ── Plan & Billing ── */}
+        {activeTab === 'billing' && (
+          <PlanBillingSection />
         )}
 
         {/* ── Account ── */}

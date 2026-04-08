@@ -1,10 +1,10 @@
 /**
  * POST /api/admin/grant-access
  *
- * Admin-only. Creates a fully-provisioned 14-day free trial account:
+ * Admin-only. Creates a fully-provisioned 7-day free trial account:
  *   1. Creates the Tenants record
  *   2. Calls provisionNewTenant() to generate a Tenant ID (same path as paid users)
- *   3. Sets a 14-day Trial Ends At date
+ *   3. Sets a 7-day Trial Ends At date
  *   4. Sends a welcome email via Resend with login credentials + trial details
  *
  * When the trial expires, the user is redirected to /upgrade to subscribe.
@@ -180,7 +180,7 @@ export async function POST(req: Request) {
       body: JSON.stringify({
         from:    FROM,
         to:      [cleanEmail],
-        subject: `Your 14-day Scout trial starts now`,
+        subject: `Your 7-day Scout trial starts now`,
         html,
       }),
     })

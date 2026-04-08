@@ -24,7 +24,7 @@ function ClientBloomMark({ size = 28 }: { size?: number }) {
 }
 
 export default function BlogPage() {
-  const CHECKOUT_URL = '/api/checkout'
+  const CHECKOUT_URL = '/sign-up'
 
   const articles = [
     {
@@ -47,7 +47,7 @@ export default function BlogPage() {
           </Link>
           <div className="flex items-center gap-4">
             <a href={CHECKOUT_URL} className="bg-[#4F6BFF] hover:bg-[#3D57F5] text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors">
-              Start for $79/mo
+              Start Free Trial
             </a>
           </div>
         </div>

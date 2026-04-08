@@ -11,7 +11,7 @@ import AnimatedTextCycle from '@/components/ui/animated-text-cycle'
 import { GradientText } from '@/components/ui/gradient-text'
 import { AnimatedTestimonials, type Testimonial } from '@/components/blocks/animated-testimonials'
 
-const CHECKOUT_URL = '/api/checkout'
+const CHECKOUT_URL = '/sign-up'
 
 const TESTIMONIALS: Testimonial[] = [
   {
@@ -114,7 +114,7 @@ export default function LandingPage() {
             <a href="#pricing" className="text-slate-400 hover:text-slate-200 text-sm transition-colors hidden md:block">Pricing</a>
             <Link href="/sign-in" className="text-slate-400 hover:text-slate-200 text-sm transition-colors">Sign in</Link>
             <NeonButton href={CHECKOUT_URL} variant="solid" size="sm">
-              Start for $79/mo
+              Start Free Trial
             </NeonButton>
           </div>
         </div>
@@ -174,7 +174,7 @@ export default function LandingPage() {
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <NeonButton href={CHECKOUT_URL} variant="solid" size="lg">
-              Get Scout — $79/month
+              Start Your Free 7-Day Trial
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
             </NeonButton>
             <a href="#how-it-works" className="text-slate-400 hover:text-slate-200 text-sm transition-colors flex items-center gap-1.5">
@@ -310,7 +310,7 @@ export default function LandingPage() {
               style={{ background: 'rgba(79,107,255,0.06)' }}>
               <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-[#4F6BFF] to-[#7C3AED]" />
               <p className="text-white text-sm font-bold">Scout</p>
-              <p className="text-[#4F6BFF] text-xs mt-0.5 font-medium">$79/mo</p>
+              <p className="text-[#4F6BFF] text-xs mt-0.5 font-medium">from $49/mo</p>
             </div>
 
             {(() => {
@@ -439,8 +439,8 @@ export default function LandingPage() {
               <p className="text-slate-600 text-xs mt-0.5">Per seat</p>
             </div>
             <div className="px-5 py-5 text-center" style={{ background: 'rgba(79,107,255,0.06)' }}>
-              <p className="text-white text-sm font-bold">$79/mo</p>
-              <p className="text-[#4F6BFF] text-xs mt-0.5">14-day free trial</p>
+              <p className="text-white text-sm font-bold">from $49/mo</p>
+              <p className="text-[#4F6BFF] text-xs mt-0.5">7-day free trial</p>
             </div>
           </div>
 
@@ -477,7 +477,7 @@ export default function LandingPage() {
             {[
               { stat: '3.2x', label: 'higher reply rates vs. cold outreach' },
               { stat: '60%+', label: 'connection acceptance from monitored prospects' },
-              { stat: '14 days', label: 'free trial — see results in your first week' },
+              { stat: '7 days', label: 'free trial — see results in your first week' },
             ].map((item, i) => (
               <div key={i}>
                 <div className="text-3xl font-bold text-[#4F6BFF] mb-2">{item.stat}</div>
@@ -490,48 +490,79 @@ export default function LandingPage() {
 
       {/* ─── PRICING ─── */}
       <section id="pricing" className="py-24 px-6 border-t border-slate-800/50">
-        <div className="max-w-3xl mx-auto text-center">
-          <h2 className="text-4xl font-bold text-white mb-4">One price. No hidden fees.</h2>
-          <p className="text-slate-400 text-lg mb-12">Scout starts at $79 per month for individuals and teams. Everything included. 14-day free trial — no credit card required.</p>
+        <div className="max-w-5xl mx-auto text-center">
+          <h2 className="text-4xl font-bold text-white mb-4">Simple, transparent pricing.</h2>
+          <p className="text-slate-400 text-lg mb-12">Start free for 7 days — no credit card required. Pick the plan that fits when you're ready.</p>
 
-          <div className="bg-[#0f1117] border border-[#4F6BFF]/20 rounded-2xl p-12 text-center mb-6">
-            <div className="text-5xl font-bold text-white mb-2">$79<span className="text-xl text-slate-400 font-normal">/month</span></div>
-            <p className="text-slate-400 text-sm mb-8">2 monitored topics, 1 monitored persona, unlimited post history.</p>
+          {/* 3-tier grid */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-8">
+            {/* Starter */}
+            <div className="rounded-2xl bg-[#0f1117] border border-slate-700/50 p-6 flex flex-col text-left">
+              <div className="mb-4">
+                <p className="text-white font-bold text-xl">Starter</p>
+                <div className="flex items-baseline gap-1 mt-1">
+                  <span className="text-3xl font-bold text-white">$49</span>
+                  <span className="text-slate-500 text-sm">/mo</span>
+                </div>
+                <p className="text-slate-500 text-xs mt-2 leading-relaxed">For solo consultants getting started with LinkedIn intelligence.</p>
+              </div>
+              <ul className="space-y-2 flex-1 mb-6">
+                {['3 LinkedIn keyword searches','2 ICP profiles monitored','1 scan per day','30 AI comment suggestions/mo','30-day post history','1 user seat'].map(f => (
+                  <li key={f} className="flex items-start gap-2.5 text-sm text-slate-300">
+                    <svg className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
+                    {f}
+                  </li>
+                ))}
+              </ul>
+              <NeonButton href={CHECKOUT_URL} variant="outline" size="sm">Start free trial</NeonButton>
+            </div>
 
-            <NeonButton href={CHECKOUT_URL} variant="solid" size="lg">
-              Start 14-Day Free Trial
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
-            </NeonButton>
+            {/* Pro — highlighted */}
+            <div className="rounded-2xl bg-[#12151e] border-2 border-[#4F6BFF]/60 shadow-[0_0_40px_8px_rgba(79,107,255,0.1)] p-6 flex flex-col text-left relative">
+              <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-[#4F6BFF] text-white text-xs font-semibold px-3 py-1 rounded-full">Most Popular</span>
+              <div className="mb-4">
+                <p className="text-white font-bold text-xl">Pro</p>
+                <div className="flex items-baseline gap-1 mt-1">
+                  <span className="text-3xl font-bold text-white">$99</span>
+                  <span className="text-slate-500 text-sm">/mo</span>
+                </div>
+                <p className="text-slate-500 text-xs mt-2 leading-relaxed">The full product. Everything you need to build pipeline from LinkedIn.</p>
+              </div>
+              <ul className="space-y-2 flex-1 mb-6">
+                {['10 LinkedIn keyword searches','5 ICP profiles monitored','2 scans per day (morning + evening)','Unlimited AI comment suggestions','Unlimited post history','CRM integration (GHL + HubSpot)','Slack daily digest','1 user seat'].map(f => (
+                  <li key={f} className="flex items-start gap-2.5 text-sm text-slate-300">
+                    <svg className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
+                    {f}
+                  </li>
+                ))}
+              </ul>
+              <NeonButton href={CHECKOUT_URL} variant="solid" size="sm">Start free trial</NeonButton>
+            </div>
 
-            <div className="mt-8 space-y-3 text-left text-slate-400 text-sm">
-              <div className="flex items-center gap-3">
-                <svg className="w-4 h-4 text-emerald-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-                LinkedIn profile monitoring (2 profiles)
+            {/* Agency */}
+            <div className="rounded-2xl bg-[#0f1117] border border-slate-700/50 p-6 flex flex-col text-left relative">
+              <span className="absolute -top-3 left-6 bg-purple-900/60 border border-purple-700/40 text-purple-300 text-xs font-semibold px-3 py-1 rounded-full">Best Value</span>
+              <div className="mb-4">
+                <p className="text-white font-bold text-xl">Agency</p>
+                <div className="flex items-baseline gap-1 mt-1">
+                  <span className="text-3xl font-bold text-white">$249</span>
+                  <span className="text-slate-500 text-sm">/mo</span>
+                </div>
+                <p className="text-slate-500 text-xs mt-2 leading-relaxed">For consultants managing LinkedIn intelligence for multiple clients.</p>
               </div>
-              <div className="flex items-center gap-3">
-                <svg className="w-4 h-4 text-emerald-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-                Keyword / topic search monitoring (2 searches)
-              </div>
-              <div className="flex items-center gap-3">
-                <svg className="w-4 h-4 text-emerald-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-                AI post scoring (1–10 by ICP relevance)
-              </div>
-              <div className="flex items-center gap-3">
-                <svg className="w-4 h-4 text-emerald-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-                AI comment suggestions (customizable)
-              </div>
-              <div className="flex items-center gap-3">
-                <svg className="w-4 h-4 text-emerald-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-                CRM integration (GoHighLevel, HubSpot)
-              </div>
-              <div className="flex items-center gap-3">
-                <svg className="w-4 h-4 text-emerald-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-                Full post history and notes
-              </div>
+              <ul className="space-y-2 flex-1 mb-6">
+                {['20 LinkedIn keyword searches','15 ICP profiles monitored','2 scans per day','Unlimited AI comment suggestions','Unlimited post history','CRM integration (GHL + HubSpot)','Slack daily digest','Up to 5 user seats'].map(f => (
+                  <li key={f} className="flex items-start gap-2.5 text-sm text-slate-300">
+                    <svg className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
+                    {f}
+                  </li>
+                ))}
+              </ul>
+              <NeonButton href={CHECKOUT_URL} variant="outline" size="sm">Start free trial</NeonButton>
             </div>
           </div>
 
-          <p className="text-slate-500 text-sm">Want to manage Scout for multiple clients? <Link href="/compare" className="text-[#4F6BFF] hover:underline">See our agency plan.</Link></p>
+          <p className="text-xs text-slate-600">All plans billed monthly · Cancel anytime · No setup fees · Your trial data is preserved</p>
         </div>
       </section>
 
@@ -553,11 +584,11 @@ export default function LandingPage() {
             Your ideal clients are on LinkedIn every day — posting, discussing, asking, sharing. The ones who win their business aren't the ones who cold pitch the loudest. They're the ones who showed up consistently in the right places.
           </p>
           <p className="text-slate-300 text-xl mb-10">
-            Scout automates that presence. At $79/month, it pays for itself the first time a prospect reaches out because they already know who you are.
+            Scout automates that presence. Plans start at $49/month — it pays for itself the first time a prospect reaches out because they already know who you are.
           </p>
 
           <NeonButton href={CHECKOUT_URL} variant="solid" size="lg" className="text-lg px-10 py-5">
-            Get Scout — $79/month
+            Start Your Free 7-Day Trial
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
           </NeonButton>
           <p className="text-slate-600 text-sm mt-4">Setup takes under 10 minutes. Your Scout feed is live today.</p>
