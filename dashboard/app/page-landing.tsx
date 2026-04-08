@@ -5,6 +5,7 @@
 
 import Link from 'next/link'
 import { FaqAccordion } from './_components/FaqAccordion'
+import { AnimatedFeed } from './_components/AnimatedFeed'
 import { NeonButton } from '@/components/ui/neon-button'
 import AnimatedTextCycle from '@/components/ui/animated-text-cycle'
 import { GradientText } from '@/components/ui/gradient-text'
@@ -184,41 +185,8 @@ export default function LandingPage() {
 
           <p className="text-slate-600 text-sm mt-6">No contracts. No setup fees. Cancel anytime.</p>
 
-          {/* Mock feed preview */}
-          <div className="mt-16 relative">
-            <div className="absolute inset-0 bg-gradient-to-t from-[#080a0f] via-transparent to-transparent z-10 pointer-events-none" style={{top: '60%'}} />
-            <div className="bg-[#0f1117] border border-slate-800 rounded-2xl p-4 text-left max-w-2xl mx-auto shadow-2xl">
-              <div className="flex items-center gap-3 mb-4 pb-3 border-b border-slate-800">
-                <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                <span className="text-xs text-slate-400">Live intelligence feed — updated twice daily</span>
-                <span className="ml-auto text-xs text-[#4F6BFF] font-medium">14 new posts</span>
-              </div>
-              {[
-                { score: 9, platform: 'LinkedIn', name: 'Jennifer R.', title: 'Agency Owner · ICP Profile', text: 'Scaling from 12 to 20 clients this quarter. Mostly excited, a little terrified. Anyone else find the systems that worked at 10 clients completely break at 20?', tag: 'ICP Active', tagColor: 'text-blue-400 bg-blue-400/10' },
-                { score: 8, platform: 'LinkedIn', name: 'Marcus T.', title: 'Marketing Consultant', text: 'Hot take: The agencies that survive the next 3 years will be the ones who got proactive about client communication, not reactive. Who\'s doing this well right now?', tag: 'Discussion Starter', tagColor: 'text-amber-400 bg-amber-400/10' },
-                { score: 7, platform: 'LinkedIn', name: 'Sarah K.', title: 'VP of Sales', text: 'Three consultants pitched us this week on AI tools. Different packaging, same promises. How do you actually evaluate vendors when everyone sounds identical?', tag: 'Conversation Hook', tagColor: 'text-emerald-400 bg-emerald-400/10' },
-              ].map((post, i) => (
-                <div key={i} className={`flex gap-3 py-3 ${i < 2 ? 'border-b border-slate-800/50' : ''}`}>
-                  <div className={`w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-bold ${
-                    post.score >= 9 ? 'bg-emerald-900/40 text-emerald-400' :
-                    post.score >= 7 ? 'bg-amber-900/40 text-amber-400' :
-                    'bg-slate-800 text-slate-400'
-                  }`}>{post.score}</div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-slate-300 text-xs font-medium">{post.name}</span>
-                      <span className="text-slate-600 text-xs">·</span>
-                      <span className="text-slate-500 text-xs">{post.title}</span>
-                      <span className="text-slate-600 text-xs">·</span>
-                      <span className="text-slate-600 text-xs">{post.platform}</span>
-                      <span className={`ml-auto text-[10px] font-medium px-1.5 py-0.5 rounded ${post.tagColor}`}>{post.tag}</span>
-                    </div>
-                    <p className="text-slate-400 text-xs leading-relaxed truncate">{post.text}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+          {/* Animated feed preview */}
+          <AnimatedFeed />
         </div>
       </section>
 
