@@ -778,7 +778,6 @@ interface ScanHealth {
   lastScanAt:     string | null
   lastScanStatus: string | null
   lastPostsFound: number
-  fbPending:      boolean
 }
 
 // A scan is considered overdue if the last successful scan is >14h old.
@@ -800,7 +799,7 @@ function ScanStatusPill({ health, lastScannedAt }: { health: ScanHealth | null; 
     )
   }
 
-  if (status === 'pending_fb' || health?.fbPending) {
+  if (status === 'pending_fb') {
     return (
       <span className="text-xs text-amber-400 flex items-center gap-1">
         <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
