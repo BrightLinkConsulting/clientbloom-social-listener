@@ -720,6 +720,38 @@ export function buildCancellationEmail(opts: {
   return { subject, html }
 }
 
+// ── Trial Reactivation (30-day lapsed) ───────────────────────────────────────
+// Sent manually from admin panel to expired trial users who never upgraded.
+// Tone: warm, direct, no pressure — opens a door without pushing.
+
+export function buildTrialReactivationEmail(opts: {
+  companyName: string
+  email:       string
+  upgradeUrl:  string
+  unsubUrl:    string
+}): EmailTemplate {
+  const safe = (s: string) => s.replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  const name = safe(opts.companyName || opts.email.split('@')[0])
+
+  const subject = `Your Scout account is still here, ${name}`
+
+  const body = `
+    ${h2(`Still here when you're ready.`)}
+    ${p(`Hi ${name},`)}
+    ${p(`I noticed you tried Scout a little while back. I wanted to reach out — not to pitch you, but because I'm genuinely curious what got in the way.`)}
+    ${p(`Most people who don't convert fall into one of three camps: the timing wasn't right, the trial moved too fast to get real results, or they just got busy. All of those make sense.`)}
+    ${p(`Here's what I want you to know: everything you set up during your trial is still there. Your feed configuration, your ICP profiles, your scan settings — none of it went anywhere. If you wanted to pick back up today, you'd be running in minutes, not hours.`)}
+    ${infoBox(`<strong>Scout starts at $49/month</strong> — cancel anytime, no contracts. The LinkedIn conversations your prospects are having right now are happening with or without you in them.`, BRAND_BLUE)}
+    ${p(`If you're ready to give it a real run — or if you want to talk through whether it's a fit — just reply to this email. I read every one.`)}
+    <div style="margin:24px 0">${cta(`Resume where you left off →`, opts.upgradeUrl)}</div>
+    ${p(`Starter $49 · Pro $99 · Agency $249`, 'color:#999;font-size:12px;margin:4px 0 16px')}
+    ${p(`— Mike Walker, Scout by ClientBloom`, 'color:#666;font-size:13px;margin-top:20px')}
+    ${footer(opts.unsubUrl)}
+  `
+
+  return { subject, html: wrap(header('Scout by ClientBloom', BRAND_DARK), body, '') }
+}
+
 // ── Day-number dispatcher ─────────────────────────────────────────────────────
 // Used by trial-check cron: given a day number (2-7), returns the correct email.
 

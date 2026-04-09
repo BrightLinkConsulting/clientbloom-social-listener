@@ -74,7 +74,8 @@ export async function GET() {
       isFeedOnly:     r.fields['Is Feed Only']        ?? false,
       plan:           r.fields['Plan']                || '',
       createdAt:      r.fields['Created At']          || '',
-      trialEndsAt:    r.fields['Trial Ends At']       || null,
+      trialEndsAt:          r.fields['Trial Ends At']          || null,
+      reactivationSentAt:   r.fields['Reactivation Sent At']   || null,
     }))
 
     return NextResponse.json({ tenants })
@@ -158,7 +159,7 @@ export async function PATCH(req: Request) {
   try {
     const {
       id, status, companyName, airtableBaseId, airtableToken,
-      password, plan, isAdmin, isFeedOnly, apifyKey,
+      password, plan, isAdmin, isFeedOnly, apifyKey, reactivationSentAt,
     } = await req.json()
 
     if (!id) return NextResponse.json({ error: 'id is required.' }, { status: 400 })
@@ -172,7 +173,8 @@ export async function PATCH(req: Request) {
     if (isAdmin        !== undefined) fields['Is Admin']            = isAdmin
     if (isFeedOnly     !== undefined) fields['Is Feed Only']        = isFeedOnly
     // apifyKey: empty string = clear (revert to shared pool), truthy string = set custom key
-    if (apifyKey !== undefined) fields['Apify API Key'] = apifyKey || null
+    if (apifyKey             !== undefined) fields['Apify API Key']          = apifyKey || null
+    if (reactivationSentAt   !== undefined) fields['Reactivation Sent At']   = reactivationSentAt || null
 
     // Reset password if provided
     if (password) {

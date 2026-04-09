@@ -35,9 +35,10 @@ interface Tenant {
   status:         string
   isAdmin:        boolean
   isFeedOnly:     boolean
-  plan:           string
-  createdAt:      string
-  trialEndsAt:    string | null
+  plan:                 string
+  createdAt:            string
+  trialEndsAt:          string | null
+  reactivationSentAt:   string | null
 }
 
 function PlanBadge({ plan }: { plan: string }) {
@@ -63,12 +64,19 @@ function PlanBadge({ plan }: { plan: string }) {
 
 function trialBadge(trialEndsAt: string | null) {
   if (!trialEndsAt) return null
-  const daysLeft = Math.ceil((new Date(trialEndsAt).getTime() - Date.now()) / 86400000)
-  if (daysLeft <= 0) {
+  const msLeft   = new Date(trialEndsAt).getTime() - Date.now()
+  const daysLeft = Math.floor(msLeft / 86_400_000)
+  const hrsLeft  = Math.floor((msLeft % 86_400_000) / 3_600_000)
+  if (msLeft <= 0) {
     return <span className="text-[10px] bg-red-900/30 text-red-400 px-1.5 py-0.5 rounded font-medium border border-red-800/30">Trial expired</span>
   }
-  const color = daysLeft <= 3 ? 'bg-amber-900/30 text-amber-400 border-amber-800/30' : 'bg-blue-900/30 text-blue-400 border-blue-800/30'
-  return <span className={`text-[10px] ${color} px-1.5 py-0.5 rounded font-medium border`}>{daysLeft}d left</span>
+  const label = daysLeft === 0 ? `${hrsLeft}h left` : `${daysLeft}d ${hrsLeft}h left`
+  const color  = daysLeft <= 1
+    ? 'bg-red-900/30 text-red-400 border-red-800/30'
+    : daysLeft <= 5
+      ? 'bg-amber-900/30 text-amber-400 border-amber-800/30'
+      : 'bg-emerald-900/30 text-emerald-400 border-emerald-800/30'
+  return <span className={`text-[10px] ${color} px-1.5 py-0.5 rounded font-medium border`}>{label}</span>
 }
 
 interface StatsData {
@@ -553,6 +561,10 @@ export default function AdminPage() {
   const [resetingId,     setResetingId]     = useState<string | null>(null)
   const [resetMsg,       setResetMsg]       = useState<Record<string, string>>({})
 
+  // ── Reactivation email state ──────────────────────────────────────────────
+  const [reactivatingId,   setReactivatingId]   = useState<string | null>(null)
+  const [reactivationSent, setReactivationSent] = useState<Record<string, string>>({}) // id → ISO sentAt
+
   // Task 4: Grant free access
   const [showFreeAccess, setShowFreeAccess] = useState(false)
 
@@ -708,6 +720,26 @@ export default function AdminPage() {
       }
     } catch { setResetMsg(m => ({ ...m, [tenant.id]: 'Network error' })) }
     finally { setResetingId(null) }
+  }
+
+  async function handleSendReactivation(t: Tenant) {
+    setReactivatingId(t.id)
+    try {
+      const resp = await fetch('/api/admin/send-reactivation', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: t.id, email: t.email, companyName: t.companyName }),
+      })
+      const data = await resp.json()
+      if (!resp.ok) throw new Error(data.error || 'Failed')
+      const sentAt = data.sentAt || new Date().toISOString()
+      setReactivationSent(prev => ({ ...prev, [t.id]: sentAt }))
+      setTenants(prev => prev.map(x => x.id === t.id ? { ...x, reactivationSentAt: sentAt } : x))
+    } catch (err: any) {
+      alert(`Failed to send reactivation email: ${err.message}`)
+    } finally {
+      setReactivatingId(null)
+    }
   }
 
   // Task 6: Toggle feed-only role
@@ -907,22 +939,38 @@ export default function AdminPage() {
             {(() => {
               const now = Date.now()
 
-              // daysLeft > 0 = still active; daysLeft <= 0 = expired or today
-              function daysRemaining(t: Tenant) {
-                return Math.ceil((new Date(t.trialEndsAt!).getTime() - now) / 86400000)
+              /**
+               * Returns days + hours remaining using Math.floor — identical to
+               * the TrialBanner countdown so both always agree.
+               */
+              function trialTimeLeft(t: Tenant) {
+                const msLeft = new Date(t.trialEndsAt!).getTime() - now
+                const days   = Math.floor(msLeft / 86_400_000)
+                const hours  = Math.floor((msLeft % 86_400_000) / 3_600_000)
+                return { days, hours, msLeft }
               }
 
-              const allTrials   = tenants.filter(t => t.plan === 'Trial' && t.trialEndsAt)
-              const activeTrials = allTrials.filter(t => daysRemaining(t) > 0)
-              const expiredTrials = allTrials.filter(t => daysRemaining(t) <= 0)
-                .sort((a, b) => new Date(b.trialEndsAt!).getTime() - new Date(a.trialEndsAt!).getTime())
-                .slice(0, 5)
+              function timeLabel(t: Tenant) {
+                const { days, hours, msLeft } = trialTimeLeft(t)
+                if (msLeft <= 0) return 'Expires today'
+                if (days === 0)  return `${hours}h left`
+                return `${days}d ${hours}h left`
+              }
 
-              const urgent   = activeTrials.filter(t => daysRemaining(t) <= 2)
+              const allTrials    = tenants.filter(t => t.plan === 'Trial' && t.trialEndsAt)
+              const activeTrials  = allTrials.filter(t => trialTimeLeft(t).msLeft > 0)
+              const expiredTrials = allTrials.filter(t => trialTimeLeft(t).msLeft <= 0)
+                .sort((a, b) => new Date(b.trialEndsAt!).getTime() - new Date(a.trialEndsAt!).getTime())
+
+              // Color zones — match TrialBanner semantics (Math.floor days)
+              // 🔴 Red   : 0–1 full days remaining (expires very soon)
+              // 🟡 Yellow: 2–5 full days remaining (check in)
+              // 🟢 Green : 6–7 full days remaining (just started, no urgency yet)
+              const red    = activeTrials.filter(t => trialTimeLeft(t).days <= 1)
                 .sort((a, b) => new Date(a.trialEndsAt!).getTime() - new Date(b.trialEndsAt!).getTime())
-              const watchlist = activeTrials.filter(t => { const d = daysRemaining(t); return d >= 3 && d <= 7 })
+              const yellow = activeTrials.filter(t => { const { days } = trialTimeLeft(t); return days >= 2 && days <= 5 })
                 .sort((a, b) => new Date(a.trialEndsAt!).getTime() - new Date(b.trialEndsAt!).getTime())
-              const upcoming  = activeTrials.filter(t => daysRemaining(t) > 7)
+              const green  = activeTrials.filter(t => trialTimeLeft(t).days >= 6)
                 .sort((a, b) => new Date(a.trialEndsAt!).getTime() - new Date(b.trialEndsAt!).getTime())
 
               if (allTrials.length === 0) return null
@@ -937,43 +985,40 @@ export default function AdminPage() {
                     <span className="text-xs bg-slate-800 text-slate-400 px-2.5 py-1 rounded-full">{activeTrials.length} active trial{activeTrials.length !== 1 ? 's' : ''}</span>
                   </div>
 
-                  {urgent.length > 0 && (
+                  {/* 🔴 RED: 0–1 days left — reach out now */}
+                  {red.length > 0 && (
                     <div className="px-6 py-4 border-b border-slate-800">
-                      <p className="text-xs font-semibold text-red-400 uppercase tracking-wider mb-3">🔴 Reach out now — expires in ≤2 days</p>
+                      <p className="text-xs font-semibold text-red-400 uppercase tracking-wider mb-3">🔴 Reach out now — expires in ≤1 day</p>
                       <div className="space-y-2">
-                        {urgent.map(t => {
-                          const d = daysRemaining(t)
-                          return (
-                            <div key={t.id} className="flex items-center justify-between bg-red-900/10 border border-red-900/30 rounded-lg px-4 py-3">
-                              <div>
-                                <p className="text-sm font-medium text-white">{t.companyName || t.email}</p>
-                                <p className="text-xs text-slate-500">{t.email}</p>
-                              </div>
-                              <div className="text-right">
-                                <span className="text-xs font-semibold text-red-400">
-                                  {d <= 0 ? 'Expires today' : `${d}d left`}
-                                </span>
-                                <p className="text-xs text-slate-600 mt-0.5">{new Date(t.trialEndsAt!).toLocaleDateString()}</p>
-                              </div>
+                        {red.map(t => (
+                          <div key={t.id} className="flex items-center justify-between bg-red-900/10 border border-red-900/30 rounded-lg px-4 py-3">
+                            <div>
+                              <p className="text-sm font-medium text-white">{t.companyName || t.email}</p>
+                              <p className="text-xs text-slate-500">{t.email}</p>
                             </div>
-                          )
-                        })}
+                            <div className="text-right">
+                              <span className="text-xs font-semibold text-red-400">{timeLabel(t)}</span>
+                              <p className="text-xs text-slate-600 mt-0.5">{new Date(t.trialEndsAt!).toLocaleDateString()}</p>
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     </div>
                   )}
 
-                  {watchlist.length > 0 && (
+                  {/* 🟡 YELLOW: 2–5 days left — check in */}
+                  {yellow.length > 0 && (
                     <div className="px-6 py-4 border-b border-slate-800">
-                      <p className="text-xs font-semibold text-amber-400 uppercase tracking-wider mb-3">🟡 Watch list — expires in 3–7 days</p>
+                      <p className="text-xs font-semibold text-amber-400 uppercase tracking-wider mb-3">🟡 Check in — 2–5 days remaining</p>
                       <div className="space-y-2">
-                        {watchlist.map(t => (
+                        {yellow.map(t => (
                           <div key={t.id} className="flex items-center justify-between bg-amber-900/10 border border-amber-900/30 rounded-lg px-4 py-3">
                             <div>
                               <p className="text-sm font-medium text-white">{t.companyName || t.email}</p>
                               <p className="text-xs text-slate-500">{t.email}</p>
                             </div>
                             <div className="text-right">
-                              <span className="text-xs font-semibold text-amber-400">{daysRemaining(t)}d left</span>
+                              <span className="text-xs font-semibold text-amber-400">{timeLabel(t)}</span>
                               <p className="text-xs text-slate-600 mt-0.5">{new Date(t.trialEndsAt!).toLocaleDateString()}</p>
                             </div>
                           </div>
@@ -982,18 +1027,19 @@ export default function AdminPage() {
                     </div>
                   )}
 
-                  {upcoming.length > 0 && (
+                  {/* 🟢 GREEN: 6–7 days left — just started */}
+                  {green.length > 0 && (
                     <div className="px-6 py-4 border-b border-slate-800">
-                      <p className="text-xs font-semibold text-blue-400 uppercase tracking-wider mb-3">🔵 Upcoming — more than 7 days remaining</p>
+                      <p className="text-xs font-semibold text-emerald-400 uppercase tracking-wider mb-3">🟢 Just started — 6–7 days remaining</p>
                       <div className="space-y-2">
-                        {upcoming.map(t => (
-                          <div key={t.id} className="flex items-center justify-between bg-blue-900/10 border border-blue-900/30 rounded-lg px-4 py-3">
+                        {green.map(t => (
+                          <div key={t.id} className="flex items-center justify-between bg-emerald-900/10 border border-emerald-900/30 rounded-lg px-4 py-3">
                             <div>
                               <p className="text-sm font-medium text-white">{t.companyName || t.email}</p>
                               <p className="text-xs text-slate-500">{t.email}</p>
                             </div>
                             <div className="text-right">
-                              <span className="text-xs font-semibold text-blue-400">{daysRemaining(t)}d left</span>
+                              <span className="text-xs font-semibold text-emerald-400">{timeLabel(t)}</span>
                               <p className="text-xs text-slate-600 mt-0.5">{new Date(t.trialEndsAt!).toLocaleDateString()}</p>
                             </div>
                           </div>
@@ -1002,23 +1048,47 @@ export default function AdminPage() {
                     </div>
                   )}
 
-                  {urgent.length === 0 && watchlist.length === 0 && upcoming.length === 0 && expiredTrials.length === 0 && (
+                  {red.length === 0 && yellow.length === 0 && green.length === 0 && expiredTrials.length === 0 && (
                     <div className="px-6 py-8 text-center text-slate-500 text-sm">No active trials.</div>
                   )}
 
+                  {/* ⚫ EXPIRED — with reactivation email button */}
                   {expiredTrials.length > 0 && (
                     <div className="px-6 py-4">
-                      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">⚫ Recently expired — haven't upgraded</p>
+                      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">⚫ Expired — haven&apos;t upgraded</p>
                       <div className="space-y-2">
-                        {expiredTrials.map(t => (
-                          <div key={t.id} className="flex items-center justify-between px-4 py-3 rounded-lg bg-slate-800/30 border border-slate-800">
-                            <div>
-                              <p className="text-sm font-medium text-slate-400">{t.companyName || t.email}</p>
-                              <p className="text-xs text-slate-600">{t.email}</p>
+                        {expiredTrials.map(t => {
+                          const sentAt = reactivationSent[t.id] || t.reactivationSentAt
+                          const isSending = reactivatingId === t.id
+                          return (
+                            <div key={t.id} className="flex items-center justify-between px-4 py-3 rounded-lg bg-slate-800/30 border border-slate-800">
+                              <div className="min-w-0 flex-1">
+                                <p className="text-sm font-medium text-slate-400">{t.companyName || t.email}</p>
+                                <p className="text-xs text-slate-600">{t.email}</p>
+                                {sentAt && (
+                                  <p className="text-[11px] text-emerald-600 mt-0.5">
+                                    ✓ Reactivation email sent {new Date(sentAt).toLocaleDateString()}
+                                  </p>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-3 ml-4 shrink-0">
+                                <span className="text-xs text-slate-600">Expired {new Date(t.trialEndsAt!).toLocaleDateString()}</span>
+                                <button
+                                  onClick={() => handleSendReactivation(t)}
+                                  disabled={isSending}
+                                  title={sentAt ? 'Resend reactivation email' : 'Send reactivation email'}
+                                  className={`text-xs font-medium px-3 py-1.5 rounded-lg border transition-all whitespace-nowrap disabled:opacity-50 ${
+                                    sentAt
+                                      ? 'bg-emerald-900/20 border-emerald-800/40 text-emerald-400 hover:bg-emerald-900/40'
+                                      : 'bg-[#4F6BFF]/10 border-[#4F6BFF]/30 text-[#4F6BFF] hover:bg-[#4F6BFF]/20'
+                                  }`}
+                                >
+                                  {isSending ? 'Sending…' : sentAt ? '✓ Resend' : 'Send reactivation'}
+                                </button>
+                              </div>
                             </div>
-                            <span className="text-xs text-slate-600">Expired {new Date(t.trialEndsAt!).toLocaleDateString()}</span>
-                          </div>
-                        ))}
+                          )
+                        })}
                       </div>
                     </div>
                   )}
