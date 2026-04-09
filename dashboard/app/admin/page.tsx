@@ -1056,7 +1056,7 @@ export default function AdminPage() {
                     <p className="text-xs text-slate-500 leading-relaxed">
                       {stats?.source === 'stripe'
                         ? 'Revenue and subscriber counts reflect live Stripe data.'
-                        : 'Add STRIPE_SECRET_KEY + STRIPE_PRICE_ID to Vercel env vars for live billing.'}
+                        : 'Add STRIPE_SECRET_KEY, STRIPE_PRICE_STARTER/PRO/AGENCY, and STRIPE_WEBHOOK_SECRET to Vercel env vars.'}
                     </p>
                   </div>
                 </div>
@@ -1107,7 +1107,9 @@ export default function AdminPage() {
                   <p className="text-sm font-semibold text-white mb-1">Connect Stripe for live billing data</p>
                   <p className="text-xs text-slate-400 leading-relaxed">
                     Add <code className="font-mono text-slate-300 bg-slate-800 px-1 rounded">STRIPE_SECRET_KEY</code>,{' '}
-                    <code className="font-mono text-slate-300 bg-slate-800 px-1 rounded">STRIPE_PRICE_ID</code>, and{' '}
+                    <code className="font-mono text-slate-300 bg-slate-800 px-1 rounded">STRIPE_PRICE_STARTER</code>,{' '}
+                    <code className="font-mono text-slate-300 bg-slate-800 px-1 rounded">STRIPE_PRICE_PRO</code>,{' '}
+                    <code className="font-mono text-slate-300 bg-slate-800 px-1 rounded">STRIPE_PRICE_AGENCY</code>, and{' '}
                     <code className="font-mono text-slate-300 bg-slate-800 px-1 rounded">STRIPE_WEBHOOK_SECRET</code>{' '}
                     to your Vercel environment variables, then redeploy.
                   </p>
