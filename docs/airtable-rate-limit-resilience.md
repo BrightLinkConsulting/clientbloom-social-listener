@@ -114,8 +114,16 @@ Two new fields were added to the **Tenants** table (`tblKciy1tqPmBJHmT`) in the
 | P1 | Redis-backed IP rate limiter | `middleware.ts` | In-memory limiter resets on Vercel cold start |
 | P1 | Manual scan daily cap | `trigger-scan/route.ts` | 30-min cooldown exists; no daily total cap |
 | P2 | Migrate remaining routes to `airtableFetch` | `cron/digest`, `cron/trial-check`, `billing/cancel`, `auth/*` | Low-frequency paths, not burst sources |
+| P2 | Migrate `scan-health.ts` to `airtableFetch` | `lib/scan-health.ts` | Currently uses bare `fetch`; 429 on status write causes silent stuck-scanning. Watchdog cleans up within 1h but migrating is the proper fix. |
 | P2 | `dedupSucceeded` in ScanResult | `lib/scan.ts` | Dedup silently skips on 429 exhaustion; useful for observability |
+| P3 | Add "Scan Started At" timestamp to Scan Health | Airtable + `cron/scan/route.ts` | Enables exact stuck-scan detection rather than using `lastScanAt` as a proxy |
 | P3 | Per-invocation Airtable circuit breaker | `lib/airtable.ts` | After first exhausted retry, skip remaining calls fast |
+
+---
+
+## Related documentation
+
+- **`docs/scan-health-and-watchdog.md`** — Scan Health state machine, stuck-scanning root cause and fix, plan-aware overdue detection, trial UX patterns.
 
 ---
 

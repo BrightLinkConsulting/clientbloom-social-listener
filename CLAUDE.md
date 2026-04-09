@@ -46,12 +46,21 @@ Completed:
 - ✅ Digest cron eligibility filter (paid + active trial only)
 - ✅ IP rate limiting on forgot-password and trial/start routes
 - ✅ IDOR prevention on all 4 resource routes (sources, posts, linkedin-icps, crm-push)
+- ✅ airtableFetch retry-with-backoff wrapper (lib/airtable.ts — covers all hot-path Airtable calls)
+- ✅ Staggered cron dispatch with 0–5s random jitter (cron/scan/route.ts)
+- ✅ Batch→individual fallback guard with 2s pause (lib/scan.ts → saveScoredPosts)
+- ✅ Stuck-scanning detection and reset in watchdog (cron/scan-watchdog/route.ts)
+- ✅ Skipped-scan status reset bug fixed (scan-tenant route)
+- ✅ Trial countdown off-by-one fixed (Math.floor, not Math.ceil)
+- ✅ Suggestions Used + Last ICP Discovery At fields added to Tenants table (Airtable MCP, April 2026)
 
 Still open:
 - Security headers in next.config.js (X-Frame-Options, CSP, etc.)
 - Monthly reset cron for scan/post counters
 - Upgrade gate modal for trial_expired users
 - Atomic Running Scan Count (needed before scaling to 20+ tenants — see usage-sync)
+- Migrate scan-health.ts to airtableFetch (currently bare fetch — 429 causes silent stuck-scanning)
+- Redis-backed IP rate limiter (in-memory resets on cold start)
 
 ### Track 3 — SEO/Conversion
 - Server-render landing page metadata, JSON-LD, sitemap
@@ -123,3 +132,18 @@ Critical ones that block production launch if missing:
 - Digest eligibility: getEligibleTenants() in cron/digest/route.ts
 - Session refresh: trigger='update' in jwt() callback (lib/auth.ts)
 - Tenant data access: always via lib/airtable.ts helpers, never raw fetch inside route files
+- Airtable calls: always via airtableFetch() — never bare fetch() against api.airtable.com
+- Scan cadence: Trial + Starter = 1/day; Pro = 2/day. Cron fires twice daily for all plans;
+  scan-tenant skips on < 12h cooldown for single-scan plans
+- Scan status: ScanStatusPill and NextScanCountdown require plan prop for correct overdue
+  threshold and cadence note. Read plan from (session?.user as any)?.plan
+- Trial countdown: always Math.floor for days/hours — never Math.ceil (off-by-one bug)
+- Stuck-scanning: treat as success state in the UI (scan completed; only write failed).
+  Do not show alarm language. Watchdog resets the backend field within 1h.
+- Overdue threshold: 26h for Trial/Starter, 14h for Pro. See scanOverdueMs() in app/page.tsx
+
+## Documentation Index
+- `docs/airtable-rate-limit-resilience.md` — Rate-limit resilience design, airtableFetch,
+  staggered dispatch, schema additions, constants, open gaps
+- `docs/scan-health-and-watchdog.md` — Scan Health state machine, stuck-scanning root cause
+  and fix, plan-aware UX, trial banner, watchdog response shape
