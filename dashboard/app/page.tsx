@@ -235,6 +235,8 @@ function PostCard({
   const [crmPushing,       setCrmPushing]        = useState(false)
   const [crmPushed,        setCrmPushed]         = useState(!!post.fields['CRM Pushed At'])
   const [crmError,         setCrmError]          = useState('')
+  const [suggestApproach,  setSuggestApproach]   = useState('')
+  const [suggestLoading,   setSuggestLoading]    = useState(false)
 
   const f              = post.fields
   const text           = f['Post Text'] || ''
@@ -404,30 +406,72 @@ function PostCard({
           </div>
         )}
 
-        {/* Suggested angle — expandable with copy button */}
-        {f['Comment Approach'] && (
-          <div className="mb-4">
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setAngleOpen(!angleOpen)}
-                className="flex items-center gap-1.5 text-xs text-blue-400 hover:text-blue-300 transition-colors"
-              >
-                <svg className={`w-3 h-3 transition-transform duration-150 ${angleOpen ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-                Suggested comment angle
-              </button>
-              <CopyButton text={f['Comment Approach']} />
-            </div>
-            {angleOpen && (
-              <div className="mt-2 p-3.5 rounded-xl bg-blue-950/40 border border-blue-500/15">
-                <p className="text-sm text-slate-300 leading-relaxed italic">
-                  &ldquo;{f['Comment Approach']}&rdquo;
-                </p>
+        {/* Suggested angle — expandable with copy button, or generate on-demand */}
+        {(() => {
+          const approach = f['Comment Approach'] || suggestApproach
+          if (approach) {
+            return (
+              <div className="mb-4">
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setAngleOpen(!angleOpen)}
+                    className="flex items-center gap-1.5 text-xs text-blue-400 hover:text-blue-300 transition-colors"
+                  >
+                    <svg className={`w-3 h-3 transition-transform duration-150 ${angleOpen ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                    Suggested comment angle
+                  </button>
+                  <CopyButton text={approach} />
+                </div>
+                {angleOpen && (
+                  <div className="mt-2 p-3.5 rounded-xl bg-blue-950/40 border border-blue-500/15">
+                    <p className="text-sm text-slate-300 leading-relaxed italic">
+                      &ldquo;{approach}&rdquo;
+                    </p>
+                  </div>
+                )}
               </div>
-            )}
-          </div>
-        )}
+            )
+          }
+          // No comment approach yet — show generate button
+          return (
+            <div className="mb-4">
+              <button
+                disabled={suggestLoading}
+                onClick={async () => {
+                  setSuggestLoading(true)
+                  setAngleOpen(true)
+                  try {
+                    const res = await fetch(`/api/posts/${post.id}/suggest`, { method: 'POST' })
+                    if (res.ok) {
+                      const d = await res.json()
+                      if (d.commentApproach) setSuggestApproach(d.commentApproach)
+                    }
+                  } catch {}
+                  setSuggestLoading(false)
+                }}
+                className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-blue-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {suggestLoading ? (
+                  <>
+                    <svg className="w-3 h-3 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    Generating comment idea…
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    </svg>
+                    Generate comment idea
+                  </>
+                )}
+              </button>
+            </div>
+          )
+        })()}
 
         {/* Score reason */}
         {f['Score Reason'] && !isSkipped && (
