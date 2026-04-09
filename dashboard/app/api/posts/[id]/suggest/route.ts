@@ -36,18 +36,21 @@ export async function POST(
   const anthropicKey = process.env.ANTHROPIC_API_KEY
   if (!anthropicKey) return NextResponse.json({ error: 'ANTHROPIC_API_KEY not set' }, { status: 500 })
 
-  // ── Fetch post text ────────────────────────────────────────────────────────
+  // ── Fetch post text via filter query (PROV_TOKEN lacks per-record GET scope) ─────
   let postText = ''
   let authorName = ''
   try {
-    const postResp = await fetch(
-      `https://api.airtable.com/v0/${SHARED_BASE}/${encodeURIComponent(TABLE)}/${id}?fields[]=Post%20Text&fields[]=Author%20Name`,
-      { headers: { Authorization: `Bearer ${PROV_TOKEN}` } }
-    )
+    const postUrl = new URL(`https://api.airtable.com/v0/${SHARED_BASE}/${encodeURIComponent(TABLE)}`)
+    postUrl.searchParams.set('filterByFormula', `RECORD_ID()='${id}'`)
+    postUrl.searchParams.set('fields[]', 'Post Text')
+    postUrl.searchParams.append('fields[]', 'Author Name')
+    postUrl.searchParams.set('maxRecords', '1')
+    const postResp = await fetch(postUrl.toString(), { headers: { Authorization: `Bearer ${PROV_TOKEN}` } })
     if (postResp.ok) {
       const postData = await postResp.json()
-      postText   = postData.fields?.['Post Text']   || ''
-      authorName = postData.fields?.['Author Name'] || ''
+      const rec = postData.records?.[0]?.fields || {}
+      postText   = rec['Post Text']   || ''
+      authorName = rec['Author Name'] || ''
     }
   } catch {}
 
