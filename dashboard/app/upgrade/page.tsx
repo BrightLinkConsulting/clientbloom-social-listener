@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useSession, signOut } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
-import { getTierLimits, isPaidPlan } from '@/lib/tier'
+import { getTierLimits, isPaidPlan, isStripeBilledPlan } from '@/lib/tier'
 
 function ClientBloomMark({ size = 28 }: { size?: number }) {
   return (
@@ -88,20 +88,52 @@ export default function UpgradePage() {
   const [checking, setChecking]     = useState(true)
   const [upgrading, setUpgrading]   = useState<string | null>(null)
 
-  const user        = session?.user as any
-  const plan        = user?.plan || ''
-  const paidPlan    = isPaidPlan(plan)
-  const trialEndsAt = user?.trialEndsAt || null
-  const trialExpired = !!trialEndsAt && new Date() > new Date(trialEndsAt)
-  const daysLeft    = trialEndsAt
-    ? Math.ceil((new Date(trialEndsAt).getTime() - Date.now()) / 86400000)
+  const user          = session?.user as any
+  const plan          = user?.plan || ''
+  const paidPlan      = isPaidPlan(plan)
+  const isStripePlan  = isStripeBilledPlan(plan)  // already has active Stripe subscription
+  const trialEndsAt   = user?.trialEndsAt || null
+  const trialExpired  = !!trialEndsAt && new Date() > new Date(trialEndsAt)
+  const daysLeft      = trialEndsAt
+    ? Math.max(0, Math.floor((new Date(trialEndsAt).getTime() - Date.now()) / 86400000))
     : null
+
+  // Portal handler for active paid subscribers who navigate to /upgrade
+  const [portalLoading, setPortalLoading] = useState(false)
+  const [portalError,   setPortalError]   = useState('')
+
+  async function handleOpenPortal() {
+    setPortalLoading(true)
+    setPortalError('')
+    try {
+      const res  = await fetch('/api/billing/portal')
+      const data = await res.json()
+      if (!res.ok || !data.url) {
+        setPortalError(data.error || 'Could not open billing portal. Please try again.')
+        return
+      }
+      window.location.href = data.url
+    } catch {
+      setPortalError('Network error — please try again.')
+    } finally {
+      setPortalLoading(false)
+    }
+  }
 
   useEffect(() => {
     if (status === 'loading') return
     if (status === 'unauthenticated') { router.replace('/sign-in'); return }
     setChecking(false)
   }, [status, router])
+
+  // Auto-open portal when redirected here from /api/billing/upgrade with portal=1
+  // (happens when an active subscriber tried to hit the upgrade route directly)
+  useEffect(() => {
+    if (checking || !isStripePlan) return
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('portal') === '1') handleOpenPortal()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [checking, isStripePlan])
 
   useEffect(() => {
     if (checking) return
@@ -148,6 +180,32 @@ export default function UpgradePage() {
 
       <main className="flex-1 px-6 py-14">
         <div className="max-w-5xl mx-auto space-y-10">
+
+          {/* Banner for active paid subscribers who land here */}
+          {isStripePlan && (
+            <div className="rounded-2xl bg-blue-900/15 border border-blue-700/30 px-6 py-4 flex flex-col sm:flex-row sm:items-center gap-3">
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-blue-300">You already have an active subscription</p>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  To upgrade, downgrade, or change your plan, use the billing portal — your proration is handled automatically.
+                </p>
+              </div>
+              <button
+                onClick={handleOpenPortal}
+                disabled={portalLoading}
+                className="shrink-0 bg-[#4F6BFF] hover:bg-[#3d5aee] text-white font-semibold px-5 py-2.5 rounded-lg text-sm transition-colors disabled:opacity-60"
+              >
+                {portalLoading ? 'Opening…' : 'Open billing portal →'}
+              </button>
+            </div>
+          )}
+
+          {/* Portal error (for paid subscribers) */}
+          {portalError && (
+            <div className="rounded-xl bg-red-900/20 border border-red-800/30 px-4 py-3">
+              <p className="text-xs text-red-400">{portalError}</p>
+            </div>
+          )}
 
           {/* Status badge */}
           <div className="text-center space-y-3">
@@ -230,22 +288,32 @@ export default function UpgradePage() {
                   ))}
                 </ul>
 
-                {/* CTA */}
-                <button
-                  onClick={() => handleUpgrade(tier.key)}
-                  disabled={upgrading !== null || plan === `Scout ${tier.name}` || plan === 'Owner'}
-                  className={`w-full py-3.5 rounded-xl font-semibold text-sm transition-all disabled:opacity-60 disabled:cursor-not-allowed ${
-                    tier.highlight
-                      ? 'bg-[#4F6BFF] hover:bg-[#3d5aee] text-white'
-                      : 'bg-slate-800 hover:bg-slate-700 text-white border border-slate-700'
-                  }`}
-                >
-                  {upgrading === tier.key
-                    ? 'Redirecting to Stripe…'
-                    : plan === `Scout ${tier.name}` || (plan === 'Owner' && tier.key === 'agency')
-                    ? 'Current Plan'
-                    : tier.cta}
-                </button>
+                {/* CTA — active paid subscribers use the Billing Portal to change tiers */}
+                {isStripePlan && plan !== `Scout ${tier.name}` ? (
+                  <button
+                    onClick={handleOpenPortal}
+                    disabled={portalLoading}
+                    className="w-full py-3.5 rounded-xl font-semibold text-sm transition-all bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 disabled:opacity-60 disabled:cursor-not-allowed"
+                  >
+                    {portalLoading ? 'Opening…' : 'Manage subscription →'}
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => handleUpgrade(tier.key)}
+                    disabled={upgrading !== null || plan === `Scout ${tier.name}` || plan === 'Owner' || isStripePlan}
+                    className={`w-full py-3.5 rounded-xl font-semibold text-sm transition-all disabled:opacity-60 disabled:cursor-not-allowed ${
+                      tier.highlight
+                        ? 'bg-[#4F6BFF] hover:bg-[#3d5aee] text-white'
+                        : 'bg-slate-800 hover:bg-slate-700 text-white border border-slate-700'
+                    }`}
+                  >
+                    {upgrading === tier.key
+                      ? 'Redirecting to Stripe…'
+                      : plan === `Scout ${tier.name}` || (plan === 'Owner' && tier.key === 'agency')
+                      ? 'Current Plan'
+                      : tier.cta}
+                  </button>
+                )}
               </div>
             ))}
           </div>

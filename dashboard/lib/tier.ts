@@ -67,6 +67,17 @@ export function getTierLimits(plan: string): TierLimits {
         seats: 999,
         postHistoryDays: 0,
       }
+    case 'Complimentary':
+      // Manually-gifted full access — mirrors Scout Pro limits
+      return {
+        keywords: 10,
+        profiles: 5,
+        scansPerDay: 2,
+        commentCredits: Infinity,
+        workspaces: 1,
+        seats: 1,
+        postHistoryDays: 0,
+      }
     default:
       // Suspended / trial_expired / unknown — zero access
       return {
@@ -86,12 +97,13 @@ export function getTierLimits(plan: string): TierLimits {
  */
 export function getPlanDisplay(plan: string): { name: string; price: string } {
   switch (plan) {
-    case 'Scout Starter': return { name: 'Starter', price: '$49/mo' }
-    case 'Scout Pro':     return { name: 'Pro', price: '$99/mo' }
-    case 'Scout Agency':  return { name: 'Agency', price: '$249/mo' }
-    case 'Trial':         return { name: '7-Day Trial', price: 'Free' }
-    case 'Owner':         return { name: 'Owner', price: 'Internal' }
-    default:              return { name: plan || 'Unknown', price: '' }
+    case 'Scout Starter':  return { name: 'Starter',       price: '$49/mo'   }
+    case 'Scout Pro':      return { name: 'Pro',           price: '$99/mo'   }
+    case 'Scout Agency':   return { name: 'Agency',        price: '$249/mo'  }
+    case 'Trial':          return { name: '7-Day Trial',   price: 'Free'     }
+    case 'Owner':          return { name: 'Owner',         price: 'Internal' }
+    case 'Complimentary':  return { name: 'Complimentary', price: 'Gifted'   }
+    default:               return { name: plan || 'Unknown', price: ''       }
   }
 }
 

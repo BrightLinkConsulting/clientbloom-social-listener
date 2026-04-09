@@ -90,6 +90,12 @@ Completed:
 - ✅ Stripe env vars verified in Vercel — STRIPE_PRICE_STARTER/PRO/AGENCY all set with correct price IDs;
   STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET confirmed set
 - ✅ Full adversarial stress test passed — see docs/stripe-billing.md for test results
+- ✅ Per-account adversarial stress test (Session 3) — 38/38 tests passed; 6 new bugs found and fixed:
+  (a) Nav + upgrade page Math.ceil → Math.floor (countdown mismatch); (b) Upgrade route guard against
+  active paid subscribers creating duplicate subscriptions; (c) Upgrade page CTAs replaced with portal
+  redirect for paid users; (d) /api/billing/status route created — restores post-cancel amber card on
+  page refresh (closes Known P2 gap); (e) getTierLimits + getPlanDisplay handle 'Complimentary' plan;
+  full details in docs/stripe-billing.md
 
 Still open:
 - Security headers in next.config.js (X-Frame-Options, CSP, etc.)
@@ -221,8 +227,9 @@ callers — never do this without auditing every reference first.
 - suggest/route.ts: retries once with a shorter fallback prompt if Claude returns empty content.
   Returns 503 (not 500) if both attempts fail — 503 signals transient unavailability.
 - Trial countdown: always Math.floor for days/hours — never Math.ceil (off-by-one bug).
-  Display format: "Xd Yh left" (or "Yh left" when d=0). TrialBanner, admin pipeline,
-  and PlanBillingSection must all use identical logic — any future change updates all three.
+  Display format: "Xd Yh left" (or "Yh left" when d=0). Four surfaces must all agree:
+  TrialBanner (app/page.tsx), Nav banner (settings/page.tsx), PlanBillingSection
+  (settings/page.tsx), and the /upgrade page. Any future change updates ALL FOUR.
 - Reactivation email: admin sends via POST /api/admin/send-reactivation. After sending,
   'Reactivation Sent At' is written to Airtable. UI checks t.reactivationSentAt (from
   tenants GET) and local reactivationSent state (optimistic) to show send timestamp.
@@ -236,6 +243,16 @@ callers — never do this without auditing every reference first.
 - Cancel flow: 2-step inline confirmation (showCancelConfirm state) — never window.confirm().
   After cancel: show persistent amber card with accessUntil date and Resubscribe CTA.
   Cancellation email uses buildCancellationEmail from lib/emails.ts.
+  On page load, PlanBillingSection calls GET /api/billing/status to restore the amber card
+  if Status='canceling' in Airtable (persists the card across page refreshes).
+- Billing status check: GET /api/billing/status → { status, accessUntil? }. Auth required.
+  Non-Stripe plans return { status: 'none' }. 'canceling' includes accessUntil from Stripe.
+  Call on mount for isStripeBilledPlan users only.
+- Upgrade gate for paid subscribers: active Starter/Pro/Agency users must use the Billing
+  Portal to change tiers — NOT /api/billing/upgrade. The upgrade route has a
+  STRIPE_ACTIVE_PLANS guard that redirects to /settings?tab=billing&portal=1. The /upgrade
+  page also detects isStripeBilledPlan and shows portal CTAs instead of checkout buttons.
+  Never remove these guards — they prevent duplicate Stripe subscription creation.
 - Stuck-scanning: treat as success state in the UI (scan completed; only write failed).
   Do not show alarm language. Watchdog resets the backend field within 1h.
 - Overdue threshold: 26h for Trial/Starter, 14h for Pro. See scanOverdueMs() in app/page.tsx
@@ -260,4 +277,5 @@ callers — never do this without auditing every reference first.
   reactivation (30-day) templates, session refresh flow, JWT plan whitelist, known gaps
 - `docs/stripe-billing.md` — Full billing architecture: price IDs, checkout flow, webhook event
   handlers, tenant provisioning, plan name mapping, env var reference, admin stats design,
-  trial pipeline v2 design, reactivation system spec, adversarial test results (28 total), known gaps
+  trial pipeline v2 design, reactivation system spec, /api/billing/status route spec,
+  per-account adversarial test results (38/38 Session 3), known gaps

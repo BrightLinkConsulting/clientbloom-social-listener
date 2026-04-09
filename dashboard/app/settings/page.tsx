@@ -80,7 +80,7 @@ function Nav() {
   const trialEndsAt = (session?.user as any)?.trialEndsAt || null
   const isTrial     = plan === 'Trial'
   const daysLeft    = trialEndsAt
-    ? Math.max(0, Math.ceil((new Date(trialEndsAt).getTime() - Date.now()) / 86_400_000))
+    ? Math.max(0, Math.floor((new Date(trialEndsAt).getTime() - Date.now()) / 86_400_000))
     : null
 
   return (
@@ -2783,8 +2783,26 @@ function PlanBillingSection() {
   // Cancel flow state
   const [showCancelConfirm, setShowCancelConfirm] = useState(false)
   const [canceling,         setCanceling]         = useState(false)
-  const [canceledUntil,     setCanceledUntil]     = useState('')   // ISO date string when canceled successfully
+  const [canceledUntil,     setCanceledUntil]     = useState('')   // formatted date string when canceled
   const [cancelError,       setCancelError]       = useState('')
+
+  // On mount, check if subscription is already in 'canceling' state (persists across refreshes)
+  useEffect(() => {
+    if (!isStripePlan) return
+    fetch('/api/billing/status')
+      .then(r => r.json())
+      .then((d: { status?: string; accessUntil?: string }) => {
+        if (d.status === 'canceling' && d.accessUntil) {
+          setCanceledUntil(
+            new Date(d.accessUntil).toLocaleDateString('en-US', {
+              month: 'long', day: 'numeric', year: 'numeric',
+            })
+          )
+        }
+      })
+      .catch(() => {}) // non-fatal — UI degrades gracefully without the amber card
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isStripePlan])
 
   async function handleManageSubscription() {
     setPortalLoading(true)

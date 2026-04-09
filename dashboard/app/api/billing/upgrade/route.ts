@@ -1,13 +1,17 @@
 /**
  * GET /api/billing/upgrade?tier=starter|pro|agency
  *
- * Creates a Stripe Checkout session for upgrading from trial to a paid plan.
+ * Creates a Stripe Checkout session for new subscriptions (trial → paid).
  * Redirects the user to Stripe's hosted payment page.
  *
  * On Stripe success, the checkout.session.completed webhook fires and updates
  * the tenant's plan in Airtable.
  *
- * Security: requires authenticated session.
+ * Security:
+ *   - Requires authenticated session.
+ *   - Blocks users who already have an active Stripe subscription from reaching
+ *     Stripe Checkout. Active subscribers must use the Billing Portal to change
+ *     plans — this prevents duplicate subscription creation.
  */
 
 import { NextRequest, NextResponse } from 'next/server'
@@ -23,6 +27,9 @@ const PRICE_MAP: Record<string, string | undefined> = {
   agency:  process.env.STRIPE_PRICE_AGENCY,
 }
 
+// Plans that already have a Stripe subscription — must use portal to change tiers.
+const STRIPE_ACTIVE_PLANS = new Set(['Scout Starter', 'Scout Pro', 'Scout Agency'])
+
 export async function GET(req: NextRequest) {
   const secretKey = process.env.STRIPE_SECRET_KEY || ''
   if (!secretKey) {
@@ -36,7 +43,15 @@ export async function GET(req: NextRequest) {
   }
 
   const user  = session.user as any
+  const plan  = user.plan || ''
   const email = user.email || ''
+
+  // Guard: active subscribers must use the Billing Portal to change tiers.
+  // Allowing them here would create a duplicate Stripe subscription.
+  if (STRIPE_ACTIVE_PLANS.has(plan)) {
+    console.warn(`[billing/upgrade] Blocked active subscriber (${email}, plan=${plan}) from checkout — redirecting to portal.`)
+    return NextResponse.redirect(new URL('/settings?tab=billing&portal=1', BASE_URL))
+  }
 
   // Validate tier param
   const { searchParams } = new URL(req.url)
