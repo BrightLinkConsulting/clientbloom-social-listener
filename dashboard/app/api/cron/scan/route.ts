@@ -19,6 +19,18 @@
  *   2. /api/cron/scan-collect (15 min later) — collects any in-flight Apify runs
  *   3. /api/cron/scan-retry (20 min later) — re-runs tenants with 0 results
  *
+ * ── Staggered dispatch (anti-thundering-herd) ────────────────────────────────
+ * Without staggering, all N workers start at the same millisecond and hit
+ * Airtable simultaneously at scan-start. Even with airtableFetch retry/backoff,
+ * a 200-tenant burst generates ~2,400 simultaneous calls vs Airtable's 5 req/s
+ * limit — the backoff absorbs the load but adds latency to every scan.
+ *
+ * With DISPATCH_JITTER_MAX_MS=5000 (5 s spread), 200 workers start across a
+ * 5 s window → average ~40 calls/s instead of 2,400 calls/burst. Each scan
+ * still runs fully in parallel; only the START TIME is staggered.
+ *
+ * The orchestrator's 300 s budget comfortably absorbs the 5 s stagger overhead.
+ *
  * ── Protected by CRON_SECRET ─────────────────────────────────────────────────
  * Vercel automatically injects Authorization: Bearer <CRON_SECRET> for cron
  * invocations. The same secret is forwarded to each scan-tenant worker.
@@ -31,8 +43,15 @@ import { airtableFetch }             from '@/lib/airtable'
 // The orchestrator awaits all parallel workers concurrently.
 // Workers run in ~150s max, so 300s budget is comfortable.
 // Critical: even though N workers run at once, the orchestrator only
-// blocks for max(individual scan times) ≈ 150s — NOT sum of all scan times.
+// blocks for max(individual scan times + stagger jitter) ≈ 155s — NOT sum.
 export const maxDuration = 300
+
+// ── Stagger constant ─────────────────────────────────────────────────────────
+// Each tenant's dispatch is delayed by a random amount in [0, DISPATCH_JITTER_MAX_MS].
+// At 200 tenants this spreads simultaneous Airtable calls across ~5 s
+// instead of a single burst, reducing peak load from 2,400 req/burst to ~40 req/s.
+// Increase this value if Airtable rate-limit warnings appear in logs at scale.
+const DISPATCH_JITTER_MAX_MS = 5_000  // 5 s spread — safe for 300 s orchestrator budget
 
 const PLATFORM_TOKEN = process.env.PLATFORM_AIRTABLE_TOKEN   || ''
 const PLATFORM_BASE  = process.env.PLATFORM_AIRTABLE_BASE_ID || ''
@@ -77,11 +96,19 @@ async function getActiveTenants(): Promise<{
 
 // ── Dispatch a single scan-tenant worker ───────────────────────────────────────
 // Returns the HTTP status code (200 = dispatched OK, anything else = failed to dispatch).
+// staggerMs: caller-supplied random delay applied BEFORE the HTTP call to spread
+// simultaneous worker starts across a time window (see DISPATCH_JITTER_MAX_MS).
 async function dispatchTenantScan(
   workerUrl: string,
   cronSecret: string,
   tenant: { tenantId: string; email: string; plan: string; apifyKey?: string },
+  staggerMs = 0,
 ): Promise<{ tenantId: string; dispatched: boolean; status: number; error?: string }> {
+  // Apply stagger BEFORE opening the network connection. This is the mechanism
+  // that spreads 200 workers across a 5 s window instead of all firing at once.
+  if (staggerMs > 0) {
+    await new Promise(resolve => setTimeout(resolve, staggerMs))
+  }
   try {
     const resp = await fetch(workerUrl, {
       method: 'POST',
@@ -169,8 +196,13 @@ export async function GET(req: NextRequest) {
     const chunk = tenants.slice(i, i + CHUNK_SIZE)
     console.log(`[cron/scan] Dispatching chunk ${Math.floor(i / CHUNK_SIZE) + 1}: ${chunk.length} tenants`)
 
+    // Each tenant gets a unique random stagger in [0, DISPATCH_JITTER_MAX_MS].
+    // Using Math.random() per tenant (not index-based) ensures even distribution
+    // even if a subset of the chunk fails fast and retries quickly.
     const settled = await Promise.allSettled(
-      chunk.map(tenant => dispatchTenantScan(workerUrl, cronSecret, tenant))
+      chunk.map(tenant =>
+        dispatchTenantScan(workerUrl, cronSecret, tenant, Math.random() * DISPATCH_JITTER_MAX_MS)
+      )
     )
 
     for (const outcome of settled) {

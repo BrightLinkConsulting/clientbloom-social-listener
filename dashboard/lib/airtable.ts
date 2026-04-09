@@ -32,12 +32,18 @@ export const PROV_TOKEN   = process.env.AIRTABLE_PROVISIONING_TOKEN     || ''
 //   - Exponential base delay doubles each attempt: 1 s -> 2 s -> 4 s
 //   - Respects Retry-After header when Airtable sends one (often 1-2 s)
 //   - +-20% random jitter spreads simultaneous retriers apart
-//   - Hard cap of 30 s per wait to avoid hanging serverless functions
+//   - Hard cap of 10 s per wait — keeps total retry budget under 21 s max
+//     (1+2+4 s base × 1.2 jitter), safe for the tightest function budget
+//     (trigger-scan maxDuration=90 s, scan-tenant maxDuration=300 s)
 //   - 4xx errors other than 429 are NOT retried (they are client errors)
+//
+// Cap rationale: trigger-scan has a 90 s Vercel function budget.
+//   Old cap: 30 s × 3 retries = 90 s in waits alone — zero budget for Apify/Claude.
+//   New cap: 10 s × 3 retries = 30 s max — leaves 60 s for actual work.
 
 const RETRY_MAX     = 3       // additional attempts after first try
 const RETRY_BASE_MS = 1_000   // 1 s base delay
-const RETRY_CAP_MS  = 30_000  // 30 s ceiling per wait
+const RETRY_CAP_MS  = 10_000  // 10 s ceiling per wait (was 30 s — see rationale above)
 
 /**
  * Drop-in replacement for fetch() for all Airtable API calls.

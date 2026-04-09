@@ -315,14 +315,24 @@ export async function saveScoredPosts(tenantId: string, scored: any[]): Promise<
     await airtableBatchCreate('Captured Posts', tenantId, recordsToSave)
     return recordsToSave.length
   } catch (error) {
-    console.error('[saveScoredPosts] Batch create failed:', error)
-    // Fallback: try individual creates
+    console.error('[saveScoredPosts] Batch create failed, falling back to individual creates:', error)
+
+    // Rate-limit guard: if the batch failed due to a sustained 429 (after airtableFetch
+    // exhausted all retries), immediately firing 10 individual creates would amplify the
+    // load up to 40× (10 records × up to 4 attempts each). A 2 s pause gives Airtable's
+    // per-second quota time to recover before the fallback adds more pressure.
+    await new Promise(resolve => setTimeout(resolve, 2_000))
+
+    // Fallback: individual creates — airtableCreate has its own retry via airtableFetch
     let saved = 0
     for (const record of recordsToSave) {
       try {
         await airtableCreate('Captured Posts', tenantId, record.fields)
         saved++
-      } catch { /* skip duplicates */ }
+      } catch { /* skip record — likely duplicate or persistent 429 */ }
+    }
+    if (saved < recordsToSave.length) {
+      console.warn(`[saveScoredPosts] Individual fallback: saved ${saved}/${recordsToSave.length} records`)
     }
     return saved
   }
