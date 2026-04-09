@@ -75,28 +75,58 @@ function ClientBloomMark({ size = 28 }: { size?: number }) {
 }
 
 function Nav() {
+  const { data: session } = useSession()
+  const plan        = (session?.user as any)?.plan       || ''
+  const trialEndsAt = (session?.user as any)?.trialEndsAt || null
+  const isTrial     = plan === 'Trial'
+  const daysLeft    = trialEndsAt
+    ? Math.max(0, Math.ceil((new Date(trialEndsAt).getTime() - Date.now()) / 86_400_000))
+    : null
+
   return (
-    <header className="sticky top-0 z-20 border-b border-slate-800/80 bg-[#0a0c10]/95 backdrop-blur-md">
-      <div className="max-w-3xl mx-auto px-5 py-3.5 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <ClientBloomMark size={28} />
-          <div>
-            <p className="text-sm font-semibold text-white leading-tight">Scout by ClientBloom</p>
-            <span className="text-xs text-emerald-400 flex items-center gap-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              Live · 2× daily
-            </span>
-          </div>
+    <header className="sticky top-0 z-20">
+      {/* ── Trial countdown banner — visible only on active 7-day trials ── */}
+      {isTrial && (daysLeft === null || daysLeft > 0) && (
+        <div
+          style={{ boxShadow: '0 0 10px 2px rgba(139,92,246,0.3)' }}
+          className="w-full bg-gradient-to-r from-violet-950/95 via-purple-900/95 to-violet-950/95 border-b border-violet-700/40 flex items-center justify-center gap-3 px-4 py-1.5 text-xs tracking-wide"
+        >
+          <span className="relative flex h-1.5 w-1.5 shrink-0">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-violet-400 opacity-60" />
+            <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-violet-400" />
+          </span>
+          <span className="text-violet-200 font-medium">Free Trial</span>
+          <span className="text-violet-500 select-none">·</span>
+          <span className="text-violet-300/80">
+            {daysLeft === 1 ? '1 day left' : daysLeft !== null ? `${daysLeft} days left` : 'Active'}
+          </span>
+          <Link href="/upgrade" className="ml-1 text-violet-300 font-semibold underline underline-offset-2 decoration-violet-500/50 hover:text-white transition-colors duration-150">
+            Upgrade
+          </Link>
         </div>
-        <nav className="flex items-center gap-1">
-          <Link href="/" className="text-xs px-3 py-1.5 rounded-lg font-medium transition-colors text-slate-400 hover:text-white hover:bg-slate-800/60">
-            Feed
-          </Link>
-          <Link href="/settings" className="text-xs px-3 py-1.5 rounded-lg font-medium transition-colors bg-slate-800 text-white">
-            Settings
-          </Link>
-          <SettingsUserMenu />
-        </nav>
+      )}
+      <div className="border-b border-slate-800/80 bg-[#0a0c10]/95 backdrop-blur-md">
+        <div className="max-w-3xl mx-auto px-5 py-3.5 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <ClientBloomMark size={28} />
+            <div>
+              <p className="text-sm font-semibold text-white leading-tight">Scout by ClientBloom</p>
+              <span className="text-xs text-emerald-400 flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                Live · 2× daily
+              </span>
+            </div>
+          </div>
+          <nav className="flex items-center gap-1">
+            <Link href="/" className="text-xs px-3 py-1.5 rounded-lg font-medium transition-colors text-slate-400 hover:text-white hover:bg-slate-800/60">
+              Feed
+            </Link>
+            <Link href="/settings" className="text-xs px-3 py-1.5 rounded-lg font-medium transition-colors bg-slate-800 text-white">
+              Settings
+            </Link>
+            <SettingsUserMenu />
+          </nav>
+        </div>
       </div>
     </header>
   )
