@@ -75,28 +75,71 @@ function ClientBloomMark({ size = 28 }: { size?: number }) {
 }
 
 function Nav() {
+  const { data: session } = useSession()
+  const plan        = (session?.user as any)?.plan       || ''
+  const trialEndsAt = (session?.user as any)?.trialEndsAt || null
+  const isTrial     = plan === 'Trial'
+  const daysLeft    = trialEndsAt
+    ? Math.max(0, Math.ceil((new Date(trialEndsAt).getTime() - Date.now()) / 86_400_000))
+    : null
+
   return (
-    <header className="sticky top-0 z-20 border-b border-slate-800/80 bg-[#0a0c10]/95 backdrop-blur-md">
-      <div className="max-w-3xl mx-auto px-5 py-3.5 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <ClientBloomMark size={28} />
-          <div>
-            <p className="text-sm font-semibold text-white leading-tight">Scout by ClientBloom</p>
-            <span className="text-xs text-emerald-400 flex items-center gap-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              Live · 2× daily
-            </span>
-          </div>
+    <header className="sticky top-0 z-20">
+      {/* ── Trial countdown banner — visible only on active 7-day trials ── */}
+      {/* keyframes for the flowing gradient on the trial banner */}
+      <style>{`
+        @keyframes trial-gradient {
+          0%   { background-position: 0% 50%; }
+          50%  { background-position: 100% 50%; }
+          100% { background-position: 0% 50%; }
+        }
+      `}</style>
+      {isTrial && (daysLeft === null || daysLeft > 0) && (
+        <div
+          style={{
+            background: 'linear-gradient(90deg, #1e0938 0%, #3b0764 20%, #6d28d9 45%, #9333ea 55%, #3b0764 80%, #1e0938 100%)',
+            backgroundSize: '300% 100%',
+            animation: 'trial-gradient 6s ease infinite',
+            boxShadow: '0 0 12px 2px rgba(139,92,246,0.35)',
+          }}
+          className="w-full border-b border-violet-700/40 flex items-center justify-center gap-3 px-4 py-1.5 text-xs tracking-wide"
+        >
+          <span className="relative flex h-1.5 w-1.5 shrink-0">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-violet-400 opacity-60" />
+            <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-violet-400" />
+          </span>
+          <span className="text-violet-200 font-medium">Free Trial</span>
+          <span className="text-violet-500 select-none">·</span>
+          <span className="text-violet-300/80">
+            {daysLeft === 1 ? '1 day left' : daysLeft !== null ? `${daysLeft} days left` : 'Active'}
+          </span>
+          <Link href="/upgrade" className="ml-1 text-violet-300 font-semibold underline underline-offset-2 decoration-violet-500/50 hover:text-white transition-colors duration-150">
+            Upgrade
+          </Link>
         </div>
-        <nav className="flex items-center gap-1">
-          <Link href="/" className="text-xs px-3 py-1.5 rounded-lg font-medium transition-colors text-slate-400 hover:text-white hover:bg-slate-800/60">
-            Feed
-          </Link>
-          <Link href="/settings" className="text-xs px-3 py-1.5 rounded-lg font-medium transition-colors bg-slate-800 text-white">
-            Settings
-          </Link>
-          <SettingsUserMenu />
-        </nav>
+      )}
+      <div className="border-b border-slate-800/80 bg-[#0a0c10]/95 backdrop-blur-md">
+        <div className="max-w-3xl mx-auto px-5 py-3.5 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <ClientBloomMark size={28} />
+            <div>
+              <p className="text-sm font-semibold text-white leading-tight">Scout by ClientBloom</p>
+              <span className="text-xs text-emerald-400 flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                Live · 2× daily
+              </span>
+            </div>
+          </div>
+          <nav className="flex items-center gap-1">
+            <Link href="/" className="text-xs px-3 py-1.5 rounded-lg font-medium transition-colors text-slate-400 hover:text-white hover:bg-slate-800/60">
+              Feed
+            </Link>
+            <Link href="/settings" className="text-xs px-3 py-1.5 rounded-lg font-medium transition-colors bg-slate-800 text-white">
+              Settings
+            </Link>
+            <SettingsUserMenu />
+          </nav>
+        </div>
       </div>
     </header>
   )
@@ -847,7 +890,13 @@ const ICP_JOB_TITLES = [
   'Consultant', 'Business Owner', 'Entrepreneur', 'Independent Advisor',
 ]
 
+const TRIAL_PROFILE_LIMIT = 25
+
 function LinkedInICPSection() {
+  const { data: icpSession } = useSession()
+  const icpPlan          = (icpSession?.user as any)?.plan || 'Trial'
+  const isTrial          = icpPlan === 'Trial'
+
   const [profiles, setProfiles]       = useState<IcpProfile[]>([])
   const [loading, setLoading]         = useState(true)
   const [toggling, setToggling]       = useState<string | null>(null)
@@ -927,6 +976,10 @@ function LinkedInICPSection() {
   }
 
   const handleAddManual = async () => {
+    if (isTrial && profiles.length >= TRIAL_PROFILE_LIMIT) {
+      setError(`Free trial is limited to ${TRIAL_PROFILE_LIMIT} profiles. Upgrade to monitor more.`)
+      return
+    }
     if (!newUrl.trim()) { setError('LinkedIn profile URL is required.'); return }
     if (!newUrl.includes('linkedin.com/in/')) {
       setError('Must be a LinkedIn profile URL (linkedin.com/in/...)')
@@ -957,7 +1010,13 @@ function LinkedInICPSection() {
     }
   }
 
+  const trialAtProfileLimit = isTrial && profiles.length >= TRIAL_PROFILE_LIMIT
+
   const handleDiscover = async () => {
+    if (trialAtProfileLimit) {
+      setError(`Free trial is limited to ${TRIAL_PROFILE_LIMIT} profiles. Upgrade to discover and monitor more.`)
+      return
+    }
     if (!discTitles.length) { setError('Add at least one job title to search.'); return }
     setDiscovering(true)
     setDiscResult('')
@@ -1023,6 +1082,24 @@ function LinkedInICPSection() {
         <div className="mb-4 px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/20 text-xs text-red-400 flex items-start justify-between gap-2">
           <span>{error}</span>
           <button onClick={() => setError('')} className="shrink-0 opacity-60 hover:opacity-100">×</button>
+        </div>
+      )}
+
+      {/* Trial profile cap banner */}
+      {isTrial && !loading && (
+        <div className={`rounded-xl px-3 py-2.5 mb-4 flex items-center gap-2 text-xs border ${
+          profiles.length >= TRIAL_PROFILE_LIMIT
+            ? 'bg-red-500/10 border-red-500/20 text-red-400'
+            : 'bg-violet-500/10 border-violet-500/20 text-violet-300'
+        }`}>
+          <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          {profiles.length >= TRIAL_PROFILE_LIMIT ? (
+            <>Profile limit reached ({TRIAL_PROFILE_LIMIT}/{TRIAL_PROFILE_LIMIT}). <a href="/upgrade" className="ml-1 font-semibold underline underline-offset-2 hover:text-violet-200 transition-colors">Upgrade to add more.</a></>
+          ) : (
+            <>{profiles.length} of {TRIAL_PROFILE_LIMIT} free trial profile slots used</>
+          )}
         </div>
       )}
 
@@ -1815,6 +1892,10 @@ const SLACK_STEPS = [
 ]
 
 function SlackIntegrationSection() {
+  const { data: slackSession } = useSession()
+  const slackPlan = (slackSession?.user as any)?.plan || 'Trial'
+  const slackUnlocked = slackPlan === 'Scout Pro' || slackPlan === 'Scout Agency' || slackPlan === 'Owner'
+
   const [botToken,      setBotToken]      = useState('')
   const [channelId,     setChannelId]     = useState('')
   const [channelName,   setChannelName]   = useState('')
@@ -1898,6 +1979,31 @@ function SlackIntegrationSection() {
   }
 
   if (loading) return null
+
+  // Gate: Slack is only available on Pro and Agency plans
+  if (!slackUnlocked) {
+    return (
+      <Section
+        title="Slack Integration"
+        description="The daily digest and scan alerts are delivered via Slack. Required for the digest to work."
+      >
+        <div className="rounded-xl bg-slate-800/30 border border-violet-700/30 px-4 py-4 flex items-start gap-3">
+          <svg className="w-4 h-4 text-violet-400 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+          </svg>
+          <div>
+            <p className="text-xs font-semibold text-violet-300 mb-1">Available on Pro and Agency plans</p>
+            <p className="text-xs text-slate-500 leading-relaxed">
+              Connect Slack to receive an AI-written daily digest of your highest-scored posts with comment angles, delivered every morning.
+            </p>
+            <a href="/upgrade" className="inline-block mt-2 text-xs font-semibold text-violet-400 hover:text-violet-300 transition-colors underline underline-offset-2 decoration-violet-600">
+              Upgrade to unlock →
+            </a>
+          </div>
+        </div>
+      </Section>
+    )
+  }
 
   const isConfigured = !!botToken && !!channelName
 
@@ -2061,6 +2167,10 @@ const CRM_INSTRUCTIONS: Record<string, { title: string; steps: string[] }> = {
 }
 
 function CRMIntegrationSection() {
+  const { data: crmSession } = useSession()
+  const crmPlan = (crmSession?.user as any)?.plan || 'Trial'
+  const crmUnlocked = crmPlan === 'Scout Pro' || crmPlan === 'Scout Agency' || crmPlan === 'Owner'
+
   const [crmType,       setCrmType]       = useState('None')
   const [crmApiKey,     setCrmApiKey]     = useState('')
   const [crmPipelineId, setCrmPipelineId] = useState('')
@@ -2137,6 +2247,30 @@ function CRMIntegrationSection() {
   const instructions = crmType !== 'None' ? CRM_INSTRUCTIONS[crmType] : null
 
   if (loading) return null
+
+  if (!crmUnlocked) {
+    return (
+      <Section
+        title="CRM Integration"
+        description="Push engaged contacts directly into your CRM with one click from the feed."
+      >
+        <div className="rounded-xl bg-slate-800/30 border border-violet-700/30 px-4 py-4 flex items-start gap-3">
+          <svg className="w-4 h-4 text-violet-400 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+          </svg>
+          <div>
+            <p className="text-xs font-semibold text-violet-300 mb-1">Available on Pro and Agency plans</p>
+            <p className="text-xs text-slate-500 leading-relaxed">
+              Connect GoHighLevel or HubSpot to push engaged contacts into your CRM with a single click directly from the Scout feed.
+            </p>
+            <a href="/upgrade" className="inline-block mt-2 text-xs font-semibold text-violet-400 hover:text-violet-300 transition-colors underline underline-offset-2 decoration-violet-600">
+              Upgrade to unlock →
+            </a>
+          </div>
+        </div>
+      </Section>
+    )
+  }
 
   return (
     <Section
@@ -2424,6 +2558,10 @@ interface TeamMember {
 }
 
 function TeamSection() {
+  const { data: teamSession } = useSession()
+  const teamPlan   = (teamSession?.user as any)?.plan || 'Trial'
+  const isTrialTeam = teamPlan === 'Trial'
+
   const [members,     setMembers]     = useState<TeamMember[]>([])
   const [loadingList, setLoadingList] = useState(true)
   const [inviteEmail, setInviteEmail] = useState('')
@@ -2569,7 +2707,22 @@ function TeamSection() {
         ) : null}
 
         {/* Invite form */}
-        {atLimit ? (
+        {isTrialTeam ? (
+          <div className="rounded-xl bg-slate-800/30 border border-violet-700/30 px-4 py-4 flex items-start gap-3">
+            <svg className="w-4 h-4 text-violet-400 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+            </svg>
+            <div>
+              <p className="text-xs font-semibold text-violet-300 mb-1">Team access is a paid feature</p>
+              <p className="text-xs text-slate-500 leading-relaxed">
+                Inviting teammates is available on any paid plan. Upgrade to give your team read-only access to the Scout feed.
+              </p>
+              <a href="/upgrade" className="inline-block mt-2 text-xs font-semibold text-violet-400 hover:text-violet-300 transition-colors underline underline-offset-2 decoration-violet-600">
+                Upgrade to unlock →
+              </a>
+            </div>
+          </div>
+        ) : atLimit ? (
           <div className="rounded-xl bg-slate-800/30 border border-slate-700/30 px-4 py-3 text-xs text-slate-500">
             You've reached the limit of 1 team member on this plan. Remove the existing member to invite someone new.
           </div>
@@ -2758,14 +2911,13 @@ function PlanBillingSection() {
         </p>
       </div>
 
-      {/* Agency workspace note */}
+      {/* Agency plan capacity note */}
       {plan === 'Scout Agency' && (
         <div className="rounded-2xl bg-purple-900/10 border border-purple-700/30 p-5">
-          <p className="text-sm font-semibold text-purple-300 mb-1">Multi-client workspace isolation — coming Q3</p>
+          <p className="text-sm font-semibold text-purple-300 mb-1">Agency plan — extended limits</p>
           <p className="text-xs text-slate-400 leading-relaxed">
-            Your Agency plan includes up to 5 isolated client workspaces with separate feeds, keyword sets, and ICP profiles per client.
-            This feature is in development and ships Q3. In the meantime, you have access to all 20 keyword searches and 15 ICP profiles
-            within your single workspace — more than enough to manage multiple clients today.
+            Your Agency plan includes 20 keyword searches, 15 ICP profiles, and 5 seats —
+            giving your team full capacity to manage outreach across multiple clients from a single workspace.
           </p>
         </div>
       )}

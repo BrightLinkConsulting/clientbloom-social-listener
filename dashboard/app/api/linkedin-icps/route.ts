@@ -1,8 +1,24 @@
 import { NextResponse } from 'next/server'
 import { getTenantConfig, tenantError } from '@/lib/tenant'
 import { airtableList, airtableCreate, SHARED_BASE, PROV_TOKEN, tenantFilter } from '@/lib/airtable'
+import { getTierLimits } from '@/lib/tier'
 
 const TABLE = 'LinkedIn ICPs'
+
+// ── Count active ICP profiles for a tenant ────────────────────────────────────
+async function countIcpProfiles(tenantId: string): Promise<number> {
+  const url = new URL(`https://api.airtable.com/v0/${SHARED_BASE}/${encodeURIComponent(TABLE)}`)
+  url.searchParams.set('filterByFormula', `AND(${tenantFilter(tenantId)},{Active}=1)`)
+  url.searchParams.set('fields[]', 'Active')
+  url.searchParams.set('pageSize', '100')
+  const resp = await fetch(url.toString(), {
+    headers: { Authorization: `Bearer ${PROV_TOKEN}` },
+    cache: 'no-store',
+  })
+  if (!resp.ok) throw new Error(`Airtable count failed: ${resp.status}`)
+  const data = await resp.json()
+  return (data.records ?? []).length
+}
 
 export async function GET() {
   const tenant = await getTenantConfig()
@@ -53,7 +69,7 @@ export async function GET() {
 export async function POST(req: Request) {
   const tenant = await getTenantConfig()
   if (!tenant) return tenantError()
-  const { tenantId } = tenant
+  const { tenantId, plan } = tenant
 
   try {
     const body = await req.json()
@@ -63,6 +79,28 @@ export async function POST(req: Request) {
       return NextResponse.json(
         { error: 'Profile URL must be a LinkedIn profile URL (linkedin.com/in/...)' },
         { status: 400 }
+      )
+    }
+
+    // ── Plan limit enforcement ────────────────────────────────────────────
+    const { profiles: profileLimit } = getTierLimits(plan)
+    try {
+      const currentCount = await countIcpProfiles(tenantId)
+      if (currentCount >= profileLimit) {
+        return NextResponse.json(
+          {
+            error:   `You've reached the ${profileLimit} ICP profile limit for your plan. Upgrade to add more.`,
+            limit:   profileLimit,
+            current: currentCount,
+          },
+          { status: 429 }
+        )
+      }
+    } catch (e: any) {
+      console.error('[linkedin-icps] Profile count check failed:', e.message)
+      return NextResponse.json(
+        { error: 'Could not verify plan limits. Please try again.' },
+        { status: 503 }
       )
     }
 

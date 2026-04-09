@@ -157,8 +157,8 @@ async function sendWelcomeEmail(email: string, companyName: string, password: st
 
 async function sendAdminNotification(event: string, email: string, details: string) {
   const resendKey  = process.env.RESEND_API_KEY
-  const adminEmail = process.env.ADMIN_EMAIL || 'twp1996@gmail.com'
-  if (!resendKey) return
+  const adminEmail = process.env.ADMIN_EMAIL || ''
+  if (!resendKey || !adminEmail) return
 
   await fetch('https://api.resend.com/emails', {
     method: 'POST',

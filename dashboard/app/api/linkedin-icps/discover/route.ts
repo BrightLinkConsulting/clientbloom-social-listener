@@ -1,8 +1,51 @@
 import { NextResponse } from 'next/server'
 import { getTenantConfig, tenantError } from '@/lib/tenant'
 import { airtableList, airtableCreate, SHARED_BASE, PROV_TOKEN, tenantFilter } from '@/lib/airtable'
+import { getTierLimits, isPaidPlan } from '@/lib/tier'
 
-const TABLE = 'LinkedIn ICPs'
+const TABLE          = 'LinkedIn ICPs'
+const PLATFORM_TOKEN = process.env.PLATFORM_AIRTABLE_TOKEN   || ''
+const PLATFORM_BASE  = process.env.PLATFORM_AIRTABLE_BASE_ID || ''
+
+// Cooldown window per plan: paid = 15 min, trial = 1 hour
+const COOLDOWN_MS = {
+  paid:  15  * 60 * 1000,
+  trial: 60  * 60 * 1000,
+}
+
+// ── Read + write Last ICP Discovery At on the tenant record ───────────────────
+
+async function getLastDiscoveryAt(tenantId: string): Promise<{ recordId: string; lastAt: string | null } | null> {
+  if (!PLATFORM_TOKEN || !PLATFORM_BASE) return null
+  try {
+    const filter = tenantId === 'owner'
+      ? `OR({Tenant ID}='owner',{Tenant ID}='')`
+      : `{Tenant ID}='${tenantId}'`
+    const url = new URL(`https://api.airtable.com/v0/${PLATFORM_BASE}/${encodeURIComponent('Tenants')}`)
+    url.searchParams.set('filterByFormula', filter)
+    url.searchParams.set('fields[]', 'Last ICP Discovery At')
+    url.searchParams.set('maxRecords', '1')
+    const resp = await fetch(url.toString(), { headers: { Authorization: `Bearer ${PLATFORM_TOKEN}` } })
+    if (!resp.ok) return null
+    const data = await resp.json()
+    const rec  = data.records?.[0]
+    if (!rec) return null
+    return { recordId: rec.id, lastAt: rec.fields?.['Last ICP Discovery At'] || null }
+  } catch { return null }
+}
+
+async function recordDiscoveryTimestamp(recordId: string): Promise<void> {
+  if (!PLATFORM_TOKEN || !PLATFORM_BASE) return
+  try {
+    await fetch(`https://api.airtable.com/v0/${PLATFORM_BASE}/${encodeURIComponent('Tenants')}/${recordId}`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${PLATFORM_TOKEN}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fields: { 'Last ICP Discovery At': new Date().toISOString() } }),
+    })
+  } catch (e) {
+    console.error('[discover] Failed to record Last ICP Discovery At:', e)
+  }
+}
 
 /**
  * POST /api/linkedin-icps/discover
@@ -10,17 +53,19 @@ const TABLE = 'LinkedIn ICPs'
  * Body: { jobTitles: string[], keywords: string[], maxProfiles: number }
  *
  * Flow:
- *  1. Build Google search queries from job titles + keywords
- *  2. Run apify/google-search-scraper
- *  3. Extract LinkedIn profile URLs from organic results
- *  4. Fetch existing profile URLs from Airtable to avoid duplicates
- *  5. Save new profiles as "discovered" records in LinkedIn ICPs table
- *  6. Return { added, skipped, profiles }
+ *  1. Rate-limit check (15 min for paid, 60 min for trial) — protect Apify spend
+ *  2. Enforce ICP profile count against plan limit
+ *  3. Build Google search queries from job titles + keywords
+ *  4. Run apify/google-search-scraper
+ *  5. Extract LinkedIn profile URLs from organic results
+ *  6. Fetch existing profile URLs from Airtable to avoid duplicates
+ *  7. Save new profiles as "discovered" records in LinkedIn ICPs table
+ *  8. Return { added, skipped, profiles }
  */
 export async function POST(req: Request) {
   const tenant = await getTenantConfig()
   if (!tenant) return tenantError()
-  const { tenantId } = tenant
+  const { tenantId, plan } = tenant
 
   const APIFY_TOKEN = process.env.APIFY_API_TOKEN
 
@@ -34,7 +79,42 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Discovery is not configured on this platform.' }, { status: 500 })
     }
 
-    const cap = Math.min(Number(maxProfiles) || 50, 200)
+    // ── Rate limit: prevent repeated discovery calls (Apify cost protection) ──
+    const cooldownMs = isPaidPlan(plan) ? COOLDOWN_MS.paid : COOLDOWN_MS.trial
+    const discovery  = await getLastDiscoveryAt(tenantId)
+    if (discovery?.lastAt) {
+      const msSinceLast = Date.now() - new Date(discovery.lastAt).getTime()
+      if (msSinceLast < cooldownMs) {
+        const waitMins = Math.ceil((cooldownMs - msSinceLast) / 60_000)
+        return NextResponse.json(
+          { error: `Please wait ${waitMins} more minute${waitMins === 1 ? '' : 's'} before running discovery again.`, retryAfter: waitMins * 60 },
+          { status: 429 }
+        )
+      }
+    }
+
+    // ── ICP profile count cap (plan limit) ────────────────────────────────────
+    const { profiles: profileLimit } = getTierLimits(plan)
+    const existingCountUrl = new URL(`https://api.airtable.com/v0/${SHARED_BASE}/${encodeURIComponent(TABLE)}`)
+    existingCountUrl.searchParams.set('filterByFormula', `AND(${tenantFilter(tenantId)},{Active}=1)`)
+    existingCountUrl.searchParams.set('fields[]', 'Active')
+    existingCountUrl.searchParams.set('pageSize', '100')
+    const countResp = await fetch(existingCountUrl.toString(), { headers: { Authorization: `Bearer ${PROV_TOKEN}` } })
+    const countData = await countResp.json()
+    const existingCount = (countData.records ?? []).length
+    if (existingCount >= profileLimit) {
+      return NextResponse.json(
+        {
+          error:   `You've reached the ${profileLimit} ICP profile limit for your plan. Upgrade to add more.`,
+          limit:   profileLimit,
+          current: existingCount,
+        },
+        { status: 429 }
+      )
+    }
+
+    // Cap new profiles to remaining slots in the plan (max 200 absolute)
+    const cap = Math.min(Number(maxProfiles) || 50, Math.min(profileLimit - existingCount, 200))
 
     // ---- Build search queries ----
     const keywordStr = keywords.map((k: string) => `"${k}"`).join(' ')
@@ -169,6 +249,11 @@ export async function POST(req: Request) {
           source:     'discovered',
         })))
       }
+    }
+
+    // ── Record timestamp so cooldown kicks in on next call ────────────────────
+    if (discovery?.recordId) {
+      await recordDiscoveryTimestamp(discovery.recordId)
     }
 
     return NextResponse.json({

@@ -9,9 +9,9 @@
  * instead of requiring per-tenant credentials.
  *
  * Platform Airtable Tenants table requires 3 fields (add if missing):
- *   - "Posts This Month"    (Number)
- *   - "Est Cost"            (Number)
- *   - "Usage Synced At"     (Date/time, ISO 8601)
+ *   - "Post Count"       (Number)
+ *   - "Est Cost"         (Number)
+ *   - "Usage Synced At"  (Date/time, ISO 8601)
  *
  * Secured by CRON_SECRET env var (set in Vercel project settings).
  */

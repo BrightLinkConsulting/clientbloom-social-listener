@@ -41,6 +41,7 @@ const PLATFORM_BASE  = process.env.PLATFORM_AIRTABLE_BASE_ID || ''
 async function getActiveTenants(): Promise<{
   tenantId: string
   email:    string
+  plan:     string
   apifyKey?: string
 }[]> {
   if (!PLATFORM_TOKEN || !PLATFORM_BASE) {
@@ -54,6 +55,7 @@ async function getActiveTenants(): Promise<{
   url.searchParams.set('filterByFormula', `AND({Status}='Active',{Is Feed Only}!=1)`)
   url.searchParams.set('fields[]', 'Tenant ID')
   url.searchParams.append('fields[]', 'Email')
+  url.searchParams.append('fields[]', 'Plan')
   url.searchParams.append('fields[]', 'Apify API Key')
   url.searchParams.set('pageSize', '100')
 
@@ -68,6 +70,7 @@ async function getActiveTenants(): Promise<{
   return (data.records || []).map((r: any) => ({
     tenantId: r.fields['Tenant ID']     || 'owner',
     email:    r.fields['Email']         || '',
+    plan:     r.fields['Plan']          || '',
     apifyKey: r.fields['Apify API Key'] || undefined,
   }))
 }
@@ -77,7 +80,7 @@ async function getActiveTenants(): Promise<{
 async function dispatchTenantScan(
   workerUrl: string,
   cronSecret: string,
-  tenant: { tenantId: string; email: string; apifyKey?: string },
+  tenant: { tenantId: string; email: string; plan: string; apifyKey?: string },
 ): Promise<{ tenantId: string; dispatched: boolean; status: number; error?: string }> {
   try {
     const resp = await fetch(workerUrl, {
@@ -89,6 +92,7 @@ async function dispatchTenantScan(
       body: JSON.stringify({
         tenantId: tenant.tenantId,
         email:    tenant.email,
+        plan:     tenant.plan,
         apifyKey: tenant.apifyKey,
       }),
       // Signal.timeout not available in all environments — use a generous absolute timeout

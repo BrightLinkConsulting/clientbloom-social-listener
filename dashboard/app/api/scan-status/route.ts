@@ -7,11 +7,10 @@
  * Response:
  * {
  *   lastScanAt:     ISO string | null,
- *   lastScanStatus: "success" | "partial" | "failed" | "pending_fb" | null,
+ *   lastScanStatus: "success" | "partial" | "failed" | null,
  *   lastPostsFound: number,
  *   lastScanSource: string | null,
- *   lastError:      string | null,
- *   fbPending:      boolean   // true when async Facebook run is still in flight
+ *   lastError:      string | null
  * }
  */
 
@@ -35,7 +34,6 @@ export async function GET() {
       lastPostsFound: 0,
       lastScanSource: null,
       lastError:      null,
-      fbPending:      false,
     })
   }
 
@@ -45,6 +43,5 @@ export async function GET() {
     lastPostsFound: health.lastPostsFound,
     lastScanSource: health.lastScanSource,
     lastError:      health.lastError,
-    fbPending:      !!(health.fbRunId),
   })
 }

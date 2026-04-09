@@ -453,7 +453,7 @@ export default function LandingPage() {
           {/* Post-comparison CTA — high-intent moment */}
           <div className="mt-12 flex flex-col items-center gap-4">
             <NeonButton href={CHECKOUT_URL} variant="solid" size="lg">
-              Start Your Free 14-Day Trial
+              Start Your Free 7-Day Trial
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
               </svg>

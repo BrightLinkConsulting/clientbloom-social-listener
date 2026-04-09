@@ -235,6 +235,8 @@ function PostCard({
   const [crmPushing,       setCrmPushing]        = useState(false)
   const [crmPushed,        setCrmPushed]         = useState(!!post.fields['CRM Pushed At'])
   const [crmError,         setCrmError]          = useState('')
+  const [suggestApproach,  setSuggestApproach]   = useState('')
+  const [suggestLoading,   setSuggestLoading]    = useState(false)
 
   const f              = post.fields
   const text           = f['Post Text'] || ''
@@ -404,30 +406,72 @@ function PostCard({
           </div>
         )}
 
-        {/* Suggested angle — expandable with copy button */}
-        {f['Comment Approach'] && (
-          <div className="mb-4">
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setAngleOpen(!angleOpen)}
-                className="flex items-center gap-1.5 text-xs text-blue-400 hover:text-blue-300 transition-colors"
-              >
-                <svg className={`w-3 h-3 transition-transform duration-150 ${angleOpen ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-                Suggested comment angle
-              </button>
-              <CopyButton text={f['Comment Approach']} />
-            </div>
-            {angleOpen && (
-              <div className="mt-2 p-3.5 rounded-xl bg-blue-950/40 border border-blue-500/15">
-                <p className="text-sm text-slate-300 leading-relaxed italic">
-                  &ldquo;{f['Comment Approach']}&rdquo;
-                </p>
+        {/* Suggested angle — expandable with copy button, or generate on-demand */}
+        {(() => {
+          const approach = f['Comment Approach'] || suggestApproach
+          if (approach) {
+            return (
+              <div className="mb-4">
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setAngleOpen(!angleOpen)}
+                    className="flex items-center gap-1.5 text-xs text-blue-400 hover:text-blue-300 transition-colors"
+                  >
+                    <svg className={`w-3 h-3 transition-transform duration-150 ${angleOpen ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                    Suggested comment angle
+                  </button>
+                  <CopyButton text={approach} />
+                </div>
+                {angleOpen && (
+                  <div className="mt-2 p-3.5 rounded-xl bg-blue-950/40 border border-blue-500/15">
+                    <p className="text-sm text-slate-300 leading-relaxed italic">
+                      &ldquo;{approach}&rdquo;
+                    </p>
+                  </div>
+                )}
               </div>
-            )}
-          </div>
-        )}
+            )
+          }
+          // No comment approach yet — show generate button
+          return (
+            <div className="mb-4">
+              <button
+                disabled={suggestLoading}
+                onClick={async () => {
+                  setSuggestLoading(true)
+                  setAngleOpen(true)
+                  try {
+                    const res = await fetch(`/api/posts/${post.id}/suggest`, { method: 'POST' })
+                    if (res.ok) {
+                      const d = await res.json()
+                      if (d.commentApproach) setSuggestApproach(d.commentApproach)
+                    }
+                  } catch {}
+                  setSuggestLoading(false)
+                }}
+                className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-blue-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {suggestLoading ? (
+                  <>
+                    <svg className="w-3 h-3 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    Generating comment idea…
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    </svg>
+                    Generate comment idea
+                  </>
+                )}
+              </button>
+            </div>
+          )
+        })()}
 
         {/* Score reason */}
         {f['Score Reason'] && !isSkipped && (
@@ -856,6 +900,12 @@ function Nav({ lastScannedAt, scanHealth }: { lastScannedAt: string | null; scan
   const [tick, setTick] = useState(0)
   const { data: session } = useSession()
   const isFeedOnly = (session?.user as any)?.isFeedOnly ?? false
+  const plan        = (session?.user as any)?.plan       || ''
+  const trialEndsAt = (session?.user as any)?.trialEndsAt || null
+  const isTrial     = plan === 'Trial'
+  const daysLeft    = trialEndsAt
+    ? Math.max(0, Math.ceil((new Date(trialEndsAt).getTime() - Date.now()) / 86_400_000))
+    : null
 
   // Re-render time-ago labels every minute
   useEffect(() => {
@@ -864,7 +914,42 @@ function Nav({ lastScannedAt, scanHealth }: { lastScannedAt: string | null; scan
   }, [])
 
   return (
-    <header className="sticky top-0 z-20 border-b border-slate-800/80 bg-[#0a0c10]/95 backdrop-blur-md">
+    <header className="sticky top-0 z-20">
+
+      {/* ── Trial countdown banner — visible only on active 7-day trials ── */}
+      {/* keyframes for the flowing gradient on the trial banner */}
+      <style>{`
+        @keyframes trial-gradient {
+          0%   { background-position: 0% 50%; }
+          50%  { background-position: 100% 50%; }
+          100% { background-position: 0% 50%; }
+        }
+      `}</style>
+      {isTrial && (daysLeft === null || daysLeft > 0) && (
+        <div
+          style={{
+            background: 'linear-gradient(90deg, #1e0938 0%, #3b0764 20%, #6d28d9 45%, #9333ea 55%, #3b0764 80%, #1e0938 100%)',
+            backgroundSize: '300% 100%',
+            animation: 'trial-gradient 6s ease infinite',
+            boxShadow: '0 0 12px 2px rgba(139,92,246,0.35)',
+          }}
+          className="w-full border-b border-violet-700/40 flex items-center justify-center gap-3 px-4 py-1.5 text-xs tracking-wide"
+        >
+          <span className="relative flex h-1.5 w-1.5 shrink-0">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-violet-400 opacity-60" />
+            <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-violet-400" />
+          </span>
+          <span className="text-violet-200 font-medium">Free Trial</span>
+          <span className="text-violet-500 select-none">·</span>
+          <span className="text-violet-300/80">
+            {daysLeft === 1 ? '1 day left' : daysLeft !== null ? `${daysLeft} days left` : 'Active'}
+          </span>
+          <Link href="/upgrade" className="ml-1 text-violet-300 font-semibold underline underline-offset-2 decoration-violet-500/50 hover:text-white transition-colors duration-150">
+            Upgrade
+          </Link>
+        </div>
+      )}
+      <div className="border-b border-slate-800/80 bg-[#0a0c10]/95 backdrop-blur-md">
       <div className="max-w-3xl mx-auto px-5 py-3.5 flex items-center justify-between">
         <div className="flex items-center gap-3 min-w-0">
           <ClientBloomMark size={28} />
@@ -880,6 +965,7 @@ function Nav({ lastScannedAt, scanHealth }: { lastScannedAt: string | null; scan
           )}
           <UserMenu />
         </nav>
+      </div>
       </div>
     </header>
   )
@@ -1233,7 +1319,9 @@ export default function RootPage() {
 function FeedPage() {
   const router = useRouter()
   const { data: session, status } = useSession()
-  const userEmail = (session?.user as any)?.email || ''
+  const userEmail   = (session?.user as any)?.email || ''
+  const plan        = (session?.user as any)?.plan  || ''
+  const crmUnlocked = plan === 'Scout Pro' || plan === 'Scout Agency' || plan === 'Owner'
   const [posts, setPosts] = useState<Post[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<ActionFilter>('New')
@@ -1482,7 +1570,7 @@ function FeedPage() {
               </div>
               <h2 className="text-xl font-bold text-white mb-2">Your trial has ended</h2>
               <p className="text-slate-400 text-sm leading-relaxed">
-                Your 14-day Scout trial is over. Upgrade to keep monitoring LinkedIn for new client conversations — your data is still here.
+                Your 7-day Scout trial is over. Upgrade to keep monitoring LinkedIn for new client conversations — your data is still here.
               </p>
             </div>
 
@@ -1536,18 +1624,24 @@ function FeedPage() {
             <div className="flex items-center gap-0 overflow-x-auto flex-1 min-w-0 scrollbar-none">
             {tabs.map(tab => {
               const count = tabCounts[tab.id]
+              const isCrmLocked = tab.id === 'CRM' && !crmUnlocked
               return (
                 <button
                   key={tab.id}
                   onClick={() => setFilter(tab.id)}
-                  className={`shrink-0 px-4 py-2.5 text-xs font-medium border-b-2 transition-colors ${
+                  className={`shrink-0 px-4 py-2.5 text-xs font-medium border-b-2 transition-colors flex items-center gap-1 ${
                     filter === tab.id
                       ? 'border-blue-500 text-white'
                       : 'border-transparent text-slate-500 hover:text-slate-400'
                   }`}
                 >
+                  {isCrmLocked && (
+                    <svg className="w-3 h-3 text-slate-600 shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M10 1a4.5 4.5 0 00-4.5 4.5V9H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-.5V5.5A4.5 4.5 0 0010 1zm3 8V5.5a3 3 0 10-6 0V9h6z" clipRule="evenodd" />
+                    </svg>
+                  )}
                   {tab.label}
-                  {count !== undefined && count > 0 && (
+                  {!isCrmLocked && count !== undefined && count > 0 && (
                     <span className={`ml-1.5 px-1.5 py-0.5 rounded-full text-xs ${
                       filter === tab.id ? 'bg-blue-500/20 text-blue-300' : 'bg-slate-800 text-slate-500'
                     }`}>
@@ -1592,6 +1686,26 @@ function FeedPage() {
           <div className="flex flex-col items-center justify-center py-24 gap-3">
             <div className="w-5 h-5 border-2 border-slate-700 border-t-blue-500 rounded-full animate-spin" />
             <p className="text-slate-600 text-sm">Loading posts…</p>
+          </div>
+        ) : filter === 'CRM' && !crmUnlocked ? (
+          <div className="flex flex-col items-center justify-center py-20 text-center gap-4 max-w-sm mx-auto">
+            <div className="w-14 h-14 rounded-2xl bg-slate-800/60 border border-slate-700/50 flex items-center justify-center">
+              <svg className="w-6 h-6 text-slate-500" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M10 1a4.5 4.5 0 00-4.5 4.5V9H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-.5V5.5A4.5 4.5 0 0010 1zm3 8V5.5a3 3 0 10-6 0V9h6z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div>
+              <p className="text-slate-300 text-sm font-semibold mb-1">CRM push is a Pro feature</p>
+              <p className="text-slate-500 text-xs leading-relaxed">
+                Upgrade to Scout Pro or Agency to push engaged leads directly to your CRM — all their contact info, notes, and conversation context in one click.
+              </p>
+            </div>
+            <Link
+              href="/upgrade"
+              className="mt-1 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold transition-colors"
+            >
+              See plans →
+            </Link>
           </div>
         ) : posts.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-24 text-center gap-3">
@@ -1647,3 +1761,4 @@ function FeedPage() {
     </div>
   )
 }
+

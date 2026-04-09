@@ -9,8 +9,8 @@
  * server-side data access. Customers never interact with Airtable directly.
  *
  * Rate-limit resilience (airtableFetch):
- *   Airtable enforces 5 requests/second per base across ALL tenants sharing
- *   the same base. At 100+ concurrent scan runs this limit is easily exceeded.
+ *   Airtable enforces 5 requests/second per base (shared across all tenants).
+ *   At 100+ concurrent scan runs this limit is easily exceeded.
  *   airtableFetch wraps every outbound call with exponential-backoff retry on
  *   HTTP 429 (and transient 5xx), so individual scan workers back off
  *   independently rather than thundering-herding after a burst.
@@ -24,16 +24,16 @@ export const PROV_TOKEN   = process.env.AIRTABLE_PROVISIONING_TOKEN     || ''
 // Why this exists:
 //   Airtable rate-limits at 5 req/s per base (shared across all tenants).
 //   200 trial tenants scanning simultaneously generate ~2,400 calls in a burst.
-//   Without backoff, every worker retries at the same time → thundering herd →
-//   cascading failures and scan results that look blank even though Apify worked.
+//   Without backoff, every worker retries at the same time, causing cascading
+//   failures and scan results that look blank even though Apify worked.
 //
 // Strategy:
 //   - Up to RETRY_MAX additional attempts after the first 429/5xx
-//   - Exponential base delay doubles each attempt: 1 s → 2 s → 4 s
-//   - Respects Retry-After header when Airtable sends one (often 1–2 s)
-//   - ±20 % random jitter spreads simultaneous retriers apart
+//   - Exponential base delay doubles each attempt: 1 s -> 2 s -> 4 s
+//   - Respects Retry-After header when Airtable sends one (often 1-2 s)
+//   - +-20% random jitter spreads simultaneous retriers apart
 //   - Hard cap of 30 s per wait to avoid hanging serverless functions
-//   - 4xx errors other than 429 are NOT retried (they're client errors)
+//   - 4xx errors other than 429 are NOT retried (they are client errors)
 
 const RETRY_MAX     = 3       // additional attempts after first try
 const RETRY_BASE_MS = 1_000   // 1 s base delay
@@ -52,7 +52,7 @@ export async function airtableFetch(
   while (true) {
     const res = await fetch(url.toString(), options)
 
-    // Success or unretriable client error → return immediately
+    // Success or unretriable client error — return immediately
     const isRateLimit    = res.status === 429
     const isTransient5xx = res.status >= 500 && res.status < 600
     if ((!isRateLimit && !isTransient5xx) || attempt >= RETRY_MAX) {
@@ -68,12 +68,12 @@ export async function airtableFetch(
     const retryAfterHeader = res.headers.get('Retry-After')
     const retryAfterMs     = retryAfterHeader ? parseInt(retryAfterHeader, 10) * 1_000 : 0
 
-    // Exponential backoff: 1 s, 2 s, 4 s … capped at RETRY_CAP_MS
+    // Exponential backoff: 1 s, 2 s, 4 s ... capped at RETRY_CAP_MS
     const exponentialMs = Math.min(RETRY_BASE_MS * Math.pow(2, attempt - 1), RETRY_CAP_MS)
 
-    // Take the larger of Retry-After and our computed backoff, add ±20% jitter
+    // Take the larger of Retry-After and our computed backoff, add +-20% jitter
     const baseWait = Math.max(retryAfterMs, exponentialMs)
-    const jitter   = 1 + (Math.random() * 0.4 - 0.2)   // 0.8 – 1.2
+    const jitter   = 1 + (Math.random() * 0.4 - 0.2)   // 0.8 to 1.2
     const waitMs   = Math.round(baseWait * jitter)
 
     console.warn(
@@ -85,10 +85,19 @@ export async function airtableFetch(
   }
 }
 
-// ── Helpers ────────────────────────────────────────────────────────────────
+// ── Formula helpers ────────────────────────────────────────────────────────
 
-/** Escapes a string for safe use inside an Airtable single-quoted formula literal. */
-function escapeFormula(value: string): string {
+/**
+ * Escapes a string for safe use inside an Airtable single-quoted formula literal.
+ * Airtable formula strings are single-quoted; an unescaped ' or \ in the value
+ * would break the formula and could enable formula injection.
+ *
+ * Examples:
+ *   O'Brien       ->  O\'Brien
+ *   back\slash    ->  back\\slash
+ *   t_x', '1'='1 ->  t_x\', \'1\'=\'1   (injection attempt neutralized)
+ */
+export function escapeAirtableString(value: string): string {
   return value.replace(/\\/g, '\\\\').replace(/'/g, "\\'")
 }
 
@@ -108,7 +117,7 @@ export function tenantFilter(tenantId: string): string {
   if (tenantId === 'owner') {
     return `OR({Tenant ID}='owner',{Tenant ID}='')`
   }
-  return `{Tenant ID}='${escapeFormula(tenantId)}'`
+  return `{Tenant ID}='${escapeAirtableString(tenantId)}'`
 }
 
 // ── Ownership verification ─────────────────────────────────────────────────
@@ -120,21 +129,31 @@ export async function verifyRecordTenant(
   recordId: string,
   tenantId: string,
 ): Promise<boolean> {
+  // Use a filter-formula query (same path as list operations) rather than a
+  // direct record-by-ID fetch.  Some provisioning tokens have list/write scope
+  // but not single-record-read scope, which caused PATCH to return 404 even
+  // when the record existed and was correctly scoped to the tenant.
   try {
-    const resp = await airtableFetch(
-      `https://api.airtable.com/v0/${SHARED_BASE}/${encodeURIComponent(table)}/${recordId}` +
-        `?fields[]=Tenant+ID`,
-      { headers: airtableHeaders() },
+    const ownerFormula = `AND(OR({Tenant ID}='owner',{Tenant ID}=''),RECORD_ID()='${recordId}')`
+    const tenantFormula = `AND({Tenant ID}='${escapeAirtableString(tenantId)}',RECORD_ID()='${recordId}')`
+    const formula = tenantId === 'owner' ? ownerFormula : tenantFormula
+
+    const url = new URL(
+      `https://api.airtable.com/v0/${SHARED_BASE}/${encodeURIComponent(table)}`
     )
-    if (!resp.ok) return false
-    const data = await resp.json()
-    const recordTenantId: string = data.fields?.['Tenant ID'] ?? ''
-    // 'owner' tenant also owns records with empty Tenant ID (backward compat)
-    if (tenantId === 'owner') {
-      return recordTenantId === 'owner' || recordTenantId === ''
+    url.searchParams.set('filterByFormula', formula)
+    url.searchParams.set('fields[]', 'Tenant ID')
+    url.searchParams.set('maxRecords', '1')
+
+    const resp = await airtableFetch(url.toString(), { headers: airtableHeaders() })
+    if (!resp.ok) {
+      console.error(`[verifyRecordTenant] Airtable ${resp.status} for table=${table} recordId=${recordId} tenantId=${tenantId}`)
+      return false
     }
-    return recordTenantId === tenantId
-  } catch {
+    const data = await resp.json()
+    return Array.isArray(data.records) && data.records.length > 0
+  } catch (err) {
+    console.error(`[verifyRecordTenant] exception: ${err}`)
     return false
   }
 }
