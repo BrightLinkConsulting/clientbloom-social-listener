@@ -201,6 +201,20 @@ function ScanStatusPill({
 Always pass `plan` from the session when rendering this component. The `Nav` component
 reads it from `(session?.user as any)?.plan`.
 
+### Post count in ScanStatusPill (April 2026)
+
+The success state now shows `lastPostsFound` from the `ScanHealth` record:
+
+```
+Last scan: 1h ago · 3 new posts
+Last scan: 2h ago · 0 new posts
+Last scan: 4h ago               ← (no label when health?.lastPostsFound is null)
+```
+
+This directly answers "did anything get found?" without requiring users to check the feed.
+The `null` guard prevents the label from appearing if the field hasn't been written yet
+(e.g. older scan records pre-dating this field).
+
 ### `NextScanCountdown` props
 
 ```typescript
@@ -286,3 +300,46 @@ than hiding.
 | Watchdog fires hourly — stuck status visible for up to 60 min | Low | Client-side stuck detection (10 min) prevents perpetual spinner |
 | No "scan started at" timestamp — watchdog uses lastScanAt as proxy | Low | Conservative: any scan still 'scanning' after 1h is definitively done |
 | `upsertScanHealth` still swallows exceptions | By design | Graceful degradation: scan pipeline must not fail because of a status write |
+
+---
+
+## 9. Root Cause: Zero New Posts (April 2026)
+
+### Symptom
+
+`Last Scan At` updated correctly (scan was running), but the feed showed no new posts for
+4+ days despite confirmed hourly/twice-daily scans.
+
+### Root cause
+
+`lib/scan.ts` keyword search used `sort_type: 'relevance'` in the Apify
+`apimaestro/linkedin-posts-search-scraper-no-cookies` actor:
+
+```typescript
+// BEFORE (bug):
+{ searchQuery: term, limit: 25, sort_type: 'relevance' }
+```
+
+LinkedIn's relevance algorithm surfaces the same high-engagement posts on every query —
+older viral content that keeps accumulating reactions. After the first scan captures these
+posts, every subsequent scan fetches identical URLs that are already in the 30-day dedup
+window and are silently dropped by `getExistingPostUrls()`.
+
+### Fix (commit 058bb87, April 2026)
+
+```typescript
+// AFTER (fix):
+{ searchQuery: term, limit: 50, sort_type: 'recent' }
+// retry opts:
+{ searchQuery: term, limit: 25, sort_type: 'recent' }
+```
+
+`sort_type: 'recent'` returns posts sorted by publish time, so each scan surfaces
+genuinely new content. The limit was also increased (25→50 primary, 15→25 retry) to
+compensate for the age filter (`filterPostsByAge(posts, 7)`) dropping older results.
+
+### Never revert this
+
+Do not change `sort_type` back to `'relevance'` for any reason. Relevance sort is
+unsuitable for a feed that runs on a cadence — it is only appropriate for one-time
+"find the best posts" queries.

@@ -61,6 +61,13 @@ Completed:
 - ✅ JWT plan whitelist — auth.ts rejects session.update({ plan }) unless value is a known paid plan
 - ✅ Post-payment welcome page dual-flow wired to /api/session/refresh + session.update()
 
+Completed:
+- ✅ Keyword scan sort fixed — sort_type changed from 'relevance' to 'recent'; limit raised to 50
+  (primary) / 25 (retry). Relevance returned the same posts every scan; all deduped after first capture.
+- ✅ ScanStatusPill now shows lastPostsFound count: "Last scan: 1h ago · 3 new posts"
+- ✅ MomentumWidget label corrected: "N posts in queue" instead of "N new posts waiting"
+- ✅ suggest/route.ts: retry-then-503 replaces hard 500 when Claude returns empty content
+
 Still open:
 - Security headers in next.config.js (X-Frame-Options, CSP, etc.)
 - Monthly reset cron for scan/post counters
@@ -143,7 +150,12 @@ Critical ones that block production launch if missing:
 - Scan cadence: Trial + Starter = 1/day; Pro = 2/day. Cron fires twice daily for all plans;
   scan-tenant skips on < 12h cooldown for single-scan plans
 - Scan status: ScanStatusPill and NextScanCountdown require plan prop for correct overdue
-  threshold and cadence note. Read plan from (session?.user as any)?.plan
+  threshold and cadence note. Read plan from (session?.user as any)?.plan.
+  ScanStatusPill shows lastPostsFound count from ScanHealth ("Last scan: Xh ago · N new posts").
+- Keyword scan sort: always sort_type='recent' in Apify keyword actor. Never 'relevance' —
+  relevance returns the same top posts on every scan, all dedup'd after first capture.
+- suggest/route.ts: retries once with a shorter fallback prompt if Claude returns empty content.
+  Returns 503 (not 500) if both attempts fail — 503 signals transient unavailability.
 - Trial countdown: always Math.floor for days/hours — never Math.ceil (off-by-one bug)
 - Stuck-scanning: treat as success state in the UI (scan completed; only write failed).
   Do not show alarm language. Watchdog resets the backend field within 1h.
