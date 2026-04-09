@@ -1,24 +1,73 @@
 /**
  * POST /api/posts/[id]/suggest
  *
- * Generates a "Comment Approach" for a single post that was saved without one.
- * This handles posts captured before the max_tokens fix (2000 → 4096) which caused
- * JSON truncation and wiped comment_approach from all posts in large batches.
+ * Generates a "Comment Approach" for a single post on demand.
  *
  * Flow:
- *   1. Verify tenant owns this record
- *   2. Fetch the post text + author from Airtable
- *   3. Fetch the tenant's business profile for context
- *   4. Call Claude Haiku to generate a 2-sentence comment approach
- *   5. Save it back to the Airtable record
- *   6. Return { commentApproach: string }
+ *   1. Verify tenant session and plan limits (commentCredits gate)
+ *   2. Verify tenant owns the record
+ *   3. Fetch post text + author from Airtable
+ *   4. Fetch business profile for context
+ *   5. Call Claude Haiku to generate a 2-sentence comment approach
+ *   6. Save back to Airtable and increment the tenant's usage counter
+ *   7. Return { commentApproach, creditsUsed, creditsLimit }
+ *
+ * Credit enforcement:
+ *   - Reads "Suggestions Used" from the Tenants table (shared Platform base)
+ *   - Checks against plan's commentCredits limit before calling Claude
+ *   - Increments "Suggestions Used" after a successful generation
+ *   - Infinite plans (Pro, Agency, Owner) bypass the counter entirely
  */
 
 import { NextRequest, NextResponse }  from 'next/server'
 import { getTenantConfig, tenantError } from '@/lib/tenant'
 import { verifyRecordTenant, airtableUpdate, SHARED_BASE, PROV_TOKEN, tenantFilter } from '@/lib/airtable'
+import { getTierLimits } from '@/lib/tier'
 
-const TABLE = 'Captured Posts'
+const TABLE          = 'Captured Posts'
+const PLATFORM_TOKEN = process.env.PLATFORM_AIRTABLE_TOKEN   || ''
+const PLATFORM_BASE  = process.env.PLATFORM_AIRTABLE_BASE_ID || ''
+
+// ── Credit helpers (Platform Tenants table) ───────────────────────────────────
+
+interface CreditRecord {
+  recordId: string
+  used: number
+}
+
+async function getTenantCreditRecord(tenantId: string): Promise<CreditRecord | null> {
+  if (!PLATFORM_TOKEN || !PLATFORM_BASE) return null
+  try {
+    const filter = tenantId === 'owner'
+      ? `OR({Tenant ID}='owner',{Tenant ID}='')`
+      : `{Tenant ID}='${tenantId}'`
+    const url = new URL(`https://api.airtable.com/v0/${PLATFORM_BASE}/${encodeURIComponent('Tenants')}`)
+    url.searchParams.set('filterByFormula', filter)
+    url.searchParams.set('fields[]', 'Suggestions Used')
+    url.searchParams.set('maxRecords', '1')
+    const resp = await fetch(url.toString(), { headers: { Authorization: `Bearer ${PLATFORM_TOKEN}` } })
+    if (!resp.ok) return null
+    const data = await resp.json()
+    const rec  = data.records?.[0]
+    if (!rec) return null
+    return { recordId: rec.id, used: Number(rec.fields?.['Suggestions Used'] || 0) }
+  } catch { return null }
+}
+
+async function incrementCreditCounter(recordId: string, currentUsed: number): Promise<void> {
+  if (!PLATFORM_TOKEN || !PLATFORM_BASE) return
+  try {
+    await fetch(`https://api.airtable.com/v0/${PLATFORM_BASE}/${encodeURIComponent('Tenants')}/${recordId}`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${PLATFORM_TOKEN}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fields: { 'Suggestions Used': currentUsed + 1 } }),
+    })
+  } catch (e) {
+    console.error('[suggest] Failed to increment Suggestions Used:', e)
+  }
+}
+
+// ── Main handler ──────────────────────────────────────────────────────────────
 
 export async function POST(
   _req: NextRequest,
@@ -28,8 +77,27 @@ export async function POST(
   if (!tenant) return tenantError()
 
   const { id } = params
+  const { commentCredits: creditLimit } = getTierLimits(tenant.plan)
 
-  // Ownership check
+  // ── Comment credit gate (skip for unlimited plans) ────────────────────────
+  let creditRecord: CreditRecord | null = null
+  if (isFinite(creditLimit)) {
+    creditRecord = await getTenantCreditRecord(tenant.tenantId)
+    const used = creditRecord?.used ?? 0
+    if (used >= creditLimit) {
+      return NextResponse.json(
+        {
+          error:        `You've used all ${creditLimit} comment idea credits included in your plan.`,
+          creditsUsed:  used,
+          creditsLimit: creditLimit,
+          action:       'upgrade',
+        },
+        { status: 429 }
+      )
+    }
+  }
+
+  // ── Ownership check ───────────────────────────────────────────────────────
   const owned = await verifyRecordTenant(TABLE, id, tenant.tenantId)
   if (!owned) return NextResponse.json({ error: 'Not found.' }, { status: 404 })
 
@@ -39,8 +107,8 @@ export async function POST(
     return NextResponse.json({ error: 'ANTHROPIC_API_KEY not set' }, { status: 500 })
   }
 
-  // ── Fetch post text via filter query (PROV_TOKEN lacks per-record GET scope) ─────
-  let postText = ''
+  // ── Fetch post text via filter query (PROV_TOKEN lacks per-record GET scope) ─
+  let postText   = ''
   let authorName = ''
   try {
     const postUrl = new URL(`https://api.airtable.com/v0/${SHARED_BASE}/${encodeURIComponent(TABLE)}`)
@@ -51,7 +119,7 @@ export async function POST(
     const postResp = await fetch(postUrl.toString(), { headers: { Authorization: `Bearer ${PROV_TOKEN}` } })
     if (postResp.ok) {
       const postData = await postResp.json()
-      const rec = postData.records?.[0]?.fields || {}
+      const rec  = postData.records?.[0]?.fields || {}
       postText   = rec['Post Text']   || ''
       authorName = rec['Author Name'] || ''
     }
@@ -96,9 +164,9 @@ Return ONLY the comment approach text — no labels, no quotes, no explanation.`
       method: 'POST',
       headers: { 'x-api-key': anthropicKey, 'anthropic-version': '2023-06-01', 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
+        model:      'claude-haiku-4-5-20251001',
         max_tokens: 256,
-        messages: [{ role: 'user', content: prompt }],
+        messages:   [{ role: 'user', content: prompt }],
       }),
     })
     if (aiResp.ok) {
@@ -119,10 +187,19 @@ Return ONLY the comment approach text — no labels, no quotes, no explanation.`
     return NextResponse.json({ error: 'Generation failed.' }, { status: 500 })
   }
 
-  // ── Save back to Airtable ──────────────────────────────────────────────────
+  // ── Save back to Airtable ─────────────────────────────────────────────────
   try {
     await airtableUpdate(TABLE, id, { 'Comment Approach': commentApproach })
   } catch {}
 
-  return NextResponse.json({ commentApproach })
+  // ── Increment credit counter (non-fatal) ──────────────────────────────────
+  if (isFinite(creditLimit) && creditRecord) {
+    await incrementCreditCounter(creditRecord.recordId, creditRecord.used)
+  }
+
+  return NextResponse.json({
+    commentApproach,
+    creditsUsed:  isFinite(creditLimit) ? (creditRecord?.used ?? 0) + 1 : null,
+    creditsLimit: isFinite(creditLimit) ? creditLimit : null,
+  })
 }
