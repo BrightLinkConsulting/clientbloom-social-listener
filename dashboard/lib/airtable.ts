@@ -56,21 +56,31 @@ export async function verifyRecordTenant(
   recordId: string,
   tenantId: string,
 ): Promise<boolean> {
+  // Use a filter-formula query (same path as list operations) rather than a
+  // direct record-by-ID fetch.  Some provisioning tokens have list/write scope
+  // but not single-record-read scope, which caused PATCH to return 404 even
+  // when the record existed and was correctly scoped to the tenant.
   try {
-    const resp = await fetch(
-      `https://api.airtable.com/v0/${SHARED_BASE}/${encodeURIComponent(table)}/${recordId}` +
-        `?fields[]=Tenant+ID`,
-      { headers: airtableHeaders() },
+    const ownerFormula = `AND(OR({Tenant ID}='owner',{Tenant ID}=''),RECORD_ID()='${recordId}')`
+    const tenantFormula = `AND({Tenant ID}='${escapeAirtableString(tenantId)}',RECORD_ID()='${recordId}')`
+    const formula = tenantId === 'owner' ? ownerFormula : tenantFormula
+
+    const url = new URL(
+      `https://api.airtable.com/v0/${SHARED_BASE}/${encodeURIComponent(table)}`
     )
-    if (!resp.ok) return false
-    const data = await resp.json()
-    const recordTenantId: string = data.fields?.['Tenant ID'] ?? ''
-    // 'owner' tenant also owns records with empty Tenant ID (backward compat)
-    if (tenantId === 'owner') {
-      return recordTenantId === 'owner' || recordTenantId === ''
+    url.searchParams.set('filterByFormula', formula)
+    url.searchParams.set('fields[]', 'Tenant ID')
+    url.searchParams.set('maxRecords', '1')
+
+    const resp = await fetch(url.toString(), { headers: airtableHeaders() })
+    if (!resp.ok) {
+      console.error(`[verifyRecordTenant] Airtable ${resp.status} for table=${table} recordId=${recordId} tenantId=${tenantId}`)
+      return false
     }
-    return recordTenantId === tenantId
-  } catch {
+    const data = await resp.json()
+    return Array.isArray(data.records) && data.records.length > 0
+  } catch (err) {
+    console.error(`[verifyRecordTenant] exception: ${err}`)
     return false
   }
 }
