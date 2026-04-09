@@ -7,10 +7,83 @@
  *
  * The provisioning token (AIRTABLE_PROVISIONING_TOKEN) is used for all
  * server-side data access. Customers never interact with Airtable directly.
+ *
+ * Rate-limit resilience (airtableFetch):
+ *   Airtable enforces 5 requests/second per base across ALL tenants sharing
+ *   the same base. At 100+ concurrent scan runs this limit is easily exceeded.
+ *   airtableFetch wraps every outbound call with exponential-backoff retry on
+ *   HTTP 429 (and transient 5xx), so individual scan workers back off
+ *   independently rather than thundering-herding after a burst.
  */
 
 export const SHARED_BASE  = process.env.PLATFORM_AIRTABLE_BASE_ID      || ''
 export const PROV_TOKEN   = process.env.AIRTABLE_PROVISIONING_TOKEN     || ''
+
+// ── Retry-aware fetch for Airtable ─────────────────────────────────────────
+//
+// Why this exists:
+//   Airtable rate-limits at 5 req/s per base (shared across all tenants).
+//   200 trial tenants scanning simultaneously generate ~2,400 calls in a burst.
+//   Without backoff, every worker retries at the same time → thundering herd →
+//   cascading failures and scan results that look blank even though Apify worked.
+//
+// Strategy:
+//   - Up to RETRY_MAX additional attempts after the first 429/5xx
+//   - Exponential base delay doubles each attempt: 1 s → 2 s → 4 s
+//   - Respects Retry-After header when Airtable sends one (often 1–2 s)
+//   - ±20 % random jitter spreads simultaneous retriers apart
+//   - Hard cap of 30 s per wait to avoid hanging serverless functions
+//   - 4xx errors other than 429 are NOT retried (they're client errors)
+
+const RETRY_MAX     = 3       // additional attempts after first try
+const RETRY_BASE_MS = 1_000   // 1 s base delay
+const RETRY_CAP_MS  = 30_000  // 30 s ceiling per wait
+
+/**
+ * Drop-in replacement for fetch() for all Airtable API calls.
+ * Retries on 429 and transient 5xx with exponential backoff + jitter.
+ */
+export async function airtableFetch(
+  url: string | URL,
+  options?: RequestInit,
+): Promise<Response> {
+  let attempt = 0
+
+  while (true) {
+    const res = await fetch(url.toString(), options)
+
+    // Success or unretriable client error → return immediately
+    const isRateLimit    = res.status === 429
+    const isTransient5xx = res.status >= 500 && res.status < 600
+    if ((!isRateLimit && !isTransient5xx) || attempt >= RETRY_MAX) {
+      if (attempt > 0 && res.ok) {
+        console.log(`[airtable] Recovered after ${attempt} retry(ies) — status ${res.status}`)
+      }
+      return res
+    }
+
+    attempt++
+
+    // Respect Airtable's Retry-After header (seconds) when present
+    const retryAfterHeader = res.headers.get('Retry-After')
+    const retryAfterMs     = retryAfterHeader ? parseInt(retryAfterHeader, 10) * 1_000 : 0
+
+    // Exponential backoff: 1 s, 2 s, 4 s … capped at RETRY_CAP_MS
+    const exponentialMs = Math.min(RETRY_BASE_MS * Math.pow(2, attempt - 1), RETRY_CAP_MS)
+
+    // Take the larger of Retry-After and our computed backoff, add ±20% jitter
+    const baseWait = Math.max(retryAfterMs, exponentialMs)
+    const jitter   = 1 + (Math.random() * 0.4 - 0.2)   // 0.8 – 1.2
+    const waitMs   = Math.round(baseWait * jitter)
+
+    console.warn(
+      `[airtable] HTTP ${res.status} — attempt ${attempt}/${RETRY_MAX}, ` +
+      `waiting ${waitMs} ms before retry`
+    )
+
+    await new Promise(resolve => setTimeout(resolve, waitMs))
+  }
+}
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -48,7 +121,7 @@ export async function verifyRecordTenant(
   tenantId: string,
 ): Promise<boolean> {
   try {
-    const resp = await fetch(
+    const resp = await airtableFetch(
       `https://api.airtable.com/v0/${SHARED_BASE}/${encodeURIComponent(table)}/${recordId}` +
         `?fields[]=Tenant+ID`,
       { headers: airtableHeaders() },
@@ -79,7 +152,7 @@ export async function airtableList(
   for (const [k, v] of Object.entries(extraParams)) {
     url.searchParams.set(k, v)
   }
-  return fetch(url.toString(), { headers: airtableHeaders() })
+  return airtableFetch(url.toString(), { headers: airtableHeaders() })
 }
 
 // ── Create record (POST with tenant ID injected) ───────────────────────────
@@ -88,7 +161,7 @@ export async function airtableCreate(
   tenantId: string,
   fields: Record<string, any>
 ): Promise<Response> {
-  return fetch(
+  return airtableFetch(
     `https://api.airtable.com/v0/${SHARED_BASE}/${encodeURIComponent(table)}`,
     {
       method: 'POST',
@@ -115,7 +188,7 @@ export async function airtableBatchCreate(
     const recordsWithTenant = batch.map(r => ({
       fields: { ...r.fields, 'Tenant ID': tenantId }
     }))
-    const resp = await fetch(
+    const resp = await airtableFetch(
       `https://api.airtable.com/v0/${SHARED_BASE}/${encodeURIComponent(table)}`,
       {
         method: 'POST',
@@ -137,7 +210,7 @@ export async function airtableUpdate(
   recordId: string,
   fields: Record<string, any>
 ): Promise<Response> {
-  return fetch(
+  return airtableFetch(
     `https://api.airtable.com/v0/${SHARED_BASE}/${encodeURIComponent(table)}/${recordId}`,
     {
       method: 'PATCH',
@@ -152,7 +225,7 @@ export async function airtableDelete(
   table: string,
   recordId: string
 ): Promise<Response> {
-  return fetch(
+  return airtableFetch(
     `https://api.airtable.com/v0/${SHARED_BASE}/${encodeURIComponent(table)}/${recordId}`,
     {
       method: 'DELETE',

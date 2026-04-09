@@ -25,7 +25,7 @@
  *   A5: Per-tenant usage tracking — track scans/posts processed for billing
  */
 
-import { SHARED_BASE, PROV_TOKEN, tenantFilter, airtableCreate, airtableBatchCreate } from './airtable'
+import { SHARED_BASE, PROV_TOKEN, tenantFilter, airtableCreate, airtableBatchCreate, airtableFetch } from './airtable'
 
 const DEFAULT_SCAN_PROMPT = `You are a LinkedIn relationship intelligence AI. Score each post for relationship-building conversation value (1-10).
 
@@ -200,8 +200,8 @@ async function getExistingPostUrls(tenantId: string): Promise<Set<string>> {
   do {
     if (offset) url.searchParams.set('offset', offset)
     else url.searchParams.delete('offset')
-    
-    const res = await fetch(url.toString(), {
+
+    const res = await airtableFetch(url.toString(), {
       headers: { Authorization: `Bearer ${PROV_TOKEN}`, 'Content-Type': 'application/json' },
     })
     if (!res.ok) {
@@ -330,7 +330,7 @@ async function atGet(tenantId: string, table: string, extraFormula = '') {
   const formula = extraFormula ? `AND(${base},${extraFormula})` : base
   const url     = new URL(`https://api.airtable.com/v0/${SHARED_BASE}/${encodeURIComponent(table)}`)
   url.searchParams.set('filterByFormula', formula)
-  const res = await fetch(url.toString(), {
+  const res = await airtableFetch(url.toString(), {
     headers: { Authorization: `Bearer ${PROV_TOKEN}`, 'Content-Type': 'application/json' },
   })
   return res.json()

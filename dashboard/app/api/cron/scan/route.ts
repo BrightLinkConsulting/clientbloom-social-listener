@@ -26,6 +26,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { upsertScanHealth }          from '@/lib/scan-health'
+import { airtableFetch }             from '@/lib/airtable'
 
 // The orchestrator awaits all parallel workers concurrently.
 // Workers run in ~150s max, so 300s budget is comfortable.
@@ -56,7 +57,7 @@ async function getActiveTenants(): Promise<{
   url.searchParams.append('fields[]', 'Apify API Key')
   url.searchParams.set('pageSize', '100')
 
-  const resp = await fetch(url.toString(), {
+  const resp = await airtableFetch(url.toString(), {
     headers: { Authorization: `Bearer ${PLATFORM_TOKEN}` },
   })
   if (!resp.ok) {
