@@ -188,8 +188,19 @@ export const authOptions: NextAuthOptions = {
         }
         // Used by the post-payment welcome page to instantly reflect a plan upgrade
         // without requiring the user to sign out and back in.
-        if ((sessionUpdate as any).plan !== undefined) {
-          token.plan = (sessionUpdate as any).plan
+        //
+        // Security note: session.update() is callable from the client, so we
+        // whitelist the only valid post-upgrade plan values here. Trial users
+        // calling session.update({ plan: 'Scout Agency' }) directly would only
+        // be setting a value outside this whitelist (Trial/'' aren't upgrades),
+        // but we explicitly reject unlisted values to prevent privilege escalation
+        // via feature gates (isPaidPlan, getTierLimits) that read from the JWT.
+        const VALID_PAID_PLANS = new Set([
+          'Scout Starter', 'Scout Pro', 'Scout Agency', 'Owner',
+        ])
+        const incomingPlan = (sessionUpdate as any).plan
+        if (incomingPlan !== undefined && VALID_PAID_PLANS.has(incomingPlan)) {
+          token.plan = incomingPlan
         }
         if ((sessionUpdate as any).trialEndsAt !== undefined) {
           token.trialEndsAt = (sessionUpdate as any).trialEndsAt

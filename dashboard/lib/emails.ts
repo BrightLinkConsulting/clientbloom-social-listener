@@ -50,6 +50,31 @@ function header(text: string, color: string = BRAND_BLUE): string {
   </div>`
 }
 
+/**
+ * Logo header — used for the Day 1 welcome email so it mirrors the app's
+ * nav bar: ClientBloom mark (3 ellipses) + "Scout / by ClientBloom" text.
+ * Uses a table layout for maximum email-client compatibility.
+ */
+function logoHeader(color: string = BRAND_PURPLE): string {
+  return `<div style="background:${color};padding:18px 28px;border-radius:12px 12px 0 0">
+    <table cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse">
+      <tr>
+        <td style="vertical-align:middle;padding-right:10px">
+          <svg width="28" height="28" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <ellipse cx="50" cy="21" rx="24" ry="13" fill="#F7B731"/>
+            <ellipse cx="20" cy="52" rx="13" ry="25" fill="#E91E8C"/>
+            <ellipse cx="80" cy="52" rx="13" ry="25" fill="#00B96B"/>
+          </svg>
+        </td>
+        <td style="vertical-align:middle">
+          <p style="color:#fff;font-size:16px;font-weight:700;margin:0;line-height:1.2">Scout</p>
+          <p style="color:rgba(255,255,255,0.65);font-size:11px;font-weight:500;margin:0;line-height:1.2;letter-spacing:0.03em">by ClientBloom</p>
+        </td>
+      </tr>
+    </table>
+  </div>`
+}
+
 function footer(recipientEmail: string, unsubUrl: string): string {
   const safeEmail = recipientEmail.replace(/</g, '&lt;').replace(/>/g, '&gt;')
   return `
@@ -132,7 +157,7 @@ const PLAN_COPY: Record<RecommendedPlan, PlanCopy> = {
 
 export function buildTrialDay1Email(
   firstName: string,
-  opts: { appUrl: string; unsubUrl: string },
+  opts: { appUrl: string; email: string; unsubUrl: string },
 ): EmailTemplate {
   const subject = `Welcome — your 30-Day LinkedIn Authority Challenge starts today`
   const onboardUrl = `${opts.appUrl}/onboarding`
@@ -143,13 +168,13 @@ export function buildTrialDay1Email(
     ${infoBox(`
       <p style="margin:0 0 6px;font-weight:700;font-size:13px;color:#1a1a1a">The challenge: 30 days, 3 prospects who know your name before you pitch them.</p>
       <p style="margin:0;font-size:13px;color:#555;line-height:1.6">Scout finds the conversations your buyers are having on LinkedIn every single day. You show up. Add something real. Over 30 days, they start to recognize you.</p>
-    `)}
+    `, BRAND_PURPLE)}
     ${p(`<strong>Your first move:</strong> Complete your quick setup — tell Scout who your ideal client is and add 1–2 LinkedIn profiles you want to monitor. Then hit <strong>Scan Now</strong> to see your first batch of posts.`)}
-    <p style="margin:16px 0 8px">${cta('Set up Scout now →', onboardUrl)}</p>
+    <p style="margin:16px 0 8px">${cta('Set up Scout now →', onboardUrl, BRAND_PURPLE)}</p>
     ${p(`You'll get one email per day this week — specific, actionable, zero filler. Day 2 lands tomorrow with the comment framework that makes you memorable.`, 'color:#666;font-size:13px')}
-    ${footer(firstName + ' (Scout trial)', opts.unsubUrl)}`
+    ${footer(opts.email, opts.unsubUrl)}`
 
-  return { subject, html: wrap(header('Scout by ClientBloom'), body, '') }
+  return { subject, html: wrap(logoHeader(), body, '') }
 }
 
 // ── Trial Day 2: Comment Framework ───────────────────────────────────────────
