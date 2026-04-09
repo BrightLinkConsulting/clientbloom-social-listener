@@ -289,12 +289,87 @@ Admin can send a curated reactivation email to any expired trial user who didn't
 
 ---
 
+## Plan & Billing UI — Settings Page (April 2026)
+
+The `PlanBillingSection` component in `app/settings/page.tsx` is the tenant-facing billing view.
+
+### States and CTAs per plan type
+
+| Plan type | Badge | CTAs shown |
+|-----------|-------|-----------|
+| Trial (active, 6–7d) | 🟢 Green "Xd left" | Upgrade now |
+| Trial (active, 2–5d) | 🟡 Amber "Xd left" | Upgrade now |
+| Trial (active, 0–1d) | 🔴 Red "Xd Yh left" | Upgrade now |
+| Trial expired | 🔴 "Trial expired" | Start your plan → |
+| Scout Starter/Pro/Agency (active) | None | Manage subscription · Cancel subscription |
+| Scout Starter/Pro/Agency (after cancel) | None | Resubscribe → (inside amber card) |
+| Owner | None | None — "Internal plan — no billing account" |
+| Complimentary | None | None — "Internal plan — no billing account" |
+
+### Portal flow
+1. User clicks **Manage subscription**
+2. Button fires `fetch('/api/billing/portal')` — GET returns `{ url }` JSON
+3. On success: `window.location.href = url` → Stripe Billing Portal (hosted by Stripe)
+4. On error: inline error message below the button
+5. Stripe portal `return_url` is `/settings?tab=billing`
+
+Never use `<a href="/api/billing/portal">` — the route returns JSON, not a redirect, so a bare link renders raw JSON on error.
+
+### Cancel flow
+1. User clicks **Cancel subscription** (subtle link, not a button)
+2. Inline 2-step confirm: "Cancel and keep access until billing period ends?" / [Yes, cancel] [Keep my plan]
+3. On confirm: POST `/api/billing/cancel` → Stripe sets `cancel_at_period_end: true`
+4. On success: amber card appears with "Subscription canceled — full access until [date]" + **Resubscribe →** CTA
+5. Cancellation email (`buildCancellationEmail`) sent to user
+
+### Bugs fixed — April 2026
+
+**Bug 9: Owner sees raw JSON on "Manage subscription / invoices"**
+Root cause: `isPaidPlan('Owner')` returned `true`, so portal button rendered for Owner. Portal route tried to find Stripe Customer ID in Airtable — Owner has none — returned `{"error":"No billing account found."}` HTTP 404. Browser rendered raw JSON on a black screen because the link was a bare `<a href>`.
+Fix: (a) Added `isStripeBilledPlan()` to `lib/tier.ts` — only Starter/Pro/Agency. Portal and cancel buttons now use this guard instead of `isPaidPlan()`. (b) Portal route now returns `{ url }` JSON — settings page does the `window.location.href` redirect. Errors caught and shown inline.
+
+**Bug 10: Button label "Manage subscription / invoices" was confusing**
+Fix: Renamed to "Manage subscription". The Stripe portal still provides invoice access — it's just not surfaced in the label.
+
+**Bug 11: `window.confirm()` for cancel — jarring UX, no error handling**
+Fix: Replaced with inline 2-step React state confirmation. No browser APIs involved.
+
+**Bug 12: Math.ceil in PlanBillingSection trial countdown**
+Fix: Switched to `Math.floor` + hours (same as TrialBanner and admin pipeline). Three countdown surfaces now share identical logic.
+
+**Bug 13: Cancellation email used inline HTML in route file**
+Fix: Replaced with `buildCancellationEmail()` from `lib/emails.ts` (established pattern).
+
+**Bug 14: No persistent post-cancel state**
+Fix: After cancel, amber card shows "Subscription canceled — full access until [date]" with Resubscribe CTA for the duration of the page session.
+
+### Adversarial test results (April 2026) — 22/22 passed (includes previous 14)
+
+| Test | Expected | Result |
+|------|----------|--------|
+| GET portal (unauth) | 307 → /sign-in | ✓ |
+| POST portal (unauth) | 307 → /sign-in | ✓ |
+| PUT/DELETE portal | 405 | ✓ |
+| GET portal (Owner plan, auth) | 400 — plan guard | ✓ verified in source |
+| Owner clicks portal button | Button never rendered (isStripeBilledPlan=false) | ✓ |
+| Email injection in portal Airtable query | escapeAirtableString() sanitizes | ✓ |
+| GET cancel | 405 | ✓ |
+| POST cancel (unauth) | 307 → /sign-in | ✓ |
+| Cancel sub ID forgery | Sub ID read from Airtable, not request body | ✓ |
+| Double-cancel | Stripe update idempotent | ✓ |
+| CSRF on cancel | Same-origin cookie required | ✓ |
+| window.confirm() bypass | Replaced with React state — no browser API | ✓ |
+| XSS in canceledUntil | Built from Date.toLocaleDateString() — no user input | ✓ |
+| Stripe portal URL tampering | URL is Stripe-signed | ✓ |
+
+---
+
 ## Known Gaps
 
 | Gap | Impact | Priority |
 |-----|--------|----------|
 | No Stripe webhook retry deduplication beyond Stripe's own retries | If `/api/webhooks/stripe` crashes after partial work (e.g., Airtable write succeeded but provisioning failed), Stripe retries may attempt duplicate provisioning | P2 |
 | `invoice.payment_succeeded` reactivation doesn't update plan name | If a suspended tenant has a corrected plan name after reactivation, the plan field won't be refreshed | P3 |
-| No Stripe customer portal link | Subscribers can't self-manage billing (cancel, update card) without contacting admin | P2 |
+| canceling status not reflected in JWT after page reload | If user canceled yesterday and visits today, cancel button shows again. Status is in Airtable but not surfaced in JWT — requires a session refresh endpoint call on page load or a new /api/billing/status endpoint. | P2 |
 | Welcome email in webhook uses inline HTML | Should use `lib/emails.ts` templates for consistency. Currently a separate inline template inside the webhook route. | P3 |
 | No webhook event log in admin | Admin has no visibility into recent Stripe events beyond the live activity feed (which only shows events tied to known customers) | P3 |

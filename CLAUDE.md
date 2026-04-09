@@ -80,6 +80,10 @@ Completed:
   'Reactivation Sent At' field written to Airtable on send; trialBadge() helper also uses Math.floor
 - ✅ Reactivation email system — POST /api/admin/send-reactivation; buildTrialReactivationEmail
   in lib/emails.ts; 'Reactivation Sent At' field added to Tenants table; full adversarial test passed
+- ✅ Plan & Billing section overhaul (6 bugs fixed) — isStripeBilledPlan() added to tier.ts;
+  portal route returns JSON (not redirect); cancel route uses buildCancellationEmail; 2-step cancel
+  confirm replaces window.confirm(); Math.floor trial countdown; Owner/Complimentary handled cleanly;
+  22/22 adversarial tests passed
 - ✅ Admin "Grant 14-Day Trial" corrected to "Grant 7-Day Trial" (TRIAL_DAYS=7 in route)
 - ✅ Admin system health strip added — 3-column panel: Stripe (Live/Stub mode), Airtable (tenant count),
   Auth & Access Control behavior note
@@ -217,12 +221,21 @@ callers — never do this without auditing every reference first.
 - suggest/route.ts: retries once with a shorter fallback prompt if Claude returns empty content.
   Returns 503 (not 500) if both attempts fail — 503 signals transient unavailability.
 - Trial countdown: always Math.floor for days/hours — never Math.ceil (off-by-one bug).
-  Display format: "Xd Yh left" (or "Yh left" when d=0). TrialBanner and admin pipeline
-  must always use identical logic — any future change must update both.
+  Display format: "Xd Yh left" (or "Yh left" when d=0). TrialBanner, admin pipeline,
+  and PlanBillingSection must all use identical logic — any future change updates all three.
 - Reactivation email: admin sends via POST /api/admin/send-reactivation. After sending,
   'Reactivation Sent At' is written to Airtable. UI checks t.reactivationSentAt (from
   tenants GET) and local reactivationSent state (optimistic) to show send timestamp.
   Never auto-send — always requires explicit admin click.
+- Billing portal: always call GET /api/billing/portal via fetch(), read { url }, then
+  window.location.href = url. Never use <a href="/api/billing/portal"> — the route returns
+  JSON not a redirect, so a raw link renders JSON in the browser on error.
+- Plan guards in billing: use isStripeBilledPlan(plan) (not isPaidPlan) to gate portal
+  and cancel buttons. isPaidPlan() includes Owner/Complimentary (feature access); neither
+  has a Stripe subscription. The portal route also has a server-side STRIPE_PLANS guard.
+- Cancel flow: 2-step inline confirmation (showCancelConfirm state) — never window.confirm().
+  After cancel: show persistent amber card with accessUntil date and Resubscribe CTA.
+  Cancellation email uses buildCancellationEmail from lib/emails.ts.
 - Stuck-scanning: treat as success state in the UI (scan completed; only write failed).
   Do not show alarm language. Watchdog resets the backend field within 1h.
 - Overdue threshold: 26h for Trial/Starter, 14h for Pro. See scanOverdueMs() in app/page.tsx
