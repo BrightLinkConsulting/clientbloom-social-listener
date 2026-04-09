@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { useState, useEffect, useCallback } from 'react'
 import { useSession, signOut } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
-import { getTierLimits, getPlanDisplay, isPaidPlan } from '@/lib/tier'
+import { getTierLimits, getPlanDisplay, isPaidPlan, isStripeBilledPlan } from '@/lib/tier'
 
 // ---- Types ----
 interface Source {
@@ -2761,41 +2761,93 @@ function TeamSection() {
 // ---- Plan & Billing Section ----
 function PlanBillingSection() {
   const { data: session } = useSession()
-  const user        = session?.user as any
-  const plan        = user?.plan || 'Trial'
-  const trialEndsAt = user?.trialEndsAt ? new Date(user.trialEndsAt) : null
-  const limits      = getTierLimits(plan)
-  const display     = getPlanDisplay(plan)
-  const paidPlan    = isPaidPlan(plan)
-  const isTrial     = plan === 'Trial'
-  const isExpired   = isTrial && trialEndsAt && new Date() > trialEndsAt
-  const daysLeft    = trialEndsAt ? Math.ceil((trialEndsAt.getTime() - Date.now()) / 86400000) : null
+  const user             = session?.user as any
+  const plan             = user?.plan || 'Trial'
+  const trialEndsAt      = user?.trialEndsAt ? new Date(user.trialEndsAt) : null
+  const limits           = getTierLimits(plan)
+  const display          = getPlanDisplay(plan)
+  const isTrial          = plan === 'Trial'
+  const isStripePlan     = isStripeBilledPlan(plan)   // Starter/Pro/Agency only — has real Stripe subscription
+  const isInternal       = plan === 'Owner' || plan === 'Complimentary'
 
-  const [canceling, setCanceling] = useState(false)
-  const [cancelMsg, setCancelMsg] = useState('')
+  // Trial countdown — Math.floor + hours, matches TrialBanner exactly
+  const msLeft    = trialEndsAt ? trialEndsAt.getTime() - Date.now() : 0
+  const isExpired = isTrial && trialEndsAt ? msLeft <= 0 : false
+  const daysLeft  = isTrial && !isExpired && trialEndsAt ? Math.floor(msLeft / 86_400_000) : null
+  const hoursLeft = isTrial && !isExpired && trialEndsAt ? Math.floor((msLeft % 86_400_000) / 3_600_000) : 0
 
-  async function handleCancel() {
-    if (!confirm('Cancel your subscription? You keep access until the end of the current billing period.')) return
+  // Billing portal state
+  const [portalLoading, setPortalLoading] = useState(false)
+  const [portalError,   setPortalError]   = useState('')
+
+  // Cancel flow state
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false)
+  const [canceling,         setCanceling]         = useState(false)
+  const [canceledUntil,     setCanceledUntil]     = useState('')   // ISO date string when canceled successfully
+  const [cancelError,       setCancelError]       = useState('')
+
+  async function handleManageSubscription() {
+    setPortalLoading(true)
+    setPortalError('')
+    try {
+      const res  = await fetch('/api/billing/portal')
+      const data = await res.json()
+      if (!res.ok || !data.url) {
+        setPortalError(data.error || 'Could not open billing portal. Please try again.')
+        return
+      }
+      window.location.href = data.url
+    } catch {
+      setPortalError('Network error — please try again.')
+    } finally {
+      setPortalLoading(false)
+    }
+  }
+
+  async function handleConfirmCancel() {
     setCanceling(true)
+    setCancelError('')
+    setShowCancelConfirm(false)
     try {
       const res  = await fetch('/api/billing/cancel', { method: 'POST' })
       const data = await res.json()
-      if (res.ok) {
-        const until = data.accessUntil ? new Date(data.accessUntil).toLocaleDateString() : ''
-        setCancelMsg(`Subscription canceled. Access continues until ${until}.`)
+      if (res.ok && data.accessUntil) {
+        setCanceledUntil(
+          new Date(data.accessUntil).toLocaleDateString('en-US', {
+            month: 'long', day: 'numeric', year: 'numeric',
+          })
+        )
       } else {
-        setCancelMsg(data.error || 'Cancellation failed — please try again.')
+        setCancelError(data.error || 'Cancellation failed — please try again.')
       }
     } catch {
-      setCancelMsg('Network error — please try again.')
+      setCancelError('Network error — please try again.')
     } finally {
       setCanceling(false)
     }
   }
 
+  function TrialBadge() {
+    if (!isTrial || isExpired) return null
+    if (daysLeft === null) return null
+    const label =
+      daysLeft === 0 ? `${hoursLeft}h left` :
+      daysLeft <= 1  ? `${daysLeft}d ${hoursLeft}h left` :
+                       `${daysLeft}d left`
+    const cls =
+      daysLeft <= 1 ? 'bg-red-900/30 border-red-700/40 text-red-400' :
+      daysLeft <= 5 ? 'bg-amber-900/30 border-amber-700/40 text-amber-400' :
+                     'bg-emerald-900/30 border-emerald-700/40 text-emerald-400'
+    return (
+      <span className={`text-xs px-3 py-1 rounded-full font-medium border ${cls}`}>
+        {label}
+      </span>
+    )
+  }
+
   function GaugeBar({ used, limit, label }: { used: number; limit: number; label: string }) {
-    const pct    = limit === 0 ? 100 : Math.min((used / limit) * 100, 100)
-    const color  = pct < 70 ? '#4F6BFF' : pct < 85 ? '#F59E0B' : '#EF4444'
+    const pct   = limit === 0 ? 100 : Math.min((used / limit) * 100, 100)
+    const color = pct < 70 ? '#4F6BFF' : pct < 85 ? '#F59E0B' : '#EF4444'
     return (
       <div>
         <div className="flex justify-between items-center mb-1.5">
@@ -2818,8 +2870,11 @@ function PlanBillingSection() {
 
   return (
     <div className="space-y-6">
-      {/* Current plan card */}
+
+      {/* ── Current plan card ── */}
       <div className="rounded-2xl bg-[#0f1117] border border-slate-700/50 p-6 space-y-4">
+
+        {/* Plan header */}
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
             <p className="text-xs text-slate-500 mb-1 uppercase tracking-wider font-medium">Current plan</p>
@@ -2827,59 +2882,128 @@ function PlanBillingSection() {
             <p className="text-slate-400 text-sm">{display.price}</p>
           </div>
           <div className="flex flex-col items-end gap-2">
-            {isTrial && !isExpired && daysLeft !== null && (
-              <span className={`text-xs px-3 py-1 rounded-full font-medium ${
-                daysLeft <= 2 ? 'bg-red-900/30 border border-red-700/40 text-red-400' :
-                daysLeft <= 4 ? 'bg-amber-900/30 border border-amber-700/40 text-amber-400' :
-                'bg-emerald-900/30 border border-emerald-700/40 text-emerald-400'
-              }`}>
-                {daysLeft <= 0 ? 'Ends today' : `${daysLeft} day${daysLeft === 1 ? '' : 's'} left`}
-              </span>
-            )}
+            <TrialBadge />
             {isExpired && (
-              <span className="text-xs px-3 py-1 rounded-full font-medium bg-red-900/30 border border-red-700/40 text-red-400">
+              <span className="text-xs px-3 py-1 rounded-full font-medium border bg-red-900/30 border-red-700/40 text-red-400">
                 Trial expired
               </span>
             )}
           </div>
         </div>
 
-        {/* Action buttons */}
-        <div className="flex flex-wrap gap-3 pt-2">
-          {(isTrial || isExpired) && (
+        {/* ── State: Trial active ── */}
+        {isTrial && !isExpired && (
+          <div className="pt-1 space-y-3">
             <a
               href="/upgrade"
-              className="bg-[#4F6BFF] hover:bg-[#3d5aee] text-white font-semibold px-4 py-2 rounded-lg text-sm transition-colors"
+              className="inline-block bg-[#4F6BFF] hover:bg-[#3d5aee] text-white font-semibold px-5 py-2.5 rounded-lg text-sm transition-colors"
             >
-              {isExpired ? 'Reactivate with a paid plan' : 'Upgrade now'}
+              Upgrade now
             </a>
-          )}
-          {paidPlan && (
+            <p className="text-xs text-slate-500">
+              Your trial includes full access to all Starter features.{' '}
+              <a href="/upgrade" className="text-[#4F6BFF] hover:underline">See plans →</a>
+            </p>
+          </div>
+        )}
+
+        {/* ── State: Trial expired ── */}
+        {isExpired && (
+          <div className="pt-1 space-y-2">
+            <p className="text-sm text-slate-400">Your trial has ended. Subscribe to restore access to your feed and saved contacts.</p>
             <a
-              href="/api/billing/portal"
-              className="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-medium px-4 py-2 rounded-lg text-sm transition-colors"
+              href="/upgrade"
+              className="inline-block bg-[#4F6BFF] hover:bg-[#3d5aee] text-white font-semibold px-5 py-2.5 rounded-lg text-sm transition-colors"
             >
-              Manage subscription / invoices
+              Start your plan →
             </a>
-          )}
-          {paidPlan && !cancelMsg && (
+          </div>
+        )}
+
+        {/* ── State: Active Stripe subscription — normal ── */}
+        {isStripePlan && !canceledUntil && (
+          <div className="flex flex-wrap items-center gap-3 pt-1">
             <button
-              onClick={handleCancel}
-              disabled={canceling}
-              className="text-slate-500 hover:text-red-400 text-sm transition-colors disabled:opacity-50"
+              onClick={handleManageSubscription}
+              disabled={portalLoading}
+              className="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-medium px-4 py-2 rounded-lg text-sm transition-colors disabled:opacity-60"
             >
-              {canceling ? 'Canceling…' : 'Cancel subscription'}
+              {portalLoading ? 'Opening…' : 'Manage subscription'}
             </button>
-          )}
-        </div>
-        {cancelMsg && (
-          <p className="text-sm text-amber-400 bg-amber-900/20 border border-amber-800/30 rounded-xl px-4 py-3">
-            {cancelMsg}
+
+            {/* 2-step cancel confirmation */}
+            {!showCancelConfirm && !canceling && (
+              <button
+                onClick={() => setShowCancelConfirm(true)}
+                className="text-slate-500 hover:text-red-400 text-sm transition-colors"
+              >
+                Cancel subscription
+              </button>
+            )}
+            {showCancelConfirm && (
+              <div className="flex items-center gap-3 text-sm">
+                <span className="text-slate-400">Cancel and keep access until billing period ends?</span>
+                <button
+                  onClick={handleConfirmCancel}
+                  disabled={canceling}
+                  className="text-red-400 hover:text-red-300 font-medium transition-colors disabled:opacity-50"
+                >
+                  Yes, cancel
+                </button>
+                <button
+                  onClick={() => setShowCancelConfirm(false)}
+                  className="text-slate-500 hover:text-slate-300 transition-colors"
+                >
+                  Keep my plan
+                </button>
+              </div>
+            )}
+            {canceling && (
+              <span className="text-xs text-slate-500">Canceling…</span>
+            )}
+          </div>
+        )}
+
+        {/* Portal error */}
+        {portalError && (
+          <p className="text-xs text-red-400 bg-red-900/20 border border-red-800/30 rounded-lg px-3 py-2">
+            {portalError}
           </p>
         )}
+
+        {/* Cancel error */}
+        {cancelError && (
+          <p className="text-xs text-red-400 bg-red-900/20 border border-red-800/30 rounded-lg px-3 py-2">
+            {cancelError}
+          </p>
+        )}
+
+        {/* ── State: Just canceled — access-until banner ── */}
+        {canceledUntil && (
+          <div className="rounded-xl bg-amber-900/15 border border-amber-800/30 px-4 py-3 space-y-2">
+            <p className="text-sm text-amber-300 font-medium">
+              Subscription canceled — full access until {canceledUntil}
+            </p>
+            <p className="text-xs text-slate-400">
+              A confirmation email is on its way. Changed your mind?
+            </p>
+            <a
+              href="/upgrade"
+              className="inline-block text-xs font-semibold text-[#4F6BFF] hover:underline"
+            >
+              Resubscribe →
+            </a>
+          </div>
+        )}
+
+        {/* ── State: Internal plan (Owner / Complimentary) ── */}
+        {isInternal && (
+          <p className="text-xs text-slate-600 pt-1">Internal plan — no billing account attached.</p>
+        )}
+
       </div>
 
-      {/* Usage fuel gauge */}
+      {/* ── Usage gauges ── */}
       <div className="rounded-2xl bg-[#0f1117] border border-slate-700/50 p-6 space-y-5">
         <div>
           <p className="text-sm font-semibold text-white mb-1">Usage</p>
@@ -2887,22 +3011,10 @@ function PlanBillingSection() {
         </div>
 
         <div className="space-y-4">
-          <GaugeBar
-            used={0}
-            limit={limits.keywords}
-            label="LinkedIn keyword searches"
-          />
-          <GaugeBar
-            used={0}
-            limit={limits.profiles}
-            label="ICP profiles monitored"
-          />
+          <GaugeBar used={0} limit={limits.keywords}       label="LinkedIn keyword searches" />
+          <GaugeBar used={0} limit={limits.profiles}       label="ICP profiles monitored" />
           {limits.commentCredits !== Infinity && (
-            <GaugeBar
-              used={0}
-              limit={limits.commentCredits}
-              label="AI comment suggestions this month"
-            />
+            <GaugeBar used={0} limit={limits.commentCredits} label="AI comment suggestions this month" />
           )}
         </div>
 
@@ -2911,7 +3023,7 @@ function PlanBillingSection() {
         </p>
       </div>
 
-      {/* Agency plan capacity note */}
+      {/* ── Agency capacity note ── */}
       {plan === 'Scout Agency' && (
         <div className="rounded-2xl bg-purple-900/10 border border-purple-700/30 p-5">
           <p className="text-sm font-semibold text-purple-300 mb-1">Agency plan — extended limits</p>
@@ -2921,6 +3033,7 @@ function PlanBillingSection() {
           </p>
         </div>
       )}
+
     </div>
   )
 }

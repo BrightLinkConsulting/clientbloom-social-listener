@@ -110,9 +110,19 @@ export function planFromPriceId(priceId: string): string {
 
 /**
  * Returns true if the plan is an active paid plan (not trial, not expired).
+ * Includes Owner and Complimentary — used for feature-access gates.
  */
 export function isPaidPlan(plan: string): boolean {
-  return ['Scout Starter', 'Scout Pro', 'Scout Agency', 'Owner'].includes(plan)
+  return ['Scout Starter', 'Scout Pro', 'Scout Agency', 'Owner', 'Complimentary'].includes(plan)
+}
+
+/**
+ * Returns true ONLY for plans backed by a real Stripe subscription.
+ * Use this (not isPaidPlan) to decide whether to show billing portal /
+ * cancel buttons. Owner and Complimentary have no Stripe customer.
+ */
+export function isStripeBilledPlan(plan: string): boolean {
+  return ['Scout Starter', 'Scout Pro', 'Scout Agency'].includes(plan)
 }
 
 /**
