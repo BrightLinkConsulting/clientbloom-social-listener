@@ -67,6 +67,22 @@ Completed:
 - ✅ ScanStatusPill now shows lastPostsFound count: "Last scan: 1h ago · 3 new posts"
 - ✅ MomentumWidget label corrected: "N posts in queue" instead of "N new posts waiting"
 - ✅ suggest/route.ts: retry-then-503 replaces hard 500 when Claude returns empty content
+- ✅ Zero-posts informational notice: subtle inline callout when lastPostsFound===0 after a completed scan
+- ✅ Admin stripe-stats route rewritten — now queries all 3 price IDs (STRIPE_PRICE_STARTER/PRO/AGENCY)
+  in parallel; MRR calculated from actual plan amounts ($49/$99/$249), not hardcoded $79
+- ✅ Admin PlanBadge updated — handles 'Scout Starter', 'Scout Pro', 'Scout Agency' (webhook-set values);
+  legacy 'Scout $79'/'Scout $49' kept as fallbacks for existing records
+- ✅ Admin form plan dropdown updated — Starter/Pro/Agency with dollar amounts; removed 'Scout $79';
+  default reset to 'Scout Starter'
+- ✅ Admin trial pipeline fixed — daysRemaining() helper used consistently; 'upcoming' bucket (>7d)
+  added so all active trials appear; expired detection corrected from t.status==='trial_expired'
+  (field doesn't exist) to daysRemaining(t) <= 0
+- ✅ Admin "Grant 14-Day Trial" corrected to "Grant 7-Day Trial" (TRIAL_DAYS=7 in route)
+- ✅ Admin system health strip added — 3-column panel: Stripe (Live/Stub mode), Airtable (tenant count),
+  Auth & Access Control behavior note
+- ✅ Stripe env vars verified in Vercel — STRIPE_PRICE_STARTER/PRO/AGENCY all set with correct price IDs;
+  STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET confirmed set
+- ✅ Full adversarial stress test passed — see docs/stripe-billing.md for test results
 
 Still open:
 - Security headers in next.config.js (X-Frame-Options, CSP, etc.)
@@ -140,6 +156,20 @@ Critical ones that block production launch if missing:
 - Trial/subscription state machine
 
 ## Established Patterns — Follow These Exactly
+- Stripe price IDs: always read from STRIPE_PRICE_STARTER / STRIPE_PRICE_PRO / STRIPE_PRICE_AGENCY
+  env vars. Never hardcode a price ID or reference the legacy STRIPE_PRICE_ID variable.
+- Stripe MRR/stats: query ALL three Scout price IDs in parallel and deduplicate by subscription ID.
+  Never use a single price ID to count subscribers — subscribers will be invisible if they're on a
+  different tier than the one queried. See api/admin/stripe-stats/route.ts.
+- Plan name strings: 'Scout Starter', 'Scout Pro', 'Scout Agency' (set by webhook). Anywhere that
+  checks or displays plan names (PlanBadge, tier gates, JWT whitelist) must handle these strings.
+  The old 'Scout $79' string is legacy — do not use for new tenants.
+- Stripe webhook: always use stripe.webhooks.constructEvent(rawBody, sig, STRIPE_WEBHOOK_SECRET).
+  Return 400 on signature failure; return 200 even on processing errors (Stripe retries on non-200).
+  Never trust user-supplied event data — always verify via constructEvent first.
+- Admin stats source field: stripe-stats route returns { source: 'stripe' | 'stub' }. UI should
+  check stats.source to determine badge state; never check for presence of individual env vars
+  client-side (they are never exposed to the browser).
 - Plan limits: getTierLimits(plan) from lib/tier.ts — never hardcode
 - Trial expiry: isPaidPlan() || (plan==='Trial' && trialEndsAt && now <= new Date(trialEndsAt))
 - Password reset: 4-file pattern (forgot-password route, reset-password route, 2 UI pages)
@@ -179,3 +209,6 @@ Critical ones that block production launch if missing:
 - `docs/email-system.md` — Email architecture (lib/emails.ts), brand constants, layout helpers,
   no-name policy, CAN-SPAM compliance, trial sequence (Days 1–7), session refresh flow,
   JWT plan whitelist, known gaps
+- `docs/stripe-billing.md` — Full billing architecture: price IDs, checkout flow, webhook event
+  handlers, tenant provisioning, plan name mapping, env var reference, admin stats design,
+  adversarial test results, known gaps
