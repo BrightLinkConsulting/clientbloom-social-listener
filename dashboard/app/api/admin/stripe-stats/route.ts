@@ -2,8 +2,8 @@
  * GET /api/admin/stripe-stats
  *
  * Returns subscription and revenue metrics for the Scout admin dashboard.
- * All Stripe queries are scoped to SCOUT_PRICE_ID so data from other
- * Stripe products (ClientBloom, BrightLink, etc.) never appears here.
+ * Queries ALL three Scout price IDs (Starter $49 / Pro $99 / Agency $249)
+ * so every paying subscriber appears in admin counts and MRR is accurate.
  *
  * Admin-only — requires isAdmin session flag.
  */
@@ -11,20 +11,33 @@
 import { NextResponse } from 'next/server'
 import { getTenantConfig } from '@/lib/tenant'
 
-const PRICE_PER_SEAT = 79
+// Price IDs map to their monthly amounts
+const SCOUT_PRICES: Record<string, number> = {
+  // Populated from env vars at runtime — see below
+}
 
 export async function GET() {
   const tenant = await getTenantConfig()
   if (!tenant)         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   if (!tenant.isAdmin) return NextResponse.json({ error: 'Admin only'   }, { status: 403 })
 
-  const stripeKey      = process.env.STRIPE_SECRET_KEY       || ''
-  const scoutPriceId   = process.env.STRIPE_PRICE_ID_LIVE    || process.env.STRIPE_PRICE_ID || ''
-  const platformToken  = process.env.PLATFORM_AIRTABLE_TOKEN  || ''
-  const platformBase   = process.env.PLATFORM_AIRTABLE_BASE_ID || ''
+  const stripeKey      = process.env.STRIPE_SECRET_KEY          || ''
+  const priceStarter   = process.env.STRIPE_PRICE_STARTER       || ''
+  const pricePro       = process.env.STRIPE_PRICE_PRO           || ''
+  const priceAgency    = process.env.STRIPE_PRICE_AGENCY        || ''
+  const platformToken  = process.env.PLATFORM_AIRTABLE_TOKEN    || ''
+  const platformBase   = process.env.PLATFORM_AIRTABLE_BASE_ID  || ''
 
-  // ── Scout-only tenant counts from Airtable ───────────────────────────────
-  // These are always available and are the source of truth for tenant status.
+  // Build price → amount map from env vars
+  const priceAmountMap: Record<string, number> = {}
+  if (priceStarter) priceAmountMap[priceStarter] = 49
+  if (pricePro)     priceAmountMap[pricePro]     = 99
+  if (priceAgency)  priceAmountMap[priceAgency]  = 249
+
+  // All configured Scout price IDs
+  const scoutPriceIds = Object.keys(priceAmountMap)
+
+  // ── Scout tenant counts from Airtable (always available) ────────────────────
   let activeTenants    = 0
   let suspendedTenants = 0
   let allTenants: any[] = []
@@ -36,7 +49,6 @@ export async function GET() {
       if (resp.ok) {
         const data = await resp.json()
         allTenants = data.records || []
-        // Exclude the 'owner' plan — count only paying Scout subscribers
         const payingTenants = allTenants.filter((r: any) => r.fields?.Plan !== 'Owner')
         activeTenants    = payingTenants.filter((r: any) => r.fields?.Status === 'Active').length
         suspendedTenants = payingTenants.filter((r: any) => r.fields?.Status === 'Suspended').length
@@ -46,8 +58,8 @@ export async function GET() {
     }
   }
 
-  // ── Stripe metrics (Scout price only) ────────────────────────────────────
-  if (stripeKey && scoutPriceId) {
+  // ── Stripe metrics (all Scout prices) ────────────────────────────────────────
+  if (stripeKey && scoutPriceIds.length > 0) {
     try {
       const Stripe = (await import('stripe')).default
       const stripe = new Stripe(stripeKey, { apiVersion: '2023-10-16' })
@@ -55,24 +67,57 @@ export async function GET() {
       const now       = Math.floor(Date.now() / 1000)
       const sixMonths = now - 60 * 60 * 24 * 30 * 6
 
-      // All Scout subscriptions (active + past_due = paying; canceled for history)
-      const [activeSubs, pastDueSubs, canceledSubs] = await Promise.all([
-        stripe.subscriptions.list({ status: 'active',   price: scoutPriceId, limit: 100 }),
-        stripe.subscriptions.list({ status: 'past_due', price: scoutPriceId, limit: 100 }),
-        stripe.subscriptions.list({ status: 'canceled', price: scoutPriceId, limit: 100 }),
+      // Fetch active + past_due + canceled subs for EACH Scout price ID
+      const subFetches = scoutPriceIds.flatMap(priceId => [
+        stripe.subscriptions.list({ status: 'active',   price: priceId, limit: 100 }),
+        stripe.subscriptions.list({ status: 'past_due', price: priceId, limit: 100 }),
+        stripe.subscriptions.list({ status: 'canceled', price: priceId, limit: 100 }),
       ])
 
-      const activeCount = activeSubs.data.length + pastDueSubs.data.length
-      const mrr         = activeCount * PRICE_PER_SEAT
-      const arr         = mrr * 12
+      const allSubResults = await Promise.all(subFetches)
 
-      // Build a set of all Scout customer IDs (active + historical) for event filtering
-      const allScoutSubs    = [...activeSubs.data, ...pastDueSubs.data, ...canceledSubs.data]
+      // Collect unique subscriptions across all price IDs (deduplicate by sub ID)
+      const seenSubIds = new Set<string>()
+      const activeSubs: any[] = []
+      const canceledSubs: any[] = []
+
+      for (let i = 0; i < allSubResults.length; i++) {
+        const isActive  = i % 3 === 0
+        const isPastDue = i % 3 === 1
+        const isCanceled = i % 3 === 2
+
+        for (const sub of allSubResults[i].data) {
+          if (seenSubIds.has(sub.id)) continue
+          seenSubIds.add(sub.id)
+
+          if (isActive || isPastDue) {
+            activeSubs.push(sub)
+          } else if (isCanceled) {
+            canceledSubs.push(sub)
+          }
+        }
+      }
+
+      // MRR: sum actual subscription amounts based on price ID
+      let mrr = 0
+      for (const sub of activeSubs) {
+        // Find which Scout price this subscription is for
+        for (const item of (sub.items?.data || [])) {
+          const pid = item.price?.id
+          if (pid && priceAmountMap[pid] !== undefined) {
+            mrr += priceAmountMap[pid]
+          }
+        }
+      }
+      const arr = mrr * 12
+
+      // Build set of all Scout customer IDs for event filtering
+      const allScoutSubs = [...activeSubs, ...canceledSubs]
       const scoutCustomerIds = new Set(
-        allScoutSubs.map(s => (typeof s.customer === 'string' ? s.customer : s.customer.id))
+        allScoutSubs.map((s: any) => (typeof s.customer === 'string' ? s.customer : s.customer.id))
       )
 
-      // Monthly revenue — use paid invoices filtered to Scout's price line item
+      // Monthly revenue — paid invoices with any Scout price line item
       const invoices = await stripe.invoices.list({
         limit:   100,
         status:  'paid',
@@ -81,8 +126,7 @@ export async function GET() {
 
       const monthlyRevenue: Record<string, number> = {}
       for (const inv of invoices.data) {
-        // Only include invoices that contain a Scout price line item
-        const isScout = inv.lines.data.some((line: any) => line.price?.id === scoutPriceId)
+        const isScout = inv.lines.data.some((line: any) => scoutPriceIds.includes(line.price?.id))
         if (!isScout) continue
         const d   = new Date(inv.created * 1000)
         const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
@@ -120,7 +164,7 @@ export async function GET() {
         source:         'stripe',
         mrr,
         arr,
-        activeCount,
+        activeCount:    activeSubs.length,
         suspendedCount: suspendedTenants,
         totalTenants:   allTenants.filter((r: any) => r.fields?.Plan !== 'Owner').length,
         revenueChart,
@@ -132,8 +176,9 @@ export async function GET() {
     }
   }
 
-  // ── Stub mode (Stripe not configured, or scoutPriceId missing, or error) ──
-  const mrr          = activeTenants * PRICE_PER_SEAT
+  // ── Stub mode (Stripe not configured or errored) ──────────────────────────────
+  // Estimate MRR assuming Pro ($99) for all active tenants — closest to real without Stripe
+  const mrr          = activeTenants * 99
   const revenueChart = buildMonthlyArray(6, {})
 
   return NextResponse.json({

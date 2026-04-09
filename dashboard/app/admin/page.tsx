@@ -43,10 +43,15 @@ interface Tenant {
 function PlanBadge({ plan }: { plan: string }) {
   if (!plan) return <span className="text-slate-600 text-xs">—</span>
   const styles: Record<string, string> = {
-    'Owner':     'bg-amber-900/30 text-amber-300 border-amber-700/40',
-    'Scout $79': 'bg-emerald-900/30 text-emerald-300 border-emerald-700/40',
-    'Scout $49': 'bg-emerald-900/30 text-emerald-300 border-emerald-700/40',
-    'Trial':     'bg-blue-900/30 text-blue-300 border-blue-700/40',
+    'Owner':         'bg-amber-900/30 text-amber-300 border-amber-700/40',
+    'Scout Starter': 'bg-emerald-900/30 text-emerald-300 border-emerald-700/40',
+    'Scout Pro':     'bg-emerald-900/30 text-emerald-300 border-emerald-700/40',
+    'Scout Agency':  'bg-violet-900/30 text-violet-300 border-violet-700/40',
+    // Legacy plan names — kept for existing records
+    'Scout $79':     'bg-emerald-900/30 text-emerald-300 border-emerald-700/40',
+    'Scout $49':     'bg-emerald-900/30 text-emerald-300 border-emerald-700/40',
+    'Trial':         'bg-blue-900/30 text-blue-300 border-blue-700/40',
+    'Complimentary': 'bg-slate-700/40 text-slate-300 border-slate-600/40',
   }
   const cls = styles[plan] || 'bg-slate-800 text-slate-400 border-slate-700'
   return (
@@ -562,7 +567,7 @@ export default function AdminPage() {
     companyName:    '',
     airtableBaseId: '',
     airtableToken:  '',
-    plan:           'Scout $79',
+    plan:           'Scout Starter',
     isAdmin:        false,
   })
 
@@ -628,7 +633,7 @@ export default function AdminPage() {
       if (!resp.ok) { setError(data.error || 'Failed to create tenant'); return }
       setSuccess(`Tenant "${data.tenant.companyName}" created.`)
       setShowForm(false)
-      setForm({ email: '', password: '', companyName: '', airtableBaseId: '', airtableToken: '', plan: 'Scout $79', isAdmin: false })
+      setForm({ email: '', password: '', companyName: '', airtableBaseId: '', airtableToken: '', plan: 'Scout Starter', isAdmin: false })
       fetchTenants(); fetchStats()
     } catch { setError('Network error — could not create tenant') }
     finally { setSaving(false) }
@@ -1189,10 +1194,12 @@ export default function AdminPage() {
                       onChange={e => setForm(f => ({ ...f, plan: e.target.value }))}
                       className="w-full bg-[#161b27] border border-slate-700 rounded-lg px-3 py-2 text-slate-100 text-sm focus:outline-none focus:border-[#4F6BFF]"
                     >
-                      <option>Scout $79</option>
-                      <option>Owner</option>
-                      <option>Trial</option>
-                      <option>Complimentary</option>
+                      <option value="Scout Starter">Scout Starter ($49/mo)</option>
+                      <option value="Scout Pro">Scout Pro ($99/mo)</option>
+                      <option value="Scout Agency">Scout Agency ($249/mo)</option>
+                      <option value="Trial">Trial</option>
+                      <option value="Complimentary">Complimentary</option>
+                      <option value="Owner">Owner</option>
                     </select>
                   </div>
                   <div className="col-span-2">
