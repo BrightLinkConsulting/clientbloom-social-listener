@@ -34,7 +34,10 @@ export async function POST(
   if (!owned) return NextResponse.json({ error: 'Not found.' }, { status: 404 })
 
   const anthropicKey = process.env.ANTHROPIC_API_KEY
-  if (!anthropicKey) return NextResponse.json({ error: 'ANTHROPIC_API_KEY not set' }, { status: 500 })
+  if (!anthropicKey) {
+    console.error('[suggest] ANTHROPIC_API_KEY is not set in environment')
+    return NextResponse.json({ error: 'ANTHROPIC_API_KEY not set' }, { status: 500 })
+  }
 
   // ── Fetch post text via filter query (PROV_TOKEN lacks per-record GET scope) ─────
   let postText = ''
@@ -101,8 +104,16 @@ Return ONLY the comment approach text — no labels, no quotes, no explanation.`
     if (aiResp.ok) {
       const aiData = await aiResp.json()
       commentApproach = (aiData.content?.[0]?.text || '').trim()
+      if (!commentApproach) {
+        console.error('[suggest] Claude returned ok but empty text. Response:', JSON.stringify(aiData).slice(0, 400))
+      }
+    } else {
+      const errBody = await aiResp.text().catch(() => '')
+      console.error(`[suggest] Claude API non-ok ${aiResp.status}: ${errBody.slice(0, 400)}`)
     }
-  } catch {}
+  } catch (err: any) {
+    console.error('[suggest] Claude API fetch exception:', err?.message)
+  }
 
   if (!commentApproach) {
     return NextResponse.json({ error: 'Generation failed.' }, { status: 500 })

@@ -265,7 +265,11 @@ export async function scorePosts(
       messages: [{ role: 'user', content: prompt }],
     }),
   })
-  if (!res.ok) return posts.map(p => ({ ...p, score: 5, reason: '' }))
+  if (!res.ok) {
+    const errBody = await res.text().catch(() => '')
+    console.error(`[scorePosts] Claude API error ${res.status}: ${errBody.slice(0, 400)}`)
+    return posts.map(p => ({ ...p, score: 5, reason: '' }))
+  }
 
   const data = await res.json()
   const text = data.content?.[0]?.text || '[]'
