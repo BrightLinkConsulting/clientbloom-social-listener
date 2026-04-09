@@ -261,7 +261,7 @@ export async function scorePosts(
     headers: { 'x-api-key': anthropicKey, 'anthropic-version': '2023-06-01', 'Content-Type': 'application/json' },
     body: JSON.stringify({
       model: 'claude-haiku-4-5-20251001',
-      max_tokens: 2000,
+      max_tokens: 4096,  // raised from 2000 — prevents JSON truncation on 25+ post batches
       messages: [{ role: 'user', content: prompt }],
     }),
   })
@@ -272,8 +272,9 @@ export async function scorePosts(
   try {
     const jsonMatch = text.match(/\[[\s\S]*\]/)
     const scores: any[] = jsonMatch ? JSON.parse(jsonMatch[0]) : []
-    return posts.map(p => {
-      const s = scores.find(x => x.post_id === (p.id || p.postId))
+    return posts.map((p, idx) => {
+      // Match by post_id first; fall back to array index in case of URL truncation
+      const s = scores.find(x => x.post_id === (p.id || p.postId)) || scores[idx]
       return { ...p, score: s?.score ?? 5, reason: s?.reason ?? '', comment_approach: s?.comment_approach ?? '' }
     })
   } catch { return posts.map(p => ({ ...p, score: 5, reason: '' })) }
