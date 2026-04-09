@@ -820,9 +820,10 @@ function scanDayLabel(ts: number): string {
 interface NextScanCountdownProps {
   scanStatus?: string | null   // from Scan Health — hides countdown while actively scanning
   lastScanAt?: string | null   // used to detect stuck scans (> 10 min since last completed scan)
+  plan?: string                // user plan — adds cadence note for single-scan plans
 }
 
-function NextScanCountdown({ scanStatus, lastScanAt }: NextScanCountdownProps) {
+function NextScanCountdown({ scanStatus, lastScanAt, plan = '' }: NextScanCountdownProps) {
   const [nextTs, setNextTs] = useState(() => getNextScanTimestamp())
 
   useEffect(() => {
@@ -850,10 +851,19 @@ function NextScanCountdown({ scanStatus, lastScanAt }: NextScanCountdownProps) {
   const localTime = formatLocalScanTime(nextTs)
   const dayLabel  = scanDayLabel(nextTs)
 
+  // Plan cadence note — explains WHY the next scan is when it is.
+  // Trial/Starter get 1 scan/day; Pro gets 2. This saves the user from wondering
+  // "why isn't it scanning more often?" or "why does it show 11h away?".
+  const isSingleScanPlan = plan === 'Trial' || plan === 'Starter'
+  const cadenceNote = isSingleScanPlan
+    ? <span className="text-slate-600 ml-1.5">· {plan} plan · 1 scan/day</span>
+    : null
+
   return (
     <span className="text-xs text-slate-600">
       Next scan: <span className="text-slate-400 font-medium">{dayLabel} at {localTime}</span>
       <span className="text-slate-700 tabular-nums ml-1.5">· {formatCountdown(msUntil)}</span>
+      {cadenceNote}
     </span>
   )
 }
@@ -866,48 +876,52 @@ interface ScanHealth {
   fbPending:      boolean
 }
 
-// A scan is considered overdue if the last successful scan is >14h old.
-// Normal cadence is 12h (6 AM + 6 PM PDT); 14h gives a 2h grace window
-// before we surface a warning to the user.
-const SCAN_OVERDUE_MS = 14 * 60 * 60 * 1000
-
 // If status is 'scanning' but the previous scan completed more than this long
-// ago, the current scan is stuck (Vercel maxDuration = 300s; 10 min is generous).
-// The watchdog resets these within 1h — this surfaces the issue to the user sooner.
+// ago, the scan-tenant worker has definitely finished (maxDuration = 300s) —
+// the final status write just failed silently. Treat as success so users see
+// "Last scan: Xh ago" instead of a perpetually spinning indicator.
 const STUCK_SCANNING_MS = 10 * 60 * 1000
 
-function ScanStatusPill({ health, lastScannedAt }: { health: ScanHealth | null; lastScannedAt: string | null }) {
+// Overdue threshold: how long since last scan before we surface a warning.
+// Single-scan plans (Trial/Starter) run once/day — overdue after ~26h.
+// Pro plans run twice/day — overdue after 14h (12h interval + 2h grace).
+function scanOverdueMs(plan: string): number {
+  const isSingleScanPlan = plan === 'Trial' || plan === 'Starter'
+  return isSingleScanPlan ? 26 * 60 * 60 * 1000 : 14 * 60 * 60 * 1000
+}
+
+function ScanStatusPill({
+  health,
+  lastScannedAt,
+  plan = '',
+}: {
+  health: ScanHealth | null
+  lastScannedAt: string | null
+  plan?: string
+}) {
   // Determine display state from scan health (preferred) or fallback to lastScannedAt from posts
   const scanAt = health?.lastScanAt || lastScannedAt
   const status = health?.lastScanStatus
 
   if (status === 'scanning') {
     // Client-side stuck-scanning detection: if the last completed scan is older
-    // than STUCK_SCANNING_MS, the current scan has exceeded Vercel's maxDuration
-    // and its final status write must have failed. Show overdue state instead of
-    // a perpetually spinning indicator.
+    // than STUCK_SCANNING_MS, the worker has definitely finished — only the
+    // status write failed. Render as a normal success state so users aren't
+    // alarmed. The watchdog will reset the backend field within the hour.
     const isStuck = scanAt
       ? (Date.now() - new Date(scanAt).getTime()) > STUCK_SCANNING_MS
       : false
 
     if (isStuck) {
+      // Fall through to the success rendering below using the last known scanAt
+    } else {
       return (
-        <span
-          className="text-xs text-amber-400 flex items-center gap-1"
-          title="Scan appears to have stalled. The watchdog will automatically reset it within the hour."
-        >
-          <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
-          Scan stalled · {timeAgo(scanAt!)} · auto-recovery active
+        <span className="text-xs text-blue-400 flex items-center gap-1">
+          <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
+          Scanning…
         </span>
       )
     }
-
-    return (
-      <span className="text-xs text-blue-400 flex items-center gap-1">
-        <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
-        Scanning…
-      </span>
-    )
   }
 
   if (status === 'pending_fb' || health?.fbPending) {
@@ -929,9 +943,10 @@ function ScanStatusPill({ health, lastScannedAt }: { health: ScanHealth | null; 
   }
 
   if (scanAt) {
-    // Check if the scan is overdue — show amber warning instead of green
+    // Check if the scan is overdue using a plan-aware threshold.
+    // For Trial/Starter (1 scan/day) a scan 12h old is completely normal.
     const scanAge = Date.now() - new Date(scanAt).getTime()
-    const isOverdue = scanAge > SCAN_OVERDUE_MS
+    const isOverdue = scanAge > scanOverdueMs(plan)
 
     if (isOverdue) {
       return (
@@ -953,11 +968,12 @@ function ScanStatusPill({ health, lastScannedAt }: { health: ScanHealth | null; 
     )
   }
 
-  // Fallback — no data yet
+  // Fallback — no scan data yet
+  const cadence = plan === 'Trial' || plan === 'Starter' ? '1×/day' : '2×/day'
   return (
     <span className="text-xs text-slate-500 flex items-center gap-1">
       <span className="w-1.5 h-1.5 rounded-full bg-slate-600 animate-pulse" />
-      Live · 2× daily
+      Live · {cadence}
     </span>
   )
 }
@@ -1027,7 +1043,7 @@ function Nav({ lastScannedAt, scanHealth }: { lastScannedAt: string | null; scan
           <ClientBloomMark size={28} />
           <div className="min-w-0">
             <p className="text-sm font-semibold text-white leading-tight">Scout by ClientBloom</p>
-            <ScanStatusPill health={scanHealth} lastScannedAt={lastScannedAt} />
+            <ScanStatusPill health={scanHealth} lastScannedAt={lastScannedAt} plan={plan} />
           </div>
         </div>
         <nav className="flex items-center gap-1 shrink-0 pl-3">
@@ -1793,7 +1809,9 @@ function FeedPage() {
                   ? 'LinkedIn scan is running — results will appear shortly.'
                   : scanHealth?.lastScanStatus === 'scanning'
                     ? 'Scan is running now — results will appear shortly.'
-                    : 'Scout scans at 6 AM and 6 PM daily.'
+                    : (plan === 'Trial' || plan === 'Starter')
+                      ? 'Scout scans once per day on your plan. Your first scan will surface new posts.'
+                      : 'Scout scans at 6 AM and 6 PM daily.'
                 : 'Posts you mark will appear here.'}
             </p>
             {(scanHealth?.lastScanAt || lastScannedAt) && (
@@ -1807,7 +1825,7 @@ function FeedPage() {
           <>
             {/* Subtle refresh note */}
             <div className="flex items-center justify-between mb-4">
-              <NextScanCountdown scanStatus={scanHealth?.lastScanStatus} lastScanAt={scanHealth?.lastScanAt} />
+              <NextScanCountdown scanStatus={scanHealth?.lastScanStatus} lastScanAt={scanHealth?.lastScanAt} plan={plan} />
               <p className="text-xs text-slate-700">
                 Updated {timeAgo(lastRefreshed.toISOString())}
                 {scanHealth?.lastScanStatus === 'failed' && (
