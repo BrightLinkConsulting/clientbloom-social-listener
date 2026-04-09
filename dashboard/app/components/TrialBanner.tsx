@@ -64,8 +64,8 @@ function TrialBannerInner({ trialEndsAt }: { trialEndsAt: string | null }) {
         boxShadow: '0 0 12px 2px rgba(139, 92, 246, 0.35), inset 0 -1px 0 rgba(139, 92, 246, 0.2)',
       }}
       className="
-        w-full z-50
-        bg-gradient-to-r from-violet-950/90 via-purple-900/90 to-violet-950/90
+        sticky top-0 z-30 w-full
+        bg-gradient-to-r from-violet-950/95 via-purple-900/95 to-violet-950/95
         border-b border-violet-700/40
         backdrop-blur-sm
         flex items-center justify-center gap-3
