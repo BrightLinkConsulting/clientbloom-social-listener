@@ -766,29 +766,32 @@ function UserMenu() {
 }
 
 // ---- Countdown to next scan ----
-function getNextScanMs(): number {
-  const now = new Date()
-  // Scans at 6 AM and 6 PM PDT = 13:00 and 01:00 UTC
-  const utcH = now.getUTCHours()
-  const utcM = now.getUTCMinutes()
-  const utcS = now.getUTCSeconds()
+
+// Returns the absolute Unix timestamp (ms) of the next scheduled cron fire.
+// Cron runs at 6 AM and 6 PM PDT = 13:00 UTC and 01:00 UTC.
+function getNextScanTimestamp(): number {
+  const now     = new Date()
+  const utcH    = now.getUTCHours()
+  const utcM    = now.getUTCMinutes()
+  const utcS    = now.getUTCSeconds()
+  const totalMs = now.getTime()
+
+  // Scan fire times in UTC minutes from midnight
+  const scan1Mins = 1 * 60    // 01:00 UTC = 6 PM PDT
+  const scan2Mins = 13 * 60   // 13:00 UTC = 6 AM PDT
+
   const todayMins = utcH * 60 + utcM
-
-  // Next scan candidates (UTC minutes from midnight)
-  const scan1 = 1 * 60   // 01:00 UTC = 6 PM PDT
-  const scan2 = 13 * 60  // 13:00 UTC = 6 AM PDT
-
   let nextMins: number
-  if (todayMins < scan1) {
-    nextMins = scan1
-  } else if (todayMins < scan2) {
-    nextMins = scan2
+  if (todayMins < scan1Mins) {
+    nextMins = scan1Mins
+  } else if (todayMins < scan2Mins) {
+    nextMins = scan2Mins
   } else {
-    nextMins = scan1 + 24 * 60 // tomorrow's 01:00 UTC
+    nextMins = scan1Mins + 24 * 60  // tomorrow 01:00 UTC
   }
 
   const minsUntil = nextMins - todayMins
-  return minsUntil * 60 * 1000 - utcS * 1000
+  return totalMs + minsUntil * 60 * 1000 - utcS * 1000
 }
 
 function formatCountdown(ms: number): string {
@@ -802,17 +805,48 @@ function formatCountdown(ms: number): string {
   return `${s}s`
 }
 
-function NextScanCountdown() {
-  const [ms, setMs] = useState(() => getNextScanMs())
+// Formats a Unix timestamp as a friendly local time: "6:00 PM" or "6:00 AM"
+function formatLocalScanTime(ts: number): string {
+  return new Date(ts).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+}
+
+// "today" / "tomorrow" relative to current local date
+function scanDayLabel(ts: number): string {
+  const scanDate = new Date(ts)
+  const today    = new Date()
+  return scanDate.toDateString() === today.toDateString() ? 'today' : 'tomorrow'
+}
+
+interface NextScanCountdownProps {
+  scanStatus?: string | null  // from Scan Health — hides countdown while actively scanning
+}
+
+function NextScanCountdown({ scanStatus }: NextScanCountdownProps) {
+  const [nextTs, setNextTs] = useState(() => getNextScanTimestamp())
 
   useEffect(() => {
-    const id = setInterval(() => setMs(getNextScanMs()), 1000)
+    const id = setInterval(() => setNextTs(getNextScanTimestamp()), 1000)
     return () => clearInterval(id)
   }, [])
 
+  // While a scan is actively running, replace the countdown with a status note
+  // so users don't see contradictory "Scanning…" and "Next scan in 11h" at the same time.
+  if (scanStatus === 'scanning') {
+    return (
+      <span className="text-xs text-blue-400/70">
+        Scan running · new posts appear automatically
+      </span>
+    )
+  }
+
+  const msUntil   = nextTs - Date.now()
+  const localTime = formatLocalScanTime(nextTs)
+  const dayLabel  = scanDayLabel(nextTs)
+
   return (
     <span className="text-xs text-slate-600">
-      Next scan in <span className="text-slate-500 font-medium tabular-nums">{formatCountdown(ms)}</span>
+      Next scan: <span className="text-slate-400 font-medium">{dayLabel} at {localTime}</span>
+      <span className="text-slate-700 tabular-nums ml-1.5">· {formatCountdown(msUntil)}</span>
     </span>
   )
 }
@@ -903,8 +937,11 @@ function Nav({ lastScannedAt, scanHealth }: { lastScannedAt: string | null; scan
   const plan        = (session?.user as any)?.plan       || ''
   const trialEndsAt = (session?.user as any)?.trialEndsAt || null
   const isTrial     = plan === 'Trial'
-  const daysLeft    = trialEndsAt
-    ? Math.max(0, Math.ceil((new Date(trialEndsAt).getTime() - Date.now()) / 86_400_000))
+  const trialMsLeft = trialEndsAt ? new Date(trialEndsAt).getTime() - Date.now() : null
+  const trialExpired = trialMsLeft !== null && trialMsLeft <= 0
+  // Math.floor: shows "6 days left" on day 2, not "7". 0 means "expires today" (< 24h left).
+  const daysLeft    = trialMsLeft !== null && !trialExpired
+    ? Math.floor(trialMsLeft / 86_400_000)
     : null
 
   // Re-render time-ago labels every minute
@@ -925,7 +962,7 @@ function Nav({ lastScannedAt, scanHealth }: { lastScannedAt: string | null; scan
           100% { background-position: 0% 50%; }
         }
       `}</style>
-      {isTrial && (daysLeft === null || daysLeft > 0) && (
+      {isTrial && !trialExpired && (
         <div
           style={{
             background: 'linear-gradient(90deg, #1e0938 0%, #3b0764 20%, #6d28d9 45%, #9333ea 55%, #3b0764 80%, #1e0938 100%)',
@@ -942,7 +979,7 @@ function Nav({ lastScannedAt, scanHealth }: { lastScannedAt: string | null; scan
           <span className="text-violet-200 font-medium">Free Trial</span>
           <span className="text-violet-500 select-none">·</span>
           <span className="text-violet-300/80">
-            {daysLeft === 1 ? '1 day left' : daysLeft !== null ? `${daysLeft} days left` : 'Active'}
+            {daysLeft === 0 ? 'Expires today' : daysLeft === 1 ? '1 day left' : daysLeft !== null ? `${daysLeft} days left` : 'Active'}
           </span>
           <Link href="/upgrade" className="ml-1 text-violet-300 font-semibold underline underline-offset-2 decoration-violet-500/50 hover:text-white transition-colors duration-150">
             Upgrade
@@ -1735,7 +1772,7 @@ function FeedPage() {
           <>
             {/* Subtle refresh note */}
             <div className="flex items-center justify-between mb-4">
-              <NextScanCountdown />
+              <NextScanCountdown scanStatus={scanHealth?.lastScanStatus} />
               <p className="text-xs text-slate-700">
                 Updated {timeAgo(lastRefreshed.toISOString())}
                 {scanHealth?.lastScanStatus === 'failed' && (

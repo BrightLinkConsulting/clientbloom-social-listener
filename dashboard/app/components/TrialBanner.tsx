@@ -10,15 +10,23 @@ import { useEffect, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import Link from 'next/link'
 
-function useDaysLeft(trialEndsAt: string | null): number | null {
-  const [daysLeft, setDaysLeft] = useState<number | null>(null)
+interface DaysLeftResult {
+  daysLeft: number | null  // full calendar days remaining (Math.floor); 0 = expires today
+  expired:  boolean        // true only when the trial timestamp has actually passed
+}
+
+function useDaysLeft(trialEndsAt: string | null): DaysLeftResult {
+  const [result, setResult] = useState<DaysLeftResult>({ daysLeft: null, expired: false })
 
   useEffect(() => {
-    if (!trialEndsAt) { setDaysLeft(null); return }
+    if (!trialEndsAt) { setResult({ daysLeft: null, expired: false }); return }
 
     function compute() {
-      const msLeft = new Date(trialEndsAt!).getTime() - Date.now()
-      setDaysLeft(msLeft <= 0 ? 0 : Math.ceil(msLeft / 86_400_000))
+      const msLeft  = new Date(trialEndsAt!).getTime() - Date.now()
+      const expired = msLeft <= 0
+      // Math.floor: if 6 days 22 hours remain, show "6 days left" not "7 days left".
+      // Math.ceil was the previous bug — on day 2 it still showed "7 days left".
+      setResult({ daysLeft: expired ? 0 : Math.floor(msLeft / 86_400_000), expired })
     }
 
     compute()
@@ -27,7 +35,7 @@ function useDaysLeft(trialEndsAt: string | null): number | null {
     return () => clearInterval(id)
   }, [trialEndsAt])
 
-  return daysLeft
+  return result
 }
 
 export default function TrialBanner() {
@@ -47,15 +55,17 @@ export default function TrialBanner() {
 
 /** Separate inner component so the hook always runs in the same call order */
 function TrialBannerInner({ trialEndsAt }: { trialEndsAt: string | null }) {
-  const daysLeft = useDaysLeft(trialEndsAt)
+  const { daysLeft, expired } = useDaysLeft(trialEndsAt)
 
-  if (daysLeft !== null && daysLeft <= 0) return null // trial expired — app shows its own gate
+  // Hide only when the trial timestamp has genuinely passed, not on the last day
+  // (daysLeft === 0 means < 24h remain — still show "Expires today")
+  if (expired) return null
 
   const label =
-    daysLeft === null  ? 'Free Trial'         :
-    daysLeft === 1     ? '1 day left'         :
-    daysLeft <= 7      ? `${daysLeft} days left` :
-                        `${daysLeft} days left`
+    daysLeft === null ? 'Free Trial'         :
+    daysLeft === 0    ? 'Expires today'      :
+    daysLeft === 1    ? '1 day left'         :
+                       `${daysLeft} days left`
 
   return (
     <div

@@ -75,6 +75,14 @@ export async function POST(req: NextRequest) {
               const hoursSinceLast = (Date.now() - new Date(lastScan).getTime()) / (1000 * 60 * 60)
               if (hoursSinceLast < 12) {
                 console.log(`[scan-tenant] Skipping ${tenantId} (${email}) — plan=${plan} scansPerDay=${scansPerDay}, last scan ${hoursSinceLast.toFixed(1)}h ago`)
+
+                // IMPORTANT: clear the 'scanning' status that the orchestrator set before
+                // dispatching this worker. Without this reset, the UI shows "Scanning…"
+                // indefinitely until the next /api/scan-status poll cycle detects the
+                // stale timestamp. 'success' is the correct status — the scan was
+                // intentionally skipped because the plan quota is satisfied, not failed.
+                await upsertScanHealth(tenantId, { lastScanStatus: 'success' })
+
                 return NextResponse.json({
                   ok: true, tenantId, skipped: true,
                   reason: `Plan ${plan} allows ${scansPerDay} scan/day; last scan ${hoursSinceLast.toFixed(1)}h ago`,
