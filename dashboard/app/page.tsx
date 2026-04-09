@@ -873,10 +873,23 @@ function Nav({ lastScannedAt, scanHealth }: { lastScannedAt: string | null; scan
     <header className="sticky top-0 z-20">
 
       {/* ── Trial countdown banner — visible only on active 7-day trials ── */}
+      {/* keyframes for the flowing gradient on the trial banner */}
+      <style>{`
+        @keyframes trial-gradient {
+          0%   { background-position: 0% 50%; }
+          50%  { background-position: 100% 50%; }
+          100% { background-position: 0% 50%; }
+        }
+      `}</style>
       {isTrial && (daysLeft === null || daysLeft > 0) && (
         <div
-          style={{ boxShadow: '0 0 10px 2px rgba(139,92,246,0.3)' }}
-          className="w-full bg-gradient-to-r from-violet-950/95 via-purple-900/95 to-violet-950/95 border-b border-violet-700/40 flex items-center justify-center gap-3 px-4 py-1.5 text-xs tracking-wide"
+          style={{
+            background: 'linear-gradient(90deg, #1e0938 0%, #3b0764 20%, #6d28d9 45%, #9333ea 55%, #3b0764 80%, #1e0938 100%)',
+            backgroundSize: '300% 100%',
+            animation: 'trial-gradient 6s ease infinite',
+            boxShadow: '0 0 12px 2px rgba(139,92,246,0.35)',
+          }}
+          className="w-full border-b border-violet-700/40 flex items-center justify-center gap-3 px-4 py-1.5 text-xs tracking-wide"
         >
           <span className="relative flex h-1.5 w-1.5 shrink-0">
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-violet-400 opacity-60" />
