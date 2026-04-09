@@ -75,12 +75,11 @@ function logoHeader(color: string = BRAND_PURPLE): string {
   </div>`
 }
 
-function footer(recipientEmail: string, unsubUrl: string): string {
-  const safeEmail = recipientEmail.replace(/</g, '&lt;').replace(/>/g, '&gt;')
+function footer(unsubUrl: string): string {
   return `
     <hr style="border:none;border-top:1px solid #e5e5e5;margin:28px 0 16px" />
     <p style="font-size:11px;color:#aaa;margin:0;line-height:1.7">
-      You're receiving this because you signed up for a Scout by ClientBloom trial at ${safeEmail}.<br />
+      You're receiving this because you signed up for a Scout by ClientBloom trial.<br />
       ${PHYSICAL_ADDR}<br />
       <a href="${unsubUrl}" style="color:#aaa;text-decoration:underline">Unsubscribe from trial emails</a>
     </p>`
@@ -156,14 +155,13 @@ const PLAN_COPY: Record<RecommendedPlan, PlanCopy> = {
 // ── Trial Day 1: Welcome ──────────────────────────────────────────────────────
 
 export function buildTrialDay1Email(
-  firstName: string,
-  opts: { appUrl: string; email: string; unsubUrl: string },
+  opts: { appUrl: string; unsubUrl: string },
 ): EmailTemplate {
   const subject = `Welcome — your 30-Day LinkedIn Authority Challenge starts today`
   const onboardUrl = `${opts.appUrl}/onboarding`
 
   const body = `
-    ${h2(`Welcome, ${firstName}. Your 30-Day LinkedIn Authority Challenge starts today.`)}
+    ${h2('Your 30-Day LinkedIn Authority Challenge starts today.')}
     ${p(`You have 7 days to experience what it feels like when your ideal clients are coming to <em>you</em>.`)}
     ${infoBox(`
       <p style="margin:0 0 6px;font-weight:700;font-size:13px;color:#1a1a1a">The challenge: 30 days, 3 prospects who know your name before you pitch them.</p>
@@ -172,7 +170,7 @@ export function buildTrialDay1Email(
     ${p(`<strong>Your first move:</strong> Complete your quick setup — tell Scout who your ideal client is and add 1–2 LinkedIn profiles you want to monitor. Then hit <strong>Scan Now</strong> to see your first batch of posts.`)}
     <p style="margin:16px 0 8px">${cta('Set up Scout now →', onboardUrl, BRAND_PURPLE)}</p>
     ${p(`You'll get one email per day this week — specific, actionable, zero filler. Day 2 lands tomorrow with the comment framework that makes you memorable.`, 'color:#666;font-size:13px')}
-    ${footer(opts.email, opts.unsubUrl)}`
+    ${footer(opts.unsubUrl)}`
 
   return { subject, html: wrap(logoHeader(), body, '') }
 }
@@ -180,14 +178,12 @@ export function buildTrialDay1Email(
 // ── Trial Day 2: Comment Framework ───────────────────────────────────────────
 
 export function buildTrialDay2Email(
-  firstName: string,
   opts: { appUrl: string; unsubUrl: string },
 ): EmailTemplate {
   const subject = `Day 2: The comment that gets you remembered (copy-paste ready)`
 
   const body = `
     ${h2('The one comment framework that works on LinkedIn')}
-    ${p(`Hi ${firstName},`)}
     ${p(`Most people comment the same three ways: "Great point!" · "So true!" · A paragraph about themselves. None of these work. Here's the framework that does.`)}
     ${calloutBox('THE 3-PART COMMENT FORMULA', [
       '<strong>1. Name a specific detail from their post.</strong> Shows you actually read it, not just the headline.',
@@ -197,7 +193,7 @@ export function buildTrialDay2Email(
     ${p(`Scout's AI comment suggestions follow this exact structure. Open your feed, find a post scored 7 or above, and read the <em>Comment Angle</em> — that's your starting point.`)}
     ${p(`The goal isn't to sell anything. It's to be someone they remember when the time comes.`)}
     <p style="margin:16px 0 8px">${cta('Open your Scout feed →', opts.appUrl)}</p>
-    ${footer(firstName, opts.unsubUrl)}`
+    ${footer(opts.unsubUrl)}`
 
   return { subject, html: wrap(header('Scout · Day 2 of 7'), body, '') }
 }
@@ -205,14 +201,12 @@ export function buildTrialDay2Email(
 // ── Trial Day 3: Check-in on signals ─────────────────────────────────────────
 
 export function buildTrialDay3Email(
-  firstName: string,
   opts: { appUrl: string; unsubUrl: string },
 ): EmailTemplate {
   const subject = `Day 3: How to tell if it's working (look for these 3 things)`
 
   const body = `
     ${h2('The early signals that tell you this is working')}
-    ${p(`Hi ${firstName},`)}
     ${p(`You should have your first comments live by now. Here's how to tell whether they're building anything yet.`)}
     ${calloutBox('WEEK 1 SIGNALS TO WATCH FOR', [
       '✓ <strong>Profile view spike</strong> after you comment (check LinkedIn notifications).',
@@ -223,7 +217,7 @@ export function buildTrialDay3Email(
     ${infoBox(`<p style="margin:0;font-size:13px;color:#333;line-height:1.6">When you get a positive response, mark that post as <strong>Engaged</strong> in Scout. You'll build a list of warm contacts without a spreadsheet.</p>`)}
     ${p(`If you're getting zero responses, two things to check: (1) Are you posting comments on the actual LinkedIn post, not just saving it in Scout? (2) Are the posts you're commenting on less than 24 hours old? Timing matters more than quality in week one.`)}
     <p style="margin:16px 0 8px">${cta('Check today\'s feed →', opts.appUrl)}</p>
-    ${footer(firstName, opts.unsubUrl)}`
+    ${footer(opts.unsubUrl)}`
 
   return { subject, html: wrap(header('Scout · Day 3 of 7'), body, '') }
 }
@@ -231,14 +225,12 @@ export function buildTrialDay3Email(
 // ── Trial Day 4: Timing tip ───────────────────────────────────────────────────
 
 export function buildTrialDay4Email(
-  firstName: string,
   opts: { appUrl: string; unsubUrl: string },
 ): EmailTemplate {
   const subject = `Day 4: When you comment matters more than what you say`
 
   const body = `
     ${h2('The timing advantage most people ignore')}
-    ${p(`Hi ${firstName},`)}
     ${p(`LinkedIn's algorithm rewards early engagement. A comment in the first 60–90 minutes of a post's life gets meaningfully more visibility than the same comment posted 6 hours later.`)}
     ${p(`Most people open LinkedIn twice a day and scroll what's already popular. By then, the algorithm window is closed. You're commenting into a conversation that's already moved on.`)}
     ${infoBox(`
@@ -247,7 +239,7 @@ export function buildTrialDay4Email(
     `)}
     ${p(`You don't need to be first. You need to be early and have something worth saying. The combination is rare enough that people notice.`)}
     <p style="margin:16px 0 8px">${cta('See today\'s posts →', opts.appUrl)}</p>
-    ${footer(firstName, opts.unsubUrl)}`
+    ${footer(opts.unsubUrl)}`
 
   return { subject, html: wrap(header('Scout · Day 4 of 7'), body, '') }
 }
@@ -255,7 +247,6 @@ export function buildTrialDay4Email(
 // ── Trial Day 5: Social proof + first urgency ─────────────────────────────────
 
 export function buildTrialDay5Email(
-  firstName: string,
   opts: { appUrl: string; upgradeUrl: string; unsubUrl: string; plan?: RecommendedPlan },
 ): EmailTemplate {
   const plan     = opts.plan || 'pro'
@@ -264,7 +255,6 @@ export function buildTrialDay5Email(
 
   const body = `
     ${h2('What 30 days of consistent showing up actually produces')}
-    ${p(`Hi ${firstName},`)}
     ${p(`Consultants who run this approach for 30 days consistently describe the same experience: prospects start reaching out first, before any cold pitch. Not because of a lucky post. Because they showed up in the right conversations enough times that they became a familiar, credible name.`)}
     ${infoBox(`
       <p style="margin:0 0 4px;font-weight:700;font-size:13px;color:#1a1a1a">By day 30: at least 3 of your ideal prospects recognize your name before you ever pitch them.</p>
@@ -274,7 +264,7 @@ export function buildTrialDay5Email(
     ${p(`${planCopy.highlight}`, 'color:#666;font-size:13px')}
     <p style="margin:16px 0 4px">${cta(planCopy.ctaLabel, opts.upgradeUrl, planCopy.color)}</p>
     ${p(`${planCopy.price} · Cancel anytime · No setup fees`, 'color:#999;font-size:12px;margin:6px 0 16px')}
-    ${footer(firstName, opts.unsubUrl)}`
+    ${footer(opts.unsubUrl)}`
 
   return { subject, html: wrap(header('Scout · Day 5 of 7 — Trial ending soon', planCopy.color), body, '') }
 }
@@ -282,7 +272,6 @@ export function buildTrialDay5Email(
 // ── Trial Day 6: Last chance ──────────────────────────────────────────────────
 
 export function buildTrialDay6Email(
-  firstName: string,
   opts: { upgradeUrl: string; unsubUrl: string; plan?: RecommendedPlan },
 ): EmailTemplate {
   const plan     = opts.plan || 'pro'
@@ -291,7 +280,6 @@ export function buildTrialDay6Email(
 
   const body = `
     ${h2('Day 7 vs. Day 30 — two very different outcomes')}
-    ${p(`Hi ${firstName},`)}
     <table style="width:100%;border-collapse:collapse;font-size:13px;margin:16px 0;border-radius:8px;overflow:hidden;border:1px solid #e5e5e5">
       <thead>
         <tr style="background:#f5f5f5">
@@ -321,7 +309,7 @@ export function buildTrialDay6Email(
     ${p(`Your trial ends tomorrow.`)}
     <p style="margin:16px 0 4px">${cta(`Don't stop at day 7 →`, opts.upgradeUrl, planCopy.color)}</p>
     ${p(`${planCopy.price} · Cancel anytime`, 'color:#999;font-size:12px;margin:6px 0 16px')}
-    ${footer(firstName, opts.unsubUrl)}`
+    ${footer(opts.unsubUrl)}`
 
   return { subject, html: wrap(header('Scout · Day 6 of 7 — Trial ends tomorrow', planCopy.color), body, '') }
 }
@@ -329,7 +317,6 @@ export function buildTrialDay6Email(
 // ── Trial Day 7: Final day ────────────────────────────────────────────────────
 
 export function buildTrialDay7Email(
-  firstName: string,
   opts: { upgradeUrl: string; unsubUrl: string; plan?: RecommendedPlan },
 ): EmailTemplate {
   const plan     = opts.plan || 'pro'
@@ -338,7 +325,6 @@ export function buildTrialDay7Email(
 
   const body = `
     ${h2(`You started something. Don't leave it at 23%.`)}
-    ${p(`Hi ${firstName},`)}
     ${p(`On Day 1 I mentioned the 30-Day LinkedIn Authority Challenge. Today is day 7 — you're 23% through it.`)}
     ${p(`The results people talk about — the moment a prospect messages you first, mentions your name in a conversation, asks you for help unprompted — those happen between days 20 and 30. Not day 7.`)}
     ${infoBox(`
@@ -346,7 +332,7 @@ export function buildTrialDay7Email(
     `, planCopy.color)}
     <p style="margin:20px 0 4px">${cta(`Finish what you started →`, opts.upgradeUrl, planCopy.color)}</p>
     ${p(`Starter $49 · Pro $99 · Agency $249 · Cancel anytime`, 'color:#999;font-size:12px;margin:6px 0 16px')}
-    ${footer(firstName, opts.unsubUrl)}`
+    ${footer(opts.unsubUrl)}`
 
   return { subject, html: wrap(header(`Scout · Day 7 — Trial ends today`, planCopy.color), body, '') }
 }
@@ -354,19 +340,17 @@ export function buildTrialDay7Email(
 // ── Trial Expired (immediate) ─────────────────────────────────────────────────
 
 export function buildTrialExpiredEmail(
-  firstName: string,
   opts: { upgradeUrl: string; unsubUrl: string },
 ): EmailTemplate {
   const subject = `Your Scout trial has ended — your leads are waiting`
 
   const body = `
     ${h2(`Your trial has ended`)}
-    ${p(`Hi ${firstName},`)}
     ${p(`Your 7-day Scout trial is over. Your feed is paused — the posts Scout found and the contacts you engaged are still there, locked until you subscribe.`)}
     ${p(`The LinkedIn conversations you were showing up in are still happening. The question is whether someone else is filling the space you were in.`)}
     <p style="margin:20px 0 4px">${cta(`Unlock my leads →`, opts.upgradeUrl)}</p>
     ${p(`Starter $49 · Pro $99 · Agency $249 · Cancel anytime`, 'color:#999;font-size:12px;margin:6px 0 16px')}
-    ${footer(firstName, opts.unsubUrl)}`
+    ${footer(opts.unsubUrl)}`
 
   return { subject, html: wrap(header(`Scout by ClientBloom`, BRAND_DARK), body, '') }
 }
@@ -374,14 +358,12 @@ export function buildTrialExpiredEmail(
 // ── Post-Expiry Win-Back (~3 days after expiry) ───────────────────────────────
 
 export function buildTrialWinBackEmail(
-  firstName: string,
   opts: { upgradeUrl: string; unsubUrl: string },
 ): EmailTemplate {
-  const subject = `${firstName}, one last thing about your Scout trial`
+  const subject = `One last thing about your Scout trial`
 
   const body = `
     ${h2(`The contacts you warmed up this week are still warm.`)}
-    ${p(`Hi ${firstName},`)}
     ${p(`Your trial ended a few days ago. I want to be direct with you.`)}
     ${p(`The window for those LinkedIn conversations doesn't stay open. The people whose posts you were showing up in will move on. Some of them are probably seeing someone else's name in their feed right now.`)}
     ${p(`I'm not saying that to pressure you. I'm saying it because I've watched consultants lose the early-mover position in their niche by waiting two more weeks to decide.`)}
@@ -389,7 +371,7 @@ export function buildTrialWinBackEmail(
     <p style="margin:20px 0 4px">${cta(`Pick up where you left off →`, opts.upgradeUrl)}</p>
     ${p(`Starter $49 · Pro $99 · Agency $249`, 'color:#999;font-size:12px;margin:6px 0 16px')}
     ${p(`— Mike`, 'color:#666;font-size:13px;margin-top:20px')}
-    ${footer(firstName, opts.unsubUrl)}`
+    ${footer(opts.unsubUrl)}`
 
   return { subject, html: wrap(header(`Scout by ClientBloom`, BRAND_DARK), body, '') }
 }
@@ -743,7 +725,6 @@ export function buildCancellationEmail(opts: {
 
 export function buildTrialDayEmail(
   day: number,
-  firstName: string,
   opts: {
     appUrl:     string
     upgradeUrl: string
@@ -752,12 +733,12 @@ export function buildTrialDayEmail(
   },
 ): EmailTemplate | null {
   switch (day) {
-    case 2: return buildTrialDay2Email(firstName, opts)
-    case 3: return buildTrialDay3Email(firstName, opts)
-    case 4: return buildTrialDay4Email(firstName, opts)
-    case 5: return buildTrialDay5Email(firstName, opts)
-    case 6: return buildTrialDay6Email(firstName, opts)
-    case 7: return buildTrialDay7Email(firstName, opts)
+    case 2: return buildTrialDay2Email(opts)
+    case 3: return buildTrialDay3Email(opts)
+    case 4: return buildTrialDay4Email(opts)
+    case 5: return buildTrialDay5Email(opts)
+    case 6: return buildTrialDay6Email(opts)
+    case 7: return buildTrialDay7Email(opts)
     default: return null
   }
 }

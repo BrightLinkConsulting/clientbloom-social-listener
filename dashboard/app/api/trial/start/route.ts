@@ -118,40 +118,14 @@ async function updateTenantRecord(recordId: string, fields: Record<string, unkno
 
 // ── Email helpers ──────────────────────────────────────────────────────────
 
-/**
- * Derive a friendly first name from the "Company Name" field.
- *
- * Airtable sometimes stores the user's email address in the Company Name field
- * (e.g. "Info@brightlinkconsulting.com") when users leave the field blank or
- * copy-paste their email. Guard against that so the email renders "Welcome,
- * Mike" rather than "Welcome, Info@brightlinkconsulting.com".
- */
-function extractFirstName(name: string): string {
-  const trimmed = name.trim()
-  if (!trimmed) return 'there'
-
-  // If the name looks like an email address, grab the part before '@'
-  if (trimmed.includes('@')) {
-    const local = trimmed.split('@')[0]
-    // Capitalize first letter: "info" → "Info"
-    return local.charAt(0).toUpperCase() + local.slice(1) || 'there'
-  }
-
-  // Otherwise take the first word of the company/personal name
-  return trimmed.split(/\s+/)[0] || 'there'
-}
-
-async function sendTrialDay1Email(email: string, name: string): Promise<void> {
+async function sendTrialDay1Email(email: string): Promise<void> {
   if (!RESEND_KEY) {
     console.log(`[trial/start] Would send Day 1 email to ${email} — RESEND_API_KEY not set`)
     return
   }
 
-  const firstName = extractFirstName(name)
-  const appUrl    = BASE_URL
-  const unsubUrl  = `${BASE_URL}/api/unsubscribe?email=${encodeURIComponent(email)}`
-
-  const { subject, html } = buildTrialDay1Email(firstName, { appUrl, email, unsubUrl })
+  const unsubUrl = `${BASE_URL}/api/unsubscribe?email=${encodeURIComponent(email)}`
+  const { subject, html } = buildTrialDay1Email({ appUrl: BASE_URL, unsubUrl })
 
   await fetch('https://api.resend.com/emails', {
     method: 'POST',
@@ -271,7 +245,7 @@ export async function POST(req: NextRequest) {
   }
 
   // Send Day 1 email + admin notification (non-fatal)
-  await sendTrialDay1Email(email, name.trim()).catch(e =>
+  await sendTrialDay1Email(email).catch(e =>
     console.error('[trial/start] Day 1 email failed:', e.message)
   )
   await sendAdminNotification(email, name.trim()).catch(e =>

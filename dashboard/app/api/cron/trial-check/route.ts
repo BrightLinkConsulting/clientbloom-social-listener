@@ -119,21 +119,20 @@ async function sendEmail(to: string, subject: string, html: string): Promise<boo
  * All marketing emails include a CAN-SPAM unsubscribe link.
  */
 function buildEmailForDay(
-  day:        number,
-  firstName:  string,
-  email:      string,
+  day:   number,
+  email: string,
 ): { subject: string; html: string } | null {
   const appUrl     = BASE_URL
   const upgradeUrl = `${BASE_URL}/upgrade`
   const unsubUrl   = `${BASE_URL}/api/unsubscribe?email=${encodeURIComponent(email)}`
 
   switch (day) {
-    case 2: return buildTrialDay2Email(firstName, { appUrl, unsubUrl })
-    case 3: return buildTrialDay3Email(firstName, { appUrl, unsubUrl })
-    case 4: return buildTrialDay4Email(firstName, { appUrl, unsubUrl })
-    case 5: return buildTrialDay5Email(firstName, { appUrl, upgradeUrl, unsubUrl })
-    case 6: return buildTrialDay6Email(firstName, { upgradeUrl, unsubUrl })
-    case 7: return buildTrialDay7Email(firstName, { upgradeUrl, unsubUrl })
+    case 2: return buildTrialDay2Email({ appUrl, unsubUrl })
+    case 3: return buildTrialDay3Email({ appUrl, unsubUrl })
+    case 4: return buildTrialDay4Email({ appUrl, unsubUrl })
+    case 5: return buildTrialDay5Email({ appUrl, upgradeUrl, unsubUrl })
+    case 6: return buildTrialDay6Email({ upgradeUrl, unsubUrl })
+    case 7: return buildTrialDay7Email({ upgradeUrl, unsubUrl })
     default: return null
   }
 }
@@ -167,10 +166,8 @@ export async function GET(req: Request) {
 
     for (const record of activeTrials) {
       try {
-        const email      = (record.fields['Email'] || '').trim()
-        const name       = record.fields['Company Name'] || email.split('@')[0]
-        const firstName  = name.split(' ')[0] || 'there'
-        const optedOut   = !!record.fields['Email Opted Out']
+        const email    = (record.fields['Email'] || '').trim()
+        const optedOut = !!record.fields['Email Opted Out']
 
         if (!email) continue
 
@@ -200,7 +197,7 @@ export async function GET(req: Request) {
           // Send expiry email only if the Day 7 sequence email wasn't already sent
           if (currentDay < 7) {
             const unsubUrl = `${BASE_URL}/api/unsubscribe?email=${encodeURIComponent(email)}`
-            const expired  = buildTrialExpiredEmail(firstName, { upgradeUrl, unsubUrl })
+            const expired  = buildTrialExpiredEmail({ upgradeUrl, unsubUrl })
             await sendEmail(email, expired.subject, expired.html)
             results.emailsSent++
           }
@@ -231,7 +228,7 @@ export async function GET(req: Request) {
           }
         }
 
-        const emailContent = buildEmailForDay(targetDay, firstName, email)
+        const emailContent = buildEmailForDay(targetDay, email)
         if (!emailContent) {
           results.emailsSkipped++
           continue
