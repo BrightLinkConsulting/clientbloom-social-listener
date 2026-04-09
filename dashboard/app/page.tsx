@@ -1839,6 +1839,21 @@ function FeedPage() {
                 )}
               </p>
             </div>
+
+            {/* Zero-new-posts notice — only when last scan explicitly returned 0 */}
+            {scanHealth?.lastPostsFound === 0 &&
+              scanHealth?.lastScanStatus !== 'scanning' &&
+              scanHealth?.lastScanStatus !== 'pending_fb' && (
+              <div className="mb-4 flex items-start gap-2 px-3.5 py-2.5 rounded-xl bg-slate-800/40 border border-slate-700/30">
+                <svg className="w-3.5 h-3.5 mt-0.5 shrink-0 text-slate-500" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                </svg>
+                <p className="text-xs text-slate-500 leading-relaxed">
+                  Last scan found no new posts matching your keywords — posts below are from previous scans.
+                  {' '}New results arrive automatically at the next scan.
+                </p>
+              </div>
+            )}
             <div className="space-y-3">
               {posts.map(post => (
                 <PostCard
