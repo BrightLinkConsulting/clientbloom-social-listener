@@ -186,6 +186,14 @@ export const authOptions: NextAuthOptions = {
         if ((sessionUpdate as any).onboarded !== undefined) {
           token.onboarded = (sessionUpdate as any).onboarded
         }
+        // Used by the post-payment welcome page to instantly reflect a plan upgrade
+        // without requiring the user to sign out and back in.
+        if ((sessionUpdate as any).plan !== undefined) {
+          token.plan = (sessionUpdate as any).plan
+        }
+        if ((sessionUpdate as any).trialEndsAt !== undefined) {
+          token.trialEndsAt = (sessionUpdate as any).trialEndsAt
+        }
       }
       // Persist tenant credentials in the JWT on sign-in
       if (user) {
