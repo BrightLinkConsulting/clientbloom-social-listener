@@ -1937,6 +1937,31 @@ function SlackIntegrationSection() {
 
   if (loading) return null
 
+  // Gate: Slack is only available on Pro and Agency plans
+  if (!slackUnlocked) {
+    return (
+      <Section
+        title="Slack Integration"
+        description="The daily digest and scan alerts are delivered via Slack. Required for the digest to work."
+      >
+        <div className="rounded-xl bg-slate-800/30 border border-violet-700/30 px-4 py-4 flex items-start gap-3">
+          <svg className="w-4 h-4 text-violet-400 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+          </svg>
+          <div>
+            <p className="text-xs font-semibold text-violet-300 mb-1">Available on Pro and Agency plans</p>
+            <p className="text-xs text-slate-500 leading-relaxed">
+              Connect Slack to receive an AI-written daily digest of your highest-scored posts with comment angles, delivered every morning.
+            </p>
+            <a href="/upgrade" className="inline-block mt-2 text-xs font-semibold text-violet-400 hover:text-violet-300 transition-colors underline underline-offset-2 decoration-violet-600">
+              Upgrade to unlock →
+            </a>
+          </div>
+        </div>
+      </Section>
+    )
+  }
+
   const isConfigured = !!botToken && !!channelName
 
   return (
