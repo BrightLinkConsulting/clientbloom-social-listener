@@ -158,33 +158,50 @@ Write a 2-sentence comment approach for this post. The comment should add a spec
 
 Return ONLY the comment approach text — no labels, no quotes, no explanation.`
 
-  let commentApproach = ''
-  try {
+  // Fallback prompt — shorter, used if primary returns empty
+  const fallbackPrompt = `LinkedIn post: "${postText.slice(0, 400)}"
+
+Write exactly 2 sentences: a comment approach that adds value without pitching. Return only the text.`
+
+  async function callClaude(userPrompt: string): Promise<string> {
     const aiResp = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
-      headers: { 'x-api-key': anthropicKey, 'anthropic-version': '2023-06-01', 'Content-Type': 'application/json' },
+      headers: { 'x-api-key': anthropicKey!, 'anthropic-version': '2023-06-01', 'Content-Type': 'application/json' },
       body: JSON.stringify({
         model:      'claude-haiku-4-5-20251001',
         max_tokens: 256,
-        messages:   [{ role: 'user', content: prompt }],
+        messages:   [{ role: 'user', content: userPrompt }],
       }),
     })
-    if (aiResp.ok) {
-      const aiData = await aiResp.json()
-      commentApproach = (aiData.content?.[0]?.text || '').trim()
-      if (!commentApproach) {
-        console.error('[suggest] Claude returned ok but empty text. Response:', JSON.stringify(aiData).slice(0, 400))
-      }
-    } else {
+    if (!aiResp.ok) {
       const errBody = await aiResp.text().catch(() => '')
       console.error(`[suggest] Claude API non-ok ${aiResp.status}: ${errBody.slice(0, 400)}`)
+      return ''
+    }
+    const aiData = await aiResp.json()
+    const text = (aiData.content?.[0]?.text || '').trim()
+    if (!text) {
+      console.error('[suggest] Claude returned ok but empty text. stop_reason:', aiData.stop_reason, 'content_len:', aiData.content?.length ?? 0)
+    }
+    return text
+  }
+
+  let commentApproach = ''
+  try {
+    commentApproach = await callClaude(prompt)
+    if (!commentApproach) {
+      console.warn('[suggest] Primary prompt returned empty — retrying with fallback prompt')
+      commentApproach = await callClaude(fallbackPrompt)
     }
   } catch (err: any) {
     console.error('[suggest] Claude API fetch exception:', err?.message)
   }
 
   if (!commentApproach) {
-    return NextResponse.json({ error: 'Generation failed.' }, { status: 500 })
+    return NextResponse.json(
+      { error: 'Could not generate a comment approach right now. Please try again in a moment.' },
+      { status: 503 }
+    )
   }
 
   // ── Save back to Airtable ─────────────────────────────────────────────────

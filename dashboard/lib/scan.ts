@@ -389,9 +389,9 @@ async function scanLinkedIn(
       runApifyActorWithRetry(
         apifyToken,
         'apimaestro/linkedin-posts-search-scraper-no-cookies',
-        { searchQuery: term, limit: 25, sort_type: 'relevance' },
+        { searchQuery: term, limit: 50, sort_type: 'recent' },
         { waitSecs: 45, memoryMbytes: 256 },
-        { searchQuery: term, limit: 15, sort_type: 'relevance' },
+        { searchQuery: term, limit: 25, sort_type: 'recent' },
         { waitSecs: 60, memoryMbytes: 512 },
         `LinkedIn keyword "${term}"`,
       ).then(items => items.map(r => normalizeLinkedInKeywordPost(r, term)))

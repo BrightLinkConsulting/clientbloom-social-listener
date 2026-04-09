@@ -960,10 +960,16 @@ function ScanStatusPill({
       )
     }
 
+    const postsFound = health?.lastPostsFound ?? null
+    const postsLabel = postsFound !== null
+      ? postsFound === 0
+        ? ' · 0 new posts'
+        : ` · ${postsFound} new post${postsFound !== 1 ? 's' : ''}`
+      : ''
     return (
       <span className="text-xs text-emerald-400 flex items-center gap-1">
         <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-        Last scan: {timeAgo(scanAt)}
+        Last scan: {timeAgo(scanAt)}{postsLabel}
       </span>
     )
   }
@@ -1376,7 +1382,7 @@ function MomentumWidget({
       ) : (
         <p className="text-[11px] text-slate-600 mt-2 leading-snug">
           {totalReplied > 0
-            ? `${totalReplied} conversation${totalReplied !== 1 ? 's' : ''} started · ${totalNew} new post${totalNew !== 1 ? 's' : ''} waiting`
+            ? `${totalReplied} conversation${totalReplied !== 1 ? 's' : ''} started · ${totalNew} post${totalNew !== 1 ? 's' : ''} in queue`
             : `${totalEngaged} engagement${totalEngaged !== 1 ? 's' : ''} recorded · keep going — replies are where relationships begin`}
         </p>
       )}
