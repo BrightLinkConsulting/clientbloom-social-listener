@@ -818,10 +818,11 @@ function scanDayLabel(ts: number): string {
 }
 
 interface NextScanCountdownProps {
-  scanStatus?: string | null  // from Scan Health — hides countdown while actively scanning
+  scanStatus?: string | null   // from Scan Health — hides countdown while actively scanning
+  lastScanAt?: string | null   // used to detect stuck scans (> 10 min since last completed scan)
 }
 
-function NextScanCountdown({ scanStatus }: NextScanCountdownProps) {
+function NextScanCountdown({ scanStatus, lastScanAt }: NextScanCountdownProps) {
   const [nextTs, setNextTs] = useState(() => getNextScanTimestamp())
 
   useEffect(() => {
@@ -831,7 +832,13 @@ function NextScanCountdown({ scanStatus }: NextScanCountdownProps) {
 
   // While a scan is actively running, replace the countdown with a status note
   // so users don't see contradictory "Scanning…" and "Next scan in 11h" at the same time.
-  if (scanStatus === 'scanning') {
+  // Exception: if the scan appears stuck (> STUCK_SCANNING_MS since last completed scan),
+  // fall through to the normal countdown so the user gets useful timing info.
+  const isStuckScanning = scanStatus === 'scanning' && lastScanAt
+    ? (Date.now() - new Date(lastScanAt).getTime()) > STUCK_SCANNING_MS
+    : false
+
+  if (scanStatus === 'scanning' && !isStuckScanning) {
     return (
       <span className="text-xs text-blue-400/70">
         Scan running · new posts appear automatically
@@ -864,12 +871,37 @@ interface ScanHealth {
 // before we surface a warning to the user.
 const SCAN_OVERDUE_MS = 14 * 60 * 60 * 1000
 
+// If status is 'scanning' but the previous scan completed more than this long
+// ago, the current scan is stuck (Vercel maxDuration = 300s; 10 min is generous).
+// The watchdog resets these within 1h — this surfaces the issue to the user sooner.
+const STUCK_SCANNING_MS = 10 * 60 * 1000
+
 function ScanStatusPill({ health, lastScannedAt }: { health: ScanHealth | null; lastScannedAt: string | null }) {
   // Determine display state from scan health (preferred) or fallback to lastScannedAt from posts
   const scanAt = health?.lastScanAt || lastScannedAt
   const status = health?.lastScanStatus
 
   if (status === 'scanning') {
+    // Client-side stuck-scanning detection: if the last completed scan is older
+    // than STUCK_SCANNING_MS, the current scan has exceeded Vercel's maxDuration
+    // and its final status write must have failed. Show overdue state instead of
+    // a perpetually spinning indicator.
+    const isStuck = scanAt
+      ? (Date.now() - new Date(scanAt).getTime()) > STUCK_SCANNING_MS
+      : false
+
+    if (isStuck) {
+      return (
+        <span
+          className="text-xs text-amber-400 flex items-center gap-1"
+          title="Scan appears to have stalled. The watchdog will automatically reset it within the hour."
+        >
+          <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+          Scan stalled · {timeAgo(scanAt!)} · auto-recovery active
+        </span>
+      )
+    }
+
     return (
       <span className="text-xs text-blue-400 flex items-center gap-1">
         <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
@@ -939,10 +971,13 @@ function Nav({ lastScannedAt, scanHealth }: { lastScannedAt: string | null; scan
   const isTrial     = plan === 'Trial'
   const trialMsLeft = trialEndsAt ? new Date(trialEndsAt).getTime() - Date.now() : null
   const trialExpired = trialMsLeft !== null && trialMsLeft <= 0
-  // Math.floor: shows "6 days left" on day 2, not "7". 0 means "expires today" (< 24h left).
+  // Math.floor: shows "6d 14h left" on day 2, not "7 days left".
   const daysLeft    = trialMsLeft !== null && !trialExpired
     ? Math.floor(trialMsLeft / 86_400_000)
     : null
+  const hoursLeft   = trialMsLeft !== null && !trialExpired
+    ? Math.floor((trialMsLeft % 86_400_000) / 3_600_000)
+    : 0
 
   // Re-render time-ago labels every minute
   useEffect(() => {
@@ -979,7 +1014,7 @@ function Nav({ lastScannedAt, scanHealth }: { lastScannedAt: string | null; scan
           <span className="text-violet-200 font-medium">Free Trial</span>
           <span className="text-violet-500 select-none">·</span>
           <span className="text-violet-300/80">
-            {daysLeft === 0 ? 'Expires today' : daysLeft === 1 ? '1 day left' : daysLeft !== null ? `${daysLeft} days left` : 'Active'}
+            {daysLeft === null ? 'Active' : daysLeft === 0 ? `${hoursLeft}h left` : `${daysLeft}d ${hoursLeft}h left`}
           </span>
           <Link href="/upgrade" className="ml-1 text-violet-300 font-semibold underline underline-offset-2 decoration-violet-500/50 hover:text-white transition-colors duration-150">
             Upgrade
@@ -1772,7 +1807,7 @@ function FeedPage() {
           <>
             {/* Subtle refresh note */}
             <div className="flex items-center justify-between mb-4">
-              <NextScanCountdown scanStatus={scanHealth?.lastScanStatus} />
+              <NextScanCountdown scanStatus={scanHealth?.lastScanStatus} lastScanAt={scanHealth?.lastScanAt} />
               <p className="text-xs text-slate-700">
                 Updated {timeAgo(lastRefreshed.toISOString())}
                 {scanHealth?.lastScanStatus === 'failed' && (

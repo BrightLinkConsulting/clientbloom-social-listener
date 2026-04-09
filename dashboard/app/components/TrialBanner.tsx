@@ -12,25 +12,27 @@ import Link from 'next/link'
 
 interface DaysLeftResult {
   daysLeft: number | null  // full calendar days remaining (Math.floor); 0 = expires today
+  hoursLeft: number        // remaining hours after stripping full days (0–23)
   expired:  boolean        // true only when the trial timestamp has actually passed
 }
 
 function useDaysLeft(trialEndsAt: string | null): DaysLeftResult {
-  const [result, setResult] = useState<DaysLeftResult>({ daysLeft: null, expired: false })
+  const [result, setResult] = useState<DaysLeftResult>({ daysLeft: null, hoursLeft: 0, expired: false })
 
   useEffect(() => {
-    if (!trialEndsAt) { setResult({ daysLeft: null, expired: false }); return }
+    if (!trialEndsAt) { setResult({ daysLeft: null, hoursLeft: 0, expired: false }); return }
 
     function compute() {
-      const msLeft  = new Date(trialEndsAt!).getTime() - Date.now()
-      const expired = msLeft <= 0
-      // Math.floor: if 6 days 22 hours remain, show "6 days left" not "7 days left".
-      // Math.ceil was the previous bug — on day 2 it still showed "7 days left".
-      setResult({ daysLeft: expired ? 0 : Math.floor(msLeft / 86_400_000), expired })
+      const msLeft   = new Date(trialEndsAt!).getTime() - Date.now()
+      const expired  = msLeft <= 0
+      // Math.floor: if 6 days 22 hours remain, show "6d 22h left" not "7 days left".
+      const daysLeft  = expired ? 0 : Math.floor(msLeft / 86_400_000)
+      const hoursLeft = expired ? 0 : Math.floor((msLeft % 86_400_000) / 3_600_000)
+      setResult({ daysLeft, hoursLeft, expired })
     }
 
     compute()
-    // Recompute once per hour so the label stays fresh across long sessions
+    // Recompute once per hour so the countdown stays fresh across long sessions
     const id = setInterval(compute, 60 * 60 * 1000)
     return () => clearInterval(id)
   }, [trialEndsAt])
@@ -55,17 +57,16 @@ export default function TrialBanner() {
 
 /** Separate inner component so the hook always runs in the same call order */
 function TrialBannerInner({ trialEndsAt }: { trialEndsAt: string | null }) {
-  const { daysLeft, expired } = useDaysLeft(trialEndsAt)
+  const { daysLeft, hoursLeft, expired } = useDaysLeft(trialEndsAt)
 
   // Hide only when the trial timestamp has genuinely passed, not on the last day
-  // (daysLeft === 0 means < 24h remain — still show "Expires today")
+  // (daysLeft === 0 means < 24h remain — still show hours countdown)
   if (expired) return null
 
   const label =
-    daysLeft === null ? 'Free Trial'         :
-    daysLeft === 0    ? 'Expires today'      :
-    daysLeft === 1    ? '1 day left'         :
-                       `${daysLeft} days left`
+    daysLeft === null ? 'Free Trial'                    :
+    daysLeft === 0    ? `${hoursLeft}h left`            :
+                       `${daysLeft}d ${hoursLeft}h left`
 
   return (
     <div
