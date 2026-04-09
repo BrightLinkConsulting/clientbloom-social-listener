@@ -227,6 +227,66 @@ Tested live against production (`scout.clientbloom.ai`):
 
 **Fix:** Made dynamic: shows MRR÷subscribers when there are active subscribers; shows `'—'` with "no active subscribers yet" in Stripe mode with zero subscribers; shows `'$79 list price'` label only in stub mode.
 
+### Bug 7: Admin trial pipeline countdown used Math.ceil (disagreed with TrialBanner)
+**Root cause:** The Trial Pipeline IIFE computed days with `Math.ceil(msLeft / 86400000)`. The `TrialBanner` component uses `Math.floor`. For a 6d 22h remaining trial, admin showed "7d left" while the user's own banner showed "6d 22h left" — visibly different numbers.
+
+**Fix:** Switched admin `daysRemaining()` to `Math.floor` + `Math.floor((msLeft % 86400000) / 3600000)` for hours, matching TrialBanner exactly. All countdown displays now show "Xd Yh left" format.
+
+Also updated `trialBadge()` helper (used in the tenant table column) to use the same `Math.floor` logic and the new color zones.
+
+### Bug 8: Trial Pipeline "Upcoming >7 days" section was misleading
+**Root cause:** The pipeline had a "Upcoming — more than 7 days remaining" section. Since all trials are exactly 7 days, this bucket could only ever contain the Owner test account (which has an extended `trialEndsAt` for testing) or data errors — never a real prospect.
+
+**Fix:** Removed the upcoming section entirely. Bucket structure is now: 🟢 Green (6-7d, just started), 🟡 Yellow (2-5d, check in), 🔴 Red (0-1d, reach out now), ⚫ Expired.
+
+---
+
+## Trial Reactivation System (April 2026)
+
+### Purpose
+Admin can send a curated reactivation email to any expired trial user who didn't convert. Intended for use ~30 days after expiry, but available any time from the admin panel.
+
+### Route: POST /api/admin/send-reactivation
+- Requires admin session (`isAdmin: true`)
+- Method enforcement: GET/PUT/DELETE/PATCH return 405
+- Accepts `{ id, email, companyName }` — all validated before use
+- Builds `buildTrialReactivationEmail` from `lib/emails.ts`
+- Sends via Resend as `Mike at Scout <info@clientbloom.ai>`
+- Writes `'Reactivation Sent At': ISO timestamp` to Airtable (non-fatal if Airtable fails)
+- Returns `{ ok: true, sentAt }` on success
+
+### Email: buildTrialReactivationEmail (lib/emails.ts)
+- Subject: "Your Scout account is still here, {name}"
+- Tone: warm, non-pressuring, Mike's voice — acknowledges the gap without apologizing
+- Includes upgrade CTA and plan pricing reminder
+- `companyName` escaped via `safe()` to prevent HTML injection
+- Includes unsubscribe link
+
+### Admin UI
+- Expired section shows all expired trials (no record cap)
+- Each row shows: company name, email, expiry date, send-reactivation button
+- After first send: button turns "✓ Resend", shows "Reactivation email sent [date]" in green
+- State is persisted in Airtable (`Reactivation Sent At` field) and reflected on next page load
+- Optimistic UI update on send (doesn't require page refresh)
+
+### Adversarial test results (April 2026) — 14/14 passed
+| Test | Expected | Result |
+|------|----------|--------|
+| GET /api/admin/send-reactivation (unauth) | Redirect → /sign-in | ✓ 307 |
+| PUT /api/admin/send-reactivation (unauth) | Redirect → /sign-in | ✓ 307 |
+| DELETE /api/admin/send-reactivation (unauth) | Redirect → /sign-in | ✓ 307 |
+| POST /api/admin/send-reactivation (unauth) | Redirect → /sign-in | ✓ 307 |
+| PATCH /api/admin/tenants (unauth, reactivationSentAt field) | Redirect | ✓ 307 |
+| Non-admin authenticated user POST send-reactivation | 403 Admin required | ✓ verified in source |
+| Missing body fields (no id/email) | 400 | ✓ verified in source |
+| HTML injection in companyName | safe() escapes to &lt;&gt; | ✓ XSS blocked |
+| Double-send guard | Deliberate resend allowed, UI marks state | ✓ intentional design |
+| Airtable write failure on send | Email still delivers, failure logged | ✓ non-fatal path |
+| Admin timing: Math.floor vs Math.ceil | 6d 22h → "6d 22h" not "7d" | ✓ synced |
+| Color zone boundaries: 7d/5d/1d/0d | Green/Yellow/Red correct at all boundaries | ✓ verified |
+| Upcoming section removal | No accounts appear in removed bucket | ✓ section gone |
+| Expired section empty state | "No active trials" shows correctly | ✓ verified in source |
+
 ---
 
 ## Known Gaps

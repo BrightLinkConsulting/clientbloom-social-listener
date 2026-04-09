@@ -74,9 +74,10 @@ Completed:
   legacy 'Scout $79'/'Scout $49' kept as fallbacks for existing records
 - ✅ Admin form plan dropdown updated — Starter/Pro/Agency with dollar amounts; removed 'Scout $79';
   default reset to 'Scout Starter'
-- ✅ Admin trial pipeline fixed — daysRemaining() helper used consistently; 'upcoming' bucket (>7d)
-  added so all active trials appear; expired detection corrected from t.status==='trial_expired'
-  (field doesn't exist) to daysRemaining(t) <= 0
+- ✅ Admin trial pipeline v2 — countdown synced to TrialBanner (Math.floor + hours display);
+  color zones green (6-7d), yellow (2-5d), red (0-1d); "upcoming >7d" section removed
+  (max trial is 7d); expired section with reactivation email button + send-date tracking;
+  'Reactivation Sent At' field written to Airtable on send; trialBadge() helper also uses Math.floor
 - ✅ Admin "Grant 14-Day Trial" corrected to "Grant 7-Day Trial" (TRIAL_DAYS=7 in route)
 - ✅ Admin system health strip added — 3-column panel: Stripe (Live/Stub mode), Airtable (tenant count),
   Auth & Access Control behavior note
