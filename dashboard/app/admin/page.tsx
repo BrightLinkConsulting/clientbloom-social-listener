@@ -435,7 +435,7 @@ function GrantAccessModal({
       <div className="relative bg-[#0f1117] border border-slate-700 rounded-2xl shadow-2xl w-full max-w-md p-6">
         <div className="flex items-center justify-between mb-5">
           <div>
-            <h3 className="text-white font-semibold">Grant 14-Day Trial</h3>
+            <h3 className="text-white font-semibold">Grant 7-Day Trial</h3>
             <p className="text-xs text-slate-400 mt-0.5">Creates a fully provisioned trial account — no setup required on their end</p>
           </div>
           <button onClick={onClose} className="text-slate-500 hover:text-slate-300 p-1">
@@ -453,7 +453,7 @@ function GrantAccessModal({
               </svg>
             </div>
             <p className="text-white font-medium mb-1">Trial account created!</p>
-            <p className="text-slate-400 text-sm">14-day trial welcome email sent to <strong className="text-slate-200">{form.email}</strong></p>
+            <p className="text-slate-400 text-sm">7-day trial welcome email sent to <strong className="text-slate-200">{form.email}</strong></p>
             {warn && <p className="text-amber-400 text-xs mt-2">{warn}</p>}
             <button onClick={onClose} className="mt-4 text-sm text-[#4F6BFF] hover:underline">Close</button>
           </div>
@@ -490,7 +490,7 @@ function GrantAccessModal({
             </div>
             <div className="bg-blue-950/30 border border-blue-800/30 rounded-lg px-4 py-3 text-xs text-blue-300 space-y-1">
               <p className="font-medium">What gets created automatically:</p>
-              <p className="text-blue-400/80">Full account provisioning · 14-day trial clock starts on first login · Temporary password emailed · Onboarding wizard runs on first login</p>
+              <p className="text-blue-400/80">Full account provisioning · 7-day trial clock starts on first login · Temporary password emailed · Onboarding wizard runs on first login</p>
             </div>
             {error && <p className="text-red-400 text-sm">{error}</p>}
             <div className="flex gap-3 justify-end pt-1">
@@ -817,12 +817,31 @@ export default function AdminPage() {
                 ))}
               </div>
             ) : stats ? (
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <StatCard label="MRR" value={`$${stats.mrr.toLocaleString()}`} sub={`$${stats.arr.toLocaleString()}/yr run rate`} accent />
-                <StatCard label="Active subscribers" value={String(stats.activeCount)} sub={`${stats.totalTenants} total accounts`} />
-                <StatCard label="Suspended" value={String(stats.suspendedCount)} sub="Access blocked at login" />
-                <StatCard label="Revenue / sub" value="$79" sub="per month, flat" />
-              </div>
+              (() => {
+                const revPerSub = stats.activeCount > 0
+                  ? `$${Math.round(stats.mrr / stats.activeCount)}`
+                  : stats.source === 'stripe' ? '—' : '$79'
+                const revPerSubSub = stats.activeCount > 0
+                  ? 'avg per active subscriber'
+                  : stats.source === 'stripe' ? 'no active subscribers yet' : 'list price · Stripe not connected'
+                const trialCount = tenants.filter(t =>
+                  t.plan === 'Trial' && t.trialEndsAt &&
+                  new Date(t.trialEndsAt).getTime() > Date.now()
+                ).length
+                const expiringThisWeek = tenants.filter(t => {
+                  if (!t.plan || t.plan !== 'Trial' || !t.trialEndsAt) return false
+                  const d = Math.ceil((new Date(t.trialEndsAt).getTime() - Date.now()) / 86400000)
+                  return d > 0 && d <= 7
+                }).length
+                return (
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <StatCard label="MRR" value={`$${stats.mrr.toLocaleString()}`} sub={`$${stats.arr.toLocaleString()}/yr run rate`} accent />
+                    <StatCard label="Active subscribers" value={String(stats.activeCount)} sub={`${stats.totalTenants} total accounts`} />
+                    <StatCard label="Active trials" value={String(trialCount)} sub={trialCount === 0 ? 'none in pipeline' : `${expiringThisWeek} expiring this week`} />
+                    <StatCard label="Rev / sub" value={revPerSub} sub={revPerSubSub} />
+                  </div>
+                )
+              })()
             ) : null}
 
             {stats && stats.revenueChart.length > 0 && (
@@ -882,18 +901,26 @@ export default function AdminPage() {
             {/* ── Trial Pipeline — rep outreach view ── */}
             {(() => {
               const now = Date.now()
-              const trialUsers = tenants.filter(t => t.plan === 'Trial' && t.trialEndsAt)
-              const urgent  = trialUsers.filter(t => {
-                const d = Math.ceil((new Date(t.trialEndsAt!).getTime() - now) / 86400000)
-                return d >= 0 && d <= 2
-              }).sort((a, b) => new Date(a.trialEndsAt!).getTime() - new Date(b.trialEndsAt!).getTime())
-              const watchlist = trialUsers.filter(t => {
-                const d = Math.ceil((new Date(t.trialEndsAt!).getTime() - now) / 86400000)
-                return d >= 3 && d <= 7
-              }).sort((a, b) => new Date(a.trialEndsAt!).getTime() - new Date(b.trialEndsAt!).getTime())
-              const expired = tenants.filter(t => t.status === 'trial_expired').slice(0, 5)
 
-              if (trialUsers.length === 0 && expired.length === 0) return null
+              // daysLeft > 0 = still active; daysLeft <= 0 = expired or today
+              function daysRemaining(t: Tenant) {
+                return Math.ceil((new Date(t.trialEndsAt!).getTime() - now) / 86400000)
+              }
+
+              const allTrials   = tenants.filter(t => t.plan === 'Trial' && t.trialEndsAt)
+              const activeTrials = allTrials.filter(t => daysRemaining(t) > 0)
+              const expiredTrials = allTrials.filter(t => daysRemaining(t) <= 0)
+                .sort((a, b) => new Date(b.trialEndsAt!).getTime() - new Date(a.trialEndsAt!).getTime())
+                .slice(0, 5)
+
+              const urgent   = activeTrials.filter(t => daysRemaining(t) <= 2)
+                .sort((a, b) => new Date(a.trialEndsAt!).getTime() - new Date(b.trialEndsAt!).getTime())
+              const watchlist = activeTrials.filter(t => { const d = daysRemaining(t); return d >= 3 && d <= 7 })
+                .sort((a, b) => new Date(a.trialEndsAt!).getTime() - new Date(b.trialEndsAt!).getTime())
+              const upcoming  = activeTrials.filter(t => daysRemaining(t) > 7)
+                .sort((a, b) => new Date(a.trialEndsAt!).getTime() - new Date(b.trialEndsAt!).getTime())
+
+              if (allTrials.length === 0) return null
 
               return (
                 <div className="bg-[#0f1117] border border-slate-800 rounded-xl overflow-hidden">
@@ -902,7 +929,7 @@ export default function AdminPage() {
                       <h2 className="font-semibold text-white">Trial Pipeline</h2>
                       <p className="text-xs text-slate-500 mt-0.5">Who to reach out to before they churn</p>
                     </div>
-                    <span className="text-xs bg-slate-800 text-slate-400 px-2.5 py-1 rounded-full">{trialUsers.length} active trial{trialUsers.length !== 1 ? 's' : ''}</span>
+                    <span className="text-xs bg-slate-800 text-slate-400 px-2.5 py-1 rounded-full">{activeTrials.length} active trial{activeTrials.length !== 1 ? 's' : ''}</span>
                   </div>
 
                   {urgent.length > 0 && (
@@ -910,7 +937,7 @@ export default function AdminPage() {
                       <p className="text-xs font-semibold text-red-400 uppercase tracking-wider mb-3">🔴 Reach out now — expires in ≤2 days</p>
                       <div className="space-y-2">
                         {urgent.map(t => {
-                          const daysLeft = Math.ceil((new Date(t.trialEndsAt!).getTime() - now) / 86400000)
+                          const d = daysRemaining(t)
                           return (
                             <div key={t.id} className="flex items-center justify-between bg-red-900/10 border border-red-900/30 rounded-lg px-4 py-3">
                               <div>
@@ -919,7 +946,7 @@ export default function AdminPage() {
                               </div>
                               <div className="text-right">
                                 <span className="text-xs font-semibold text-red-400">
-                                  {daysLeft <= 0 ? 'Expires today' : `${daysLeft}d left`}
+                                  {d <= 0 ? 'Expires today' : `${d}d left`}
                                 </span>
                                 <p className="text-xs text-slate-600 mt-0.5">{new Date(t.trialEndsAt!).toLocaleDateString()}</p>
                               </div>
@@ -934,30 +961,51 @@ export default function AdminPage() {
                     <div className="px-6 py-4 border-b border-slate-800">
                       <p className="text-xs font-semibold text-amber-400 uppercase tracking-wider mb-3">🟡 Watch list — expires in 3–7 days</p>
                       <div className="space-y-2">
-                        {watchlist.map(t => {
-                          const daysLeft = Math.ceil((new Date(t.trialEndsAt!).getTime() - now) / 86400000)
-                          return (
-                            <div key={t.id} className="flex items-center justify-between bg-amber-900/10 border border-amber-900/30 rounded-lg px-4 py-3">
-                              <div>
-                                <p className="text-sm font-medium text-white">{t.companyName || t.email}</p>
-                                <p className="text-xs text-slate-500">{t.email}</p>
-                              </div>
-                              <div className="text-right">
-                                <span className="text-xs font-semibold text-amber-400">{daysLeft}d left</span>
-                                <p className="text-xs text-slate-600 mt-0.5">{new Date(t.trialEndsAt!).toLocaleDateString()}</p>
-                              </div>
+                        {watchlist.map(t => (
+                          <div key={t.id} className="flex items-center justify-between bg-amber-900/10 border border-amber-900/30 rounded-lg px-4 py-3">
+                            <div>
+                              <p className="text-sm font-medium text-white">{t.companyName || t.email}</p>
+                              <p className="text-xs text-slate-500">{t.email}</p>
                             </div>
-                          )
-                        })}
+                            <div className="text-right">
+                              <span className="text-xs font-semibold text-amber-400">{daysRemaining(t)}d left</span>
+                              <p className="text-xs text-slate-600 mt-0.5">{new Date(t.trialEndsAt!).toLocaleDateString()}</p>
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     </div>
                   )}
 
-                  {expired.length > 0 && (
+                  {upcoming.length > 0 && (
+                    <div className="px-6 py-4 border-b border-slate-800">
+                      <p className="text-xs font-semibold text-blue-400 uppercase tracking-wider mb-3">🔵 Upcoming — more than 7 days remaining</p>
+                      <div className="space-y-2">
+                        {upcoming.map(t => (
+                          <div key={t.id} className="flex items-center justify-between bg-blue-900/10 border border-blue-900/30 rounded-lg px-4 py-3">
+                            <div>
+                              <p className="text-sm font-medium text-white">{t.companyName || t.email}</p>
+                              <p className="text-xs text-slate-500">{t.email}</p>
+                            </div>
+                            <div className="text-right">
+                              <span className="text-xs font-semibold text-blue-400">{daysRemaining(t)}d left</span>
+                              <p className="text-xs text-slate-600 mt-0.5">{new Date(t.trialEndsAt!).toLocaleDateString()}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {urgent.length === 0 && watchlist.length === 0 && upcoming.length === 0 && expiredTrials.length === 0 && (
+                    <div className="px-6 py-8 text-center text-slate-500 text-sm">No active trials.</div>
+                  )}
+
+                  {expiredTrials.length > 0 && (
                     <div className="px-6 py-4">
                       <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">⚫ Recently expired — haven't upgraded</p>
                       <div className="space-y-2">
-                        {expired.map(t => (
+                        {expiredTrials.map(t => (
                           <div key={t.id} className="flex items-center justify-between px-4 py-3 rounded-lg bg-slate-800/30 border border-slate-800">
                             <div>
                               <p className="text-sm font-medium text-slate-400">{t.companyName || t.email}</p>
@@ -973,20 +1021,73 @@ export default function AdminPage() {
               )
             })()}
 
-            {/* Suspend enforcement note (Task 7) */}
-            <div className="bg-[#0f1117] border border-slate-800 rounded-xl p-5 flex items-start gap-4">
-              <div className="w-8 h-8 rounded-lg bg-emerald-900/20 flex items-center justify-center shrink-0">
-                <svg className="w-4 h-4 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
-                </svg>
+            {/* ── System health + operational context ── */}
+            <div className="bg-[#0f1117] border border-slate-800 rounded-xl overflow-hidden">
+              <div className="px-6 py-4 border-b border-slate-800">
+                <h2 className="font-semibold text-white text-sm">System &amp; Operations</h2>
               </div>
-              <div>
-                <p className="text-sm font-semibold text-white mb-1">Suspend is enforced at login</p>
-                <p className="text-xs text-slate-400 leading-relaxed">
-                  When you suspend a tenant, their account is blocked in the authentication layer — they cannot sign in even if they know their password.
-                  Active sessions are not immediately invalidated (JWT-based), but will expire within the session TTL.
-                  To instantly cut access, suspend the account in the Tenants tab.
-                </p>
+              <div className="grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-slate-800">
+
+                {/* Stripe connectivity */}
+                <div className="px-6 py-4 flex items-start gap-3">
+                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
+                    stats?.source === 'stripe' ? 'bg-emerald-900/20' : 'bg-slate-800'
+                  }`}>
+                    <svg className={`w-4 h-4 ${stats?.source === 'stripe' ? 'text-emerald-400' : 'text-slate-500'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25v10.5A2.25 2.25 0 004.5 19.5z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-1.5 mb-0.5">
+                      <p className="text-sm font-medium text-white">Stripe</p>
+                      <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded border ${
+                        stats?.source === 'stripe'
+                          ? 'bg-emerald-900/30 text-emerald-400 border-emerald-800/40'
+                          : 'bg-slate-800 text-slate-500 border-slate-700'
+                      }`}>
+                        {stats?.source === 'stripe' ? 'Live' : 'Stub mode'}
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-500 leading-relaxed">
+                      {stats?.source === 'stripe'
+                        ? 'Revenue and subscriber counts reflect live Stripe data.'
+                        : 'Add STRIPE_SECRET_KEY + STRIPE_PRICE_ID to Vercel env vars for live billing.'}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Airtable + provisioning */}
+                <div className="px-6 py-4 flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-emerald-900/20 flex items-center justify-center shrink-0">
+                    <svg className="w-4 h-4 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 6.375c0 2.278-3.694 4.125-8.25 4.125S3.75 8.653 3.75 6.375m16.5 0c0-2.278-3.694-4.125-8.25-4.125S3.75 4.097 3.75 6.375m16.5 0v11.25c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125V6.375m16.5 0v3.75m-16.5-3.75v3.75m16.5 0v3.75C20.25 16.153 16.556 18 12 18s-8.25-1.847-8.25-4.125v-3.75m16.5 0c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125" />
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-white mb-0.5">Platform Airtable</p>
+                    <p className="text-xs text-slate-500 leading-relaxed">
+                      {tenants.length > 0
+                        ? `Operational · ${tenants.length} tenant record${tenants.length !== 1 ? 's' : ''} loaded.`
+                        : 'Check PLATFORM_AIRTABLE_TOKEN and PLATFORM_AIRTABLE_BASE_ID.'}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Auth + suspend behavior */}
+                <div className="px-6 py-4 flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-emerald-900/20 flex items-center justify-center shrink-0">
+                    <svg className="w-4 h-4 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-white mb-0.5">Auth &amp; Access Control</p>
+                    <p className="text-xs text-slate-500 leading-relaxed">
+                      Suspend blocks login immediately. Active JWT sessions expire naturally within their TTL — suspending does not invalidate live sessions instantly.
+                    </p>
+                  </div>
+                </div>
+
               </div>
             </div>
 
@@ -1031,7 +1132,7 @@ export default function AdminPage() {
                   <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
-                  Grant 14-Day Trial
+                  Grant 7-Day Trial
                 </button>
                 <button
                   onClick={() => { setShowForm(!showForm); setError(''); setSuccess('') }}
