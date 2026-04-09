@@ -53,6 +53,13 @@ Completed:
 - ✅ Skipped-scan status reset bug fixed (scan-tenant route)
 - ✅ Trial countdown off-by-one fixed (Math.floor, not Math.ceil)
 - ✅ Suggestions Used + Last ICP Discovery At fields added to Tenants table (Airtable MCP, April 2026)
+- ✅ Email system centralized — all templates in lib/emails.ts, no inline HTML in route files
+- ✅ CAN-SPAM compliance — unsubscribe link + physical address in all trial/nurture emails
+- ✅ /api/unsubscribe endpoint — sets 'Email Opted Out' in Airtable; respected by trial-check cron
+- ✅ Name personalization removed from all trial emails (sign-up collects email+password only)
+- ✅ Day 1 email: ClientBloom logoHeader(), BRAND_PURPLE header + CTA
+- ✅ JWT plan whitelist — auth.ts rejects session.update({ plan }) unless value is a known paid plan
+- ✅ Post-payment welcome page dual-flow wired to /api/session/refresh + session.update()
 
 Still open:
 - Security headers in next.config.js (X-Frame-Options, CSP, etc.)
@@ -141,9 +148,22 @@ Critical ones that block production launch if missing:
 - Stuck-scanning: treat as success state in the UI (scan completed; only write failed).
   Do not show alarm language. Watchdog resets the backend field within 1h.
 - Overdue threshold: 26h for Trial/Starter, 14h for Pro. See scanOverdueMs() in app/page.tsx
+- Email templates: all in lib/emails.ts — never write inline HTML in route files. Import
+  the builder, call it with opts (no firstName), send the { subject, html } via Resend.
+- No name personalization in emails: sign-up only collects email + password. Omit
+  greetings entirely rather than derive a name from Company Name (may be an email address).
+- Email footer: always call footer(unsubUrl) in marketing/nurture emails. Transactionals
+  (password reset, billing) are exempt from the unsubscribe requirement.
+- JWT plan updates: only VALID_PAID_PLANS set in auth.ts jwt() callback will be accepted
+  from session.update(). Do not remove this whitelist — it prevents plan spoofing.
+- Post-payment session refresh: /welcome?upgraded=1 → GET /api/session/refresh →
+  session.update({ plan, trialEndsAt }) → JWT reflects new plan without sign-out.
 
 ## Documentation Index
 - `docs/airtable-rate-limit-resilience.md` — Rate-limit resilience design, airtableFetch,
   staggered dispatch, schema additions, constants, open gaps
 - `docs/scan-health-and-watchdog.md` — Scan Health state machine, stuck-scanning root cause
   and fix, plan-aware UX, trial banner, watchdog response shape
+- `docs/email-system.md` — Email architecture (lib/emails.ts), brand constants, layout helpers,
+  no-name policy, CAN-SPAM compliance, trial sequence (Days 1–7), session refresh flow,
+  JWT plan whitelist, known gaps
