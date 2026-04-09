@@ -78,6 +78,8 @@ Completed:
   color zones green (6-7d), yellow (2-5d), red (0-1d); "upcoming >7d" section removed
   (max trial is 7d); expired section with reactivation email button + send-date tracking;
   'Reactivation Sent At' field written to Airtable on send; trialBadge() helper also uses Math.floor
+- ✅ Reactivation email system — POST /api/admin/send-reactivation; buildTrialReactivationEmail
+  in lib/emails.ts; 'Reactivation Sent At' field added to Tenants table; full adversarial test passed
 - ✅ Admin "Grant 14-Day Trial" corrected to "Grant 7-Day Trial" (TRIAL_DAYS=7 in route)
 - ✅ Admin system health strip added — 3-column panel: Stripe (Live/Stub mode), Airtable (tenant count),
   Auth & Access Control behavior note
@@ -149,10 +151,37 @@ Critical ones that block production launch if missing:
 - CRON_SECRET
 - PLATFORM_AIRTABLE_TOKEN + PLATFORM_AIRTABLE_BASE_ID
 
+## Airtable Tenants Schema — Known Fields
+Fields that code reads/writes on the Tenants table. Adding new fields is safe (Airtable
+returns null for unset fields on existing records) but removing or renaming breaks all
+callers — never do this without auditing every reference first.
+
+| Field name | Type | Set by | Purpose |
+|---|---|---|---|
+| `Email` | text | signup/admin | Tenant login email |
+| `Password Hash` | text | signup/admin/reset | bcrypt hash |
+| `Company Name` | text | signup/admin | Display name |
+| `Tenant ID` | text | provision | UUID — row-level isolation key |
+| `Status` | text | admin/webhook | `'Active'` or `'Suspended'` |
+| `Is Admin` | checkbox | admin | Grants access to /admin page |
+| `Is Feed Only` | checkbox | admin | Restricts to read-only feed |
+| `Plan` | text | webhook/admin | `'Scout Starter'`, `'Scout Pro'`, `'Scout Agency'`, `'Trial'`, `'Complimentary'`, `'Owner'` |
+| `Trial Ends At` | text (ISO) | grant-access/trial/start | Trial expiry timestamp |
+| `Created At` | text (date) | admin POST | Account creation date |
+| `Airtable Base ID` | text | admin | Tenant's own Airtable base |
+| `Airtable API Token` | text | admin | Tenant's Airtable token |
+| `Apify API Key` | text | admin | Custom Apify key (optional) |
+| `Stripe Customer ID` | text | webhook | Set on checkout.session.completed |
+| `Stripe Subscription ID` | text | webhook | Active subscription ID |
+| `Email Opted Out` | checkbox | /api/unsubscribe | Suppresses trial nurture emails |
+| `Suggestions Used` | number | suggest route | Tracks AI suggestion credits |
+| `Last ICP Discovery At` | text (ISO) | discover route | Rate-limits ICP discovery calls |
+| `Reactivation Sent At` | text (ISO) | send-reactivation route | When admin last sent reactivation email |
+
 ## What Never Changes Without Asking First
 - NextAuth configuration (lib/auth.ts)
 - Stripe billing flow (webhooks/stripe/route.ts)
-- Airtable schema (adding fields affects all existing records)
+- Airtable schema (adding fields is safe; renaming/removing is NOT — audit all callers first)
 - Cron route structure (vercel.json schedule + route handler pattern)
 - Trial/subscription state machine
 
@@ -187,7 +216,13 @@ Critical ones that block production launch if missing:
   relevance returns the same top posts on every scan, all dedup'd after first capture.
 - suggest/route.ts: retries once with a shorter fallback prompt if Claude returns empty content.
   Returns 503 (not 500) if both attempts fail — 503 signals transient unavailability.
-- Trial countdown: always Math.floor for days/hours — never Math.ceil (off-by-one bug)
+- Trial countdown: always Math.floor for days/hours — never Math.ceil (off-by-one bug).
+  Display format: "Xd Yh left" (or "Yh left" when d=0). TrialBanner and admin pipeline
+  must always use identical logic — any future change must update both.
+- Reactivation email: admin sends via POST /api/admin/send-reactivation. After sending,
+  'Reactivation Sent At' is written to Airtable. UI checks t.reactivationSentAt (from
+  tenants GET) and local reactivationSent state (optimistic) to show send timestamp.
+  Never auto-send — always requires explicit admin click.
 - Stuck-scanning: treat as success state in the UI (scan completed; only write failed).
   Do not show alarm language. Watchdog resets the backend field within 1h.
 - Overdue threshold: 26h for Trial/Starter, 14h for Pro. See scanOverdueMs() in app/page.tsx
@@ -208,8 +243,8 @@ Critical ones that block production launch if missing:
 - `docs/scan-health-and-watchdog.md` — Scan Health state machine, stuck-scanning root cause
   and fix, plan-aware UX, trial banner, watchdog response shape
 - `docs/email-system.md` — Email architecture (lib/emails.ts), brand constants, layout helpers,
-  no-name policy, CAN-SPAM compliance, trial sequence (Days 1–7), session refresh flow,
-  JWT plan whitelist, known gaps
+  no-name policy, CAN-SPAM compliance, trial sequence (Days 1–7), win-back (3-day) and
+  reactivation (30-day) templates, session refresh flow, JWT plan whitelist, known gaps
 - `docs/stripe-billing.md` — Full billing architecture: price IDs, checkout flow, webhook event
   handlers, tenant provisioning, plan name mapping, env var reference, admin stats design,
-  adversarial test results, known gaps
+  trial pipeline v2 design, reactivation system spec, adversarial test results (28 total), known gaps

@@ -195,7 +195,8 @@ text. The current version says "because you signed up" without naming the addres
 | 6 | `buildTrialDay6Email(opts)` | trial-check cron | "Day 6: Tomorrow your trial ends — here's exactly what stops at day 7" |
 | 7 | `buildTrialDay7Email(opts)` | trial-check cron | "Your Scout trial ends tonight — you're 23% of the way there" |
 | Expiry | `buildTrialExpiredEmail(opts)` | trial-check cron | "Your Scout trial has ended — your leads are waiting" |
-| Win-back | `buildTrialWinBackEmail(opts)` | (manual / future cron) | "One last thing about your Scout trial" |
+| Win-back (3-day) | `buildTrialWinBackEmail(opts)` | (manual / future cron) | "One last thing about your Scout trial" |
+| Reactivation (30-day) | `buildTrialReactivationEmail(opts)` | Admin panel — POST /api/admin/send-reactivation | "Your Scout account is still here, {name}" |
 
 ### `opts` shape by email type
 
@@ -223,6 +224,17 @@ buildTrialDay7Email({ upgradeUrl: string; unsubUrl: string; plan?: RecommendedPl
 buildTrialExpiredEmail({ upgradeUrl: string; unsubUrl: string })
 buildTrialWinBackEmail({ upgradeUrl: string; unsubUrl: string })
 ```
+
+**30-day reactivation** (admin-triggered from `/admin` → send-reactivation button):
+```typescript
+buildTrialReactivationEmail({
+  companyName: string  // HTML-escaped via safe() — may be an email address
+  email:       string  // used in subject line fallback and unsubscribe URL
+  upgradeUrl:  string  // /upgrade
+  unsubUrl:    string  // /api/unsubscribe?email=...
+})
+```
+Note: `companyName` is always run through `safe()` inside the builder — XSS-safe even if the field contains user-supplied HTML.
 
 ### Day dispatcher (for cron use)
 
@@ -330,7 +342,8 @@ would never pass the `VALID_PAID_PLANS.has()` check.
 
 | Gap | Priority | Notes |
 |-----|----------|-------|
-| Win-back email has no automated trigger — must be sent manually | P2 | Needs a win-back cron (e.g. runs 3 days after trial_expired status set) |
+| Win-back email (3-day) has no automated trigger — must be sent manually | P2 | Needs a win-back cron (e.g. runs 3 days after trial_expired status is set) |
+| Reactivation email (30-day) has no automated trigger — admin clicks manually | P3 | Could be automated: cron fires 30d after trialEndsAt when plan is still Trial and no Stripe subscription exists |
 | Days 5–7 don't receive a plan recommendation — all default to 'pro' | P3 | Could key off usage (keyword count, ICP count) to recommend starter vs. pro |
 | No open/click tracking on trial emails | P3 | Resend supports webhooks for open/click events |
 | `buildPurchaseWelcomeEmail` still uses `companyName.split(' ')[0]` for greeting | P2 | Same name-extraction risk as the trial emails — revisit when purchase flow adds a name field |
