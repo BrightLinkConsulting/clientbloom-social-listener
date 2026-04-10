@@ -163,11 +163,12 @@ async function getAllScanHealth(): Promise<Map<string, ScanHealthRow>> {
   do {
     const url = new URL(`${AIRTABLE_API}/${PLATFORM_BASE}/Scan%20Health`)
     url.searchParams.set('pageSize', '100')
-    url.searchParams.set('fields[]', 'Tenant ID')
-    url.searchParams.set('fields[]', 'Last Scan At')
-    url.searchParams.set('fields[]', 'Last Scan Status')
-    url.searchParams.set('fields[]', 'Last Error')
-    url.searchParams.set('fields[]', 'Last Posts Found')
+    // append() required — set() replaces the previous value for the same key
+    url.searchParams.append('fields[]', 'Tenant ID')
+    url.searchParams.append('fields[]', 'Last Scan At')
+    url.searchParams.append('fields[]', 'Last Scan Status')
+    url.searchParams.append('fields[]', 'Last Error')
+    url.searchParams.append('fields[]', 'Last Posts Found')
     if (offset) url.searchParams.set('offset', offset)
 
     try {

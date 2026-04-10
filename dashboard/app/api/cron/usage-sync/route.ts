@@ -127,9 +127,10 @@ export async function GET(req: NextRequest) {
     do {
       const url = new URL(`${AIRTABLE_API}/${PLATFORM_BASE}/Tenants`)
       url.searchParams.set('pageSize', '100')
-      url.searchParams.set('fields[]', 'Tenant ID')
-      url.searchParams.set('fields[]', 'Email')
-      url.searchParams.set('fields[]', 'Status')
+      // append() required — set() replaces the previous value for the same key
+      url.searchParams.append('fields[]', 'Tenant ID')
+      url.searchParams.append('fields[]', 'Email')
+      url.searchParams.append('fields[]', 'Status')
       if (offset) url.searchParams.set('offset', offset)
 
       const resp = await fetch(url.toString(), {
