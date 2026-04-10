@@ -269,6 +269,18 @@ callers — never do this without auditing every reference first.
   (c) Marketing: CRM is excluded from all Pro feature lists (upgrade page, landing page pricing,
       welcome page tagline, emails). It appears only in the Agency features list.
   Never re-add CRM to the Pro tier without updating ALL six of these surfaces.
+- Keyword atCap enforcement: always use `terms.length >= planLimit` — NOT `activeCount >= planLimit`.
+  The API counts ALL linkedin_term records (including paused) via countKeywordSources(). Using
+  activeCount creates a mismatch where the UI allows adding a term but the API returns 429. Both
+  the settings page and the onboarding StepKeywords component must use terms.length.
+- POST /api/sources response shape: `{ source: { id, name, type, value, active, priority } }`.
+  The record ID is at `data.source.id`. Never read from `data.record.id` or `data.id`.
+- API error display: never throw `new Error(await resp.text())` directly — resp.text() may be a
+  JSON object. Use parseApiError(resp) which attempts JSON.parse(text).error before falling back
+  to the raw string. This prevents users seeing `{"error":"...","limit":3}` in error banners.
+- StepKeywords onboarding: terms are saved immediately to /api/sources on each add — not batched
+  at the end. StepKeywords fetches existing terms from /api/sources on mount so back-navigation
+  restores state correctly without losing progress.
 - Stuck-scanning: treat as success state in the UI (scan completed; only write failed).
   Do not show alarm language. Watchdog resets the backend field within 1h.
 - Overdue threshold: 26h for Trial/Starter, 14h for Pro. See scanOverdueMs() in app/page.tsx
@@ -298,3 +310,5 @@ callers — never do this without auditing every reference first.
 - `docs/v2-roadmap.md` — Features intentionally deferred from v1 launch. Each entry explains
   what was removed, why, and what the proper v2 implementation requires. Currently contains:
   (1) Live usage tracking (Plan & Billing)
+- `docs/linkedin-keyword-search.md` — Keyword search feature spec: plan limits, scan frequency,
+  API response shapes, enforcement architecture, 8-bug adversarial test results, UX copy rules

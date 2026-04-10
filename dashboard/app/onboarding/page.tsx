@@ -217,20 +217,54 @@ function StepKeywords({
   onBack: () => void
 }) {
   const [terms, setTerms]             = useState<{ id: string; value: string }[]>([])
+  const [loadingTerms, setLoadingTerms] = useState(true)
   const [selectedIndustry, setSel]    = useState('')
   const [loadingPack, setLoadingPack] = useState(false)
+  const [packInfo, setPackInfo]       = useState<string>('')  // feedback after pack load
   const [customInput, setCustom]      = useState('')
   const [showCustom, setShowCustom]   = useState(false)
   const [adding, setAdding]           = useState(false)
   const [error, setError]             = useState('')
 
-  const activeCount = terms.length
-  const atCap       = activeCount >= planLimit
+  // Bug #4 fix: load any terms already saved (handles back-navigation remount)
+  useEffect(() => {
+    async function fetchExisting() {
+      try {
+        const res = await fetch('/api/sources')
+        if (res.ok) {
+          const data = await res.json()
+          const existing = (data.sources || [])
+            .filter((s: any) => s.type === 'linkedin_term')
+            .map((s: any) => ({ id: s.id, value: s.value || s.name }))
+          setTerms(existing)
+        }
+      } catch { /* non-fatal — start empty */ }
+      finally { setLoadingTerms(false) }
+    }
+    fetchExisting()
+  }, [])
+
+  const atCap = terms.length >= planLimit
+
+  // Bug #3 fix: parse error JSON from API responses properly
+  const parseApiError = async (resp: Response): Promise<string> => {
+    try {
+      const text = await resp.text()
+      const parsed = JSON.parse(text)
+      return parsed.error || text
+    } catch {
+      return 'Something went wrong — try again or skip for now.'
+    }
+  }
 
   const addTerm = useCallback(async (term: string) => {
     const t = term.trim()
     if (!t) return
-    if (terms.some(x => x.value.toLowerCase() === t.toLowerCase())) return
+    // Bug #5 fix: show error for duplicates instead of silently returning
+    if (terms.some(x => x.value.toLowerCase() === t.toLowerCase())) {
+      setError(`"${t}" is already in your keyword list.`)
+      return
+    }
     if (atCap) {
       setError(`You've reached the ${planLimit}-term limit for your plan. Remove a term to add a different one.`)
       return
@@ -243,10 +277,13 @@ function StepKeywords({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: t, type: 'linkedin_term', value: t, priority: 'high' }),
       })
-      if (!resp.ok) throw new Error('Failed to save keyword')
+      if (!resp.ok) {
+        const msg = await parseApiError(resp)
+        throw new Error(msg)
+      }
       const data = await resp.json()
-      // Airtable response nests the record; fall back to a temp ID if needed
-      const id = data?.record?.id || data?.id || `tmp-${Date.now()}`
+      // Bug #1 fix: API returns { source: { id } } — not record or root id
+      const id = data?.source?.id || `tmp-${Date.now()}`
       setTerms(prev => [...prev, { id, value: t }])
       setCustom('')
       setShowCustom(false)
@@ -257,13 +294,14 @@ function StepKeywords({
     }
   }, [terms, atCap, planLimit])
 
-  const removeTerm = async (id: string, value: string) => {
+  const removeTerm = async (id: string) => {
     try {
       // Best-effort delete — non-fatal if it fails (term will show in settings)
       if (!id.startsWith('tmp-')) await fetch(`/api/sources/${id}`, { method: 'DELETE' })
     } catch { /* ignore */ }
     setTerms(prev => prev.filter(t => t.id !== id))
     setError('')
+    setPackInfo('')
   }
 
   const loadPack = async () => {
@@ -272,9 +310,22 @@ function StepKeywords({
     if (!pack) return
     setLoadingPack(true)
     setError('')
+    setPackInfo('')
     const available = pack.terms.filter(t => !terms.some(x => x.value.toLowerCase() === t.toLowerCase()))
-    const slots     = planLimit - activeCount
+    const slots     = planLimit - terms.length
     const toAdd     = available.slice(0, slots)
+
+    // Bug #6 fix: surface feedback when pack loads 0 new terms
+    if (toAdd.length === 0) {
+      const reason = available.length === 0
+        ? 'All terms from this pack are already in your list.'
+        : `You're at your ${planLimit}-keyword limit. Remove a term to add more.`
+      setPackInfo(reason)
+      setLoadingPack(false)
+      setSel('')
+      return
+    }
+
     const added: { id: string; value: string }[] = []
     for (const t of toAdd) {
       try {
@@ -285,7 +336,8 @@ function StepKeywords({
         })
         if (resp.ok) {
           const data = await resp.json()
-          const id = data?.record?.id || data?.id || `tmp-${Date.now()}-${t}`
+          // Bug #1 fix: API returns { source: { id } }
+          const id = data?.source?.id || `tmp-${Date.now()}-${t}`
           added.push({ id, value: t })
         }
       } catch { /* skip failed terms */ }
@@ -293,6 +345,21 @@ function StepKeywords({
     setTerms(prev => [...prev, ...added])
     setLoadingPack(false)
     setSel('')
+    if (added.length > 0) {
+      setPackInfo(`Added ${added.length} term${added.length !== 1 ? 's' : ''} from the ${pack.label} pack.`)
+    }
+  }
+
+  if (loadingTerms) {
+    return (
+      <div className="flex items-center justify-center py-16 text-slate-500 text-sm gap-2">
+        <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+        </svg>
+        Loading…
+      </div>
+    )
   }
 
   return (
@@ -305,12 +372,17 @@ function StepKeywords({
       {/* Plan limit pill */}
       <div className="flex items-center gap-2 mb-5">
         <span className={`text-xs px-2.5 py-1 rounded-full border font-medium ${atCap ? 'bg-red-500/10 border-red-500/20 text-red-400' : 'bg-blue-500/10 border-blue-500/20 text-blue-400'}`}>
-          {activeCount} / {planLimit} keywords used
+          {terms.length} / {planLimit} keywords used
         </span>
         {(planLimit === 3) && (
           <span className="text-xs text-slate-600">Trial & Starter: 3 · Pro: 10 · Agency: 20</span>
         )}
       </div>
+
+      {/* Bug #8 fix: meaningful empty state instead of "0 of 0 terms active" */}
+      {terms.length === 0 && (
+        <p className="text-slate-600 text-xs mb-5">No keyword searches added yet — use a starter pack or add your own below.</p>
+      )}
 
       {/* Added terms */}
       {terms.length > 0 && (
@@ -318,7 +390,7 @@ function StepKeywords({
           {terms.map(t => (
             <div key={t.id} className="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border bg-slate-800 text-slate-300 border-slate-700/50">
               <span>{t.value}</span>
-              <button onClick={() => removeTerm(t.id, t.value)} className="text-slate-600 hover:text-red-400 transition-colors leading-none ml-0.5">×</button>
+              <button onClick={() => removeTerm(t.id)} className="text-slate-600 hover:text-red-400 transition-colors leading-none ml-0.5">×</button>
             </div>
           ))}
         </div>
@@ -331,44 +403,54 @@ function StepKeywords({
         </div>
       )}
 
-      {/* Industry pack picker */}
-      {!atCap && (
-        <div className="mb-5 rounded-xl border border-slate-700/40 bg-slate-900/60 p-4 space-y-3">
-          <div>
-            <p className="text-xs font-semibold text-slate-200 mb-1">Start with a starter pack</p>
-            <p className="text-xs text-slate-500 leading-relaxed">
-              Pick your industry and Scout will load a set of high-signal phrases that match how your buyers post on LinkedIn. You can edit or remove any of them after.
-            </p>
-          </div>
-          <div className="flex items-center gap-2 flex-wrap">
-            <select
-              value={selectedIndustry}
-              onChange={e => setSel(e.target.value)}
-              className="flex-1 min-w-[200px] text-xs bg-slate-800 border border-slate-700/50 rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:border-blue-500/50"
-            >
-              <option value="">Select your industry…</option>
-              {INDUSTRY_PACKS.map(p => (
-                <option key={p.value} value={p.value}>{p.label}</option>
-              ))}
-            </select>
-            <button
-              onClick={loadPack}
-              disabled={!selectedIndustry || loadingPack}
-              className="text-xs px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white font-medium transition-colors flex items-center gap-1.5"
-            >
-              {loadingPack ? (
-                <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
-                </svg>
-              ) : null}
-              Load pack
-            </button>
-          </div>
+      {packInfo && !error && (
+        <div className="mb-4 px-3 py-2 rounded-lg bg-blue-500/10 border border-blue-500/20 text-xs text-blue-400 flex items-center justify-between">
+          {packInfo}
+          <button onClick={() => setPackInfo('')} className="ml-2 opacity-60 hover:opacity-100">×</button>
         </div>
       )}
 
-      {/* Custom term input */}
+      {/* Industry pack picker — always visible, but Load Pack explains cap state */}
+      <div className="mb-5 rounded-xl border border-slate-700/40 bg-slate-900/60 p-4 space-y-3">
+        <div>
+          <p className="text-xs font-semibold text-slate-200 mb-1">Start with a starter pack</p>
+          <p className="text-xs text-slate-500 leading-relaxed">
+            Pick your industry and Scout will load a set of high-signal phrases that match how your buyers post on LinkedIn. You can edit or remove any of them after.
+          </p>
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          <select
+            value={selectedIndustry}
+            onChange={e => setSel(e.target.value)}
+            className="flex-1 min-w-[200px] text-xs bg-slate-800 border border-slate-700/50 rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:border-blue-500/50"
+          >
+            <option value="">Select your industry…</option>
+            {INDUSTRY_PACKS.map(p => (
+              <option key={p.value} value={p.value}>{p.label}</option>
+            ))}
+          </select>
+          {/* Bug #7 fix: show why Load Pack is disabled when at cap */}
+          <button
+            onClick={loadPack}
+            disabled={!selectedIndustry || loadingPack}
+            title={atCap ? `You're at your ${planLimit}-keyword limit. Remove a term first.` : ''}
+            className="text-xs px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white font-medium transition-colors flex items-center gap-1.5"
+          >
+            {loadingPack ? (
+              <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+              </svg>
+            ) : null}
+            {atCap ? 'At limit' : 'Load pack'}
+          </button>
+        </div>
+        {atCap && (
+          <p className="text-xs text-amber-500/70">Remove a term above to free up a slot before loading a pack.</p>
+        )}
+      </div>
+
+      {/* Custom term input — hidden only when at cap and not showing the form */}
       {!atCap && !showCustom && (
         <button
           onClick={() => setShowCustom(true)}

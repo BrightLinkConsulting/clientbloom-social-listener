@@ -323,7 +323,21 @@ function LinkedInTermsSection({ sources, onUpdate, planLimit = 10, plan = 'Trial
   const terms = sources.filter(s => s.type === 'linkedin_term')
   const activeCount = terms.filter(t => t.active).length
   const existingValues = new Set(terms.map(t => t.value.toLowerCase()))
-  const atCap = activeCount >= planLimit
+  // Bug #2 fix: atCap must match API enforcement — API counts ALL records including paused,
+  // so we use terms.length (total) not activeCount to avoid a mismatch where UI shows "ok"
+  // but API returns 429 when the user tries to add.
+  const atCap = terms.length >= planLimit
+
+  // Bug #3 fix: parse API error JSON before showing to user
+  const parseApiError = async (resp: Response): Promise<string> => {
+    try {
+      const text = await resp.text()
+      const parsed = JSON.parse(text)
+      return parsed.error || text
+    } catch {
+      return 'Something went wrong — try again.'
+    }
+  }
 
   const handleToggle = async (source: Source) => {
     setToggling(source.id)
@@ -333,7 +347,7 @@ function LinkedInTermsSection({ sources, onUpdate, planLimit = 10, plan = 'Trial
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ active: !source.active }),
       })
-      if (!resp.ok) throw new Error(await resp.text())
+      if (!resp.ok) throw new Error(await parseApiError(resp))
       onUpdate()
     } catch (e: any) {
       setError(e.message)
@@ -347,7 +361,7 @@ function LinkedInTermsSection({ sources, onUpdate, planLimit = 10, plan = 'Trial
     setDeleting(source.id)
     try {
       const resp = await fetch(`/api/sources/${source.id}`, { method: 'DELETE' })
-      if (!resp.ok) throw new Error(await resp.text())
+      if (!resp.ok) throw new Error(await parseApiError(resp))
       onUpdate()
     } catch (e: any) {
       setError(e.message)
@@ -360,7 +374,8 @@ function LinkedInTermsSection({ sources, onUpdate, planLimit = 10, plan = 'Trial
     const t = term.trim()
     if (!t) { setError('Enter a search term.'); return }
     if (existingValues.has(t.toLowerCase())) return
-    if (activeCount >= planLimit) {
+    // Bug #2 fix: use terms.length (total) to match API enforcement — not activeCount
+    if (terms.length >= planLimit) {
       setError(`You've reached the ${planLimit}-term limit. Pause or remove a term before adding another.`)
       return
     }
@@ -373,7 +388,7 @@ function LinkedInTermsSection({ sources, onUpdate, planLimit = 10, plan = 'Trial
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: t, type: 'linkedin_term', value: t, priority: 'high' }),
       })
-      if (!resp.ok) throw new Error(await resp.text())
+      if (!resp.ok) throw new Error(await parseApiError(resp))
       if (!isPreset) { setNewTerm(''); setShowAdd(false) }
       onUpdate()
     } catch (e: any) {
@@ -393,7 +408,8 @@ function LinkedInTermsSection({ sources, onUpdate, planLimit = 10, plan = 'Trial
     const termsToAdd = pack.terms.filter(t => !existingValues.has(t.toLowerCase()))
     let added = 0
     for (const t of termsToAdd) {
-      if (activeCount + added >= planLimit) break
+      // Bug #2 fix: use terms.length (total) to match API enforcement
+      if (terms.length + added >= planLimit) break
       try {
         const resp = await fetch('/api/sources', {
           method: 'POST',
@@ -414,7 +430,7 @@ function LinkedInTermsSection({ sources, onUpdate, planLimit = 10, plan = 'Trial
   return (
     <Section
       title="LinkedIn Keyword Search"
-      description={`${activeCount} of ${terms.length} terms active · Scout searches LinkedIn for these phrases ${scanFreq} daily`}
+      description={`${terms.length} of ${planLimit} keywords used · ${activeCount} active · Scout searches LinkedIn ${scanFreq} daily`}
     >
       {/* How it works tip */}
       <div className="mb-5 flex gap-3 px-3.5 py-3 rounded-xl bg-slate-800/50 border border-slate-700/40">
