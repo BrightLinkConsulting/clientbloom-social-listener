@@ -1724,13 +1724,13 @@ function ScoutAgentPanel({
           {messages.length === 0 && !loading && (
             <div className="text-center py-6">
               <p className="text-xs text-slate-500 leading-relaxed mb-3">
-                I can help you clear inbox noise, skip low-score posts, and surface what matters most.
+                I can help you manage your inbox, understand your stats, and answer any question about how Scout works — features, plans, settings, or what any number means.
               </p>
               <div className="flex flex-col gap-1.5">
                 {[
                   'What should I engage with today?',
                   'Clear everything below score 5',
-                  'How many high-priority posts do I have?',
+                  'What does the Engagement Rate mean?',
                 ].map(s => (
                   <button key={s} onClick={() => { setInput(s) }} className="text-left text-xs px-3 py-2 rounded-lg bg-slate-800/60 border border-slate-700/40 text-slate-400 hover:text-slate-200 hover:border-slate-600/60 transition-colors">
                     {s}
