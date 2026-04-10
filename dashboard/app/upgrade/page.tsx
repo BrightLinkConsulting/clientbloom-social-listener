@@ -46,7 +46,6 @@ const TIERS = [
       '2 scans per day (morning + evening)',
       'Unlimited AI comment suggestions',
       'Unlimited post history',
-      'CRM integration (GHL + HubSpot)',
       'Slack daily digest',
       '1 user seat',
     ],

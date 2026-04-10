@@ -34,7 +34,7 @@ const PLAN_META: Record<string, { label: string; color: string; tagline: string 
   pro: {
     label:   'Pro',
     color:   '#7C3AED',
-    tagline: 'Twice-daily scans, CRM sync, and Slack digest. Your full pipeline, automated.',
+    tagline: 'Twice-daily scans, Slack digest, and unlimited AI suggestions. Your full pipeline, automated.',
   },
   agency: {
     label:   'Agency',

@@ -73,7 +73,7 @@ export default function ComparePage() {
     {
       feature: 'CRM push (GHL, HubSpot)',
       scout: true, salesnav: true,
-      note: null,
+      note: 'Agency plan only. Scout pushes engaged contacts directly to GoHighLevel or HubSpot so leads flow into your CRM automatically.',
     },
     {
       feature: 'Agency / multi-client workspace',

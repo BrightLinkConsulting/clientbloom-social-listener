@@ -7,9 +7,16 @@ import { airtableList, airtableCreate, airtableUpdate } from '@/lib/airtable'
 
 const TABLE = 'Business Profile'
 
+const CRM_ALLOWED_PLANS = new Set(['Scout Agency', 'Owner'])
+
 export async function GET() {
   const tenant = await getTenantConfig()
   if (!tenant) return tenantError()
+  // CRM settings is Agency-only — return empty config for other plans (read is
+  // harmless, but prevents leaking any previously-saved key data in UI)
+  if (!CRM_ALLOWED_PLANS.has(tenant.plan)) {
+    return NextResponse.json({ crmType: 'None', crmApiKey: '', crmPipelineId: '' })
+  }
   try {
     const res = await airtableList(TABLE, tenant.tenantId, { pageSize: '1' })
     const data = await res.json()
@@ -28,6 +35,13 @@ export async function GET() {
 export async function POST(req: Request) {
   const tenant = await getTenantConfig()
   if (!tenant) return tenantError()
+  // Block non-Agency plans from saving CRM config via direct API calls
+  if (!CRM_ALLOWED_PLANS.has(tenant.plan)) {
+    return NextResponse.json(
+      { error: 'CRM settings require the Scout Agency plan.' },
+      { status: 403 }
+    )
+  }
   try {
     const { crmType, crmApiKey, crmPipelineId } = await req.json()
     const fields: Record<string, any> = {}

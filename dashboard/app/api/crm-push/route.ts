@@ -113,10 +113,20 @@ async function pushToHubSpot(apiKey: string, body: any) {
   return { contactId, contactUrl: contactId ? `https://app.hubspot.com/contacts/contact/${contactId}` : '' }
 }
 
+const CRM_ALLOWED_PLANS = new Set(['Scout Agency', 'Owner'])
+
 export async function POST(req: Request) {
   const tenant = await getTenantConfig()
   if (!tenant) return tenantError()
-  const { tenantId } = tenant
+  const { tenantId, plan } = tenant
+
+  // CRM push is an Agency-only feature — enforce server-side regardless of UI state
+  if (!CRM_ALLOWED_PLANS.has(plan)) {
+    return NextResponse.json(
+      { error: 'CRM push requires the Scout Agency plan.' },
+      { status: 403 }
+    )
+  }
 
   try {
     const body = await req.json()

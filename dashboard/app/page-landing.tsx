@@ -75,7 +75,7 @@ export default function LandingPage() {
     },
     {
       q: 'Can I connect my CRM?',
-      a: 'Yes. Scout natively integrates with GoHighLevel and HubSpot. When you find a prospect worth pursuing, one click creates a contact in your CRM and attaches your notes. No copy-paste, no context lost.'
+      a: 'Yes — on the Agency plan. Scout integrates with GoHighLevel and HubSpot. When you find a prospect worth pursuing, one click creates a contact in your CRM and attaches your notes. No copy-paste, no context lost. CRM integration is included in the Agency plan ($249/mo).'
     },
     {
       q: 'How is this different from just searching LinkedIn manually?',
@@ -352,7 +352,7 @@ export default function LandingPage() {
                   manual: false,
                   salenav: 'partial',
                   scout: true,
-                  note: 'Sales Nav syncs contact data, not engagement context',
+                  note: 'Agency plan only. Sales Nav syncs contact data, not engagement context.',
                 },
                 {
                   feature: 'Built for engagement — not cold outreach',
@@ -529,7 +529,7 @@ export default function LandingPage() {
                 <p className="text-slate-500 text-xs mt-2 leading-relaxed">The full product. Everything you need to build pipeline from LinkedIn.</p>
               </div>
               <ul className="space-y-2 flex-1 mb-6">
-                {['10 LinkedIn keyword searches','5 ICP profiles monitored','2 scans per day (morning + evening)','Unlimited AI comment suggestions','Unlimited post history','CRM integration (GHL + HubSpot)','Slack daily digest','1 user seat'].map(f => (
+                {['10 LinkedIn keyword searches','5 ICP profiles monitored','2 scans per day (morning + evening)','Unlimited AI comment suggestions','Unlimited post history','Slack daily digest','1 user seat'].map(f => (
                   <li key={f} className="flex items-start gap-2.5 text-sm text-slate-300">
                     <svg className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
                     {f}

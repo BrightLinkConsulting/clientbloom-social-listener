@@ -99,6 +99,10 @@ Completed:
 - ✅ Usage tracker removed from Plan & Billing (intentional, pre-launch) — the section showed hardcoded
   "0 / N" values with no live data source. Removed GaugeBar component and usage card entirely. Limits
   are still enforced server-side. See docs/v2-roadmap.md for the proper v2 implementation spec.
+- ✅ CRM integration gated to Agency-only — previously available on Pro+Agency; now Agency+Owner only.
+  Gate enforced at 6 surfaces: UI in page.tsx + settings/page.tsx; server in crm-push + crm-settings
+  routes; marketing copy in upgrade/page.tsx, page-landing.tsx, welcome/page.tsx, lib/emails.ts,
+  and compare/page.tsx. Plan sweep confirmed zero remaining Pro+CRM references.
 
 Still open:
 - Security headers in next.config.js (X-Frame-Options, CSP, etc.)
@@ -256,6 +260,15 @@ callers — never do this without auditing every reference first.
   STRIPE_ACTIVE_PLANS guard that redirects to /settings?tab=billing&portal=1. The /upgrade
   page also detects isStripeBilledPlan and shows portal CTAs instead of checkout buttons.
   Never remove these guards — they prevent duplicate Stripe subscription creation.
+- CRM integration is Agency-only (Scout Agency + Owner plans). This is enforced at:
+  (a) UI: `crmUnlocked = plan === 'Scout Agency' || plan === 'Owner'` in both app/page.tsx
+      and app/settings/page.tsx. Lock screen shows padlock + "Upgrade to Agency to unlock →".
+  (b) Server: `CRM_ALLOWED_PLANS = new Set(['Scout Agency', 'Owner'])` constant defined in
+      both api/crm-push/route.ts (returns 403) and api/crm-settings/route.ts (POST returns 403;
+      GET returns empty config). Pro users cannot bypass the UI gate via direct API calls.
+  (c) Marketing: CRM is excluded from all Pro feature lists (upgrade page, landing page pricing,
+      welcome page tagline, emails). It appears only in the Agency features list.
+  Never re-add CRM to the Pro tier without updating ALL six of these surfaces.
 - Stuck-scanning: treat as success state in the UI (scan completed; only write failed).
   Do not show alarm language. Watchdog resets the backend field within 1h.
 - Overdue threshold: 26h for Trial/Starter, 14h for Pro. See scanOverdueMs() in app/page.tsx

@@ -467,6 +467,31 @@ New route added in Session 3 to support post-cancel state persistence.
 
 ---
 
+## Plan Feature Matrix — CRM Integration (April 2026)
+
+CRM integration (GoHighLevel + HubSpot push) is an **Agency-only feature** as of April 2026. This changed from Pro+Agency to Agency-only during the pre-launch hardening pass.
+
+### Enforcement layers
+
+| Layer | File | Behavior |
+|-------|------|----------|
+| Feed UI | `app/page.tsx` | `crmUnlocked = plan === 'Scout Agency' || plan === 'Owner'`. Non-Agency sees lock screen on "In CRM" tab. CRM push button hidden. |
+| Settings UI | `app/settings/page.tsx` | `crmUnlocked` same check. Lock screen shown over CRM Integration widget with padlock + "Upgrade to Agency to unlock →". |
+| crm-push route | `app/api/crm-push/route.ts` | `CRM_ALLOWED_PLANS = new Set(['Scout Agency', 'Owner'])`. Non-Agency POST returns 403. Guard fires before any Airtable or CRM API calls. |
+| crm-settings GET | `app/api/crm-settings/route.ts` | Non-Agency plans receive `{ crmType: 'None', crmApiKey: '', crmPipelineId: '' }` — no 403, just an empty config so the UI renders gracefully. |
+| crm-settings POST | `app/api/crm-settings/route.ts` | Non-Agency POST returns 403 — prevents saving CRM credentials via direct API call even when UI is locked. |
+| Upgrade page | `app/upgrade/page.tsx` | CRM not listed in Pro features. CRM listed in Agency features only. |
+| Landing page | `app/page-landing.tsx` | Pro pricing grid excludes CRM. CRM appears only in Agency pricing grid. Product comparison table note: "Agency plan only." FAQ explicitly states "Yes — on the Agency plan." |
+| Welcome page | `app/welcome/page.tsx` | Pro plan tagline: "Twice-daily scans, Slack digest, and unlimited AI suggestions." (CRM removed from Pro tagline.) |
+| Compare page | `app/compare/page.tsx` | CRM feature row note: "Agency plan only. Scout pushes engaged contacts directly to GoHighLevel or HubSpot..." |
+| Emails | `lib/emails.ts` | Pro plan highlight does not mention CRM. Win-back table row updated to not reference CRM. |
+
+### To re-add CRM to Pro in the future
+
+Update all ten of the above surfaces. A full grep sweep should return zero results matching `(Pro.*CRM|CRM.*Pro)` in marketing/UI context when done. The server-side guards in `CRM_ALLOWED_PLANS` in both API routes are the critical safety layer — update them first before any UI changes.
+
+---
+
 ## Known Gaps
 
 | Gap | Impact | Priority |

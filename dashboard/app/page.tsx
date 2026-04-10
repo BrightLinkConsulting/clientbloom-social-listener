@@ -1415,7 +1415,7 @@ function FeedPage() {
   const { data: session, status } = useSession()
   const userEmail   = (session?.user as any)?.email || ''
   const plan        = (session?.user as any)?.plan  || ''
-  const crmUnlocked = plan === 'Scout Pro' || plan === 'Scout Agency' || plan === 'Owner'
+  const crmUnlocked = plan === 'Scout Agency' || plan === 'Owner'
   const [posts, setPosts] = useState<Post[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<ActionFilter>('New')
@@ -1676,8 +1676,8 @@ function FeedPage() {
                   'LinkedIn conversation monitoring',
                   'AI-scored post feed',
                   'Comment draft suggestions',
+                  'Unlimited AI suggestions',
                   'Daily Slack digest',
-                  'CRM integration (GHL + HubSpot)',
                 ].map(f => (
                   <div key={f} className="flex items-center gap-2.5 text-sm text-slate-300">
                     <svg className="w-4 h-4 text-emerald-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1789,9 +1789,9 @@ function FeedPage() {
               </svg>
             </div>
             <div>
-              <p className="text-slate-300 text-sm font-semibold mb-1">CRM push is a Pro feature</p>
+              <p className="text-slate-300 text-sm font-semibold mb-1">CRM push is an Agency feature</p>
               <p className="text-slate-500 text-xs leading-relaxed">
-                Upgrade to Scout Pro or Agency to push engaged leads directly to your CRM — all their contact info, notes, and conversation context in one click.
+                Upgrade to Scout Agency to push engaged leads directly to your CRM — all their contact info, notes, and conversation context in one click.
               </p>
             </div>
             <Link

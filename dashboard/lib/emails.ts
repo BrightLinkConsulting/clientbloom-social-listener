@@ -141,7 +141,7 @@ const PLAN_COPY: Record<RecommendedPlan, PlanCopy> = {
   pro: {
     ctaLabel:  'Continue with Pro →',
     price:     '$99/month',
-    highlight: '10 keyword searches, 5 ICP profiles, 2 daily scans, CRM sync, Slack digest.',
+    highlight: '10 keyword searches, 5 ICP profiles, 2 daily scans, Slack digest.',
     color:     BRAND_PURPLE,
   },
   agency: {
@@ -301,7 +301,7 @@ export function buildTrialDay6Email(
           <td style="padding:10px 14px;border-top:1px solid #eee;color:#333">First recognizable voice in your niche's feed</td>
         </tr>
         <tr>
-          <td style="padding:10px 14px;border-top:1px solid #eee;color:#555">Engaged contacts lost without CRM sync</td>
+          <td style="padding:10px 14px;border-top:1px solid #eee;color:#555">Engaged contacts tracked nowhere</td>
           <td style="padding:10px 14px;border-top:1px solid #eee;color:#333">Warm pipeline building automatically</td>
         </tr>
       </tbody>

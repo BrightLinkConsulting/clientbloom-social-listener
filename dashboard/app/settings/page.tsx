@@ -2169,7 +2169,7 @@ const CRM_INSTRUCTIONS: Record<string, { title: string; steps: string[] }> = {
 function CRMIntegrationSection() {
   const { data: crmSession } = useSession()
   const crmPlan = (crmSession?.user as any)?.plan || 'Trial'
-  const crmUnlocked = crmPlan === 'Scout Pro' || crmPlan === 'Scout Agency' || crmPlan === 'Owner'
+  const crmUnlocked = crmPlan === 'Scout Agency' || crmPlan === 'Owner'
 
   const [crmType,       setCrmType]       = useState('None')
   const [crmApiKey,     setCrmApiKey]     = useState('')
@@ -2259,12 +2259,12 @@ function CRMIntegrationSection() {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
           </svg>
           <div>
-            <p className="text-xs font-semibold text-violet-300 mb-1">Available on Pro and Agency plans</p>
+            <p className="text-xs font-semibold text-violet-300 mb-1">Available on Agency plan</p>
             <p className="text-xs text-slate-500 leading-relaxed">
-              Connect GoHighLevel or HubSpot to push engaged contacts into your CRM with a single click directly from the Scout feed.
+              Connect GoHighLevel or HubSpot to push engaged contacts into your CRM with a single click directly from the Scout feed. CRM integration is included in the Agency plan.
             </p>
             <a href="/upgrade" className="inline-block mt-2 text-xs font-semibold text-violet-400 hover:text-violet-300 transition-colors underline underline-offset-2 decoration-violet-600">
-              Upgrade to unlock →
+              Upgrade to Agency to unlock →
             </a>
           </div>
         </div>
