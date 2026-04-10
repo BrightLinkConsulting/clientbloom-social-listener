@@ -23,6 +23,12 @@
  * critical flag. Batches all critical alerts into a single Slack message so
  * Mike gets one digest per cron run, not one Slack ping per tenant.
  *
+ * ── sendLingeringAccountsDigest ──────────────────────────────────────────────
+ * Called by the admin-digest cron (daily, 9 AM Pacific). Posts one Slack
+ * message listing accounts that still have active service flags 72+ hours
+ * after their initial alert email. These accounts need personal admin outreach.
+ * Sends an "all clear" message when no accounts are lingering.
+ *
  * ── Slack ─────────────────────────────────────────────────────────────────────
  * Set SLACK_WEBHOOK_URL in Vercel env vars to enable Slack notifications.
  * Create an Incoming Webhook at https://api.slack.com/apps → Incoming Webhooks.
@@ -336,6 +342,79 @@ export async function sendCriticalFlagSlackAlert(alerts: CriticalFlagAlert[], ad
     : `:rotating_light: *Scout Service Alert* — ${alerts.length} accounts have new critical flags`
 
   const text = `${header}\n${lines.join('\n')}\n_${timestamp}_ | <${adminUrl}|View Admin Panel>`
+
+  await postToSlack(text)
+}
+
+// ── sendLingeringAccountsDigest ───────────────────────────────────────────────
+
+export interface LingeringAccount {
+  email:       string
+  plan:        string           // 'Trial' | 'Scout Starter' | 'Scout Pro' | 'Scout Agency' | etc.
+  flagCodes:   string[]
+  emailedAt:   string           // ISO timestamp of Service Flag Email Sent At
+}
+
+/**
+ * Send a daily Slack digest listing accounts that still have active service
+ * flags 72+ hours after their initial alert email. These need personal admin
+ * outreach — the automated email has already fired and the issue persists.
+ *
+ * Sends an "all clear" message when no accounts are lingering so the admin
+ * has positive confirmation the digest ran, not just silence.
+ *
+ * Only fires if SLACK_WEBHOOK_URL is set. Called by /api/cron/admin-digest.
+ */
+export async function sendLingeringAccountsDigest(
+  accounts: LingeringAccount[],
+  adminUrl: string,
+): Promise<void> {
+  const timestamp = new Date().toLocaleString('en-US', {
+    timeZone:  'America/Los_Angeles',
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  })
+
+  if (accounts.length === 0) {
+    await postToSlack(
+      `:white_check_mark: *Scout Daily Admin Digest* — all accounts resolved or within 72h window\n_${timestamp}_ | <${adminUrl}|View Admin Panel>`,
+    )
+    return
+  }
+
+  const paid  = accounts.filter(a => a.plan !== 'Trial')
+  const trial = accounts.filter(a => a.plan === 'Trial')
+
+  function hoursAgo(iso: string): string {
+    const diff = Date.now() - new Date(iso).getTime()
+    const h    = Math.floor(diff / (1000 * 60 * 60))
+    return h >= 48 ? `${Math.floor(h / 24)}d ago` : `${h}h ago`
+  }
+
+  function renderRow(a: LingeringAccount): string {
+    const codes = a.flagCodes.map(c => `\`${c}\``).join(', ')
+    return `• *${a.email}* [${a.plan}] — ${codes} — notified ${hoursAgo(a.emailedAt)}`
+  }
+
+  const sections: string[] = []
+
+  if (paid.length > 0) {
+    sections.push(
+      `:rotating_light: *Paid accounts — respond today (${paid.length}):*\n${paid.map(renderRow).join('\n')}`,
+    )
+  }
+
+  if (trial.length > 0) {
+    sections.push(
+      `:speech_balloon: *Trial accounts — personal outreach recommended (${trial.length}):*\n${trial.map(renderRow).join('\n')}`,
+    )
+  }
+
+  const header = accounts.length === 1
+    ? `:clipboard: *Scout Daily Admin Digest* — 1 account flagged 72h+ with no resolution`
+    : `:clipboard: *Scout Daily Admin Digest* — ${accounts.length} accounts flagged 72h+ with no resolution`
+
+  const text = `${header}\n\n${sections.join('\n\n')}\n\n_${timestamp}_ | <${adminUrl}|View Admin Panel>`
 
   await postToSlack(text)
 }

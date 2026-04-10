@@ -168,6 +168,7 @@ All require `Authorization: Bearer <CRON_SECRET>`. Return `401` immediately if h
 | `/api/cron/scan-watchdog` | Every 30 min :30 | CRON_SECRET | Detect tenants stuck in 'scanning' > 20 min; reset to 'success' |
 | `/api/cron/archive-posts` | 03:00 Sunday | CRON_SECRET | Archive posts older than `postHistoryDays` limit per plan |
 | `/api/cron/service-check` | Every 4 hours :00 | CRON_SECRET | Service Manager: evaluates health rules for every tenant; writes `Service Flags` + `Service Checked At` to Airtable; sends customer alert emails for new actionable flags; posts batched Slack alert to `#clientbloom-support` for new critical flags. See [service-manager.md](./service-manager.md) for full flag reference and [usage-service-manager.md](./usage-service-manager.md) for notification details. |
+| `/api/cron/admin-digest` | 17:00 daily (9 AM PT) | CRON_SECRET | Daily admin Slack digest: lists accounts that still have active service flags 72+ hours after their initial alert email — these need personal admin outreach. Posts "all clear" to `#clientbloom-support` when no accounts are lingering. Requires `SLACK_WEBHOOK_URL`. |
 
 **Testing cron routes locally:**
 ```bash

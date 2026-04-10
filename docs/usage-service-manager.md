@@ -117,15 +117,19 @@ These bugs were found and fixed through adversarial testing:
 | Cron | Schedule | What it does |
 |---|---|---|
 | `usage-sync` | Every hour `:00` | Counts posts per tenant, writes Post Count + Est Cost + Usage Synced At |
-| `service-check` | Every 4 hours `:00` | Evaluates health rules, writes Service Flags + Service Checked At |
+| `service-check` | Every 4 hours `:00` | Evaluates health rules, writes Service Flags + Service Checked At; sends customer emails + critical Slack alerts |
+| `admin-digest` | Daily 9 AM Pacific (17:00 UTC) | Posts Slack digest of accounts still flagged 72h+ after initial email; sends "all clear" when none |
 
-Both require `Authorization: Bearer <CRON_SECRET>`. Trigger manually:
+All require `Authorization: Bearer <CRON_SECRET>`. Trigger manually:
 
 ```bash
 curl -X GET https://scout.clientbloom.ai/api/cron/usage-sync \
   -H "Authorization: Bearer $CRON_SECRET"
 
 curl -X GET https://scout.clientbloom.ai/api/cron/service-check \
+  -H "Authorization: Bearer $CRON_SECRET"
+
+curl -X GET https://scout.clientbloom.ai/api/cron/admin-digest \
   -H "Authorization: Bearer $CRON_SECRET"
 ```
 
@@ -217,9 +221,12 @@ The notification system handles first contact automatically. This section define
 When a tenant gains a new actionable flag, the service-check cron (runs every 4 hours) handles the following with no admin action required:
 
 - **Customer email** — sent to the tenant for: `nothing_to_scan`, `paid_zero_posts`, `scan_failed`, `paid_no_scan_48h`, `trial_no_setup`, `paid_no_scan_ever`
-- **Admin Slack alert** — one batched message to `#clientbloom-support` when a critical flag appears: `paid_no_scan_48h`, `scan_failed`, `trial_billing_mismatch`
+- **Immediate admin Slack alert** — one batched message to `#clientbloom-support` when a critical flag appears: `paid_no_scan_48h`, `scan_failed`, `trial_billing_mismatch`
+- **Daily admin Slack digest** (9 AM Pacific) — the `admin-digest` cron posts a summary of any account still flagged 72+ hours after their initial email. This is your signal to manually reach out. Posts "all clear" when no accounts are lingering.
 
 The flags `no_icps_configured` and `no_keywords` are info-level and do not trigger any notification — they appear in the admin panel only to give you context.
+
+**Badge auto-clearing:** flag badges in the admin panel disappear automatically. The service-check cron overwrites `Service Flags` on every run with the current evaluated state. When an account resolves their issue, `evaluateFlags()` returns a smaller (or empty) array, Airtable is patched immediately, and the badges are gone on the next admin panel refresh (within 4 hours). No manual action needed.
 
 ### Step 2: Verify the email was sent
 
@@ -262,17 +269,19 @@ When an account self-resolves (tenant configures settings, scan succeeds, etc.),
 
 ### Quick reference: who gets notified for what
 
-| Flag | Customer email | Admin Slack | Admin action needed |
-|---|---|---|---|
-| `nothing_to_scan` | Yes (auto) | No | Only if still flagged after 72h |
-| `trial_no_setup` | Yes (auto) | No | Only if account expiring in < 2 days |
-| `paid_zero_posts` | Yes (auto) | No | Review weekly in Usage tab |
-| `scan_failed` | Yes (auto) | Yes | Investigate within 4h |
-| `paid_no_scan_48h` | Yes (auto) | Yes | Investigate within 4h |
-| `paid_no_scan_ever` | Yes (auto) | No | Reach out if account > 48h old |
-| `trial_billing_mismatch` | No | Yes | Investigate immediately — Stripe/Airtable mismatch |
-| `no_icps_configured` | No | No | None — informational only |
-| `no_keywords` | No | No | None — informational only |
+| Flag | Customer email | Immediate Slack | Daily digest (72h+) | Admin action needed |
+|---|---|---|---|---|
+| `nothing_to_scan` | Yes (auto) | No | Yes | Reach out when digest surfaces it |
+| `trial_no_setup` | Yes (auto) | No | Yes | Reach out when digest surfaces it; prioritize if expiring < 2 days |
+| `paid_zero_posts` | Yes (auto) | No | Yes | Reach out when digest surfaces it |
+| `scan_failed` | Yes (auto) | Yes | Yes | Investigate within 4h of Slack alert |
+| `paid_no_scan_48h` | Yes (auto) | Yes | Yes | Investigate within 4h of Slack alert |
+| `paid_no_scan_ever` | Yes (auto) | No | Yes | Reach out when digest surfaces it |
+| `trial_billing_mismatch` | No | Yes | Yes | Investigate immediately — Stripe/Airtable mismatch |
+| `no_icps_configured` | No | No | No | None — informational only |
+| `no_keywords` | No | No | No | None — informational only |
+
+The daily digest fires at 9 AM Pacific every day. An "all clear" message posts when nothing is lingering — this confirms the cron ran successfully, not just silence.
 
 ---
 
