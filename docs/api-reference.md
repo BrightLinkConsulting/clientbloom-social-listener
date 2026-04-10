@@ -167,12 +167,36 @@ All require `Authorization: Bearer <CRON_SECRET>`. Return `401` immediately if h
 | `/api/cron/trial-check` | Every 6 hours | CRON_SECRET | Send drip emails for active trials; expire overdue trials |
 | `/api/cron/scan-watchdog` | Every 30 min :30 | CRON_SECRET | Detect tenants stuck in 'scanning' > 20 min; reset to 'success' |
 | `/api/cron/archive-posts` | 03:00 Sunday | CRON_SECRET | Archive posts older than `postHistoryDays` limit per plan |
-| `/api/cron/service-check` | Every 4 hours :00 | CRON_SECRET | Service Manager: evaluates health rules for every tenant; writes `Service Flags` + `Service Checked At` to Airtable. See [service-manager.md](./service-manager.md) for full flag reference. |
+| `/api/cron/service-check` | Every 4 hours :00 | CRON_SECRET | Service Manager: evaluates health rules for every tenant; writes `Service Flags` + `Service Checked At` to Airtable; sends customer alert emails for new actionable flags; posts batched Slack alert to `#clientbloom-support` for new critical flags. See [service-manager.md](./service-manager.md) for full flag reference and [usage-service-manager.md](./usage-service-manager.md) for notification details. |
 
 **Testing cron routes locally:**
 ```bash
 curl -H "Authorization: Bearer <CRON_SECRET>" http://localhost:3000/api/cron/scan
 ```
+
+**`service-check` response shape:**
+
+```json
+{
+  "ok": true,
+  "checkedAt": "2026-04-10T12:00:00.000Z",
+  "total": 42,
+  "flagged": 3,
+  "emailed": 1,
+  "slackAlerts": 2,
+  "errors": 0,
+  "results": [
+    { "id": "rec...", "email": "user@co.com", "flags": 2, "emailedCodes": ["scan_failed"] },
+    { "id": "rec...", "email": "other@co.com", "flags": 0, "emailedCodes": [] }
+  ]
+}
+```
+
+`emailed`: number of tenants where an email was sent in this run (dedup-blocked = 0, new codes found = increments by 1 per tenant that received an email).
+`slackAlerts`: number of tenants that had new critical flags and contributed to the Slack batch message.
+`emailedCodes`: flag codes actually emailed to this tenant in this run. Empty array means dedup blocked the send or there were no eligible flags.
+
+Requires `SLACK_WEBHOOK_URL` env var for Slack alerts. If unset, Slack is silently skipped and `slackAlerts` will always be 0.
 
 ---
 

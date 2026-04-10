@@ -283,6 +283,70 @@ also in `lib/emails.ts` and sent to the `ADMIN_EMAIL` env var.
 
 ---
 
+## 8a. Service Flag Emails (Health Alerts)
+
+Deployed April 2026. These are customer-facing transactional alerts sent by the
+`service-check` cron when a tenant's account has actionable health issues.
+
+**Builder:** `buildServiceFlagEmail(opts: ServiceFlagEmailOpts)`
+
+**From:** `Scout <info@clientbloom.ai>`
+**To:** Tenant's email address (from Airtable)
+**Sent by:** `lib/notify.ts` → `sendServiceFlagEmail()` → called from `app/api/cron/service-check/route.ts`
+
+### Flag email content map
+
+| Flag code | Subject fragment | Header color | CTA link |
+|-----------|-----------------|--------------|----------|
+| `nothing_to_scan` | "Scout isn't scanning yet" | amber | /settings |
+| `paid_zero_posts` | "Scout isn't finding content" | amber | /settings |
+| `scan_failed` | "your last scan hit an error" | red | /dashboard |
+| `paid_no_scan_48h` | "scans haven't run in 2 days" | red | /dashboard |
+| `trial_no_setup` | "get more from your Scout trial" | amber | /settings |
+| `paid_no_scan_ever` | "let's run your first scan" | amber | /dashboard |
+
+Single-flag emails: subject is `"Scout alert: {subjectFragment}"`.
+Multi-flag emails: subject is `"Action needed on your Scout account (N issues)"` for 3+ flags, or `"A quick note about your Scout account"` for 2. Header color is red if any critical flag is present, amber otherwise.
+
+### `ServiceFlagEmailOpts` shape
+
+```typescript
+interface ServiceFlagEmailFlag {
+  code:     string
+  severity: 'critical' | 'warning' | 'info'
+  message:  string
+}
+
+interface ServiceFlagEmailOpts {
+  appUrl:   string               // e.g. 'https://scout.clientbloom.ai'
+  flags:    ServiceFlagEmailFlag[]
+}
+```
+
+### Dedup rules (enforced in the cron, not in the builder)
+
+`buildServiceFlagEmail` is a pure builder — it does not check dedup state. All dedup
+logic lives in `dispatchNotifications()` in `service-check/route.ts`:
+
+1. **24h cooldown** (`Service Flag Email Sent At` in Airtable): No email within 24 hours of the last send, regardless of which flags are present.
+2. **Per-code tracking** (`Last Flag Codes Emailed` in Airtable): Once a flag code has been emailed, it is never emailed again for the same account — even after the cooldown resets. Only codes not yet in this list trigger a send.
+
+On recovery (all actionable flags clear), `Last Flag Codes Emailed` is reset to `[]` so the next occurrence triggers a fresh email. `Service Flag Email Sent At` is deliberately NOT reset — this preserves flapping protection so a heal/break cycle within 24 hours does not immediately re-notify.
+
+### No-unsubscribe policy
+
+Service flag emails do not include an unsubscribe link. They are operational alerts about
+account health, not marketing. Opted-out (`Email Opted Out = true`) accounts still receive
+service flag emails.
+
+### Adding a new flag email
+
+1. Add a `[code]: { subjectFragment, message, ctaText, ctaPath }` entry to the `FLAG_CONTENT` record in `lib/emails.ts`
+2. Add the code to `CUSTOMER_EMAIL_CODES` in `app/api/cron/service-check/route.ts`
+3. Update the flag reference table in `docs/service-manager.md` and the email flag table in `docs/usage-service-manager.md`
+
+---
+
 ## 9. Post-Payment Welcome Page + Session Refresh
 
 When a user upgrades from a trial, Stripe redirects to `/welcome?upgraded=1&tier=starter|pro|agency`.
