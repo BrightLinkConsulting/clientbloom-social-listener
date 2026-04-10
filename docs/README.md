@@ -33,6 +33,7 @@ This folder is the developer knowledge base for Scout. Start here.
 | [`airtable-rate-limit-resilience.md`](./airtable-rate-limit-resilience.md) | Rate-limit math, `airtableFetch` retry strategy, jitter |
 | [`apify-integration.md`](./apify-integration.md) | Actor IDs, run tagging, per-tenant cost attribution, rate limits, debugging |
 | [`service-manager.md`](./service-manager.md) | Automated health checks, all flag codes and severity, Airtable schema, cron details |
+| [`usage-service-manager.md`](./usage-service-manager.md) | Admin Usage tab — columns, post count cache vs live, cost attribution, service banner, all bugs fixed April 2026 |
 
 ### Roadmap
 | Document | What it covers |
