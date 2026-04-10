@@ -96,6 +96,9 @@ Completed:
   redirect for paid users; (d) /api/billing/status route created — restores post-cancel amber card on
   page refresh (closes Known P2 gap); (e) getTierLimits + getPlanDisplay handle 'Complimentary' plan;
   full details in docs/stripe-billing.md
+- ✅ Usage tracker removed from Plan & Billing (intentional, pre-launch) — the section showed hardcoded
+  "0 / N" values with no live data source. Removed GaugeBar component and usage card entirely. Limits
+  are still enforced server-side. See docs/v2-roadmap.md for the proper v2 implementation spec.
 
 Still open:
 - Security headers in next.config.js (X-Frame-Options, CSP, etc.)
@@ -279,3 +282,6 @@ callers — never do this without auditing every reference first.
   handlers, tenant provisioning, plan name mapping, env var reference, admin stats design,
   trial pipeline v2 design, reactivation system spec, /api/billing/status route spec,
   per-account adversarial test results (38/38 Session 3), known gaps
+- `docs/v2-roadmap.md` — Features intentionally deferred from v1 launch. Each entry explains
+  what was removed, why, and what the proper v2 implementation requires. Currently contains:
+  (1) Live usage tracking (Plan & Billing)

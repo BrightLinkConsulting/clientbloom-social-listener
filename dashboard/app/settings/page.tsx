@@ -2764,7 +2764,6 @@ function PlanBillingSection() {
   const user             = session?.user as any
   const plan             = user?.plan || 'Trial'
   const trialEndsAt      = user?.trialEndsAt ? new Date(user.trialEndsAt) : null
-  const limits           = getTierLimits(plan)
   const display          = getPlanDisplay(plan)
   const isTrial          = plan === 'Trial'
   const isStripePlan     = isStripeBilledPlan(plan)   // Starter/Pro/Agency only — has real Stripe subscription
@@ -2860,29 +2859,6 @@ function PlanBillingSection() {
       <span className={`text-xs px-3 py-1 rounded-full font-medium border ${cls}`}>
         {label}
       </span>
-    )
-  }
-
-  function GaugeBar({ used, limit, label }: { used: number; limit: number; label: string }) {
-    const pct   = limit === 0 ? 100 : Math.min((used / limit) * 100, 100)
-    const color = pct < 70 ? '#4F6BFF' : pct < 85 ? '#F59E0B' : '#EF4444'
-    return (
-      <div>
-        <div className="flex justify-between items-center mb-1.5">
-          <span className="text-xs text-slate-400">{label}</span>
-          <span className="text-xs font-medium text-slate-300">
-            {limit === Infinity || limit === 0 ? 'Unlimited' : `${used} / ${limit}`}
-          </span>
-        </div>
-        {(limit !== Infinity && limit > 0) && (
-          <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
-            <div
-              className="h-full rounded-full transition-all"
-              style={{ width: `${pct}%`, background: color }}
-            />
-          </div>
-        )}
-      </div>
     )
   }
 
@@ -3020,37 +2996,6 @@ function PlanBillingSection() {
         )}
 
       </div>
-
-      {/* ── Usage gauges ── */}
-      <div className="rounded-2xl bg-[#0f1117] border border-slate-700/50 p-6 space-y-5">
-        <div>
-          <p className="text-sm font-semibold text-white mb-1">Usage</p>
-          <p className="text-xs text-slate-500">Your current usage against plan limits. Limits reset each billing cycle.</p>
-        </div>
-
-        <div className="space-y-4">
-          <GaugeBar used={0} limit={limits.keywords}       label="LinkedIn keyword searches" />
-          <GaugeBar used={0} limit={limits.profiles}       label="ICP profiles monitored" />
-          {limits.commentCredits !== Infinity && (
-            <GaugeBar used={0} limit={limits.commentCredits} label="AI comment suggestions this month" />
-          )}
-        </div>
-
-        <p className="text-xs text-slate-600">
-          Live usage counts coming soon. Limits are enforced in Settings → LinkedIn.
-        </p>
-      </div>
-
-      {/* ── Agency capacity note ── */}
-      {plan === 'Scout Agency' && (
-        <div className="rounded-2xl bg-purple-900/10 border border-purple-700/30 p-5">
-          <p className="text-sm font-semibold text-purple-300 mb-1">Agency plan — extended limits</p>
-          <p className="text-xs text-slate-400 leading-relaxed">
-            Your Agency plan includes 20 keyword searches, 15 ICP profiles, and 5 seats —
-            giving your team full capacity to manage outreach across multiple clients from a single workspace.
-          </p>
-        </div>
-      )}
 
     </div>
   )
