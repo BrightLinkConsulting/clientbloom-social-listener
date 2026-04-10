@@ -55,12 +55,33 @@ export async function POST(req: Request) {
 
   try {
     const body = await req.json()
+
+    // Server-side validation: clamp to non-negative integers, reject impossible states.
+    // safeInt: rejects Infinity / NaN / non-finite values (all map to 0).
+    const safeInt = (v: unknown) => {
+      const n = Number(v)
+      return Number.isFinite(n) ? Math.max(0, Math.round(n)) : 0
+    }
+
+    const surfaced = safeInt(body.surfaced)
+    const engaged  = safeInt(body.engaged)
+    const replied  = safeInt(body.replied)
+    const crm      = safeInt(body.crm)
+
+    // Sanity check: acted counts cannot exceed surfaced
+    if (engaged + replied + crm > surfaced && surfaced > 0) {
+      return NextResponse.json(
+        { error: 'Invalid snapshot: acted counts exceed surfaced total' },
+        { status: 400 }
+      )
+    }
+
     const snapshot: DaySnapshot = {
       date:     todayKey(),
-      surfaced: Number(body.surfaced) || 0,
-      engaged:  Number(body.engaged)  || 0,
-      replied:  Number(body.replied)  || 0,
-      crm:      Number(body.crm)      || 0,
+      surfaced,
+      engaged,
+      replied,
+      crm,
     }
 
     // Read existing history

@@ -1100,6 +1100,52 @@ interface DaySnapshot {
   crm:      number
 }
 
+// ── Engagement activity helpers ───────────────────────────────────────────────
+
+/**
+ * Derives per-day activity from a cumulative history array, then returns:
+ *   streakDays  — consecutive active days ending today (0 = no streak)
+ *   activeLast7 — count of distinct active days in the last 7 calendar days
+ *
+ * "Active" means the daily delta for engaged + replied + crm is > 0.
+ * Uses LA timezone to match snapshot date keys.
+ */
+function calcEngagementActivity(history: DaySnapshot[]): { streakDays: number; activeLast7: number } {
+  const laZone = { timeZone: 'America/Los_Angeles' } as const
+  const today  = new Date().toLocaleDateString('en-CA', laZone)
+
+  // Build a Set of dates where activity occurred
+  const activeDates = new Set<string>()
+  for (let i = 0; i < history.length; i++) {
+    const cur  = history[i]
+    const prev = history[i - 1]
+    const delta = prev
+      ? Math.max(0, (cur.engaged - prev.engaged) + (cur.replied - prev.replied) + (cur.crm - prev.crm))
+      : Math.max(0, cur.engaged + cur.replied + cur.crm)
+    if (delta > 0) activeDates.add(cur.date)
+  }
+
+  // Consecutive streak ending today (walk backwards through dates)
+  let streakDays = 0
+  let checkDate  = today
+  while (activeDates.has(checkDate)) {
+    streakDays++
+    const d = new Date(checkDate + 'T12:00:00')
+    d.setDate(d.getDate() - 1)
+    checkDate = d.toLocaleDateString('en-CA', laZone)
+  }
+
+  // Active distinct days in the last 7 calendar days
+  let activeLast7 = 0
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date()
+    d.setDate(d.getDate() - i)
+    if (activeDates.has(d.toLocaleDateString('en-CA', laZone))) activeLast7++
+  }
+
+  return { streakDays, activeLast7 }
+}
+
 // ── Sparkline chart ───────────────────────────────────────────────────────────
 function MomentumSparkline({ history }: { history: DaySnapshot[] }) {
   const [period, setPeriod]       = useState<7 | 14 | 30>(14)
@@ -1163,6 +1209,9 @@ function MomentumSparkline({ history }: { history: DaySnapshot[] }) {
   const svgW    = DAYS * BAR_W + (DAYS - 1) * BAR_GAP
   const dayLabels = ['S','M','T','W','T','F','S']
 
+  // Active-days count for this period window
+  const activeDaysInPeriod = days.filter(d => d.delta > 0).length
+
   // Tooltip content for hovered bar
   const hovered = hoveredIdx !== null ? days[hoveredIdx] : null
   const tooltipDate = hovered
@@ -1188,18 +1237,27 @@ function MomentumSparkline({ history }: { history: DaySnapshot[] }) {
             </button>
           ))}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
+          <span className={`text-[11px] font-medium ${
+            activeDaysInPeriod >= Math.round(DAYS * 0.6) ? 'text-emerald-500' :
+            activeDaysInPeriod >= Math.round(DAYS * 0.3) ? 'text-slate-400' :
+            'text-slate-600'
+          }`}>
+            {activeDaysInPeriod}/{DAYS}
+            <span className="text-slate-600 font-normal"> active</span>
+          </span>
           {trendPct !== null && currentTotal > 0 && (
-            <span className={`text-[11px] font-medium ${
-              trendPct > 5  ? 'text-emerald-400' :
-              trendPct < -5 ? 'text-red-400' :
-              'text-slate-500'
-            }`}>
-              {trendPct > 0 ? `↑${trendPct}%` : trendPct < 0 ? `↓${Math.abs(trendPct)}%` : '→ flat'}
-              <span className="text-slate-600 font-normal"> vs prev</span>
-            </span>
+            <>
+              <span className="text-[10px] text-slate-700">·</span>
+              <span className={`text-[11px] font-medium ${
+                trendPct > 5  ? 'text-emerald-400' :
+                trendPct < -5 ? 'text-red-400' :
+                'text-slate-500'
+              }`}>
+                {trendPct > 0 ? `↑${trendPct}%` : trendPct < 0 ? `↓${Math.abs(trendPct)}%` : '↔'}
+              </span>
+            </>
           )}
-          <span className="text-[11px] text-slate-600">per day</span>
         </div>
       </div>
 
@@ -1272,11 +1330,12 @@ function MomentumSparkline({ history }: { history: DaySnapshot[] }) {
                   fill="transparent"
                   onMouseEnter={(e) => {
                     setHovered(i)
-                    // Compute tooltip x as fraction of container width
+                    // Compute tooltip x as fraction of container width.
+                    // Clamped to [8, 92] so the tooltip never clips outside the widget edges.
                     const rect = containerRef.current?.getBoundingClientRect()
                     if (rect) {
-                      const barCenterFrac = (x + BAR_W / 2) / svgW
-                      setTooltipX(barCenterFrac * 100)
+                      const barCenterFrac = (x + BAR_W / 2) / svgW * 100
+                      setTooltipX(Math.max(8, Math.min(92, barCenterFrac)))
                     }
                   }}
                 />
@@ -1343,9 +1402,11 @@ function MomentumSparkline({ history }: { history: DaySnapshot[] }) {
 function MomentumWidget({
   actionCounts,
   history,
+  lastRefreshed,
 }: {
-  actionCounts: Record<string, number>
-  history:      DaySnapshot[]
+  actionCounts:  Record<string, number>
+  history:       DaySnapshot[]
+  lastRefreshed?: Date
 }) {
   const totalNew     = actionCounts['New']     || 0
   const totalEngaged = actionCounts['Engaged'] || 0
@@ -1372,10 +1433,25 @@ function MomentumWidget({
     return                               { label: 'Ready to engage',  color: 'text-slate-500',  barColor: 'from-slate-600 to-slate-500' }
   })()
 
+  // Streak + activity from history snapshots
+  const { streakDays, activeLast7 } = history.length > 0
+    ? calcEngagementActivity(history)
+    : { streakDays: 0, activeLast7: 0 }
+
+  // Human-readable refresh time
+  const refreshLabel = lastRefreshed
+    ? lastRefreshed.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+    : null
+
   return (
     <div className="mb-5 bg-[#0f1117] border border-slate-800/60 rounded-xl p-4">
       <div className="flex items-center justify-between mb-3">
-        <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Engagement Momentum</span>
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Engagement Momentum</span>
+          {refreshLabel && (
+            <span className="text-[10px] text-slate-700 font-normal">· as of {refreshLabel}</span>
+          )}
+        </div>
         <span className={`text-xs font-medium ${momentumTier.color}`}>{momentumTier.label}</span>
       </div>
 
@@ -1400,6 +1476,32 @@ function MomentumWidget({
           style={{ width: `${Math.max(2, relationshipScore)}%` }}
         />
       </div>
+
+      {/* Consistency streak + activity row */}
+      {history.length > 0 && (streakDays > 0 || activeLast7 > 0) && (
+        <div className="flex items-center gap-3 mt-2 mb-1">
+          {streakDays > 0 ? (
+            <div className="flex items-center gap-1.5">
+              {/* Streak dots — max 7 shown */}
+              <div className="flex gap-0.5">
+                {Array.from({ length: Math.min(streakDays, 7) }).map((_, i) => (
+                  <div key={i} className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                ))}
+                {streakDays > 7 && <span className="text-[10px] text-amber-500 ml-0.5">+{streakDays - 7}</span>}
+              </div>
+              <span className="text-[11px] text-amber-400 font-medium">
+                {streakDays} day{streakDays !== 1 ? 's' : ''} straight
+              </span>
+            </div>
+          ) : (
+            <span className="text-[11px] text-slate-500">
+              Active {activeLast7} of last 7 days
+            </span>
+          )}
+          <span className="text-[11px] text-slate-600">·</span>
+          <span className="text-[11px] text-slate-500">consistency = credibility</span>
+        </div>
+      )}
 
       {totalActed === 0 ? (
         <p className="text-[12px] text-slate-600 mt-2 leading-snug">
@@ -1765,7 +1867,10 @@ function FeedPage() {
   const [scanHealth, setScanHealth] = useState<ScanHealth | null>(null)
   const [momentumHistory, setMomentumHistory] = useState<DaySnapshot[]>([])
   const [trialExpiredGate, setTrialExpiredGate] = useState(false)
-  const historySyncedRef = useRef(false)
+  // Debounced momentum-history sync: tracks last-written counts so we re-sync
+  // whenever engaged / replied / crm totals change (not just on first load).
+  const lastSyncedCountsRef = useRef<{ surfaced: number; engaged: number; replied: number; crm: number } | null>(null)
+  const syncTimerRef        = useRef<ReturnType<typeof setTimeout> | null>(null)
   const refreshTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   // Bulk selection state
@@ -1902,30 +2007,54 @@ function FeedPage() {
       .catch(() => {})
   }, [])
 
-  // Sync today's snapshot once per session when actionCounts is first populated
+  // Sync today's momentum snapshot whenever actionCounts meaningfully changes.
+  // Debounced 5s so rapid optimistic UI updates don't flood the API.
+  // This fixes the "one-day lag" bug where engagements taken during a session
+  // would only appear on the sparkline after the NEXT page load.
   useEffect(() => {
-    if (historySyncedRef.current) return
-    const totalSurfaced =
+    const surfaced =
       (actionCounts['New']     || 0) +
       (actionCounts['Engaged'] || 0) +
       (actionCounts['Replied'] || 0) +
       (actionCounts['Skipped'] || 0) +
       (actionCounts['CRM']     || 0)
-    if (totalSurfaced === 0) return
-    historySyncedRef.current = true
-    fetch('/api/engagement-history', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        surfaced: totalSurfaced,
-        engaged:  actionCounts['Engaged'] || 0,
-        replied:  actionCounts['Replied'] || 0,
-        crm:      actionCounts['CRM']     || 0,
-      }),
-    })
-      .then(r => r.json())
-      .then(d => { if (Array.isArray(d.history)) setMomentumHistory(d.history) })
-      .catch(() => {})
+    if (surfaced === 0) return
+
+    const engaged = actionCounts['Engaged'] || 0
+    const replied = actionCounts['Replied'] || 0
+    const crm     = actionCounts['CRM']     || 0
+
+    // Skip write if nothing that affects the sparkline has changed
+    const last = lastSyncedCountsRef.current
+    if (last &&
+        last.surfaced === surfaced &&
+        last.engaged  === engaged  &&
+        last.replied  === replied  &&
+        last.crm      === crm) return
+
+    // Debounce: write after 5s of inactivity
+    if (syncTimerRef.current) clearTimeout(syncTimerRef.current)
+    const snapshotToWrite = { surfaced, engaged, replied, crm }
+    syncTimerRef.current = setTimeout(() => {
+      fetch('/api/engagement-history', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(snapshotToWrite),
+      })
+        .then(r => r.json())
+        .then(d => {
+          // Only update the ref on success — failed writes leave ref unchanged
+          // so the next actionCounts change will correctly trigger a retry.
+          lastSyncedCountsRef.current = snapshotToWrite
+          if (Array.isArray(d.history)) setMomentumHistory(d.history)
+        })
+        .catch(() => {}) // silently retry on next actionCounts change
+    }, 5000)
+
+    // Cleanup: cancel pending debounce timer on unmount or before next effect
+    return () => {
+      if (syncTimerRef.current) clearTimeout(syncTimerRef.current)
+    }
   }, [actionCounts])
 
   const handleAction = async (recordId: string, action: string) => {
@@ -2278,7 +2407,7 @@ function FeedPage() {
       </div>
 
       <main className="max-w-3xl mx-auto px-5 py-6">
-        <MomentumWidget actionCounts={actionCounts} history={momentumHistory} />
+        <MomentumWidget actionCounts={actionCounts} history={momentumHistory} lastRefreshed={lastRefreshed} />
 
         {error && (
           <div className="mb-4 p-4 rounded-xl bg-red-900/20 border border-red-700/40 text-red-400 text-sm">
