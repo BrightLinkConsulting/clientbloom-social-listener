@@ -143,16 +143,24 @@ async function patchTenantFlags(recordId: string, flags: ServiceFlag[], checkedA
 /**
  * Write notification dedup state: when we last emailed + which codes we sent.
  * Called after a flag email is sent, and also on reset (all flags cleared).
+ *
+ * emailSentAt:
+ *   string  — ISO timestamp to write (email was just sent)
+ *   undefined — do NOT touch this field (reset path: preserve existing cooldown)
+ *
+ * Preserving Service Flag Email Sent At on reset is intentional: if an account
+ * heals and then breaks again within 24h, we don't want to spam the user with
+ * a new email. The 24h cooldown must survive a heal/break cycle.
  */
 async function patchNotificationState(
-  recordId:    string,
-  emailSentAt: string | null,
+  recordId:     string,
+  emailSentAt:  string | undefined,
   emailedCodes: string[],
 ): Promise<void> {
   const fields: Record<string, string | null> = {
     'Last Flag Codes Emailed': JSON.stringify(emailedCodes),
   }
-  // Only set Service Flag Email Sent At when actually sending — preserve existing value on reset
+  // Only write Service Flag Email Sent At when explicitly provided (email just sent)
   if (emailSentAt !== undefined) {
     fields['Service Flag Email Sent At'] = emailSentAt
   }
@@ -455,10 +463,12 @@ async function dispatchNotifications(
   }
 
   // ── Reset dedup state when account is fully clean ─────────────────────────
-  // If there are no actionable flags and we have stale emailed codes, reset
-  // so the next issue that arises will trigger a fresh email.
+  // Clear Last Flag Codes Emailed so a future recurrence of a flag triggers
+  // a fresh email. We do NOT touch Service Flag Email Sent At here — that
+  // cooldown timestamp intentionally survives a heal/break cycle to prevent
+  // rapid re-notification on flapping accounts.
   if (actionableCodes.length === 0 && sentCodes.length > 0) {
-    await patchNotificationState(recordId, null, [])
+    await patchNotificationState(recordId, undefined, [])
   }
 
   // ── Admin Slack accumulation ───────────────────────────────────────────────

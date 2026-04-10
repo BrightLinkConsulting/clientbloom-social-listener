@@ -34,6 +34,8 @@
  * the watchdog detects a scan that never ran at all.
  */
 
+import { buildServiceFlagEmail, type ServiceFlagEmailFlag } from '@/lib/emails'
+
 const RESEND_KEY    = process.env.RESEND_API_KEY       || ''
 const ADMIN_EMAIL   = process.env.ADMIN_EMAIL           || 'twp1996@gmail.com'
 const SLACK_WEBHOOK = process.env.SLACK_WEBHOOK_URL     || ''
@@ -254,8 +256,6 @@ export async function sendMissedScanAlert(payload: MissedScanPayload): Promise<v
 }
 
 // ── sendServiceFlagEmail ──────────────────────────────────────────────────────
-
-import { buildServiceFlagEmail, type ServiceFlagEmailFlag } from '@/lib/emails'
 
 const CUSTOMER_FROM = 'Scout <info@clientbloom.ai>'
 
