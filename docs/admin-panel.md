@@ -232,7 +232,17 @@ All admin routes require `session.user.isAdmin === true`. They return `403` for 
 
 ---
 
-## 9. What never changes without approval
+## 9. Service Flag Monitoring and Admin Response
+
+The Usage tab (see [usage-service-manager.md](./usage-service-manager.md)) shows inline service flag badges for every tenant. Flags are evaluated by the `service-check` cron every 4 hours.
+
+**What's automated:** customer alert emails and admin Slack pings to `#clientbloom-support` fire without any admin action when new flags appear. See [usage-service-manager.md — Admin Response Protocol](./usage-service-manager.md#admin-response-protocol) for the full escalation playbook.
+
+**Quick rule:** automated email handles first contact for all account types. Admin escalation is needed for paid accounts with critical flags (respond within 4 hours) and trial accounts still flagged after 48–72 hours.
+
+---
+
+## 10. What never changes without approval
 
 - The `isAdmin` semantic — always super admin, never account-level
 - The `isFeedOnly` semantic — always restricts to feed tab only; never changes tenantId

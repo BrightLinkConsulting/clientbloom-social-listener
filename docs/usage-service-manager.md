@@ -208,6 +208,74 @@ Fix: Moved to top of file with all other imports.
 
 ---
 
+## Admin Response Protocol
+
+The notification system handles first contact automatically. This section defines what the admin should do beyond that — escalation, verification, and manual outreach.
+
+### Step 1: Understand what fires automatically
+
+When a tenant gains a new actionable flag, the service-check cron (runs every 4 hours) handles the following with no admin action required:
+
+- **Customer email** — sent to the tenant for: `nothing_to_scan`, `paid_zero_posts`, `scan_failed`, `paid_no_scan_48h`, `trial_no_setup`, `paid_no_scan_ever`
+- **Admin Slack alert** — one batched message to `#clientbloom-support` when a critical flag appears: `paid_no_scan_48h`, `scan_failed`, `trial_billing_mismatch`
+
+The flags `no_icps_configured` and `no_keywords` are info-level and do not trigger any notification — they appear in the admin panel only to give you context.
+
+### Step 2: Verify the email was sent
+
+Before reaching out manually, confirm the automated email actually fired. In Airtable → Tenants table → open the tenant record:
+
+| Field | What to look for |
+|---|---|
+| `Service Flag Email Sent At` | A timestamp means an email was sent. Empty means nothing has fired yet. |
+| `Last Flag Codes Emailed` | JSON array like `["nothing_to_scan"]`. Empty array or null means dedup hasn't recorded a send for this account. |
+
+If `Service Flag Email Sent At` is empty and the account has been flagged for more than 4 hours, the most likely causes are: the cron hasn't run recently (check Vercel logs), the account has no email address in Airtable, or the account is an admin/suspended/expired account (these are never emailed).
+
+### Step 3: Escalation by account type
+
+**Trial accounts — amber or red flags (nothing_to_scan, trial_no_setup)**
+
+These accounts signed up but never configured the product. The automated email handles first contact. Admin escalation kicks in when:
+- The flag is still present 48–72 hours after first appearing
+- The account is 2–3 days from expiry with zero posts
+
+Action: Use the "Send Reactivation Email" button in the admin panel (on the Trial pipeline section) for expired accounts. For active trials still flagged, a personal email from your own inbox tends to outperform the automated template for re-engagement.
+
+**Paid accounts — any critical flag (scan_failed, paid_no_scan_48h)**
+
+These accounts are paying customers. You will receive a Slack alert in `#clientbloom-support` when a new critical flag appears. The automated email fires too, but admin should not rely on the tenant to self-serve when they're paying.
+
+Action within 4 hours of the Slack alert:
+1. Check the account in the admin panel — look at Last Scan column and flag sub-row detail
+2. Check Vercel logs for the scan-tenant route around the last scan time
+3. If the issue is a platform bug (scan_failed on multiple accounts simultaneously), it needs a code fix — do not email the tenant until you know the root cause
+4. If the issue is account-specific, reach out personally within the business day
+
+**Paid accounts — warning flag (paid_zero_posts)**
+
+No Slack alert fires for this one. It emails the tenant and waits. Admin should scan the Usage tab weekly for any paid account showing 0 in the Posts column. Sustained zero posts on a paid account is a churn signal even if no critical flag fires.
+
+### Step 4: When flags clear
+
+When an account self-resolves (tenant configures settings, scan succeeds, etc.), the service-check cron will clear the flags from the Airtable `Service Flags` field on the next run. No admin action needed. `Last Flag Codes Emailed` resets to `[]` automatically, so the next occurrence of the same issue triggers a fresh email cycle.
+
+### Quick reference: who gets notified for what
+
+| Flag | Customer email | Admin Slack | Admin action needed |
+|---|---|---|---|
+| `nothing_to_scan` | Yes (auto) | No | Only if still flagged after 72h |
+| `trial_no_setup` | Yes (auto) | No | Only if account expiring in < 2 days |
+| `paid_zero_posts` | Yes (auto) | No | Review weekly in Usage tab |
+| `scan_failed` | Yes (auto) | Yes | Investigate within 4h |
+| `paid_no_scan_48h` | Yes (auto) | Yes | Investigate within 4h |
+| `paid_no_scan_ever` | Yes (auto) | No | Reach out if account > 48h old |
+| `trial_billing_mismatch` | No | Yes | Investigate immediately — Stripe/Airtable mismatch |
+| `no_icps_configured` | No | No | None — informational only |
+| `no_keywords` | No | No | None — informational only |
+
+---
+
 ## Airtable Schema (Tenants table fields used by this system)
 
 | Field | Type | Written by | Read by |
