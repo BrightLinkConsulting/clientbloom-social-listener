@@ -1444,6 +1444,7 @@ interface AgentResponse {
 function ScoutAgentPanel({
   open,
   onClose,
+  plan,
   inboxCount,
   skippedCount,
   topPosts,
@@ -1452,6 +1453,7 @@ function ScoutAgentPanel({
 }: {
   open:              boolean
   onClose:           () => void
+  plan:              string
   inboxCount:        number
   skippedCount:      number
   topPosts:          { id: string; author: string; score: number; text: string }[]
@@ -1501,7 +1503,7 @@ function ScoutAgentPanel({
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({
           message: text,
-          context: { inboxCount, skippedCount, topPosts, scoreDistribution },
+          context: { plan, inboxCount, skippedCount, topPosts, scoreDistribution },
           history: messages.slice(-6),
         }),
       })
@@ -2453,6 +2455,7 @@ function FeedPage() {
       <ScoutAgentPanel
         open={agentOpen}
         onClose={() => setAgentOpen(false)}
+        plan={plan}
         inboxCount={actionCounts['New'] || 0}
         skippedCount={actionCounts['Skipped'] || 0}
         topPosts={posts
