@@ -115,12 +115,21 @@ export async function POST(req: NextRequest) {
       ? 'no_results'
       : 'success'
 
+  // When scan succeeds but finds 0 new posts, store the breakdown JSON in lastError
+  // so the frontend can explain WHY (too old / already seen / below threshold).
+  // The breakdown is a plain JSON object starting with '{', which scan-health.ts
+  // detects and parses — it is NOT shown as an error message to the user.
+  const lastErrorField = result.error
+    || (result.postsFound === 0 && result.breakdown
+        ? JSON.stringify(result.breakdown)
+        : '')
+
   await upsertScanHealth(tenantId, {
     lastScanAt:     new Date().toISOString(),
     lastScanStatus: status,
     lastPostsFound: result.postsFound,
     lastScanSource: result.scanSource,
-    lastError:      result.error || '',
+    lastError:      lastErrorField,
   })
 
   // ── Alert on failure ────────────────────────────────────────────────────────
