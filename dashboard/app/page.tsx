@@ -35,7 +35,7 @@ interface Post {
   }
 }
 
-type ActionFilter = 'New' | 'Engaged' | 'Replied' | 'Skipped' | 'CRM' | 'all'
+type ActionFilter = 'New' | 'Engaged' | 'Replied' | 'Skipped' | 'CRM'
 
 interface ReplyLogEntry {
   text: string
@@ -336,7 +336,7 @@ function PostCard({
   return (
     <article
       onClick={selectionMode ? () => onToggleSelect?.(post.id) : undefined}
-      className={`relative rounded-2xl border transition-all duration-300 ${
+      className={`relative rounded-2xl border transition-all duration-300 flex ${
         selectionMode ? 'cursor-pointer' : ''
       } ${
         selected
@@ -350,10 +350,10 @@ function PostCard({
           : 'bg-[#12151e] border-slate-700/50 hover:border-slate-600/60'
       }`}
     >
-      {/* Selection checkbox */}
+      {/* Selection checkbox — own flex column, never overlaps score badge */}
       {selectionMode && (
-        <div className="absolute top-4 left-4 z-10">
-          <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-colors ${
+        <div className="flex items-start pt-5 pl-4 pr-2 sm:pt-6 sm:pl-5 shrink-0">
+          <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-colors mt-0.5 ${
             selected ? 'bg-blue-500 border-blue-500' : 'border-slate-600 bg-slate-800/60'
           }`}>
             {selected && (
@@ -364,7 +364,7 @@ function PostCard({
           </div>
         </div>
       )}
-      <div className={`p-5 sm:p-6 ${selectionMode ? 'pl-12' : ''}`}>
+      <div className="p-5 sm:p-6 flex-1 min-w-0">
 
         {/* Top meta */}
         <div className="flex items-start justify-between gap-3 mb-3">
@@ -1947,6 +1947,12 @@ function FeedPage() {
     setAgentOpen(false)
   }, [filter])
 
+  // Close the Scout Agent panel when entering selection mode — the panel
+  // and the bulk action bar occupy the same screen region and conflict.
+  useEffect(() => {
+    if (selectionMode) setAgentOpen(false)
+  }, [selectionMode])
+
   // Fetch CRM type once on mount (for Push button label)
   useEffect(() => {
     fetch('/api/crm-settings')
@@ -2103,7 +2109,7 @@ function FeedPage() {
         ))
 
         // Remove from view after short delay if the post no longer belongs in this tab
-        if (action !== filter && filter !== 'all') {
+        if (action !== filter) {
           setTimeout(() => {
             setPosts(prev => prev.filter(p => p.id !== recordId))
           }, 500)
@@ -2173,6 +2179,11 @@ function FeedPage() {
       const data = await res.json()
 
       if (data.ok) {
+        // Clear loading BEFORE the timeout so the success message is visible
+        // to the user for the full 1.5s window. Without this, bulkResult is set
+        // while bulkLoading is still true, making the message invisible (the
+        // display condition guards on !bulkLoading).
+        setBulkLoading(false)
         setBulkResult(`${data.affected} post${data.affected !== 1 ? 's' : ''} updated`)
         // Give Airtable a beat to propagate the writes before re-fetching counts.
         // Sequential PATCH batches complete server-side before this point, but
@@ -2194,6 +2205,8 @@ function FeedPage() {
       }
       throw e   // re-throw so agent panel / callers surface the real error
     } finally {
+      // Guards the error path: if we threw before reaching the success branch
+      // setBulkLoading(false) above, the finally ensures loading always clears.
       setBulkLoading(false)
     }
   }, [fetchPosts])
@@ -2219,7 +2232,6 @@ function FeedPage() {
     { id: 'Replied', label: 'Replied'  },
     { id: 'Skipped', label: 'Skipped'  },
     { id: 'CRM',     label: 'In CRM'   },
-    { id: 'all',     label: 'All'      },
   ]
 
   const tabCounts: Partial<Record<ActionFilter, number>> = {
@@ -2292,122 +2304,153 @@ function FeedPage() {
 
       <Nav lastScannedAt={lastScannedAt} scanHealth={scanHealth} />
 
-      {/* Tab bar + filters */}
+      {/* Tab bar — transforms in-place into selection control bar when selectionMode is active */}
       <div className="sticky top-[61px] z-10 bg-[#0a0c10]/95 backdrop-blur-md border-b border-slate-800/60">
         <div className="max-w-3xl mx-auto px-5">
-          <div className="flex items-center gap-2">
-            {/* Scrollable tab strip */}
-            <div className="flex items-center gap-0 overflow-x-auto flex-1 min-w-0 scrollbar-none">
-            {tabs.map(tab => {
-              const count = tabCounts[tab.id]
-              const isCrmLocked = tab.id === 'CRM' && !crmUnlocked
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => setFilter(tab.id)}
-                  className={`shrink-0 px-4 py-2.5 text-xs font-medium border-b-2 transition-colors flex items-center gap-1 ${
-                    filter === tab.id
-                      ? 'border-blue-500 text-white'
-                      : 'border-transparent text-slate-500 hover:text-slate-400'
-                  }`}
-                >
-                  {isCrmLocked && (
-                    <svg className="w-3 h-3 text-slate-600 shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M10 1a4.5 4.5 0 00-4.5 4.5V9H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-.5V5.5A4.5 4.5 0 0010 1zm3 8V5.5a3 3 0 10-6 0V9h6z" clipRule="evenodd" />
-                    </svg>
-                  )}
-                  {tab.label}
-                  {!isCrmLocked && count !== undefined && count > 0 && (
-                    <span className={`ml-1.5 px-1.5 py-0.5 rounded-full text-xs ${
-                      filter === tab.id ? 'bg-blue-500/20 text-blue-300' : 'bg-slate-800 text-slate-500'
+          <div className="flex items-center gap-2 min-h-[44px]">
+
+            {selectionMode ? (
+              /* ── Selection control bar (replaces tab strip in-place) ── */
+              <>
+                {/* Left: visual checkbox + select-all / deselect-all */}
+                <div className="flex items-center gap-3 flex-1 min-w-0 py-1">
+                  <button
+                    onClick={toggleSelectAll}
+                    className="flex items-center gap-2 text-xs text-slate-400 hover:text-white transition-colors shrink-0 group"
+                    aria-label={selectedIds.size === posts.length && posts.length > 0 ? 'Deselect all posts' : 'Select all posts'}
+                  >
+                    {/* Tri-state checkbox: empty / indeterminate / all-checked */}
+                    <div className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-colors ${
+                      selectedIds.size === posts.length && posts.length > 0
+                        ? 'bg-blue-500 border-blue-500'
+                        : selectedIds.size > 0
+                        ? 'border-blue-400 bg-transparent'
+                        : 'border-slate-500 bg-transparent group-hover:border-slate-400'
                     }`}>
-                      {count}
+                      {selectedIds.size === posts.length && posts.length > 0 && (
+                        <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                        </svg>
+                      )}
+                      {/* Indeterminate dash */}
+                      {selectedIds.size > 0 && selectedIds.size < posts.length && (
+                        <div className="w-2 h-0.5 bg-blue-400 rounded-full" />
+                      )}
+                    </div>
+                    <span>
+                      {selectedIds.size === posts.length && posts.length > 0
+                        ? 'Deselect all'
+                        : `Select all (${posts.length})`}
+                    </span>
+                  </button>
+
+                  {/* Selected count — only visible when something is selected */}
+                  {selectedIds.size > 0 && (
+                    <span className="text-xs text-slate-400 border-l border-slate-700 pl-3 shrink-0">
+                      <span className="font-semibold text-white">{selectedIds.size}</span> selected
                     </span>
                   )}
-                </button>
-              )
-            })}
-            </div>{/* end scrollable tab strip */}
 
-            {/* Fixed right-side controls */}
-            <div className="flex items-center gap-2 py-1.5 shrink-0">
-              {posts.length > 0 && (
-                <button
-                  onClick={() => {
-                    if (selectionMode) {
-                      exitSelectionMode()
-                    } else {
-                      setSelectionMode(true)
-                      setBulkResult(null)
-                    }
-                  }}
-                  className={`text-xs px-3 py-1 rounded-lg border transition-colors whitespace-nowrap ${
-                    selectionMode
-                      ? 'bg-blue-600/20 border-blue-500/40 text-blue-300'
-                      : 'bg-slate-800 border-slate-700/40 text-slate-400 hover:text-slate-300'
-                  }`}
-                >
-                  {selectionMode ? 'Cancel' : 'Select'}
-                </button>
-              )}
-              <button
-                onClick={() => fetchPosts()}
-                className="text-xs px-3 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 transition-colors whitespace-nowrap"
-              >
-                Refresh
-              </button>
-            </div>
-          </div>
+                  {/* Inline status: loading / result feedback */}
+                  {bulkLoading && (
+                    <span className="text-xs text-slate-500 flex items-center gap-1.5">
+                      <span className="w-3 h-3 border border-slate-600 border-t-blue-400 rounded-full animate-spin" />
+                      Working…
+                    </span>
+                  )}
+                  {bulkResult && !bulkLoading && (
+                    <span className={`text-xs ${bulkResult.startsWith('Error') ? 'text-red-400' : 'text-emerald-400'}`}>
+                      {bulkResult}
+                    </span>
+                  )}
+                </div>
 
-          {/* Bulk action toolbar — appears when posts are selected */}
-          {selectionMode && (
-            <div className="flex items-center gap-3 pb-2.5 pt-0.5">
-              <button onClick={toggleSelectAll} className="text-xs text-slate-500 hover:text-slate-300 transition-colors shrink-0">
-                {selectedIds.size === posts.length ? 'Deselect all' : `Select all (${posts.length})`}
-              </button>
-              {selectedIds.size > 0 && (
-                <>
-                  <span className="text-xs text-slate-600">{selectedIds.size} selected</span>
-                  <div className="flex items-center gap-2 ml-auto">
-                    <button
-                      onClick={() => handleBulkAction('skip', { recordIds: Array.from(selectedIds) })}
-                      disabled={bulkLoading}
-                      className="text-xs px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700/40 text-slate-300 hover:text-white hover:border-slate-500/60 transition-colors disabled:opacity-50"
-                    >
-                      Skip selected
-                    </button>
-                    <button
-                      onClick={() => handleBulkAction('archive', { recordIds: Array.from(selectedIds) })}
-                      disabled={bulkLoading}
-                      className="text-xs px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700/40 text-slate-400 hover:text-slate-200 transition-colors disabled:opacity-50"
-                    >
-                      Archive
-                    </button>
-                    {filter === 'Skipped' && (
+                {/* Right: Cancel + Refresh */}
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    onClick={exitSelectionMode}
+                    className="text-xs px-3 py-1 rounded-lg border bg-blue-600/20 border-blue-500/40 text-blue-300 hover:bg-blue-600/30 transition-colors whitespace-nowrap"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => fetchPosts()}
+                    className="text-xs px-3 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 transition-colors whitespace-nowrap"
+                  >
+                    Refresh
+                  </button>
+                </div>
+              </>
+            ) : (
+              /* ── Normal tab strip ── */
+              <>
+                {/* Scrollable tab strip */}
+                <div className="flex items-center gap-0 overflow-x-auto flex-1 min-w-0 scrollbar-none">
+                  {tabs.map(tab => {
+                    const count = tabCounts[tab.id]
+                    const isCrmLocked = tab.id === 'CRM' && !crmUnlocked
+                    return (
                       <button
-                        onClick={() => handleBulkAction('restore', { recordIds: Array.from(selectedIds) })}
-                        disabled={bulkLoading}
-                        className="text-xs px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700/40 text-emerald-400 hover:text-emerald-300 transition-colors disabled:opacity-50"
+                        key={tab.id}
+                        onClick={() => setFilter(tab.id)}
+                        className={`shrink-0 px-4 py-2.5 text-xs font-medium border-b-2 transition-colors flex items-center gap-1 ${
+                          filter === tab.id
+                            ? 'border-blue-500 text-white'
+                            : 'border-transparent text-slate-500 hover:text-slate-400'
+                        }`}
                       >
-                        Restore
+                        {isCrmLocked && (
+                          <svg className="w-3 h-3 text-slate-600 shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M10 1a4.5 4.5 0 00-4.5 4.5V9H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-.5V5.5A4.5 4.5 0 0010 1zm3 8V5.5a3 3 0 10-6 0V9h6z" clipRule="evenodd" />
+                          </svg>
+                        )}
+                        {tab.label}
+                        {!isCrmLocked && count !== undefined && count > 0 && (
+                          <span className={`ml-1.5 px-1.5 py-0.5 rounded-full text-xs ${
+                            filter === tab.id ? 'bg-blue-500/20 text-blue-300' : 'bg-slate-800 text-slate-500'
+                          }`}>
+                            {count}
+                          </span>
+                        )}
                       </button>
-                    )}
-                  </div>
-                </>
-              )}
-              {bulkLoading && <span className="text-xs text-slate-500 ml-auto">Working…</span>}
-              {bulkResult && !bulkLoading && (
-                <span className={`text-xs ml-auto ${bulkResult.startsWith('Error') ? 'text-red-400' : 'text-emerald-400'}`}>
-                  {bulkResult}
-                </span>
-              )}
-            </div>
-          )}
+                    )
+                  })}
+                </div>
+
+                {/* Fixed right-side controls */}
+                <div className="flex items-center gap-2 py-1.5 shrink-0">
+                  {posts.length > 0 && (
+                    <button
+                      onClick={() => { setSelectionMode(true); setBulkResult(null) }}
+                      title="Select posts to skip or archive in bulk"
+                      className="flex items-center gap-1.5 text-xs px-3 py-1 rounded-lg border bg-slate-800 border-slate-700/40 text-slate-400 hover:text-slate-300 hover:border-slate-600/60 transition-colors whitespace-nowrap"
+                    >
+                      {/* Checkbox icon — signals what Select does before clicking */}
+                      <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                        <rect x="3" y="3" width="18" height="18" rx="3" />
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4" />
+                      </svg>
+                      Select
+                    </button>
+                  )}
+                  <button
+                    onClick={() => fetchPosts()}
+                    className="text-xs px-3 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 transition-colors whitespace-nowrap"
+                  >
+                    Refresh
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </div>
 
-      <main className="max-w-3xl mx-auto px-5 py-6">
-        <MomentumWidget actionCounts={actionCounts} history={momentumHistory} lastRefreshed={lastRefreshed} />
+      <main className={`max-w-3xl mx-auto px-5 py-6 transition-all duration-300 ${selectionMode && selectedIds.size > 0 ? 'pb-28' : ''}`}>
+        {/* Momentum Widget — collapses when selection mode is active so posts are visually adjacent to the selection toolbar */}
+        <div className={`overflow-hidden transition-all duration-300 ease-in-out ${selectionMode ? 'max-h-0 opacity-0' : 'max-h-[500px] opacity-100'}`}>
+          <MomentumWidget actionCounts={actionCounts} history={momentumHistory} lastRefreshed={lastRefreshed} />
+        </div>
 
         {error && (
           <div className="mb-4 p-4 rounded-xl bg-red-900/20 border border-red-700/40 text-red-400 text-sm">
@@ -2570,9 +2613,61 @@ function FeedPage() {
         )}
       </main>
 
+      {/* ── Bulk action bottom bar — slides up when posts are selected ── */}
+      {/* Fixed position, centered, floats above the page. pb-safe handles iPhone home bar. */}
+      <div
+        className={`fixed bottom-0 left-0 right-0 z-50 flex justify-center px-5 pb-6 pt-2 pointer-events-none transition-all duration-300 ease-out ${
+          selectionMode && selectedIds.size > 0
+            ? 'translate-y-0 opacity-100'
+            : 'translate-y-full opacity-0'
+        }`}
+      >
+        <div className="flex items-center gap-3 px-5 py-3 rounded-2xl bg-[#1a1d28] border border-slate-700/60 shadow-2xl shadow-black/70 pointer-events-auto">
+          {/* Spinner shown during bulk operation */}
+          {bulkLoading && (
+            <span className="flex items-center gap-2 text-sm text-slate-400 px-2">
+              <span className="w-4 h-4 border-2 border-slate-600 border-t-blue-400 rounded-full animate-spin" />
+              Working…
+            </span>
+          )}
+
+          {/* Skip — only on non-Skipped tabs */}
+          {filter !== 'Skipped' && (
+            <button
+              onClick={() => handleBulkAction('skip', { recordIds: Array.from(selectedIds) })}
+              disabled={bulkLoading}
+              className="text-sm px-4 py-2 rounded-xl bg-slate-700/80 hover:bg-slate-600/80 border border-slate-600/40 text-slate-200 hover:text-white font-medium transition-colors disabled:opacity-40 whitespace-nowrap"
+            >
+              Skip {selectedIds.size}
+            </button>
+          )}
+
+          {/* Restore — only on Skipped tab */}
+          {filter === 'Skipped' && (
+            <button
+              onClick={() => handleBulkAction('restore', { recordIds: Array.from(selectedIds) })}
+              disabled={bulkLoading}
+              className="text-sm px-4 py-2 rounded-xl bg-emerald-700/70 hover:bg-emerald-600/80 border border-emerald-600/40 text-emerald-200 hover:text-white font-medium transition-colors disabled:opacity-40 whitespace-nowrap"
+            >
+              Restore {selectedIds.size}
+            </button>
+          )}
+
+          {/* Archive — always available */}
+          <button
+            onClick={() => handleBulkAction('archive', { recordIds: Array.from(selectedIds) })}
+            disabled={bulkLoading}
+            className="text-sm px-4 py-2 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 border border-slate-600/40 text-slate-400 hover:text-slate-200 font-medium transition-colors disabled:opacity-40 whitespace-nowrap"
+          >
+            Archive {selectedIds.size}
+          </button>
+        </div>
+      </div>
+
       {/* ── Scout Agent: floating trigger button ── */}
+      {/* Hidden during selection mode to prevent z-index conflict with the bulk action bar */}
       {/* Wrapper holds the button + the attention-pulse ring */}
-      <div className="fixed bottom-5 right-5 z-40">
+      <div className={`fixed bottom-5 right-5 z-40 transition-all duration-200 ${selectionMode ? 'opacity-0 pointer-events-none scale-90' : 'opacity-100 pointer-events-auto scale-100'}`}>
         {/* Pulse ring — fires once on inbox load, stops after 5s or first open */}
         {agentPulse && !agentOpen && (
           <span className="absolute inset-0 rounded-2xl bg-violet-500 animate-ping opacity-40 pointer-events-none" />
