@@ -5,19 +5,34 @@ import { getTierLimits } from '@/lib/tier'
 
 const TABLE = 'LinkedIn ICPs'
 
-// ── Count active ICP profiles for a tenant ────────────────────────────────────
-async function countIcpProfiles(tenantId: string): Promise<number> {
-  const url = new URL(`https://api.airtable.com/v0/${SHARED_BASE}/${encodeURIComponent(TABLE)}`)
-  url.searchParams.set('filterByFormula', `AND(${tenantFilter(tenantId)},{Active}=1)`)
-  url.searchParams.set('fields[]', 'Active')
-  url.searchParams.set('pageSize', '100')
-  const resp = await fetch(url.toString(), {
-    headers: { Authorization: `Bearer ${PROV_TOKEN}` },
-    cache: 'no-store',
-  })
-  if (!resp.ok) throw new Error(`Airtable count failed: ${resp.status}`)
-  const data = await resp.json()
-  return (data.records ?? []).length
+// ── Count ALL ICP profiles for a tenant (active + paused) — pool size cap ────
+// NOTE: pool cap enforces against TOTAL records, not just active ones.
+// Active-only counting creates a mismatch where paused profiles still occupy
+// pool slots but appear not to count toward the limit.
+// Paginates through all pages so Agency-tier tenants (500-profile pools) are
+// counted correctly — a single Airtable page caps at 100 records.
+async function countAllIcpProfiles(tenantId: string): Promise<number> {
+  let total  = 0
+  let offset: string | undefined
+
+  do {
+    const url = new URL(`https://api.airtable.com/v0/${SHARED_BASE}/${encodeURIComponent(TABLE)}`)
+    url.searchParams.set('filterByFormula', tenantFilter(tenantId))
+    url.searchParams.set('fields[]', 'Active')
+    url.searchParams.set('pageSize', '100')
+    if (offset) url.searchParams.set('offset', offset)
+
+    const resp = await fetch(url.toString(), {
+      headers: { Authorization: `Bearer ${PROV_TOKEN}` },
+      cache: 'no-store',
+    })
+    if (!resp.ok) throw new Error(`Airtable count failed: ${resp.status}`)
+    const data  = await resp.json()
+    total      += (data.records ?? []).length
+    offset      = data.offset
+  } while (offset)
+
+  return total
 }
 
 export async function GET() {
@@ -60,7 +75,10 @@ export async function GET() {
       postsFound:  r.fields['Posts Found'] || 0,
     }))
 
-    return NextResponse.json({ profiles })
+    // Return tier limits alongside profiles so UI can derive cap info
+    // without a separate API call
+    const { poolSize, scanSlots } = getTierLimits(tenant.plan)
+    return NextResponse.json({ profiles, poolSize, scanSlots })
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 })
   }
@@ -82,15 +100,16 @@ export async function POST(req: Request) {
       )
     }
 
-    // ── Plan limit enforcement ────────────────────────────────────────────
-    const { profiles: profileLimit } = getTierLimits(plan)
+    // ── Pool size enforcement (counts ALL records, active + paused) ──────────
+    // The pool cap tracks total storage. Paused profiles still occupy pool slots.
+    const { poolSize } = getTierLimits(plan)
     try {
-      const currentCount = await countIcpProfiles(tenantId)
-      if (currentCount >= profileLimit) {
+      const currentCount = await countAllIcpProfiles(tenantId)
+      if (currentCount >= poolSize) {
         return NextResponse.json(
           {
-            error:   `You've reached the ${profileLimit} ICP profile limit for your plan. Upgrade to add more.`,
-            limit:   profileLimit,
+            error:   `Your ${poolSize}-profile pool is full. Remove a profile to add a new one.`,
+            limit:   poolSize,
             current: currentCount,
           },
           { status: 429 }

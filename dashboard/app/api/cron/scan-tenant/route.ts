@@ -103,7 +103,7 @@ export async function POST(req: NextRequest) {
   console.log(`[scan-tenant] Starting scan for ${tenantId} (${email}) — ${poolLabel} — plan=${plan || 'unknown'}`)
 
   // ── Run the scan ────────────────────────────────────────────────────────────
-  const result  = await runScanForTenant(tenantId, apifyKey)
+  const result  = await runScanForTenant(tenantId, apifyKey, plan || 'Trial')
   const elapsed = `${((Date.now() - started) / 1000).toFixed(1)}s`
 
   console.log(`[scan-tenant] ${email}: ${result.postsFound} posts saved, ${result.error || 'ok'} in ${elapsed}`)

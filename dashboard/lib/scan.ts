@@ -26,6 +26,7 @@
  */
 
 import { SHARED_BASE, PROV_TOKEN, tenantFilter, airtableCreate, airtableBatchCreate, airtableFetch } from './airtable'
+import { getTierLimits } from './tier'
 
 const DEFAULT_SCAN_PROMPT = `You are a LinkedIn relationship intelligence AI. Score each post for relationship-building conversation value (1-10).
 
@@ -416,6 +417,7 @@ export interface ScanResult {
 export async function runScanForTenant(
   tenantId: string,
   apifyTokenOverride?: string,
+  plan = 'Trial',
 ): Promise<ScanResult> {
   const APIFY_TOKEN   = apifyTokenOverride || process.env.APIFY_API_TOKEN || ''
   const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY || ''
@@ -437,19 +439,43 @@ export async function runScanForTenant(
     ].filter(Boolean).join('\n')
     const customPrompt = (profile['Scoring Prompt'] || '').trim()
 
-    // 2a. LinkedIn ICP profiles (up to 8 — API-based actor, cheap per profile)
-    const icpJson     = await atGet(tenantId, 'LinkedIn ICPs', '{Active}=1')
-    const icpProfiles = (icpJson.records || [])
-      .slice(0, 8)
+    // 2a. LinkedIn ICP profiles — smart selection up to plan's scan slots
+    //
+    // Two-layer model: users can store up to poolSize profiles, but only
+    // scanSlots get fetched each run. Priority order:
+    //   1. Profiles with Posts Found > 0, sorted DESC (active posters get priority)
+    //   2. Profiles with Posts Found = 0 (new/never-seen), sorted by Added Date DESC
+    //      (newest additions get a chance, creating a natural round-robin effect)
+    //
+    // This ensures hot prospects are never missed while new additions cycle in.
+    const { scanSlots, keywords: keywordSlots } = getTierLimits(plan)
+    const icpJson      = await atGet(tenantId, 'LinkedIn ICPs', '{Active}=1')
+    const allActive    = icpJson.records || []
+
+    const sorted = [...allActive].sort((a, b) => {
+      const postsA = Number(a.fields['Posts Found'] || 0)
+      const postsB = Number(b.fields['Posts Found'] || 0)
+      if (postsB !== postsA) return postsB - postsA           // more posts = higher priority
+      const dateA  = String(a.fields['Added Date'] || '')
+      const dateB  = String(b.fields['Added Date'] || '')
+      return dateB.localeCompare(dateA)                        // newer additions next
+    })
+
+    const icpProfiles = sorted
+      .slice(0, scanSlots)
       .map((r: any) => r.fields['Profile URL'])
       .filter(Boolean)
 
-    // 2b. LinkedIn keyword terms (up to 4 — each term runs as a parallel API call)
+    if (allActive.length > 0) {
+      console.log(`[scan] LinkedIn ICP: ${icpProfiles.length} of ${allActive.length} active profiles selected (scanSlots=${scanSlots}, plan=${plan})`)
+    }
+
+    // 2b. LinkedIn keyword terms (up to plan's keyword limit)
     const sourcesJson   = await atGet(tenantId, 'Sources', '{Active}=1')
     const allSources    = sourcesJson.records || []
     const linkedinTerms = allSources
       .filter((r: any) => r.fields['Type'] === 'linkedin_term')
-      .slice(0, 4)
+      .slice(0, keywordSlots)
       .map((r: any) => r.fields['Value'] || r.fields['Name'])
       .filter(Boolean)
 

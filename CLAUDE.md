@@ -58,6 +58,19 @@ Completed:
 - ✅ /api/unsubscribe endpoint — sets 'Email Opted Out' in Airtable; respected by trial-check cron
 - ✅ Name personalization removed from all trial emails (sign-up collects email+password only)
 - ✅ Day 1 email: ClientBloom logoHeader(), BRAND_PURPLE header + CTA
+- ✅ Days 2–7 emails: all migrated to logoHeader() + BRAND_PURPLE CTAs (was BRAND_BLUE header())
+- ✅ LinkedIn ICP two-layer model: poolSize (storage) vs scanSlots (Apify cost); getTierLimits
+  extended with poolSize, scanSlots, discoverRunsPerDay, discoverMaxPerRun; legacy `profiles`
+  field kept as deprecated alias for scanSlots
+- ✅ Smart profile prioritization in scan.ts: Posts Found DESC → Added Date DESC → round-robin
+  (auto-selects top scanSlots profiles per run; no manual priority in v1)
+- ✅ Discover ICPs: plan gate (discoverRunsPerDay===0 → 403+upgrade:true), daily frequency window,
+  15-min hard cooldown, pool size cap, paginated count + dedup; "Apify" removed from all user copy
+- ✅ ICP pool pagination: countAllIcpProfiles(), discover pool count, and discover dedup all paginate
+  through all Airtable pages (critical for Agency 500-profile pools)
+- ✅ Settings UI LinkedInICPSection rewrite: Add Profile + Discover ICPs moved to top; trial lock
+  overlay with tier comparison; scan slot explainer; all limits from getTierLimits
+- ✅ Pricing updated: upgrade/page.tsx, page-landing.tsx now show "X profiles scanned · Y-profile pool"
 - ✅ JWT plan whitelist — auth.ts rejects session.update({ plan }) unless value is a known paid plan
 - ✅ Post-payment welcome page dual-flow wired to /api/session/refresh + session.update()
 
@@ -295,6 +308,27 @@ callers — never do this without auditing every reference first.
 - Post-payment session refresh: /welcome?upgraded=1 → GET /api/session/refresh →
   session.update({ plan, trialEndsAt }) → JWT reflects new plan without sign-out.
 
+## ICP Pool — Two-Layer Model
+The LinkedIn ICP system separates pool (storage) from scan slots (Apify cost). These are distinct.
+- `poolSize`: total profiles a tenant can save — counts ALL records (active + paused)
+- `scanSlots`: profiles actually fetched per scan run — the real Apify cost driver
+- `atPoolCap = total >= poolSize` — always use total (all records), never activeCount
+- `GET /api/linkedin-icps` returns `{ profiles, poolSize, scanSlots }` — UI reads limits from here
+- `runScanForTenant(tenantId, apifyKey?, plan)` — plan param is required; drives slot selection
+- Smart sort: Posts Found DESC → Added Date DESC → natural round-robin (no manual priority, v1)
+- Discover ICPs: gated (`discoverRunsPerDay === 0` → 403 with `upgrade:true`); daily frequency
+  window + 15-min hard cooldown; paginated dedup check; never mentions "Apify" in user copy
+- All pool count queries paginate through ALL Airtable pages (Agency has 500-profile pool)
+- Never use `profiles` (legacy field) for pool logic — use `poolSize` and `scanSlots` from getTierLimits
+
+## Email Branding (lib/emails.ts)
+- ALL trial emails (Day 1–7) use `logoHeader()` — never `header()` for trial sequence
+- `logoHeader()` renders ClientBloom mark SVG + "Scout / by ClientBloom" on `BRAND_PURPLE` background
+- `header()` is for non-trial transactional emails only (password reset, billing, admin alerts)
+- Trial CTA buttons: always pass `BRAND_PURPLE` as third arg to `cta()` — never default blue
+- Days 5–7 CTA/infoBox colors still use `planCopy.color` for plan-specific urgency — header stays purple
+- PLAN_COPY highlight strings reflect new ICP pool model (e.g., "10 ICP profiles scanned · 50-profile pool")
+
 ## Documentation Index
 - `docs/airtable-rate-limit-resilience.md` — Rate-limit resilience design, airtableFetch,
   staggered dispatch, schema additions, constants, open gaps
@@ -312,3 +346,6 @@ callers — never do this without auditing every reference first.
   (1) Live usage tracking (Plan & Billing)
 - `docs/linkedin-keyword-search.md` — Keyword search feature spec: plan limits, scan frequency,
   API response shapes, enforcement architecture, 8-bug adversarial test results, UX copy rules
+- `docs/linkedin-icp-pool.md` — ICP pool two-layer architecture: poolSize vs scanSlots, tier
+  table, smart prioritization algorithm, pool cap enforcement, Discover ICPs rate limiting,
+  API response shapes, adversarial test results (April 2026), copy rules

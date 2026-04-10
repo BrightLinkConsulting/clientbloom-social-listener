@@ -7,7 +7,14 @@
 
 export interface TierLimits {
   keywords: number
+  /** @deprecated use scanSlots — kept for any callers not yet migrated */
   profiles: number
+  // ── ICP Pool two-layer model ─────────────────────────────────────────────
+  poolSize:           number  // total profiles that can be saved (storage cap)
+  scanSlots:          number  // profiles actually fetched per scan run (Apify cost driver)
+  discoverRunsPerDay: number  // Discover ICPs calls allowed per day (0 = locked)
+  discoverMaxPerRun:  number  // max profiles added in a single Discover run
+  // ────────────────────────────────────────────────────────────────────────
   scansPerDay: number
   commentCredits: number   // Infinity = unlimited
   workspaces: number       // 1 = no multi-workspace
@@ -19,75 +26,103 @@ export function getTierLimits(plan: string): TierLimits {
   switch (plan) {
     case 'Scout Starter':
       return {
-        keywords: 3,
-        profiles: 2,
-        scansPerDay: 1,
-        commentCredits: 30,
-        workspaces: 1,
-        seats: 1,
-        postHistoryDays: 30,
+        keywords:           3,
+        profiles:           10,   // legacy alias for scanSlots
+        poolSize:           50,
+        scanSlots:          10,
+        discoverRunsPerDay: 1,
+        discoverMaxPerRun:  10,
+        scansPerDay:        1,
+        commentCredits:     30,
+        workspaces:         1,
+        seats:              1,
+        postHistoryDays:    30,
       }
     case 'Scout Pro':
       return {
-        keywords: 10,
-        profiles: 5,
-        scansPerDay: 2,
-        commentCredits: Infinity,
-        workspaces: 1,
-        seats: 1,
-        postHistoryDays: 0,
+        keywords:           10,
+        profiles:           25,   // legacy alias for scanSlots
+        poolSize:           150,
+        scanSlots:          25,
+        discoverRunsPerDay: 3,
+        discoverMaxPerRun:  25,
+        scansPerDay:        2,
+        commentCredits:     Infinity,
+        workspaces:         1,
+        seats:              1,
+        postHistoryDays:    0,
       }
     case 'Scout Agency':
       return {
-        keywords: 20,
-        profiles: 15,
-        scansPerDay: 2,
-        commentCredits: Infinity,
-        workspaces: 5,
-        seats: 5,
-        postHistoryDays: 0,
+        keywords:           20,
+        profiles:           50,   // legacy alias for scanSlots
+        poolSize:           500,
+        scanSlots:          50,
+        discoverRunsPerDay: 999,  // unlimited
+        discoverMaxPerRun:  50,
+        scansPerDay:        2,
+        commentCredits:     Infinity,
+        workspaces:         5,
+        seats:              5,
+        postHistoryDays:    0,
       }
     case 'Trial':
       return {
-        keywords: 3,
-        profiles: 2,
-        scansPerDay: 1,
-        commentCredits: 10,   // 10 total (not per-month) during trial
-        workspaces: 1,
-        seats: 1,
-        postHistoryDays: 30,
+        keywords:           3,
+        profiles:           3,    // legacy alias for scanSlots
+        poolSize:           10,
+        scanSlots:          3,
+        discoverRunsPerDay: 0,    // locked — upgrade to unlock
+        discoverMaxPerRun:  0,
+        scansPerDay:        1,
+        commentCredits:     10,   // 10 total (not per-month) during trial
+        workspaces:         1,
+        seats:              1,
+        postHistoryDays:    30,
       }
     case 'Owner':
       return {
-        keywords: 999,
-        profiles: 999,
-        scansPerDay: 2,
-        commentCredits: Infinity,
-        workspaces: 999,
-        seats: 999,
-        postHistoryDays: 0,
+        keywords:           999,
+        profiles:           999,
+        poolSize:           999,
+        scanSlots:          999,
+        discoverRunsPerDay: 999,
+        discoverMaxPerRun:  999,
+        scansPerDay:        2,
+        commentCredits:     Infinity,
+        workspaces:         999,
+        seats:              999,
+        postHistoryDays:    0,
       }
     case 'Complimentary':
       // Manually-gifted full access — mirrors Scout Pro limits
       return {
-        keywords: 10,
-        profiles: 5,
-        scansPerDay: 2,
-        commentCredits: Infinity,
-        workspaces: 1,
-        seats: 1,
-        postHistoryDays: 0,
+        keywords:           10,
+        profiles:           25,
+        poolSize:           150,
+        scanSlots:          25,
+        discoverRunsPerDay: 3,
+        discoverMaxPerRun:  25,
+        scansPerDay:        2,
+        commentCredits:     Infinity,
+        workspaces:         1,
+        seats:              1,
+        postHistoryDays:    0,
       }
     default:
       // Suspended / trial_expired / unknown — zero access
       return {
-        keywords: 0,
-        profiles: 0,
-        scansPerDay: 0,
-        commentCredits: 0,
-        workspaces: 0,
-        seats: 0,
-        postHistoryDays: 0,
+        keywords:           0,
+        profiles:           0,
+        poolSize:           0,
+        scanSlots:          0,
+        discoverRunsPerDay: 0,
+        discoverMaxPerRun:  0,
+        scansPerDay:        0,
+        commentCredits:     0,
+        workspaces:         0,
+        seats:              0,
+        postHistoryDays:    0,
       }
   }
 }

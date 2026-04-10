@@ -135,19 +135,19 @@ const PLAN_COPY: Record<RecommendedPlan, PlanCopy> = {
   starter: {
     ctaLabel:  'Continue with Starter →',
     price:     '$49/month',
-    highlight: 'Up to 3 keyword searches and 2 ICP profiles, 1 daily scan.',
-    color:     BRAND_BLUE,
+    highlight: 'Up to 3 keyword searches, 10 ICP profiles scanned (50-profile pool), 1 daily scan.',
+    color:     BRAND_PURPLE,
   },
   pro: {
     ctaLabel:  'Continue with Pro →',
     price:     '$99/month',
-    highlight: '10 keyword searches, 5 ICP profiles, 2 daily scans, Slack digest.',
+    highlight: '10 keyword searches, 25 ICP profiles scanned (150-profile pool), 2 daily scans, Slack digest.',
     color:     BRAND_PURPLE,
   },
   agency: {
     ctaLabel:  'Continue with Agency →',
     price:     '$249/month',
-    highlight: '20 keyword searches, 15 ICP profiles, 2 daily scans, up to 5 user seats.',
+    highlight: '20 keyword searches, 50 ICP profiles scanned (500-profile pool), 2 daily scans, up to 5 user seats.',
     color:     BRAND_PINK,
   },
 }
@@ -192,10 +192,10 @@ export function buildTrialDay2Email(
     ])}
     ${p(`Scout's AI comment suggestions follow this exact structure. Open your feed, find a post scored 7 or above, and read the <em>Comment Angle</em> — that's your starting point.`)}
     ${p(`The goal isn't to sell anything. It's to be someone they remember when the time comes.`)}
-    <p style="margin:16px 0 8px">${cta('Open your Scout feed →', opts.appUrl)}</p>
+    <p style="margin:16px 0 8px">${cta('Open your Scout feed →', opts.appUrl, BRAND_PURPLE)}</p>
     ${footer(opts.unsubUrl)}`
 
-  return { subject, html: wrap(header('Scout · Day 2 of 7'), body, '') }
+  return { subject, html: wrap(logoHeader(), body, '') }
 }
 
 // ── Trial Day 3: Check-in on signals ─────────────────────────────────────────
@@ -216,10 +216,10 @@ export function buildTrialDay3Email(
     ${p(`You won't get all three this week. Getting even one is the signal that you're doing it right.`)}
     ${infoBox(`<p style="margin:0;font-size:13px;color:#333;line-height:1.6">When you get a positive response, mark that post as <strong>Engaged</strong> in Scout. You'll build a list of warm contacts without a spreadsheet.</p>`)}
     ${p(`If you're getting zero responses, two things to check: (1) Are you posting comments on the actual LinkedIn post, not just saving it in Scout? (2) Are the posts you're commenting on less than 24 hours old? Timing matters more than quality in week one.`)}
-    <p style="margin:16px 0 8px">${cta('Check today\'s feed →', opts.appUrl)}</p>
+    <p style="margin:16px 0 8px">${cta('Check today\'s feed →', opts.appUrl, BRAND_PURPLE)}</p>
     ${footer(opts.unsubUrl)}`
 
-  return { subject, html: wrap(header('Scout · Day 3 of 7'), body, '') }
+  return { subject, html: wrap(logoHeader(), body, '') }
 }
 
 // ── Trial Day 4: Timing tip ───────────────────────────────────────────────────
@@ -238,10 +238,10 @@ export function buildTrialDay4Email(
       <p style="margin:0;font-size:13px;color:#555;line-height:1.6">Check your feed in the morning and again in early evening. That's when you're catching posts in their first hour — the window where your comment gets seen.</p>
     `)}
     ${p(`You don't need to be first. You need to be early and have something worth saying. The combination is rare enough that people notice.`)}
-    <p style="margin:16px 0 8px">${cta('See today\'s posts →', opts.appUrl)}</p>
+    <p style="margin:16px 0 8px">${cta('See today\'s posts →', opts.appUrl, BRAND_PURPLE)}</p>
     ${footer(opts.unsubUrl)}`
 
-  return { subject, html: wrap(header('Scout · Day 4 of 7'), body, '') }
+  return { subject, html: wrap(logoHeader(), body, '') }
 }
 
 // ── Trial Day 5: Social proof + first urgency ─────────────────────────────────
@@ -266,7 +266,7 @@ export function buildTrialDay5Email(
     ${p(`${planCopy.price} · Cancel anytime · No setup fees`, 'color:#999;font-size:12px;margin:6px 0 16px')}
     ${footer(opts.unsubUrl)}`
 
-  return { subject, html: wrap(header('Scout · Day 5 of 7 — Trial ending soon', planCopy.color), body, '') }
+  return { subject, html: wrap(logoHeader(), body, '') }
 }
 
 // ── Trial Day 6: Last chance ──────────────────────────────────────────────────
@@ -311,7 +311,7 @@ export function buildTrialDay6Email(
     ${p(`${planCopy.price} · Cancel anytime`, 'color:#999;font-size:12px;margin:6px 0 16px')}
     ${footer(opts.unsubUrl)}`
 
-  return { subject, html: wrap(header('Scout · Day 6 of 7 — Trial ends tomorrow', planCopy.color), body, '') }
+  return { subject, html: wrap(logoHeader(), body, '') }
 }
 
 // ── Trial Day 7: Final day ────────────────────────────────────────────────────
@@ -334,7 +334,7 @@ export function buildTrialDay7Email(
     ${p(`Starter $49 · Pro $99 · Agency $249 · Cancel anytime`, 'color:#999;font-size:12px;margin:6px 0 16px')}
     ${footer(opts.unsubUrl)}`
 
-  return { subject, html: wrap(header(`Scout · Day 7 — Trial ends today`, planCopy.color), body, '') }
+  return { subject, html: wrap(logoHeader(), body, '') }
 }
 
 // ── Trial Expired (immediate) ─────────────────────────────────────────────────

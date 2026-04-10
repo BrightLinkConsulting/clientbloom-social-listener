@@ -923,18 +923,21 @@ const ICP_JOB_TITLES = [
   'Consultant', 'Business Owner', 'Entrepreneur', 'Independent Advisor',
 ]
 
-const TRIAL_PROFILE_LIMIT = 25
-
 function LinkedInICPSection() {
   const { data: icpSession } = useSession()
-  const icpPlan          = (icpSession?.user as any)?.plan || 'Trial'
-  const isTrial          = icpPlan === 'Trial'
+  const icpPlan    = (icpSession?.user as any)?.plan || 'Trial'
+  const isTrial    = icpPlan === 'Trial'
+  const tierLimits = getTierLimits(icpPlan)
+  const poolSize   = tierLimits.poolSize
+  const scanSlots  = tierLimits.scanSlots
+  const canDiscover = tierLimits.discoverRunsPerDay > 0
+  const scanFreq   = (icpPlan === 'Scout Pro' || icpPlan === 'Scout Agency' || icpPlan === 'Owner') ? '2×' : '1×'
 
-  const [profiles, setProfiles]       = useState<IcpProfile[]>([])
-  const [loading, setLoading]         = useState(true)
-  const [toggling, setToggling]       = useState<string | null>(null)
-  const [deleting, setDeleting]       = useState<string | null>(null)
-  const [error, setError]             = useState('')
+  const [profiles, setProfiles]   = useState<IcpProfile[]>([])
+  const [loading, setLoading]     = useState(true)
+  const [toggling, setToggling]   = useState<string | null>(null)
+  const [deleting, setDeleting]   = useState<string | null>(null)
+  const [error, setError]         = useState('')
 
   // Profile drawer
   const [selectedProfile, setSelectedProfile] = useState<IcpProfile | null>(null)
@@ -945,27 +948,27 @@ function LinkedInICPSection() {
   const PAGE_SIZE = 25
 
   // Manual add form
-  const [showAdd, setShowAdd]         = useState(false)
-  const [newUrl, setNewUrl]           = useState('')
-  const [newName, setNewName]         = useState('')
-  const [newTitle, setNewTitle]       = useState('')
-  const [newCompany, setNewCompany]   = useState('')
-  const [adding, setAdding]           = useState(false)
+  const [showAdd, setShowAdd]     = useState(false)
+  const [newUrl, setNewUrl]       = useState('')
+  const [newName, setNewName]     = useState('')
+  const [newTitle, setNewTitle]   = useState('')
+  const [newCompany, setNewCompany] = useState('')
+  const [adding, setAdding]       = useState(false)
 
   // Discovery panel
-  const [showDiscover, setShowDiscover] = useState(false)
-  const [discTitles, setDiscTitles]     = useState<string[]>([])
-  const [discKeywords, setDiscKeywords] = useState<string[]>([])
-  const [discMax, setDiscMax]           = useState(50)
-  const [discTitleInput, setDiscTitleInput] = useState('')
-  const [discKwInput, setDiscKwInput]       = useState('')
-  const [discovering, setDiscovering]       = useState(false)
-  const [discResult, setDiscResult]         = useState<string>('')
+  const [showDiscover, setShowDiscover]         = useState(false)
+  const [discTitles, setDiscTitles]             = useState<string[]>([])
+  const [discKeywords, setDiscKeywords]         = useState<string[]>([])
+  const [discMax, setDiscMax]                   = useState(tierLimits.discoverMaxPerRun)
+  const [discTitleInput, setDiscTitleInput]     = useState('')
+  const [discKwInput, setDiscKwInput]           = useState('')
+  const [discovering, setDiscovering]           = useState(false)
+  const [discResult, setDiscResult]             = useState<string>('')
 
   const fetchProfiles = useCallback(async () => {
     try {
       const resp = await fetch('/api/linkedin-icps')
-      if (!resp.ok) throw new Error('Failed to load ICP profiles')
+      if (!resp.ok) throw new Error('Failed to load profiles')
       const data = await resp.json()
       setProfiles(data.profiles || [])
     } catch (e: any) {
@@ -977,6 +980,17 @@ function LinkedInICPSection() {
 
   useEffect(() => { fetchProfiles() }, [fetchProfiles])
 
+  // Parse API errors — never show raw JSON to the user
+  const parseApiError = async (resp: Response): Promise<string> => {
+    try {
+      const text   = await resp.text()
+      const parsed = JSON.parse(text)
+      return parsed.error || text
+    } catch {
+      return 'Something went wrong — try again.'
+    }
+  }
+
   const handleToggle = async (p: IcpProfile) => {
     setToggling(p.id)
     try {
@@ -985,7 +999,7 @@ function LinkedInICPSection() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ active: !p.active }),
       })
-      if (!resp.ok) throw new Error(await resp.text())
+      if (!resp.ok) throw new Error(await parseApiError(resp))
       await fetchProfiles()
     } catch (e: any) {
       setError(e.message)
@@ -995,11 +1009,11 @@ function LinkedInICPSection() {
   }
 
   const handleDelete = async (p: IcpProfile, skipConfirm = false) => {
-    if (!skipConfirm && !confirm(`Remove "${p.name}" from your ICP pool?`)) return
+    if (!skipConfirm && !confirm(`Remove "${p.name}" from your pool?`)) return
     setDeleting(p.id)
     try {
       const resp = await fetch(`/api/linkedin-icps/${p.id}`, { method: 'DELETE' })
-      if (!resp.ok) throw new Error(await resp.text())
+      if (!resp.ok) throw new Error(await parseApiError(resp))
       await fetchProfiles()
     } catch (e: any) {
       setError(e.message)
@@ -1009,13 +1023,13 @@ function LinkedInICPSection() {
   }
 
   const handleAddManual = async () => {
-    if (isTrial && profiles.length >= TRIAL_PROFILE_LIMIT) {
-      setError(`Free trial is limited to ${TRIAL_PROFILE_LIMIT} profiles. Upgrade to monitor more.`)
+    if (profiles.length >= poolSize) {
+      setError(`Your ${poolSize}-profile pool is full. Remove a profile to add a new one.`)
       return
     }
     if (!newUrl.trim()) { setError('LinkedIn profile URL is required.'); return }
     if (!newUrl.includes('linkedin.com/in/')) {
-      setError('Must be a LinkedIn profile URL (linkedin.com/in/...)')
+      setError('Please enter a LinkedIn profile URL (linkedin.com/in/...)')
       return
     }
     setAdding(true)
@@ -1032,7 +1046,7 @@ function LinkedInICPSection() {
           source:     'manual',
         }),
       })
-      if (!resp.ok) throw new Error(await resp.text())
+      if (!resp.ok) throw new Error(await parseApiError(resp))
       setNewUrl(''); setNewName(''); setNewTitle(''); setNewCompany('')
       setShowAdd(false)
       await fetchProfiles()
@@ -1043,11 +1057,13 @@ function LinkedInICPSection() {
     }
   }
 
-  const trialAtProfileLimit = isTrial && profiles.length >= TRIAL_PROFILE_LIMIT
-
   const handleDiscover = async () => {
-    if (trialAtProfileLimit) {
-      setError(`Free trial is limited to ${TRIAL_PROFILE_LIMIT} profiles. Upgrade to discover and monitor more.`)
+    if (!canDiscover) {
+      setError('Profile discovery is available on paid plans.')
+      return
+    }
+    if (profiles.length >= poolSize) {
+      setError(`Your ${poolSize}-profile pool is full. Remove a profile to make room.`)
       return
     }
     if (!discTitles.length) { setError('Add at least one job title to search.'); return }
@@ -1062,7 +1078,7 @@ function LinkedInICPSection() {
       })
       const data = await resp.json()
       if (!resp.ok) throw new Error(data.error || 'Discovery failed')
-      setDiscResult(`Found ${data.added} new profiles (${data.skipped} already in pool)`)
+      setDiscResult(`Added ${data.added} new profile${data.added !== 1 ? 's' : ''}${data.skipped > 0 ? ` · ${data.skipped} already in your pool` : ''}.`)
       await fetchProfiles()
     } catch (e: any) {
       setError(e.message)
@@ -1073,11 +1089,9 @@ function LinkedInICPSection() {
 
   const handleDrawerNavigate = (direction: 'prev' | 'next') => {
     if (!selectedProfile) return
-    const idx = profiles.findIndex(p => p.id === selectedProfile.id)
+    const idx     = profiles.findIndex(p => p.id === selectedProfile.id)
     const nextIdx = direction === 'prev' ? idx - 1 : idx + 1
-    if (nextIdx >= 0 && nextIdx < profiles.length) {
-      setSelectedProfile(profiles[nextIdx])
-    }
+    if (nextIdx >= 0 && nextIdx < profiles.length) setSelectedProfile(profiles[nextIdx])
   }
 
   const addDiscTitle = () => {
@@ -1091,8 +1105,10 @@ function LinkedInICPSection() {
     setDiscKwInput('')
   }
 
-  const active   = profiles.filter(p => p.active).length
-  const total    = profiles.length
+  const activeCount = profiles.filter(p => p.active).length
+  const total       = profiles.length
+  const atPoolCap   = total >= poolSize
+
   const q        = searchQuery.trim().toLowerCase()
   const filtered = q
     ? profiles.filter(p =>
@@ -1109,7 +1125,7 @@ function LinkedInICPSection() {
   return (
     <Section
       title="LinkedIn ICP Pool"
-      description={`${active} of ${total} profiles monitored · Scout checks their LinkedIn activity ${(icpPlan === 'Scout Pro' || icpPlan === 'Scout Agency' || icpPlan === 'Owner') ? '2×' : '1×'} daily and surfaces the best moments to show up in their conversations`}
+      description={`${total} of ${poolSize} in pool · ${activeCount} active · top ${Math.min(activeCount, scanSlots)} scanned per run · ${scanFreq} daily`}
     >
       {error && (
         <div className="mb-4 px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/20 text-xs text-red-400 flex items-start justify-between gap-2">
@@ -1118,28 +1134,287 @@ function LinkedInICPSection() {
         </div>
       )}
 
-      {/* Trial profile cap banner */}
-      {isTrial && !loading && (
-        <div className={`rounded-xl px-3 py-2.5 mb-4 flex items-center gap-2 text-xs border ${
-          profiles.length >= TRIAL_PROFILE_LIMIT
-            ? 'bg-red-500/10 border-red-500/20 text-red-400'
-            : 'bg-violet-500/10 border-violet-500/20 text-violet-300'
-        }`}>
-          <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+      {/* ── Action buttons — AT TOP before profile list ─────────────────────── */}
+      <div className="flex gap-2 mb-5 flex-wrap">
+        {/* Add Profile */}
+        <button
+          onClick={() => { setShowAdd(!showAdd); setShowDiscover(false); setDiscResult('') }}
+          disabled={atPoolCap}
+          title={atPoolCap ? `Pool full (${poolSize}/${poolSize}). Remove a profile to add new ones.` : ''}
+          className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-slate-700/60 bg-slate-800/60 text-slate-300 hover:text-white hover:border-slate-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+        >
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
           </svg>
-          {profiles.length >= TRIAL_PROFILE_LIMIT ? (
-            <>Profile limit reached ({TRIAL_PROFILE_LIMIT}/{TRIAL_PROFILE_LIMIT}). <a href="/upgrade" className="ml-1 font-semibold underline underline-offset-2 hover:text-violet-200 transition-colors">Upgrade to add more.</a></>
+          {atPoolCap ? 'Pool full' : 'Add Profile'}
+        </button>
+
+        {/* Discover ICPs — locked for trial, available otherwise */}
+        {canDiscover ? (
+          <button
+            onClick={() => { setShowDiscover(!showDiscover); setShowAdd(false); setDiscResult('') }}
+            disabled={atPoolCap}
+            title={atPoolCap ? `Pool full (${poolSize}/${poolSize}). Remove a profile first.` : ''}
+            className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-violet-500/30 bg-violet-600/10 text-violet-400 hover:bg-violet-600/20 hover:text-violet-300 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            Discover ICPs
+          </button>
+        ) : (
+          /* Trial: show locked button with upgrade prompt */
+          <button
+            onClick={() => setShowDiscover(!showDiscover)}
+            className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-slate-700/40 bg-slate-900/40 text-slate-500 hover:text-slate-400 transition-colors"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+            </svg>
+            Discover ICPs
+          </button>
+        )}
+
+        {/* Pool cap pill */}
+        {atPoolCap && (
+          <span className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400">
+            Pool full · {poolSize}/{poolSize}
+          </span>
+        )}
+        {!atPoolCap && total > 0 && (
+          <span className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-slate-800/60 border border-slate-700/40 text-slate-500">
+            {poolSize - total} slot{poolSize - total !== 1 ? 's' : ''} remaining
+          </span>
+        )}
+      </div>
+
+      {/* ── Manual Add Form ──────────────────────────────────────────────────── */}
+      {showAdd && !atPoolCap && (
+        <div className="rounded-xl border border-slate-700/50 bg-slate-900/60 p-4 mb-5 space-y-3">
+          <p className="text-xs font-semibold text-slate-300">Add Profile Manually</p>
+          <input
+            type="url"
+            placeholder="https://www.linkedin.com/in/username/"
+            value={newUrl}
+            onChange={e => setNewUrl(e.target.value)}
+            autoFocus
+            className="w-full bg-slate-800/80 border border-slate-700/50 rounded-lg px-3 py-2 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50"
+          />
+          <div className="grid grid-cols-3 gap-2">
+            <div className="relative">
+              <input
+                type="text"
+                placeholder="Full name"
+                value={newName}
+                onChange={e => setNewName(e.target.value)}
+                className="w-full bg-slate-800/80 border border-slate-700/50 rounded-lg px-3 py-2 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50"
+              />
+            </div>
+            <input
+              type="text"
+              placeholder="Job title"
+              value={newTitle}
+              onChange={e => setNewTitle(e.target.value)}
+              className="bg-slate-800/80 border border-slate-700/50 rounded-lg px-3 py-2 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50"
+            />
+            <input
+              type="text"
+              placeholder="Company"
+              value={newCompany}
+              onChange={e => setNewCompany(e.target.value)}
+              className="bg-slate-800/80 border border-slate-700/50 rounded-lg px-3 py-2 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50"
+            />
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={handleAddManual}
+              disabled={adding || !newUrl.trim()}
+              className="flex items-center gap-1.5 text-xs px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-medium transition-colors disabled:opacity-50"
+            >
+              {adding && <Spinner />}
+              Add to Pool
+            </button>
+            <button
+              onClick={() => { setShowAdd(false); setError('') }}
+              className="text-xs px-3 py-2 rounded-lg border border-slate-700/50 text-slate-400 hover:text-white transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Discover ICPs Panel ──────────────────────────────────────────────── */}
+      {showDiscover && (
+        <div className="rounded-xl border border-violet-500/20 bg-violet-600/5 p-4 mb-5 space-y-4">
+          {!canDiscover ? (
+            /* Trial lock state — visible but gated */
+            <div className="text-center py-4">
+              <div className="w-10 h-10 rounded-full bg-violet-500/10 border border-violet-500/20 flex items-center justify-center mx-auto mb-3">
+                <svg className="w-5 h-5 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                </svg>
+              </div>
+              <p className="text-sm font-semibold text-white mb-1">Profile discovery is a paid feature</p>
+              <p className="text-xs text-slate-400 mb-4 max-w-sm mx-auto leading-relaxed">
+                Tell Scout which job titles and industries to look for, and it automatically finds and adds matching LinkedIn profiles to your pool. No manual searching required.
+              </p>
+              <div className="text-xs text-slate-500 mb-4 space-y-1">
+                <p>Starter: 1 discovery run/day · up to 10 profiles</p>
+                <p>Pro: 3 runs/day · up to 25 profiles</p>
+                <p>Agency: unlimited runs · up to 50 profiles</p>
+              </div>
+              <a
+                href="/upgrade"
+                className="inline-flex items-center gap-1.5 text-xs px-4 py-2 rounded-lg bg-violet-600 hover:bg-violet-500 text-white font-medium transition-colors"
+              >
+                Upgrade to unlock →
+              </a>
+              <button
+                onClick={() => setShowDiscover(false)}
+                className="block mx-auto mt-3 text-xs text-slate-600 hover:text-slate-400 transition-colors"
+              >
+                Close
+              </button>
+            </div>
           ) : (
-            <>{profiles.length} of {TRIAL_PROFILE_LIMIT} free trial profile slots used</>
+            <>
+              <div>
+                <p className="text-xs font-semibold text-slate-300 mb-1">Discover ICPs</p>
+                <p className="text-xs text-slate-500 leading-relaxed">
+                  Scout searches for LinkedIn profiles matching your criteria and adds them to your pool automatically. Results appear within about 60 seconds.
+                </p>
+              </div>
+
+              {/* Job Titles */}
+              <div>
+                <p className="text-xs text-slate-400 mb-2 font-medium">Job Titles <span className="text-slate-600 font-normal">(required)</span></p>
+                <div className="flex flex-wrap gap-1.5 mb-2">
+                  {discTitles.map(t => (
+                    <span key={t} className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700/50">
+                      {t}
+                      <button onClick={() => setDiscTitles(discTitles.filter(x => x !== t))} className="text-slate-600 hover:text-red-400 ml-0.5">×</button>
+                    </span>
+                  ))}
+                </div>
+                <div className="flex flex-wrap gap-1 mb-2">
+                  {ICP_JOB_TITLES.filter(t => !discTitles.includes(t)).slice(0, 8).map(t => (
+                    <button
+                      key={t}
+                      onClick={() => setDiscTitles([...discTitles, t])}
+                      className="text-xs px-2 py-0.5 rounded-full bg-slate-900/60 border border-slate-700/40 text-slate-500 hover:text-slate-300 hover:border-slate-600 transition-colors"
+                    >
+                      + {t}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="Custom job title..."
+                    value={discTitleInput}
+                    onChange={e => setDiscTitleInput(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && addDiscTitle()}
+                    className="flex-1 bg-slate-800/80 border border-slate-700/50 rounded-lg px-3 py-1.5 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50"
+                  />
+                  <button onClick={addDiscTitle} className="text-xs px-3 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-300 transition-colors">Add</button>
+                </div>
+              </div>
+
+              {/* Narrowing Keywords */}
+              <div>
+                <p className="text-xs text-slate-400 mb-1 font-medium">Narrowing Keywords <span className="text-slate-600 font-normal">(optional — recommended)</span></p>
+                <p className="text-xs text-slate-600 mb-2">Filters broad titles like "CEO" to the right people.</p>
+                <div className="flex flex-wrap gap-1.5 mb-2">
+                  {discKeywords.map(k => (
+                    <span key={k} className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700/50">
+                      {k}
+                      <button onClick={() => setDiscKeywords(discKeywords.filter(x => x !== k))} className="text-slate-600 hover:text-red-400 ml-0.5">×</button>
+                    </span>
+                  ))}
+                </div>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="e.g. SaaS, B2B consulting, fintech..."
+                    value={discKwInput}
+                    onChange={e => setDiscKwInput(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && addDiscKw()}
+                    className="flex-1 bg-slate-800/80 border border-slate-700/50 rounded-lg px-3 py-1.5 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50"
+                  />
+                  <button onClick={addDiscKw} className="text-xs px-3 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-300 transition-colors">Add</button>
+                </div>
+              </div>
+
+              {/* Max profiles — tier-aware, no arbitrary options */}
+              <div>
+                <p className="text-xs text-slate-400 mb-1 font-medium">Max Profiles to Add</p>
+                <p className="text-xs text-slate-600 mb-2">Tighter searches find better matches than broad ones.</p>
+                <div className="flex gap-2 flex-wrap">
+                  {Array.from({ length: 4 }, (_, i) => Math.round(tierLimits.discoverMaxPerRun * (i + 1) / 4))
+                    .filter((n, i, a) => a.indexOf(n) === i && n > 0)
+                    .map(n => (
+                      <button
+                        key={n}
+                        onClick={() => setDiscMax(n)}
+                        className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${
+                          discMax === n
+                            ? 'bg-violet-600/20 border-violet-500/40 text-violet-400'
+                            : 'border-slate-700/50 bg-slate-800/60 text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        {n}
+                      </button>
+                    ))}
+                </div>
+              </div>
+
+              {discResult && (
+                <div className="px-3 py-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-400">
+                  {discResult}
+                </div>
+              )}
+
+              <div className="flex gap-2">
+                <button
+                  onClick={handleDiscover}
+                  disabled={discovering || !discTitles.length || atPoolCap}
+                  className="flex items-center gap-1.5 text-xs px-4 py-2 rounded-lg bg-violet-600 hover:bg-violet-500 text-white font-medium transition-colors disabled:opacity-50"
+                >
+                  {discovering ? <><Spinner /> Searching...</> : 'Run Discovery'}
+                </button>
+                <button
+                  onClick={() => { setShowDiscover(false); setDiscResult('') }}
+                  className="text-xs px-3 py-2 rounded-lg border border-slate-700/50 text-slate-400 hover:text-white transition-colors"
+                >
+                  Close
+                </button>
+              </div>
+            </>
           )}
         </div>
       )}
 
+      {/* ── Scan slot explainer (shown when pool > scan slots) ───────────────── */}
+      {!loading && activeCount > scanSlots && (
+        <div className="mb-4 flex gap-2.5 px-3.5 py-3 rounded-xl bg-blue-500/10 border border-blue-500/20">
+          <svg className="w-3.5 h-3.5 text-blue-400 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <p className="text-xs text-blue-400/90 leading-relaxed">
+            You have {activeCount} active profiles. Scout scans the top <span className="font-semibold">{scanSlots}</span> per run, prioritizing recent posters. Profiles rotate automatically so everyone gets coverage.
+            {(icpPlan === 'Scout Starter' || isTrial) && (
+              <> <a href="/upgrade" className="underline text-blue-300 hover:text-white transition-colors">Upgrade</a> for more scan slots.</>
+            )}
+          </p>
+        </div>
+      )}
+
+      {/* ── Profile pool status + list ───────────────────────────────────────── */}
       {loading ? (
         <div className="flex items-center gap-2 text-xs text-slate-500"><Spinner />Loading profiles...</div>
       ) : profiles.length === 0 ? (
-        <p className="text-xs text-slate-500 mb-4">No profiles yet. Add manually or use Discover to find ICPs automatically.</p>
+        <p className="text-xs text-slate-500 mb-4">No profiles in your pool yet. Add one manually or use Discover to find ICPs automatically.</p>
       ) : (
         <>
           {/* Search bar */}
@@ -1449,10 +1724,10 @@ function LinkedInICPSection() {
           <div className="flex gap-2">
             <button
               onClick={handleDiscover}
-              disabled={discovering || !discTitles.length}
+              disabled={discovering || !discTitles.length || atPoolCap}
               className="flex items-center gap-1.5 text-xs px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-medium transition-colors disabled:opacity-50"
             >
-              {discovering ? <><Spinner /> Searching...</> : 'Run Discovery'}
+              {discovering ? <><Spinner /> Searching...</> : atPoolCap ? 'Pool full' : 'Run Discovery'}
             </button>
             <button
               onClick={() => { setShowDiscover(false); setDiscResult('') }}

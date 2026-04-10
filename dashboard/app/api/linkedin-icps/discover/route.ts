@@ -76,16 +76,40 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'At least one job title is required.' }, { status: 400 })
     }
     if (!APIFY_TOKEN) {
-      return NextResponse.json({ error: 'Discovery is not configured on this platform.' }, { status: 500 })
+      return NextResponse.json({ error: 'Profile discovery is not available on this platform.' }, { status: 500 })
     }
 
-    // ── Rate limit: prevent repeated discovery calls (Apify cost protection) ──
-    const cooldownMs = isPaidPlan(plan) ? COOLDOWN_MS.paid : COOLDOWN_MS.trial
-    const discovery  = await getLastDiscoveryAt(tenantId)
+    // ── Plan gate: Discover ICPs locked for Trial ─────────────────────────────
+    const tierLimits = getTierLimits(plan)
+    if (tierLimits.discoverRunsPerDay === 0) {
+      return NextResponse.json(
+        { error: 'Profile discovery is available on paid plans. Upgrade to unlock it.', upgrade: true },
+        { status: 403 }
+      )
+    }
+
+    // ── Daily run frequency check (paid plans) ─────────────────────────────────
+    // Note: discoverRunsPerDay = 999 means effectively unlimited (Agency)
+    const discovery = await getLastDiscoveryAt(tenantId)
+    if (tierLimits.discoverRunsPerDay < 999 && discovery?.lastAt) {
+      const msPerDay     = 24 * 60 * 60 * 1000
+      const windowMs     = msPerDay / tierLimits.discoverRunsPerDay
+      const msSinceLast  = Date.now() - new Date(discovery.lastAt).getTime()
+      if (msSinceLast < windowMs) {
+        const waitMins = Math.ceil((windowMs - msSinceLast) / 60_000)
+        return NextResponse.json(
+          { error: `You can run discovery ${tierLimits.discoverRunsPerDay}× per day. Try again in ${waitMins} minute${waitMins === 1 ? '' : 's'}.`, retryAfter: waitMins * 60 },
+          { status: 429 }
+        )
+      }
+    }
+
+    // ── Cooldown safety net (15 min min between calls regardless of plan) ─────
+    const HARD_COOLDOWN_MS = 15 * 60 * 1000
     if (discovery?.lastAt) {
       const msSinceLast = Date.now() - new Date(discovery.lastAt).getTime()
-      if (msSinceLast < cooldownMs) {
-        const waitMins = Math.ceil((cooldownMs - msSinceLast) / 60_000)
+      if (msSinceLast < HARD_COOLDOWN_MS) {
+        const waitMins = Math.ceil((HARD_COOLDOWN_MS - msSinceLast) / 60_000)
         return NextResponse.json(
           { error: `Please wait ${waitMins} more minute${waitMins === 1 ? '' : 's'} before running discovery again.`, retryAfter: waitMins * 60 },
           { status: 429 }
@@ -93,28 +117,41 @@ export async function POST(req: Request) {
       }
     }
 
-    // ── ICP profile count cap (plan limit) ────────────────────────────────────
-    const { profiles: profileLimit } = getTierLimits(plan)
-    const existingCountUrl = new URL(`https://api.airtable.com/v0/${SHARED_BASE}/${encodeURIComponent(TABLE)}`)
-    existingCountUrl.searchParams.set('filterByFormula', `AND(${tenantFilter(tenantId)},{Active}=1)`)
-    existingCountUrl.searchParams.set('fields[]', 'Active')
-    existingCountUrl.searchParams.set('pageSize', '100')
-    const countResp = await fetch(existingCountUrl.toString(), { headers: { Authorization: `Bearer ${PROV_TOKEN}` } })
-    const countData = await countResp.json()
-    const existingCount = (countData.records ?? []).length
-    if (existingCount >= profileLimit) {
+    // ── Pool size cap (counts ALL records — active + paused, paginated) ──────
+    // Paginates so Agency-tier tenants (500-profile pools) are counted correctly.
+    let existingCount = 0
+    {
+      let countOffset: string | undefined
+      do {
+        const existingCountUrl = new URL(`https://api.airtable.com/v0/${SHARED_BASE}/${encodeURIComponent(TABLE)}`)
+        existingCountUrl.searchParams.set('filterByFormula', tenantFilter(tenantId))
+        existingCountUrl.searchParams.set('fields[]', 'Active')
+        existingCountUrl.searchParams.set('pageSize', '100')
+        if (countOffset) existingCountUrl.searchParams.set('offset', countOffset)
+        const countResp = await fetch(existingCountUrl.toString(), { headers: { Authorization: `Bearer ${PROV_TOKEN}` } })
+        const countData = await countResp.json()
+        existingCount  += (countData.records ?? []).length
+        countOffset     = countData.offset
+      } while (countOffset)
+    }
+    if (existingCount >= tierLimits.poolSize) {
       return NextResponse.json(
         {
-          error:   `You've reached the ${profileLimit} ICP profile limit for your plan. Upgrade to add more.`,
-          limit:   profileLimit,
+          error:   `Your ${tierLimits.poolSize}-profile pool is full. Remove a profile to make room for new ones.`,
+          limit:   tierLimits.poolSize,
           current: existingCount,
         },
         { status: 429 }
       )
     }
 
-    // Cap new profiles to remaining slots in the plan (max 200 absolute)
-    const cap = Math.min(Number(maxProfiles) || 50, Math.min(profileLimit - existingCount, 200))
+    // Cap to tier's discoverMaxPerRun, then to remaining pool slots
+    const slotsRemaining = tierLimits.poolSize - existingCount
+    const cap = Math.min(
+      Number(maxProfiles) || tierLimits.discoverMaxPerRun,
+      tierLimits.discoverMaxPerRun,
+      slotsRemaining
+    )
 
     // ---- Build search queries ----
     const keywordStr = keywords.map((k: string) => `"${k}"`).join(' ')
@@ -185,23 +222,28 @@ export async function POST(req: Request) {
       return NextResponse.json({ added: 0, skipped: 0, profiles: [], message: 'No LinkedIn profiles found. Try different keywords or job titles.' })
     }
 
-    // ---- Fetch existing profile URLs from Airtable (dedup) ----
-    const existingUrl = new URL(`https://api.airtable.com/v0/${SHARED_BASE}/${encodeURIComponent(TABLE)}`)
-    existingUrl.searchParams.set('filterByFormula', tenantFilter(tenantId))
-    existingUrl.searchParams.set('fields[]', 'Profile URL')
-    existingUrl.searchParams.set('pageSize', '100')
+    // ---- Fetch existing profile URLs from Airtable (dedup, paginated) ----
+    // Paginates so tenants with >100 profiles don't get duplicates added.
+    const existingSlugs = new Set<string>()
+    {
+      let dedupOffset: string | undefined
+      do {
+        const existingUrl = new URL(`https://api.airtable.com/v0/${SHARED_BASE}/${encodeURIComponent(TABLE)}`)
+        existingUrl.searchParams.set('filterByFormula', tenantFilter(tenantId))
+        existingUrl.searchParams.set('fields[]', 'Profile URL')
+        existingUrl.searchParams.set('pageSize', '100')
+        if (dedupOffset) existingUrl.searchParams.set('offset', dedupOffset)
 
-    const existingResp = await fetch(existingUrl.toString(), {
-      headers: { Authorization: `Bearer ${PROV_TOKEN}` },
-    })
-    const existingData = await existingResp.json()
-    const existingSlugs = new Set<string>(
-      (existingData.records || []).map((r: any) => {
-        const u: string = r.fields?.['Profile URL'] || ''
-        const m = u.match(/linkedin\.com\/in\/([^/?&\s]+)/)
-        return m ? m[1].toLowerCase() : ''
-      }).filter(Boolean)
-    )
+        const existingResp = await fetch(existingUrl.toString(), { headers: { Authorization: `Bearer ${PROV_TOKEN}` } })
+        const existingData = await existingResp.json()
+        for (const r of (existingData.records || [])) {
+          const u: string = r.fields?.['Profile URL'] || ''
+          const m = u.match(/linkedin\.com\/in\/([^/?&\s]+)/)
+          if (m) existingSlugs.add(m[1].toLowerCase())
+        }
+        dedupOffset = existingData.offset
+      } while (dedupOffset)
+    }
 
     // ---- Save new profiles to Airtable ----
     const toAdd = discovered.filter(p => {

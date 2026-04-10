@@ -507,7 +507,7 @@ export default function LandingPage() {
                 <p className="text-slate-500 text-xs mt-2 leading-relaxed">For solo consultants getting started with LinkedIn intelligence.</p>
               </div>
               <ul className="space-y-2 flex-1 mb-6">
-                {['3 LinkedIn keyword searches','2 ICP profiles monitored','1 scan per day','30 AI comment suggestions/mo','30-day post history','1 user seat'].map(f => (
+                {['3 LinkedIn keyword searches','10 ICP profiles scanned · 50-profile pool','1 scan per day','30 AI comment suggestions/mo','30-day post history','1 user seat'].map(f => (
                   <li key={f} className="flex items-start gap-2.5 text-sm text-slate-300">
                     <svg className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
                     {f}
@@ -529,7 +529,7 @@ export default function LandingPage() {
                 <p className="text-slate-500 text-xs mt-2 leading-relaxed">The full product. Everything you need to build pipeline from LinkedIn.</p>
               </div>
               <ul className="space-y-2 flex-1 mb-6">
-                {['10 LinkedIn keyword searches','5 ICP profiles monitored','2 scans per day (morning + evening)','Unlimited AI comment suggestions','Unlimited post history','Slack daily digest','1 user seat'].map(f => (
+                {['10 LinkedIn keyword searches','25 ICP profiles scanned · 150-profile pool','2 scans per day (morning + evening)','Unlimited AI comment suggestions','Unlimited post history','Slack daily digest','1 user seat'].map(f => (
                   <li key={f} className="flex items-start gap-2.5 text-sm text-slate-300">
                     <svg className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
                     {f}
@@ -551,7 +551,7 @@ export default function LandingPage() {
                 <p className="text-slate-500 text-xs mt-2 leading-relaxed">For consultants managing LinkedIn intelligence for multiple clients.</p>
               </div>
               <ul className="space-y-2 flex-1 mb-6">
-                {['20 LinkedIn keyword searches','15 ICP profiles monitored','2 scans per day','Unlimited AI comment suggestions','Unlimited post history','CRM integration (GHL + HubSpot)','Slack daily digest','Up to 5 user seats'].map(f => (
+                {['20 LinkedIn keyword searches','50 ICP profiles scanned · 500-profile pool','2 scans per day','Unlimited AI comment suggestions','Unlimited post history','CRM integration (GHL + HubSpot)','Slack daily digest','Up to 5 user seats'].map(f => (
                   <li key={f} className="flex items-start gap-2.5 text-sm text-slate-300">
                     <svg className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
                     {f}

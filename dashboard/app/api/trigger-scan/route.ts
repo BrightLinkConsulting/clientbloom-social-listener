@@ -121,7 +121,7 @@ export async function POST() {
 
   // ── Run scan ──────────────────────────────────────────────────────────
   // Use tenant's own Apify key if assigned by admin; otherwise use shared pool
-  const result = await runScanForTenant(tenant.tenantId, row?.apifyKey)
+  const result = await runScanForTenant(tenant.tenantId, row?.apifyKey, tenant.plan)
 
   if (result.error) {
     return NextResponse.json({ error: result.error }, { status: 500 })

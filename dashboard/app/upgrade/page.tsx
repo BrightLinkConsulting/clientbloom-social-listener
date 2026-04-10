@@ -25,7 +25,7 @@ const TIERS = [
     description: 'For solo consultants getting started with LinkedIn intelligence.',
     features: [
       '3 LinkedIn keyword searches',
-      '2 ICP profiles monitored',
+      '10 ICP profiles scanned · 50-profile pool',
       '1 scan per day',
       '30 AI comment suggestions/mo',
       '30-day post history',
@@ -42,7 +42,7 @@ const TIERS = [
     description: 'The full product. Everything you need to build pipeline from LinkedIn.',
     features: [
       '10 LinkedIn keyword searches',
-      '5 ICP profiles monitored',
+      '25 ICP profiles scanned · 150-profile pool',
       '2 scans per day (morning + evening)',
       'Unlimited AI comment suggestions',
       'Unlimited post history',
@@ -60,7 +60,7 @@ const TIERS = [
     description: 'For consultants managing LinkedIn intelligence for multiple clients.',
     features: [
       '20 LinkedIn keyword searches',
-      '15 ICP profiles monitored',
+      '50 ICP profiles scanned · 500-profile pool',
       '2 scans per day',
       'Unlimited AI comment suggestions',
       'Unlimited post history',
