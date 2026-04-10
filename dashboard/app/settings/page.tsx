@@ -1122,11 +1122,38 @@ function LinkedInICPSection() {
   const safePage   = Math.min(currentPage, totalPages - 1)
   const paged      = filtered.slice(safePage * PAGE_SIZE, (safePage + 1) * PAGE_SIZE)
 
+  // Description: when total exceeds poolSize (grandfathered data), avoid "25 of 10" confusion
+  const sectionDescription = total > poolSize
+    ? `${total} profiles saved · ${poolSize}-profile ${isTrial ? 'trial ' : ''}pool limit · top ${scanSlots} scanned per run · ${scanFreq} daily`
+    : `${total} of ${poolSize} in pool · ${activeCount} active · top ${Math.min(activeCount, scanSlots)} scanned per run · ${scanFreq} daily`
+
   return (
     <Section
       title="LinkedIn ICP Pool"
-      description={`${total} of ${poolSize} in pool · ${activeCount} active · top ${Math.min(activeCount, scanSlots)} scanned per run · ${scanFreq} daily`}
+      description={sectionDescription}
     >
+      {/* ── How the ICP Pool works info box ──────────────────────────────────── */}
+      <div className="mb-5 flex gap-3 px-3.5 py-3 rounded-xl bg-slate-800/50 border border-slate-700/40">
+        <svg className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        <div className="space-y-1.5">
+          <p className="text-xs font-medium text-slate-300">How the ICP Pool works</p>
+          <p className="text-xs text-slate-500 leading-relaxed">
+            Add the LinkedIn profiles of people you want to build relationships with — prospects, partners, or industry voices. Scout monitors their posts and surfaces the right moments to engage.{' '}
+            <span className="text-slate-400">Your pool holds all saved profiles. Each daily scan, Scout automatically fetches the most active ones — no manual ranking needed.</span>
+          </p>
+          {isTrial && (
+            <p className="text-xs text-slate-500 leading-relaxed pt-0.5">
+              <span className="text-amber-400/90 font-medium">Trial:</span> 10-profile pool · 3 scanned per run.{' '}
+              <span className="text-slate-500">Upgrade for more —{' '}
+                <a href="/upgrade" className="text-violet-400 hover:text-violet-300 underline underline-offset-2 transition-colors">Starter: 50 pool · 10 scanned · Pro: 150 pool · 25 scanned · Agency: 500 pool · 50 scanned →</a>
+              </span>
+            </p>
+          )}
+        </div>
+      </div>
+
       {error && (
         <div className="mb-4 px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/20 text-xs text-red-400 flex items-start justify-between gap-2">
           <span>{error}</span>
@@ -1178,7 +1205,7 @@ function LinkedInICPSection() {
         {/* Pool cap pill */}
         {atPoolCap && (
           <span className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400">
-            Pool full · {poolSize}/{poolSize}
+            Pool full · {total}/{poolSize}
           </span>
         )}
         {!atPoolCap && total > 0 && (
