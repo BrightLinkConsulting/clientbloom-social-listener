@@ -1,7 +1,7 @@
 # Scout Agent — Architecture & Operations Guide
 
 > **Audience:** Engineers maintaining or extending the Scout codebase.
-> **Last updated:** April 2026 (Session 4 — plan-aware guidance + upsell rules)
+> **Last updated:** April 2026 (Session 5 — Scout Agent button redesign + adversarial validation)
 
 ---
 
@@ -378,6 +378,59 @@ To add a new inbox action type (e.g., `bulk_engage`):
 ---
 
 ## Session Changelog
+
+### Session 5 — April 2026 (Scout Agent Button Redesign + Full Adversarial Validation)
+
+**Problem solved**
+The floating Scout Agent button was nearly invisible at rest (`bg-[#0d1017]` with a barely-visible slate border), causing it to blend into the dark UI chrome. Users could easily scroll past it without noticing it existed.
+
+**Button redesign (`app/page.tsx`)**
+
+| State | Before | After |
+|-------|--------|-------|
+| Resting | Dark (`#0d1017`) + slate border — invisible | ClientBloom violet (`violet-600`) — always visible |
+| Hover | Blue border tint + text brightens | Lightens to `violet-500`, scales up 5% |
+| Open | Blue-600 | Darkens to `violet-700`, scales down (pressed feel) |
+| Click feedback | None | `active:scale-95` tactile response |
+| Shadow | `shadow-black/40` | `shadow-violet-600/40` — branded glow |
+
+**Attention pulse (`agentPulse` state)**
+- A `bg-violet-500 animate-ping` ring fires once on inbox load (via `useEffect([], [])`)
+- Auto-stops after 5000ms via `clearTimeout` cleanup (no memory leak on unmount)
+- Stops immediately if user opens the panel (`setAgentPulse(false)` in click handler)
+- Ring is hidden while panel is open (`agentPulse && !agentOpen` condition)
+- Ring has `pointer-events-none` so it cannot intercept button clicks
+- Never repeats within a session — it's an onboarding nudge, not a recurring distraction
+
+**Why bottom-right position was kept**
+Bottom-right is the universal location for chat and AI assistant widgets (Intercom, Drift, Zendesk, Crisp, etc.). Users are trained to look there. The discovery problem was the button's invisible appearance, not its position. Moving it "front and center" would have conflicted with feed header controls and broken UX conventions.
+
+**Adversarial & reliability test results — 53/53 passing**
+
+All pre-existing security scenarios retained, plus new categories:
+
+| Category | Scenarios | Result |
+|----------|-----------|--------|
+| C1 Action type whitelist | 6 | ✅ All pass |
+| C2 Score clamping | 9 | ✅ All pass |
+| H1 currentAction whitelist | 9 | ✅ All pass |
+| C5 Force confirm | 5 | ✅ All pass |
+| B2 History sanitization | 5 | ✅ All pass |
+| E1 Message length | 3 | ✅ All pass |
+| B1 Post text framing | 3 | ✅ All pass |
+| A1 Partial context detection | 3 | ✅ All pass |
+| Plan injection labels | 6 | ✅ All pass |
+| Button pulse state logic | 4 | ✅ All pass |
+| **Total** | **53** | **53/53 ✅** |
+
+**UI logic audit — 5/5 checks passing**
+- `useEffect` returns `clearTimeout` cleanup (no memory leak on unmount)
+- Empty dependency array — pulse fires exactly once on mount
+- Ring condition `agentPulse && !agentOpen` correctly hides when panel is open
+- Ping ring has `pointer-events-none` — cannot absorb clicks
+- Click handler calls `setAgentPulse(false)` before toggling panel
+
+---
 
 ### Session 4 — April 2026 (Plan-Aware Guidance + Upsell Rules)
 
