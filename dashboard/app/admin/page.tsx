@@ -56,7 +56,7 @@ function PlanBadge({ plan }: { plan: string }) {
   }
   const cls = styles[plan] || 'bg-slate-800 text-slate-400 border-slate-700'
   return (
-    <span className={`inline-flex items-center text-[11px] font-medium px-2 py-0.5 rounded-md border whitespace-nowrap ${cls}`}>
+    <span className={`inline-flex items-center text-[12px] font-medium px-2 py-0.5 rounded-md border whitespace-nowrap ${cls}`}>
       {plan}
     </span>
   )
@@ -68,7 +68,7 @@ function trialBadge(trialEndsAt: string | null) {
   const daysLeft = Math.floor(msLeft / 86_400_000)
   const hrsLeft  = Math.floor((msLeft % 86_400_000) / 3_600_000)
   if (msLeft <= 0) {
-    return <span className="text-[10px] bg-red-900/30 text-red-400 px-1.5 py-0.5 rounded font-medium border border-red-800/30">Trial expired</span>
+    return <span className="text-[11px] bg-red-900/30 text-red-400 px-1.5 py-0.5 rounded font-medium border border-red-800/30">Trial expired</span>
   }
   const label = daysLeft === 0 ? `${hrsLeft}h left` : `${daysLeft}d ${hrsLeft}h left`
   const color  = daysLeft <= 1
@@ -76,7 +76,7 @@ function trialBadge(trialEndsAt: string | null) {
     : daysLeft <= 5
       ? 'bg-amber-900/30 text-amber-400 border-amber-800/30'
       : 'bg-emerald-900/30 text-emerald-400 border-emerald-800/30'
-  return <span className={`text-[10px] ${color} px-1.5 py-0.5 rounded font-medium border`}>{label}</span>
+  return <span className={`text-[11px] ${color} px-1.5 py-0.5 rounded font-medium border`}>{label}</span>
 }
 
 interface StatsData {
@@ -339,7 +339,7 @@ function ApifyPanel({
                   <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                 </svg>
               </a>
-              <p className="text-[11px] text-slate-600 mt-2">
+              <p className="text-[12px] text-slate-600 mt-2">
                 After they sign up, paste their API key above to activate.
               </p>
             </div>
@@ -1066,7 +1066,7 @@ export default function AdminPage() {
                                 <p className="text-sm font-medium text-slate-400">{t.companyName || t.email}</p>
                                 <p className="text-xs text-slate-600">{t.email}</p>
                                 {sentAt && (
-                                  <p className="text-[11px] text-emerald-600 mt-0.5">
+                                  <p className="text-[12px] text-emerald-600 mt-0.5">
                                     ✓ Reactivation email sent {new Date(sentAt).toLocaleDateString()}
                                   </p>
                                 )}
@@ -1115,7 +1115,7 @@ export default function AdminPage() {
                   <div>
                     <div className="flex items-center gap-1.5 mb-0.5">
                       <p className="text-sm font-medium text-white">Stripe</p>
-                      <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded border ${
+                      <span className={`text-[11px] font-semibold px-1.5 py-0.5 rounded border ${
                         stats?.source === 'stripe'
                           ? 'bg-emerald-900/30 text-emerald-400 border-emerald-800/40'
                           : 'bg-slate-800 text-slate-500 border-slate-700'
@@ -1441,11 +1441,11 @@ export default function AdminPage() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-slate-800/80 bg-[#0d0f15]">
-                      <th className="text-left text-[11px] font-semibold text-slate-500 uppercase tracking-wider px-6 py-3.5">Account</th>
-                      <th className="text-left text-[11px] font-semibold text-slate-500 uppercase tracking-wider px-4 py-3.5">Email</th>
-                      <th className="text-left text-[11px] font-semibold text-slate-500 uppercase tracking-wider px-4 py-3.5">Plan</th>
-                      <th className="text-left text-[11px] font-semibold text-slate-500 uppercase tracking-wider px-4 py-3.5">Status</th>
-                      <th className="text-right text-[11px] font-semibold text-slate-500 uppercase tracking-wider px-6 py-3.5">Actions</th>
+                      <th className="text-left text-[12px] font-semibold text-slate-500 uppercase tracking-wider px-6 py-3.5">Account</th>
+                      <th className="text-left text-[12px] font-semibold text-slate-500 uppercase tracking-wider px-4 py-3.5">Email</th>
+                      <th className="text-left text-[12px] font-semibold text-slate-500 uppercase tracking-wider px-4 py-3.5">Plan</th>
+                      <th className="text-left text-[12px] font-semibold text-slate-500 uppercase tracking-wider px-4 py-3.5">Status</th>
+                      <th className="text-right text-[12px] font-semibold text-slate-500 uppercase tracking-wider px-6 py-3.5">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1509,14 +1509,14 @@ export default function AdminPage() {
                                   </button>
                                   <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                                     {t.isAdmin && (
-                                      <span className="text-[10px] bg-[#4F6BFF]/20 text-[#4F6BFF] px-1.5 py-0.5 rounded-md font-semibold border border-[#4F6BFF]/20">Admin</span>
+                                      <span className="text-[11px] bg-[#4F6BFF]/20 text-[#4F6BFF] px-1.5 py-0.5 rounded-md font-semibold border border-[#4F6BFF]/20">Admin</span>
                                     )}
                                     {isMember ? (
-                                      <span className="text-[10px] bg-slate-800 text-slate-500 px-1.5 py-0.5 rounded-md font-medium border border-slate-700/50">
+                                      <span className="text-[11px] bg-slate-800 text-slate-500 px-1.5 py-0.5 rounded-md font-medium border border-slate-700/50">
                                         Guest · {row.kind === 'member' ? (row.ownerCompanyName || row.ownerEmail) : ''}
                                       </span>
                                     ) : t.isFeedOnly ? (
-                                      <span className="text-[10px] bg-amber-900/30 text-amber-400 px-1.5 py-0.5 rounded-md font-semibold border border-amber-800/30">Feed only</span>
+                                      <span className="text-[11px] bg-amber-900/30 text-amber-400 px-1.5 py-0.5 rounded-md font-semibold border border-amber-800/30">Feed only</span>
                                     ) : null}
                                     {trialBadge(t.trialEndsAt)}
                                   </div>
@@ -1670,7 +1670,7 @@ export default function AdminPage() {
 
                             {/* Inline feedback for reset */}
                             {resetMsg[t.id] && (
-                              <p className={`text-[11px] mt-1.5 text-right ${
+                              <p className={`text-[12px] mt-1.5 text-right ${
                                 resetMsg[t.id] === 'Email sent!'
                                   ? 'text-emerald-400'
                                   : 'text-red-400'
@@ -1725,7 +1725,7 @@ export default function AdminPage() {
             const active = usageSortCol === col
             return (
               <th
-                className={`${right ? 'text-right' : 'text-left'} text-[11px] font-semibold uppercase tracking-wider px-4 py-3 cursor-pointer select-none transition-colors ${
+                className={`${right ? 'text-right' : 'text-left'} text-[12px] font-semibold uppercase tracking-wider px-4 py-3 cursor-pointer select-none transition-colors ${
                   active ? 'text-[#4F6BFF]' : 'text-slate-500 hover:text-slate-300'
                 }`}
                 title={tooltip}
@@ -1736,7 +1736,7 @@ export default function AdminPage() {
               >
                 <span className={`inline-flex items-center gap-1 ${right ? 'justify-end w-full' : ''}`}>
                   {label}
-                  {tooltip && <span className="text-slate-700 font-normal normal-case tracking-normal text-[10px]">?</span>}
+                  {tooltip && <span className="text-slate-700 font-normal normal-case tracking-normal text-[11px]">?</span>}
                   {active
                     ? <span className="text-[#4F6BFF]">{usageSortDir === 'desc' ? '↓' : '↑'}</span>
                     : <span className="text-slate-700">↕</span>
@@ -1763,7 +1763,7 @@ export default function AdminPage() {
                       Last sync: <span className="text-slate-200">{syncMinAgo === 0 ? 'just now' : `${syncMinAgo}m ago`}</span>
                     </p>
                     {nextSyncIn !== null && (
-                      <p className="text-[11px] text-slate-600">Next in ~{nextSyncIn}m</p>
+                      <p className="text-[12px] text-slate-600">Next in ~{nextSyncIn}m</p>
                     )}
                   </div>
                 )}
@@ -1787,12 +1787,12 @@ export default function AdminPage() {
                   <span className="text-white font-bold text-lg tabular-nums">${apifyAccount.totalUsd.toFixed(4)}</span>
                   <span className="text-slate-400 text-xs">actual spend this billing cycle</span>
                 </div>
-                <div className="text-[11px] text-slate-500">
+                <div className="text-[12px] text-slate-500">
                   {new Date(apifyAccount.billingCycleStart).toLocaleDateString([], { month: 'short', day: 'numeric' })}
                   {' – '}
                   {new Date(apifyAccount.billingCycleEnd).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}
                 </div>
-                <div className="text-[11px] text-slate-600 ml-auto">
+                <div className="text-[12px] text-slate-600 ml-auto">
                   Source: Apify /users/me/usage/monthly
                   {usageFetchedAt && <> · fetched {usageFetchedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</>}
                 </div>
@@ -1803,7 +1803,7 @@ export default function AdminPage() {
                   Apify account data unavailable — check APIFY_API_TOKEN env var.
                 </span>
                 {usageFetchedAt && (
-                  <span className="text-[11px] text-slate-600 shrink-0 ml-4">
+                  <span className="text-[12px] text-slate-600 shrink-0 ml-4">
                     Fetched {usageFetchedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </span>
                 )}
@@ -1827,8 +1827,8 @@ export default function AdminPage() {
                   <thead>
                     <tr className="border-b border-slate-800 bg-[#0d0f15]">
                       <SortHeader col="companyName" label="Tenant" />
-                      <th className="text-left text-[11px] font-semibold text-slate-500 uppercase tracking-wider px-4 py-3">Plan</th>
-                      <th className="text-left text-[11px] font-semibold text-slate-500 uppercase tracking-wider px-4 py-3">Status</th>
+                      <th className="text-left text-[12px] font-semibold text-slate-500 uppercase tracking-wider px-4 py-3">Plan</th>
+                      <th className="text-left text-[12px] font-semibold text-slate-500 uppercase tracking-wider px-4 py-3">Status</th>
                       <SortHeader col="postCount" label="Posts" right tooltip="Total posts captured in this tenant's Airtable base. Updated automatically every hour by the background sync." />
                       <SortHeader col="syncedAt"  label="Cache age" right tooltip="How long ago the hourly sync last updated this tenant's post count. Goes amber if it's been over 90 minutes — usually means a sync error." />
                       <SortHeader col="realCost"  label="Apify cost" right />
@@ -1887,7 +1887,7 @@ export default function AdminPage() {
                                 <span className="text-slate-200 text-xs tabular-nums font-semibold">
                                   ${u.realCost.toFixed(4)}
                                 </span>
-                                <span className={`text-[10px] tabular-nums ${
+                                <span className={`text-[11px] tabular-nums ${
                                   u.costSource === 'tagged'   ? 'text-green-500' :
                                   u.costSource === 'own_key'  ? 'text-blue-400'  :
                                   u.costSource === 'prorata'  ? 'text-amber-500' :
@@ -1916,7 +1916,7 @@ export default function AdminPage() {
                           {apifyAccount ? (
                             <>
                               <span className="text-white font-bold text-sm tabular-nums">${apifyAccount.totalUsd.toFixed(4)}</span>
-                              <span className="text-[10px] text-slate-500">billing cycle total</span>
+                              <span className="text-[11px] text-slate-500">billing cycle total</span>
                             </>
                           ) : (
                             <span className="text-white font-bold text-sm tabular-nums">

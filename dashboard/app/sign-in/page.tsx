@@ -261,7 +261,7 @@ function LiveFeedTicker() {
                   </div>
                   {/* Score badge */}
                   <div
-                    className="flex-shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-md"
+                    className="flex-shrink-0 text-[11px] font-bold px-1.5 py-0.5 rounded-md"
                     style={{
                       background: post.score >= 93 ? 'rgba(79,107,255,0.15)' : 'rgba(79,107,255,0.08)',
                       color:      post.score >= 93 ? '#818cf8' : '#6272b8',
@@ -374,7 +374,7 @@ export default function SignInPage() {
               className="w-1.5 h-1.5 rounded-full bg-emerald-400"
               style={{ boxShadow: '0 0 6px #34d399', animation: 'pulse 1.5s ease-in-out infinite' }}
             />
-            <span className="text-emerald-400 text-[11px] font-semibold tracking-widest uppercase">Live Intelligence Feed</span>
+            <span className="text-emerald-400 text-[12px] font-semibold tracking-widest uppercase">Live Intelligence Feed</span>
           </div>
 
           {/* Scrolling post cards */}

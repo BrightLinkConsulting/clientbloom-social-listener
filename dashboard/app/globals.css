@@ -3,6 +3,13 @@
 @tailwind utilities;
 
 /* v2 — postcss enabled */
+html {
+  /* Base font-size raised from 16px to 17px so all rem-based Tailwind
+     text utilities scale up proportionally — hierarchy is preserved,
+     nothing needs to change in individual components. */
+  font-size: 17px;
+}
+
 body {
   background-color: #0a0c10;
   color: #e2e8f0;

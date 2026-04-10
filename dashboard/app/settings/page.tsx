@@ -2036,7 +2036,7 @@ function SlackIntegrationSection() {
         <ol className="space-y-1.5">
           {SLACK_STEPS.map((step, i) => (
             <li key={i} className="flex gap-2 text-xs text-slate-500 leading-relaxed">
-              <span className="shrink-0 w-4 h-4 rounded-full bg-slate-800 border border-slate-700/50 flex items-center justify-center text-[10px] text-slate-600 mt-0.5">
+              <span className="shrink-0 w-4 h-4 rounded-full bg-slate-800 border border-slate-700/50 flex items-center justify-center text-[11px] text-slate-600 mt-0.5">
                 {i + 1}
               </span>
               {step}
@@ -2313,7 +2313,7 @@ function CRMIntegrationSection() {
               <ol className="space-y-1.5">
                 {instructions.steps.map((step, i) => (
                   <li key={i} className="flex gap-2 text-xs text-slate-500 leading-relaxed">
-                    <span className="shrink-0 w-4 h-4 rounded-full bg-slate-800 border border-slate-700/50 flex items-center justify-center text-[10px] text-slate-600 mt-0.5">
+                    <span className="shrink-0 w-4 h-4 rounded-full bg-slate-800 border border-slate-700/50 flex items-center justify-center text-[11px] text-slate-600 mt-0.5">
                       {i + 1}
                     </span>
                     {step}

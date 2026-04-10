@@ -84,7 +84,7 @@ function PlatformBadge({ platform }: { platform: string }) {
   const isLinkedIn = platform === 'LinkedIn'
   return (
     <span
-      className={`shrink-0 inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+      className={`shrink-0 inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full ${
         isLinkedIn
           ? 'bg-blue-600/20 text-blue-300 ring-1 ring-blue-500/30'
           : 'bg-indigo-600/20 text-indigo-300 ring-1 ring-indigo-500/30'
@@ -135,7 +135,7 @@ function ScoreBadge({ score }: { score: number }) {
           {/* Header row */}
           <div className="flex items-center justify-between">
             <span className={`text-xs font-semibold ${tier.text}`}>{info.label}</span>
-            <span className="text-[10px] text-slate-600">AI relevance score</span>
+            <span className="text-[11px] text-slate-600">AI relevance score</span>
           </div>
           {/* Scale */}
           <div className="flex items-center gap-1">
@@ -1152,7 +1152,7 @@ function MomentumSparkline({ history }: { history: DaySnapshot[] }) {
             <button
               key={p}
               onClick={() => { setPeriod(p); setHovered(null) }}
-              className={`text-[10px] px-2 py-0.5 rounded-full transition-colors ${
+              className={`text-[11px] px-2 py-0.5 rounded-full transition-colors ${
                 period === p
                   ? 'bg-slate-700 text-slate-200'
                   : 'text-slate-600 hover:text-slate-400'
@@ -1164,7 +1164,7 @@ function MomentumSparkline({ history }: { history: DaySnapshot[] }) {
         </div>
         <div className="flex items-center gap-2">
           {trendPct !== null && currentTotal > 0 && (
-            <span className={`text-[10px] font-medium ${
+            <span className={`text-[11px] font-medium ${
               trendPct > 5  ? 'text-emerald-400' :
               trendPct < -5 ? 'text-red-400' :
               'text-slate-500'
@@ -1173,7 +1173,7 @@ function MomentumSparkline({ history }: { history: DaySnapshot[] }) {
               <span className="text-slate-600 font-normal"> vs prev</span>
             </span>
           )}
-          <span className="text-[10px] text-slate-600">per day</span>
+          <span className="text-[11px] text-slate-600">per day</span>
         </div>
       </div>
 
@@ -1280,27 +1280,27 @@ function MomentumSparkline({ history }: { history: DaySnapshot[] }) {
             }}
           >
             <div className="bg-slate-800 border border-slate-700/80 rounded-lg px-2.5 py-1.5 shadow-xl">
-              <div className="text-[10px] text-slate-400 mb-1 whitespace-nowrap">{tooltipDate}</div>
+              <div className="text-[11px] text-slate-400 mb-1 whitespace-nowrap">{tooltipDate}</div>
               {hovered.delta === 0 ? (
-                <div className="text-[11px] text-slate-500">No activity</div>
+                <div className="text-[12px] text-slate-500">No activity</div>
               ) : (
                 <div className="space-y-0.5">
                   {hovered.engaged > 0 && (
                     <div className="flex items-center justify-between gap-3">
-                      <span className="text-[10px] text-blue-400">Engaged</span>
-                      <span className="text-[11px] font-semibold text-blue-300">{hovered.engaged}</span>
+                      <span className="text-[11px] text-blue-400">Engaged</span>
+                      <span className="text-[12px] font-semibold text-blue-300">{hovered.engaged}</span>
                     </div>
                   )}
                   {hovered.replied > 0 && (
                     <div className="flex items-center justify-between gap-3">
-                      <span className="text-[10px] text-emerald-400">Replied</span>
-                      <span className="text-[11px] font-semibold text-emerald-300">{hovered.replied}</span>
+                      <span className="text-[11px] text-emerald-400">Replied</span>
+                      <span className="text-[12px] font-semibold text-emerald-300">{hovered.replied}</span>
                     </div>
                   )}
                   {hovered.crm > 0 && (
                     <div className="flex items-center justify-between gap-3">
-                      <span className="text-[10px] text-violet-400">CRM</span>
-                      <span className="text-[11px] font-semibold text-violet-300">{hovered.crm}</span>
+                      <span className="text-[11px] text-violet-400">CRM</span>
+                      <span className="text-[12px] font-semibold text-violet-300">{hovered.crm}</span>
                     </div>
                   )}
                 </div>
@@ -1362,7 +1362,7 @@ function MomentumWidget({
         ] as const).map((stat, i) => (
           <div key={i} className="text-center py-1">
             <div className={`text-xl font-bold leading-tight ${stat.color}`}>{stat.value}</div>
-            <div className="text-[11px] text-slate-500 mt-0.5">{stat.label}</div>
+            <div className="text-[12px] text-slate-500 mt-0.5">{stat.label}</div>
           </div>
         ))}
       </div>
@@ -1376,11 +1376,11 @@ function MomentumWidget({
       </div>
 
       {totalActed === 0 ? (
-        <p className="text-[11px] text-slate-600 mt-2 leading-snug">
+        <p className="text-[12px] text-slate-600 mt-2 leading-snug">
           Engage with posts below to start building your score — every comment puts you in front of the right people.
         </p>
       ) : (
-        <p className="text-[11px] text-slate-600 mt-2 leading-snug">
+        <p className="text-[12px] text-slate-600 mt-2 leading-snug">
           {totalReplied > 0
             ? `${totalReplied} conversation${totalReplied !== 1 ? 's' : ''} started · ${totalNew} post${totalNew !== 1 ? 's' : ''} in queue`
             : `${totalEngaged} engagement${totalEngaged !== 1 ? 's' : ''} recorded · keep going — replies are where relationships begin`}

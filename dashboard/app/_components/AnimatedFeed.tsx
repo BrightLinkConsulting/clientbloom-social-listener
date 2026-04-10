@@ -159,7 +159,7 @@ export function AnimatedFeed() {
                     <span className="text-slate-500 text-xs">{post.title}</span>
                     <span className="text-slate-600 text-xs">·</span>
                     <span className="text-slate-600 text-xs">{post.platform}</span>
-                    <span className={`ml-auto text-[10px] font-medium px-1.5 py-0.5 rounded border ${post.tagColor}`}>
+                    <span className={`ml-auto text-[11px] font-medium px-1.5 py-0.5 rounded border ${post.tagColor}`}>
                       {post.tag}
                     </span>
                   </div>

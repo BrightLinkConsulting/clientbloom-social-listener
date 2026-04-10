@@ -246,7 +246,7 @@ function WelcomeContent() {
           ].map(({ step, text }) => (
             <div key={step} className="flex items-start gap-3">
               <div className="w-6 h-6 rounded-full bg-[#4F6BFF]/20 border border-[#4F6BFF]/30 flex items-center justify-center shrink-0 mt-0.5">
-                <span className="text-[10px] font-bold text-[#4F6BFF]">{step}</span>
+                <span className="text-[11px] font-bold text-[#4F6BFF]">{step}</span>
               </div>
               <p className="text-slate-300 text-sm leading-relaxed">{text}</p>
             </div>

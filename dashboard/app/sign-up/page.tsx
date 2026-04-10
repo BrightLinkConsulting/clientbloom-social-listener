@@ -182,7 +182,7 @@ function LiveFeedTicker() {
                     <span className="text-white text-xs font-semibold">{post.author}</span>
                     <span className="text-slate-600 text-xs ml-1">· {post.title}</span>
                   </div>
-                  <div className="flex-shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-md"
+                  <div className="flex-shrink-0 text-[11px] font-bold px-1.5 py-0.5 rounded-md"
                     style={{
                       background: post.score >= 93 ? 'rgba(79,107,255,0.15)' : 'rgba(79,107,255,0.08)',
                       color:      post.score >= 93 ? '#818cf8' : '#6272b8',
@@ -314,7 +314,7 @@ export default function SignUpPage() {
           <div className="flex items-center gap-2 mb-3">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"
               style={{ boxShadow: '0 0 6px #34d399', animation: 'pulse 1.5s ease-in-out infinite' }} />
-            <span className="text-emerald-400 text-[11px] font-semibold tracking-widest uppercase">Live Intelligence Feed</span>
+            <span className="text-emerald-400 text-[12px] font-semibold tracking-widest uppercase">Live Intelligence Feed</span>
           </div>
 
           <LiveFeedTicker />
