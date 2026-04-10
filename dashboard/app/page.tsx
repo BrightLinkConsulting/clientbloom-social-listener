@@ -1456,7 +1456,7 @@ function ScoutAgentPanel({
   skippedCount:      number
   topPosts:          { id: string; author: string; score: number; text: string }[]
   scoreDistribution: { high: number; mid: number; low: number }
-  onExecuteAction:   (action: AgentAction) => Promise<void>
+  onExecuteAction:   (action: AgentAction) => Promise<number>
 }) {
   const [messages,       setMessages]       = useState<AgentChatMessage[]>([])
   const [input,          setInput]          = useState('')
@@ -1510,11 +1510,22 @@ function ScoutAgentPanel({
           setPendingAction(data.action)
           setPendingReply(data.reply)
         } else {
-          // Auto-execute non-destructive actions like set_min_score
+          // Auto-execute non-confirm actions (set_min_score, etc.)
           setExecuting(true)
-          await onExecuteAction(data.action)
-          setExecuting(false)
-          setExecResult(`Done: ${data.action.summary}`)
+          try {
+            const affected = await onExecuteAction(data.action)
+            setExecResult(
+              affected > 0
+                ? `Done — ${affected} post${affected !== 1 ? 's' : ''} updated`
+                : data.action.type === 'set_min_score'
+                ? 'Done'
+                : 'No matching posts found — nothing changed'
+            )
+          } catch (err: any) {
+            setExecResult(`Failed: ${err.message || 'Unknown error'}`)
+          } finally {
+            setExecuting(false)
+          }
         }
       }
     } catch {
@@ -1526,13 +1537,18 @@ function ScoutAgentPanel({
 
   const handleConfirm = async () => {
     if (!pendingAction) return
+    const action = pendingAction
     setExecuting(true)
     setPendingAction(null)
     try {
-      await onExecuteAction(pendingAction)
-      setExecResult(`Done: ${pendingAction.summary}`)
-    } catch {
-      setExecResult('Action failed — please try again.')
+      const affected = await onExecuteAction(action)
+      setExecResult(
+        affected > 0
+          ? `Done — ${affected} post${affected !== 1 ? 's' : ''} updated`
+          : 'No matching posts found — nothing changed'
+      )
+    } catch (err: any) {
+      setExecResult(`Failed: ${err.message || 'Action failed — please try again'}`)
     } finally {
       setExecuting(false)
     }
@@ -1969,7 +1985,9 @@ function FeedPage() {
   const handleBulkAction = useCallback(async (
     action: 'skip' | 'archive' | 'restore',
     opts?: { recordIds?: string[]; filter?: { maxScore?: number; currentAction?: string } }
-  ) => {
+  ): Promise<number> => {
+    // Returns affected count on success; throws on failure (so callers — including
+    // the Scout Agent panel — can distinguish success from silent failure).
     setBulkLoading(true)
     setBulkResult(null)
     try {
@@ -1989,15 +2007,25 @@ function FeedPage() {
 
       if (data.ok) {
         setBulkResult(`${data.affected} post${data.affected !== 1 ? 's' : ''} updated`)
-        // Re-fetch to reflect changes
+        // Give Airtable a beat to propagate the writes before re-fetching counts.
+        // Sequential PATCH batches complete server-side before this point, but
+        // Airtable's meta-query (which computes tab counts) can lag by ~1–2s on
+        // large write batches if the base index hasn't caught up yet.
+        await new Promise(r => setTimeout(r, 1500))
         await fetchPosts(true)
         setSelectedIds(new Set())
         setSelectionMode(false)
+        return data.affected as number
       } else {
-        setBulkResult(`Error: ${data.error || 'Unknown error'}`)
+        const msg = data.error || 'Unknown error'
+        setBulkResult(`Error: ${msg}`)
+        throw new Error(msg)
       }
-    } catch {
-      setBulkResult('Network error — please try again')
+    } catch (e: any) {
+      if (!e.message?.startsWith('Error:')) {
+        setBulkResult('Network error — please try again')
+      }
+      throw e   // re-throw so agent panel / callers surface the real error
     } finally {
       setBulkLoading(false)
     }
@@ -2005,16 +2033,17 @@ function FeedPage() {
 
   // ── Agent action executor (called by ScoutAgentPanel) ────────────────────
 
-  const executeAgentAction = useCallback(async (agentAction: AgentAction) => {
-    if (agentAction.type === 'none' || agentAction.type === 'set_min_score') return
+  const executeAgentAction = useCallback(async (agentAction: AgentAction): Promise<number> => {
+    if (agentAction.type === 'none' || agentAction.type === 'set_min_score') return 0
     const bulkActionMap: Record<string, 'skip' | 'archive' | 'restore'> = {
       bulk_skip:    'skip',
       bulk_archive: 'archive',
       bulk_restore: 'restore',
     }
     const action = bulkActionMap[agentAction.type]
-    if (!action) return
-    await handleBulkAction(action, agentAction.filter ? { filter: agentAction.filter } : undefined)
+    if (!action) return 0
+    // Throws on failure — callers must catch to display error in agent panel
+    return await handleBulkAction(action, agentAction.filter ? { filter: agentAction.filter } : undefined)
   }, [handleBulkAction])
 
   const tabs: { id: ActionFilter; label: string }[] = [
