@@ -1,37 +1,52 @@
 /**
  * GET /api/admin/usage
  *
- * Admin-only. Returns per-tenant usage stats with REAL Apify cost data.
+ * Admin-only. Returns per-tenant usage stats with REAL Apify cost data,
+ * scan health status, role information, and service flags.
  *
  * Cost data strategy (three-tier, most accurate wins):
  *
  *   1. REAL PER-TENANT (tagged runs)
- *      Apify runs tagged with tenantId (from scan-tenant, added 2026-04-05).
+ *      Apify runs tagged with tenantId (scan.ts passes &tag={tenantId}).
  *      Query /v2/actor-runs?tag={tenantId} → sum usageTotalUsd per tenant.
- *      Most accurate — direct attribution, no estimation.
+ *      Most accurate — direct attribution.
  *
  *   2. PRO-RATA FALLBACK (pre-tagging tenants)
- *      Tenants with runs before tagging was introduced have no tagged history.
- *      Their cost = (their post count / total unattributed posts) × unattributed spend.
- *      Reasonably accurate — proportional to actual scan volume.
+ *      cost = (tenant post count / total unattributed posts) × unattributed spend.
  *
  *   3. ACCOUNT TOTAL ALWAYS SHOWN
  *      /v2/users/me/usage/monthly → exact billing cycle total.
- *      Always displayed prominently so the real number is never hidden.
  *
  * Post counts:
- *   Reads from Platform Airtable cached fields (written hourly by usage-sync cron).
- *   Falls back to live fetch for tenants with no cache yet.
+ *   Cache-first (written hourly by usage-sync cron).
+ *   Falls back to LIVE platform-base fetch for tenants with no cache yet.
+ *   No more "no_credentials" errors for shared-platform tenants.
+ *
+ * Scan health:
+ *   Fetched in one parallel pass from Scan Health table (all tenants).
+ *
+ * Service flags:
+ *   Read from Service Flags JSON field (written by /api/cron/service-check).
  */
 
 import { NextResponse } from 'next/server'
 import { getTenantConfig, tenantError } from '@/lib/tenant'
+import { escapeAirtableString } from '@/lib/airtable'
 
 const PLATFORM_TOKEN  = process.env.PLATFORM_AIRTABLE_TOKEN   || ''
 const PLATFORM_BASE   = process.env.PLATFORM_AIRTABLE_BASE_ID || ''
 const SHARED_APIFY    = process.env.APIFY_API_TOKEN            || ''
 const AIRTABLE_API    = 'https://api.airtable.com/v0'
 const APIFY_API       = 'https://api.apify.com/v2'
+
+// ── Service flag type ─────────────────────────────────────────────────────────
+
+export interface ServiceFlag {
+  code:       string
+  severity:   'critical' | 'warning' | 'info'
+  message:    string
+  detectedAt: string
+}
 
 // ── Apify helpers ─────────────────────────────────────────────────────────────
 
@@ -60,7 +75,6 @@ async function getTenantTaggedSpend(
   tenantId: string,
   cycleStart: string,
 ): Promise<number> {
-  // Query all runs tagged with this tenantId since billing cycle start
   let totalUsd = 0
   let offset: string | undefined
 
@@ -79,12 +93,10 @@ async function getTenantTaggedSpend(
       const runs: any[] = d?.data?.items || []
 
       for (const run of runs) {
-        // Only count runs within the current billing cycle
         if (cycleStart && run.startedAt < cycleStart) break
         totalUsd += run.usageTotalUsd || 0
       }
 
-      // Stop if last run is before billing cycle start (runs are desc by date)
       const last = runs[runs.length - 1]
       if (!last || (cycleStart && last.startedAt < cycleStart)) break
 
@@ -95,27 +107,30 @@ async function getTenantTaggedSpend(
   return Math.round(totalUsd * 10000) / 10000
 }
 
-// ── Airtable post-count helpers ───────────────────────────────────────────────
+// ── Live post count from shared platform base (fallback when cache is absent) ──
 
-async function liveFetch(
-  baseId: string,
-  token: string
-): Promise<{ count: number; lastScan: string | null }> {
+async function liveFetchSharedBase(tenantId: string): Promise<{ count: number; lastScan: string | null }> {
   let count = 0
   let lastScan: string | null = null
   let offset: string | undefined
-  const MAX_PAGES = 5
+
+  const now = new Date()
+  const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString()
+  const filter = encodeURIComponent(
+    `AND({Tenant ID}='${escapeAirtableString(tenantId)}',{Captured At}>='${monthStart}')`
+  )
 
   do {
-    const url = new URL(`${AIRTABLE_API}/${baseId}/Captured%20Posts`)
+    const url = new URL(`${AIRTABLE_API}/${PLATFORM_BASE}/Captured%20Posts`)
     url.searchParams.set('pageSize', '100')
     url.searchParams.set('fields[]', 'Captured At')
+    url.searchParams.set('filterByFormula', filter)
     url.searchParams.set('sort[0][field]', 'Captured At')
     url.searchParams.set('sort[0][direction]', 'desc')
     if (offset) url.searchParams.set('offset', offset)
 
     const resp = await fetch(url.toString(), {
-      headers: { Authorization: `Bearer ${token}` },
+      headers: { Authorization: `Bearer ${PLATFORM_TOKEN}` },
     })
     if (!resp.ok) throw new Error(`Airtable ${resp.status}`)
 
@@ -126,9 +141,57 @@ async function liveFetch(
       lastScan = records[0]?.fields?.['Captured At'] || null
     }
     offset = data.offset
-  } while (offset && count < MAX_PAGES * 100)
+    if (count >= 1000) break // cap for performance
+  } while (offset)
 
   return { count, lastScan }
+}
+
+// ── Scan health (single pass, all tenants) ────────────────────────────────────
+
+interface ScanHealthRow {
+  lastScanAt:     string | null
+  lastScanStatus: string | null
+  lastError:      string | null
+  lastPostsFound: number
+}
+
+async function getAllScanHealth(): Promise<Map<string, ScanHealthRow>> {
+  const map = new Map<string, ScanHealthRow>()
+  let offset: string | undefined
+
+  do {
+    const url = new URL(`${AIRTABLE_API}/${PLATFORM_BASE}/Scan%20Health`)
+    url.searchParams.set('pageSize', '100')
+    url.searchParams.set('fields[]', 'Tenant ID')
+    url.searchParams.set('fields[]', 'Last Scan At')
+    url.searchParams.set('fields[]', 'Last Scan Status')
+    url.searchParams.set('fields[]', 'Last Error')
+    url.searchParams.set('fields[]', 'Last Posts Found')
+    if (offset) url.searchParams.set('offset', offset)
+
+    try {
+      const resp = await fetch(url.toString(), {
+        headers: { Authorization: `Bearer ${PLATFORM_TOKEN}` },
+      })
+      if (!resp.ok) break
+      const data = await resp.json()
+      for (const r of data.records || []) {
+        const tid = r.fields?.['Tenant ID']
+        if (tid) {
+          map.set(tid, {
+            lastScanAt:     r.fields?.['Last Scan At']     || null,
+            lastScanStatus: r.fields?.['Last Scan Status'] || null,
+            lastError:      r.fields?.['Last Error']       || null,
+            lastPostsFound: r.fields?.['Last Posts Found'] || 0,
+          })
+        }
+      }
+      offset = data.offset
+    } catch { break }
+  } while (offset)
+
+  return map
 }
 
 // ── Main route ────────────────────────────────────────────────────────────────
@@ -144,10 +207,13 @@ export async function GET() {
   }
 
   try {
-    // ── 1. Real Apify account spend (always fetch — single fast call) ─────────
-    const apifyAccount = SHARED_APIFY ? await getApifyMonthlySpend(SHARED_APIFY) : null
+    // ── Parallel: Apify account spend + scan health ─────────────────────────
+    const [apifyAccount, scanHealthMap] = await Promise.all([
+      SHARED_APIFY ? getApifyMonthlySpend(SHARED_APIFY) : Promise.resolve(null),
+      getAllScanHealth(),
+    ])
 
-    // ── 2. Fetch all tenant records from Platform Airtable ────────────────────
+    // ── Fetch all tenant records ────────────────────────────────────────────
     const all: any[] = []
     let offset: string | undefined
 
@@ -168,77 +234,91 @@ export async function GET() {
       offset = data.offset
     } while (offset)
 
-    // Include all tenants — Owner row shows the platform master account's own scan usage
-    const payingTenants = all
-
-    // ── 3. Build usage records — post counts from cache, costs from Apify ─────
+    // ── Build per-tenant usage records ─────────────────────────────────────
     const usageRaw = await Promise.all(
-      payingTenants.map(async (r) => {
-        const base       = r.fields?.['Airtable Base ID']   || ''
-        const token      = r.fields?.['Airtable API Token'] || ''
-        const syncedAt   = r.fields?.['Usage Synced At']    || null
-        const tenantId   = r.fields?.['Tenant ID']          || ''
-        const ownApify   = r.fields?.['Apify API Key']      || ''
+      all.map(async (r) => {
+        const syncedAt    = r.fields?.['Usage Synced At'] || null
+        const tenantId    = r.fields?.['Tenant ID']       || ''
+        const ownApify    = r.fields?.['Apify API Key']   || ''
+
+        // Parse stored service flags
+        let serviceFlags: ServiceFlag[] = []
+        try {
+          const raw = r.fields?.['Service Flags'] || '[]'
+          serviceFlags = JSON.parse(raw)
+          if (!Array.isArray(serviceFlags)) serviceFlags = []
+        } catch { serviceFlags = [] }
+
+        const sh = tenantId ? scanHealthMap.get(tenantId) : null
 
         const record: {
           id: string; email: string; companyName: string; plan: string; status: string; tenantId: string
-          postCount: number | null; lastScan: string | null; estCost: number | null
-          realCost: number | null; costSource: 'tagged' | 'prorata' | 'own_key' | 'no_data'
-          syncedAt: string | null; fromCache: boolean; ownApify: boolean; error?: string
+          isAdmin: boolean; isFeedOnly: boolean; onboarded: boolean; trialEndsAt: string | null
+          postCount: number | null; lastScan: string | null; realCost: number | null
+          costSource: 'tagged' | 'prorata' | 'own_key' | 'no_data'
+          syncedAt: string | null; fromCache: boolean; ownApify: boolean
+          scanStatus: string | null; lastScanAt: string | null; lastScanError: string | null; lastPostsFound: number
+          serviceFlags: ServiceFlag[]
+          error?: string
         } = {
-          id: r.id, email: r.fields?.['Email'] || '', companyName: r.fields?.['Company Name'] || '',
-          plan: r.fields?.['Plan'] || '', status: r.fields?.['Status'] || 'Active',
-          tenantId, postCount: null, lastScan: null, estCost: null,
-          realCost: null, costSource: 'no_data', syncedAt, fromCache: false,
-          ownApify: !!ownApify,
+          id:             r.id,
+          email:          r.fields?.['Email']        || '',
+          companyName:    r.fields?.['Company Name'] || '',
+          plan:           r.fields?.['Plan']         || '',
+          status:         r.fields?.['Status']       || 'Active',
+          tenantId,
+          isAdmin:        r.fields?.['Is Admin']     ?? false,
+          isFeedOnly:     r.fields?.['Is Feed Only'] ?? false,
+          onboarded:      r.fields?.['Onboarded']    ?? false,
+          trialEndsAt:    r.fields?.['Trial Ends At'] || null,
+          postCount: null, lastScan: null, realCost: null, costSource: 'no_data',
+          syncedAt, fromCache: false, ownApify: !!ownApify,
+          scanStatus:     sh?.lastScanStatus || null,
+          lastScanAt:     sh?.lastScanAt     || null,
+          lastScanError:  sh?.lastError      || null,
+          lastPostsFound: sh?.lastPostsFound || 0,
+          serviceFlags,
         }
 
-        // Post count: cache-first
+        // Post count: cache-first, then live platform-base fetch
         const cachedCount = r.fields?.['Post Count']
         if (typeof cachedCount === 'number') {
           record.postCount = cachedCount
           record.fromCache = true
-        } else if (base && token) {
+        } else if (tenantId) {
           try {
-            const { count, lastScan } = await liveFetch(base, token)
+            const { count, lastScan } = await liveFetchSharedBase(tenantId)
             record.postCount = count
             record.lastScan  = lastScan
           } catch (e: any) {
-            record.error = e.message?.slice(0, 80)
+            record.error = `fetch_error: ${e.message?.slice(0, 60)}`
           }
-        } else if (!base || !token) {
-          record.error = 'no_credentials'
+        } else {
+          record.error = 'no_tenant_id'
         }
 
-        // Real cost: tagged runs from own Apify key, or defer to pro-rata
+        // Real cost: own Apify key wins, then tagged runs, then pro-rata
         if (ownApify && apifyAccount?.billingCycleStart) {
           try {
             const own = await getApifyMonthlySpend(ownApify)
-            if (own) {
-              record.realCost    = own.totalUsd
-              record.costSource  = 'own_key'
-            }
+            if (own) { record.realCost = own.totalUsd; record.costSource = 'own_key' }
           } catch {}
         } else if (tenantId && SHARED_APIFY && apifyAccount?.billingCycleStart) {
           const tagged = await getTenantTaggedSpend(SHARED_APIFY, tenantId, apifyAccount.billingCycleStart)
-          if (tagged > 0) {
-            record.realCost   = tagged
-            record.costSource = 'tagged'
-          }
-          // else: will be filled by pro-rata after all tenants are loaded
+          if (tagged > 0) { record.realCost = tagged; record.costSource = 'tagged' }
         }
 
         return record
       })
     )
 
-    // ── 4. Pro-rata fallback for tenants with no tagged spend yet ─────────────
+    // ── Pro-rata fallback for unattributed shared-pool tenants ──────────────
     if (apifyAccount) {
-      const sharedPoolTenants = usageRaw.filter(u => !u.ownApify)
-      const attributedSpend   = sharedPoolTenants.reduce((s, u) => s + (u.costSource === 'tagged' ? (u.realCost || 0) : 0), 0)
-      const unattributed      = Math.max(0, apifyAccount.totalUsd - usageRaw.filter(u => u.ownApify).reduce((s, u) => s + (u.realCost || 0), 0) - attributedSpend)
-
-      const proRataTenants    = sharedPoolTenants.filter(u => u.costSource === 'no_data' || u.costSource === 'prorata')
+      const sharedPool        = usageRaw.filter(u => !u.ownApify)
+      const attributedSpend   = sharedPool.reduce((s, u) => s + (u.costSource === 'tagged' ? (u.realCost || 0) : 0), 0)
+      const ownKeySpend       = usageRaw.filter(u => u.ownApify).reduce((s, u) => s + (u.realCost || 0), 0)
+      const unattributed      = Math.max(0, apifyAccount.totalUsd - ownKeySpend - attributedSpend)
+      const proRataTenants    = sharedPool.filter(u => u.costSource === 'no_data')
       const totalProRataPosts = proRataTenants.reduce((s, u) => s + (u.postCount || 0), 0)
 
       for (const u of proRataTenants) {
@@ -249,14 +329,27 @@ export async function GET() {
       }
     }
 
-    // ── 5. Sync metadata ──────────────────────────────────────────────────────
-    const syncTimes   = usageRaw.filter(u => u.syncedAt).map(u => new Date(u.syncedAt!).getTime())
+    // ── Sync metadata + service summary ────────────────────────────────────
+    const syncTimes      = usageRaw.filter(u => u.syncedAt).map(u => new Date(u.syncedAt!).getTime())
     const newestSyncedAt = syncTimes.length ? new Date(Math.max(...syncTimes)).toISOString() : null
 
+    const serviceSummary = {
+      critical: usageRaw.reduce((n, u) => n + u.serviceFlags.filter(f => f.severity === 'critical').length, 0),
+      warning:  usageRaw.reduce((n, u) => n + u.serviceFlags.filter(f => f.severity === 'warning').length, 0),
+      info:     usageRaw.reduce((n, u) => n + u.serviceFlags.filter(f => f.severity === 'info').length, 0),
+      lastChecked: all.reduce((latest: string | null, r) => {
+        const checked = r.fields?.['Service Checked At'] || null
+        if (!checked) return latest
+        if (!latest) return checked
+        return checked > latest ? checked : latest
+      }, null as string | null),
+    }
+
     return NextResponse.json({
-      usage: usageRaw,
+      usage:   usageRaw,
       newestSyncedAt,
-      apify: apifyAccount,   // { totalUsd, billingCycleStart, billingCycleEnd }
+      apify:   apifyAccount,
+      serviceSummary,
     })
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 })

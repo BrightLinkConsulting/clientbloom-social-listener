@@ -167,6 +167,7 @@ All require `Authorization: Bearer <CRON_SECRET>`. Return `401` immediately if h
 | `/api/cron/trial-check` | Every 6 hours | CRON_SECRET | Send drip emails for active trials; expire overdue trials |
 | `/api/cron/scan-watchdog` | Every 30 min :30 | CRON_SECRET | Detect tenants stuck in 'scanning' > 20 min; reset to 'success' |
 | `/api/cron/archive-posts` | 03:00 Sunday | CRON_SECRET | Archive posts older than `postHistoryDays` limit per plan |
+| `/api/cron/service-check` | Every 4 hours :00 | CRON_SECRET | Service Manager: evaluates health rules for every tenant; writes `Service Flags` + `Service Checked At` to Airtable. See [service-manager.md](./service-manager.md) for full flag reference. |
 
 **Testing cron routes locally:**
 ```bash

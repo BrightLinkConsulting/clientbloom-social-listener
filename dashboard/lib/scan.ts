@@ -65,17 +65,24 @@ export function categorizeApifyError(statusCode: number, body: string): string {
 // ── Core Apify sync runner ────────────────────────────────────────────────────
 // Returns items array on success, empty array on any failure.
 // memoryMbytes: higher memory lets actors boot faster (costs more Apify CU).
+//
+// tenantTag: when set, appended as &tag={tenantId} to the Apify run URL.
+// This enables per-tenant cost attribution in the admin Usage tab:
+// the usage route queries /v2/actor-runs?tag={tenantId} and sums usageTotalUsd.
+// Runs before 2026-04-05 (pre-tagging) fall back to pro-rata attribution.
 export async function runApifyActor(
   apifyToken: string,
   actorId: string,
   input: object,
   waitSecs = 45,
   memoryMbytes = 256,
+  tenantTag?: string,
 ): Promise<{ items: any[]; errorType: string | null }> {
   const safeActorId = actorId.replace('/', '~')
+  const tagParam    = tenantTag ? `&tag=${encodeURIComponent(tenantTag)}` : ''
   const url =
     `https://api.apify.com/v2/acts/${safeActorId}/run-sync-get-dataset-items` +
-    `?token=${apifyToken}&timeout=${waitSecs}&memory=${memoryMbytes}`
+    `?token=${apifyToken}&timeout=${waitSecs}&memory=${memoryMbytes}${tagParam}`
 
   let res: Response
   try {
@@ -117,11 +124,12 @@ export async function runApifyActorWithRetry(
   retryInput: object,
   retryOpts: { waitSecs: number; memoryMbytes: number },
   label: string,
+  tenantTag?: string,
 ): Promise<any[]> {
   console.log(`[scan] ${label}: attempt 1 (timeout=${primaryOpts.waitSecs}s, memory=${primaryOpts.memoryMbytes}MB)`)
   const first = await runApifyActor(
     apifyToken, actorId, primaryInput,
-    primaryOpts.waitSecs, primaryOpts.memoryMbytes,
+    primaryOpts.waitSecs, primaryOpts.memoryMbytes, tenantTag,
   )
 
   if (first.items.length > 0) {
@@ -139,7 +147,7 @@ export async function runApifyActorWithRetry(
   console.log(`[scan] ${label}: attempt 2 (smaller scope, timeout=${retryOpts.waitSecs}s, memory=${retryOpts.memoryMbytes}MB)`)
   const second = await runApifyActor(
     apifyToken, actorId, retryInput,
-    retryOpts.waitSecs, retryOpts.memoryMbytes,
+    retryOpts.waitSecs, retryOpts.memoryMbytes, tenantTag,
   )
 
   if (second.items.length > 0) {
@@ -358,6 +366,7 @@ async function scanLinkedIn(
   icpProfiles: string[],
   linkedinTerms: string[],
   fallbackTerm: string,
+  tenantTag?: string,         // passed through to tag Apify runs for cost attribution
 ): Promise<{ posts: any[]; source: string }> {
   if (icpProfiles.length > 0) {
     console.log(`[scan] LinkedIn: scanning ${icpProfiles.length} ICP profile(s)`)
@@ -369,6 +378,7 @@ async function scanLinkedIn(
       { profileUrls: icpProfiles.slice(0, 4), maxPosts: 5, proxy: { useApifyProxy: true }, scrapeReactions: false, scrapeComments: false },
       { waitSecs: 60, memoryMbytes: 512 },
       'LinkedIn ICP profiles',
+      tenantTag,
     )
     return { source: 'icp_profiles', posts: items.map(normalizeLinkedInIcpPost) }
   }
@@ -395,6 +405,7 @@ async function scanLinkedIn(
         { searchQuery: term, limit: 25, sort_type: 'recent' },
         { waitSecs: 60, memoryMbytes: 512 },
         `LinkedIn keyword "${term}"`,
+        tenantTag,
       ).then(items => items.map(r => normalizeLinkedInKeywordPost(r, term)))
     )
   )
@@ -488,7 +499,8 @@ export async function runScanForTenant(
     }
 
     // ── LinkedIn-only scan ───────────────────────────────────────────────────
-    const linkedinResult = await scanLinkedIn(APIFY_TOKEN, icpProfiles, linkedinTerms, fallbackTerm)
+    // Pass tenantId as tag so Apify runs are attributed to this tenant for cost tracking.
+    const linkedinResult = await scanLinkedIn(APIFY_TOKEN, icpProfiles, linkedinTerms, fallbackTerm, tenantId)
 
     let allPosts    = linkedinResult.posts
     const scanSources = linkedinResult.source || 'none'

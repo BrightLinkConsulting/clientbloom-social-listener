@@ -25,6 +25,8 @@ The `docs/` folder is the complete developer knowledge base. It covers architect
 | [`docs/linkedin-icp-pool.md`](./docs/linkedin-icp-pool.md) | Two-layer ICP model (poolSize vs scanSlots) |
 | [`docs/linkedin-keyword-search.md`](./docs/linkedin-keyword-search.md) | Keyword source management, Apify actor, deduplication |
 | [`docs/airtable-rate-limit-resilience.md`](./docs/airtable-rate-limit-resilience.md) | Rate-limit math, retry strategy, jitter |
+| [`docs/apify-integration.md`](./docs/apify-integration.md) | Apify actors, run tagging, per-tenant cost attribution, debugging |
+| [`docs/service-manager.md`](./docs/service-manager.md) | Automated customer health checks, all flag codes, Airtable schema |
 | [`docs/v2-roadmap.md`](./docs/v2-roadmap.md) | Planned v2 features |
 | [`SETUP.md`](./SETUP.md) | Local dev setup, environment variables, deploy to Vercel |
 

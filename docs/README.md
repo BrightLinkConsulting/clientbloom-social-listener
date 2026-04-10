@@ -31,6 +31,8 @@ This folder is the developer knowledge base for Scout. Start here.
 | [`linkedin-icp-pool.md`](./linkedin-icp-pool.md) | Two-layer ICP pool model (poolSize vs scanSlots), Discover ICPs, prioritization |
 | [`linkedin-keyword-search.md`](./linkedin-keyword-search.md) | Keyword source management, Apify actor, scan deduplication |
 | [`airtable-rate-limit-resilience.md`](./airtable-rate-limit-resilience.md) | Rate-limit math, `airtableFetch` retry strategy, jitter |
+| [`apify-integration.md`](./apify-integration.md) | Actor IDs, run tagging, per-tenant cost attribution, rate limits, debugging |
+| [`service-manager.md`](./service-manager.md) | Automated health checks, all flag codes and severity, Airtable schema, cron details |
 
 ### Roadmap
 | Document | What it covers |
@@ -68,6 +70,9 @@ This folder is the developer knowledge base for Scout. Start here.
 | What plan does this user have? | Check `session.user.plan` (set in `lib/auth.ts` JWT callback) |
 | How do ICP scan slots differ from pool size? | [`linkedin-icp-pool.md`](./linkedin-icp-pool.md) |
 | Full list of API routes with auth requirements | [`api-reference.md`](./api-reference.md) |
+| How does per-tenant Apify cost attribution work? | [`apify-integration.md`](./apify-integration.md) → "Per-Tenant Cost Attribution" |
+| What does a service flag mean? How do I add a new one? | [`service-manager.md`](./service-manager.md) → "Flag Reference" |
+| A paid customer has no posts — where do I look? | [`service-manager.md`](./service-manager.md) → `paid_zero_posts` flag |
 
 ---
 

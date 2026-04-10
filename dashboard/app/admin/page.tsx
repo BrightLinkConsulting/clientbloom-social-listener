@@ -90,21 +90,44 @@ interface StatsData {
   activity:       { id: string; type: string; time: number; email: string }[]
 }
 
+interface ServiceFlag {
+  code:       string
+  severity:   'critical' | 'warning' | 'info'
+  message:    string
+  detectedAt: string
+}
+
 interface UsageRecord {
-  id:          string
-  email:       string
-  companyName: string
-  plan:        string
-  status:      string
-  tenantId:    string
-  postCount:   number | null
-  lastScan:    string | null
-  realCost:    number | null
-  costSource:  'tagged' | 'prorata' | 'own_key' | 'no_data'
-  syncedAt:    string | null
-  fromCache:   boolean
-  ownApify:    boolean
-  error?:      string
+  id:             string
+  email:          string
+  companyName:    string
+  plan:           string
+  status:         string
+  tenantId:       string
+  isAdmin:        boolean
+  isFeedOnly:     boolean
+  onboarded:      boolean
+  trialEndsAt:    string | null
+  postCount:      number | null
+  lastScan:       string | null
+  realCost:       number | null
+  costSource:     'tagged' | 'prorata' | 'own_key' | 'no_data'
+  syncedAt:       string | null
+  fromCache:      boolean
+  ownApify:       boolean
+  scanStatus:     string | null
+  lastScanAt:     string | null
+  lastScanError:  string | null
+  lastPostsFound: number
+  serviceFlags:   ServiceFlag[]
+  error?:         string
+}
+
+interface ServiceSummary {
+  critical:    number
+  warning:     number
+  info:        number
+  lastChecked: string | null
 }
 
 interface ApifyAccount {
@@ -574,6 +597,7 @@ export default function AdminPage() {
   const [newestSyncedAt,   setNewestSyncedAt]   = useState<string | null>(null)
   const [usageFetchedAt,   setUsageFetchedAt]   = useState<Date | null>(null)
   const [apifyAccount,     setApifyAccount]     = useState<ApifyAccount | null>(null)
+  const [serviceSummary,   setServiceSummary]   = useState<ServiceSummary | null>(null)
   const [usageSortCol,     setUsageSortCol]     = useState<'postCount' | 'realCost' | 'companyName' | 'syncedAt'>('postCount')
   const [usageSortDir,     setUsageSortDir]     = useState<'asc' | 'desc'>('desc')
   const [loading,          setLoading]          = useState(true)
@@ -665,6 +689,7 @@ export default function AdminPage() {
         setUsageData(data.usage || [])
         setNewestSyncedAt(data.newestSyncedAt || null)
         setApifyAccount(data.apify || null)
+        setServiceSummary(data.serviceSummary || null)
         setUsageFetchedAt(new Date())
       }
     } catch {}
@@ -2008,10 +2033,11 @@ export default function AdminPage() {
             return 0
           })
 
-          // Sync freshness
-          const syncMsAgo  = newestSyncedAt ? Date.now() - new Date(newestSyncedAt).getTime() : null
-          const syncMinAgo = syncMsAgo !== null ? Math.floor(syncMsAgo / 60000) : null
-          const nextSyncIn = syncMinAgo !== null ? Math.max(0, 60 - syncMinAgo) : null
+          // Sync freshness — distinguish page load age from cron sync age
+          const syncMsAgo   = newestSyncedAt ? Date.now() - new Date(newestSyncedAt).getTime() : null
+          const syncMinAgo  = syncMsAgo !== null ? Math.floor(syncMsAgo / 60000) : null
+          const syncOverdue = syncMinAgo !== null && syncMinAgo > 75
+          const nextSyncIn  = (!syncOverdue && syncMinAgo !== null) ? Math.max(0, 60 - syncMinAgo) : null
 
           function SortHeader({ col, label, right = false, tooltip }: { col: typeof usageSortCol; label: string; right?: boolean; tooltip?: string }) {
             const active = usageSortCol === col
@@ -2038,26 +2064,91 @@ export default function AdminPage() {
             )
           }
 
+          // Plan badge helper (matches Tenants tab style)
+          function PlanBadge({ plan }: { plan: string }) {
+            const cfg: Record<string, { label: string; cls: string }> = {
+              'Scout Agency':  { label: 'Agency',        cls: 'bg-violet-900/30 text-violet-300 border-violet-800/40' },
+              'Scout Pro':     { label: 'Pro',           cls: 'bg-blue-900/30 text-blue-300 border-blue-800/40' },
+              'Scout Starter': { label: 'Starter',       cls: 'bg-indigo-900/30 text-indigo-300 border-indigo-800/40' },
+              'Trial':         { label: 'Trial',         cls: 'bg-amber-900/30 text-amber-300 border-amber-800/40' },
+              'Complimentary': { label: 'Complimentary', cls: 'bg-teal-900/30 text-teal-300 border-teal-800/40' },
+              'Owner':         { label: 'Owner',         cls: 'bg-red-900/20 text-red-400 border-red-800/40' },
+            }
+            const c = cfg[plan] || { label: plan || '—', cls: 'bg-slate-800/60 text-slate-400 border-slate-700' }
+            return <span className={`inline-flex text-[11px] font-semibold px-2 py-0.5 rounded border ${c.cls}`}>{c.label}</span>
+          }
+
+          // Role badge helper
+          function RoleBadge({ u }: { u: UsageRecord }) {
+            if (u.isAdmin) return <span className="inline-flex text-[11px] font-semibold px-2 py-0.5 rounded border bg-red-900/20 text-red-400 border-red-800/40">Super Admin</span>
+            if (u.isFeedOnly) return <span className="inline-flex text-[11px] font-semibold px-2 py-0.5 rounded border bg-amber-900/20 text-amber-400 border-amber-800/30">Feed Only</span>
+            return <span className="inline-flex text-[11px] font-semibold px-2 py-0.5 rounded border bg-emerald-900/20 text-emerald-400 border-emerald-800/30">Primary</span>
+          }
+
+          // Scan health badge
+          function ScanBadge({ u }: { u: UsageRecord }) {
+            if (!u.lastScanAt) return <span className="text-slate-600 text-xs">No scans yet</span>
+            const msAgo = Date.now() - new Date(u.lastScanAt).getTime()
+            const hAgo  = Math.floor(msAgo / 3600000)
+            const mAgo  = Math.floor(msAgo / 60000)
+            const label = hAgo > 0 ? `${hAgo}h ago` : `${mAgo}m ago`
+            const statusColor =
+              u.scanStatus === 'failed'   ? 'text-red-400' :
+              u.scanStatus === 'scanning' ? 'text-blue-400 animate-pulse' :
+              hAgo > 48                   ? 'text-amber-400' : 'text-slate-400'
+            return (
+              <div title={u.lastScanError || u.scanStatus || ''}>
+                <p className={`text-xs ${statusColor}`}>{u.scanStatus === 'scanning' ? 'Scanning…' : u.scanStatus === 'failed' ? 'Failed' : label}</p>
+                {u.lastPostsFound > 0 && <p className="text-[11px] text-slate-600">{u.lastPostsFound} posts</p>}
+              </div>
+            )
+          }
+
+          // Overall health indicator for a tenant row
+          function healthDot(u: UsageRecord): string {
+            if (!u.serviceFlags.length) return 'bg-emerald-500'
+            const sev = u.serviceFlags.map(f => f.severity)
+            if (sev.includes('critical')) return 'bg-red-500'
+            if (sev.includes('warning'))  return 'bg-amber-400'
+            return 'bg-blue-400'
+          }
+
+          // Flagged tenants for service alert banner
+          const flaggedTenants = usageData.filter(u => u.serviceFlags.some(f => f.severity === 'critical' || f.severity === 'warning'))
+
           return (
           <div className="space-y-5">
 
-            {/* Header row */}
+            {/* ── Header ──────────────────────────────────────────────────── */}
             <div className="flex items-start justify-between gap-4">
               <div>
-                <h1 className="text-xl font-semibold text-white">Usage</h1>
-                <p className="text-slate-400 text-sm mt-0.5">Per-tenant post counts and real Apify cost attribution.</p>
+                <h1 className="text-xl font-semibold text-white">Usage &amp; Service Manager</h1>
+                <p className="text-slate-400 text-sm mt-0.5">Per-tenant activity, Apify cost, scan health, and automated service flags.</p>
               </div>
               <div className="flex items-center gap-3 shrink-0 pt-1">
-                {/* Sync status badge */}
-                {newestSyncedAt && (
+                {/* Sync status — clear distinction between page fetch age and cron sync age */}
+                {newestSyncedAt ? (
                   <div className="text-right">
-                    <p className="text-xs text-slate-400">
-                      Last sync: <span className="text-slate-200">{syncMinAgo === 0 ? 'just now' : `${syncMinAgo}m ago`}</span>
+                    <p className={`text-xs ${syncOverdue ? 'text-red-400' : 'text-slate-400'}`}>
+                      Cache sync: {' '}
+                      <span className={syncOverdue ? 'font-semibold' : 'text-slate-200'}>
+                        {syncMinAgo === 0 ? 'just now' : `${syncMinAgo}m ago`}
+                        {syncOverdue ? ' — OVERDUE' : ''}
+                      </span>
                     </p>
-                    {nextSyncIn !== null && (
+                    {syncOverdue ? (
+                      <p className="text-[12px] text-red-600">Check usage-sync cron logs</p>
+                    ) : nextSyncIn !== null ? (
                       <p className="text-[12px] text-slate-600">Next in ~{nextSyncIn}m</p>
-                    )}
+                    ) : null}
                   </div>
+                ) : (
+                  <p className="text-xs text-slate-600">Cache not yet synced</p>
+                )}
+                {usageFetchedAt && (
+                  <p className="text-[11px] text-slate-700 shrink-0">
+                    Page data: {usageFetchedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </p>
                 )}
                 <button
                   onClick={fetchUsage}
@@ -2072,7 +2163,63 @@ export default function AdminPage() {
               </div>
             </div>
 
-            {/* Apify account card */}
+            {/* ── Service alert banner ─────────────────────────────────────── */}
+            {serviceSummary && (serviceSummary.critical > 0 || serviceSummary.warning > 0) && (
+              <div className={`rounded-lg border px-4 py-3 ${
+                serviceSummary.critical > 0 ? 'bg-red-900/10 border-red-800/40' : 'bg-amber-900/10 border-amber-800/40'
+              }`}>
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className={`text-sm font-semibold ${serviceSummary.critical > 0 ? 'text-red-400' : 'text-amber-400'}`}>
+                      {serviceSummary.critical > 0
+                        ? `${serviceSummary.critical} critical issue${serviceSummary.critical > 1 ? 's' : ''} need attention`
+                        : `${serviceSummary.warning} warning${serviceSummary.warning > 1 ? 's' : ''} to review`}
+                    </p>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Service Manager last ran:{' '}
+                      {serviceSummary.lastChecked
+                        ? new Date(serviceSummary.lastChecked).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+                        : 'never — trigger /api/cron/service-check to initialize'}
+                    </p>
+                  </div>
+                  <div className="text-right shrink-0">
+                    {serviceSummary.critical > 0 && <p className="text-xs text-red-400">{serviceSummary.critical} critical</p>}
+                    {serviceSummary.warning > 0  && <p className="text-xs text-amber-400">{serviceSummary.warning} warning</p>}
+                    {serviceSummary.info > 0     && <p className="text-xs text-blue-400">{serviceSummary.info} info</p>}
+                  </div>
+                </div>
+                {flaggedTenants.length > 0 && (
+                  <div className="mt-3 space-y-2">
+                    {flaggedTenants.map(u => (
+                      <div key={u.id} className="bg-[#0a0c10]/60 rounded-md px-3 py-2">
+                        <p className="text-xs text-slate-300 font-medium">{u.companyName || u.email}</p>
+                        {u.serviceFlags.filter(f => f.severity !== 'info').map((f, fi) => (
+                          <p key={fi} className={`text-[11px] mt-0.5 ${
+                            f.severity === 'critical' ? 'text-red-400' : 'text-amber-400'
+                          }`}>
+                            {f.severity === 'critical' ? '⚠ ' : '• '}{f.message}
+                          </p>
+                        ))}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ── Service Manager info strip when clean ────────────────────── */}
+            {serviceSummary && serviceSummary.critical === 0 && serviceSummary.warning === 0 && (
+              <div className="bg-emerald-900/10 border border-emerald-800/30 rounded-lg px-4 py-2.5 flex items-center justify-between">
+                <p className="text-xs text-emerald-400 font-medium">All accounts healthy — no active service flags</p>
+                <p className="text-[11px] text-slate-600">
+                  Last checked: {serviceSummary.lastChecked
+                    ? new Date(serviceSummary.lastChecked).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+                    : 'never'}
+                </p>
+              </div>
+            )}
+
+            {/* ── Apify account card ───────────────────────────────────────── */}
             {apifyAccount ? (
               <div className="bg-[#0a0c10] border border-slate-700/50 rounded-lg px-4 py-3 flex flex-wrap items-center gap-x-6 gap-y-2">
                 <div className="flex items-baseline gap-2">
@@ -2085,23 +2232,16 @@ export default function AdminPage() {
                   {new Date(apifyAccount.billingCycleEnd).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}
                 </div>
                 <div className="text-[12px] text-slate-600 ml-auto">
-                  Source: Apify /users/me/usage/monthly
-                  {usageFetchedAt && <> · fetched {usageFetchedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</>}
+                  Source: Apify /users/me/usage/monthly · live data
                 </div>
               </div>
             ) : (
-              <div className="bg-[#0a0c10] border border-slate-700/50 rounded-lg px-4 py-3 flex items-center justify-between">
-                <span className="text-xs text-slate-500">
-                  Apify account data unavailable — check APIFY_API_TOKEN env var.
-                </span>
-                {usageFetchedAt && (
-                  <span className="text-[12px] text-slate-600 shrink-0 ml-4">
-                    Fetched {usageFetchedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                  </span>
-                )}
+              <div className="bg-[#0a0c10] border border-slate-700/50 rounded-lg px-4 py-3">
+                <span className="text-xs text-slate-500">Apify account data unavailable — check APIFY_API_TOKEN env var.</span>
               </div>
             )}
 
+            {/* ── Loading skeletons ────────────────────────────────────────── */}
             {usageLoad ? (
               <div className="space-y-2">
                 {[1,2,3].map(i => (
@@ -2114,15 +2254,20 @@ export default function AdminPage() {
             ) : usageData.length === 0 ? (
               <div className="text-center py-16 text-slate-500 text-sm">No usage data loaded yet.</div>
             ) : (
+              // ── Tenant table ──────────────────────────────────────────────
               <div className="bg-[#0f1117] border border-slate-800 rounded-xl overflow-hidden">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-slate-800 bg-[#0d0f15]">
+                      <th className="w-3 px-3 py-3" /> {/* health dot */}
                       <SortHeader col="companyName" label="Tenant" />
                       <th className="text-left text-[12px] font-semibold text-slate-500 uppercase tracking-wider px-4 py-3">Plan</th>
+                      <th className="text-left text-[12px] font-semibold text-slate-500 uppercase tracking-wider px-4 py-3">Role</th>
                       <th className="text-left text-[12px] font-semibold text-slate-500 uppercase tracking-wider px-4 py-3">Status</th>
-                      <SortHeader col="postCount" label="Posts" right tooltip="Total posts captured in this tenant's Airtable base. Updated automatically every hour by the background sync." />
-                      <SortHeader col="syncedAt"  label="Cache age" right tooltip="How long ago the hourly sync last updated this tenant's post count. Goes amber if it's been over 90 minutes — usually means a sync error." />
+                      <th className="text-left text-[12px] font-semibold text-slate-500 uppercase tracking-wider px-4 py-3"
+                          title="Time and result of the last scan run">Last Scan</th>
+                      <SortHeader col="postCount" label="Posts" right tooltip="Posts captured this month. Cache updated hourly; 'live' means fetched fresh from Airtable." />
+                      <SortHeader col="syncedAt"  label="Cache" right tooltip="How long ago the hourly usage-sync cron updated this tenant's post count. Amber = stale (>90min)." />
                       <SortHeader col="realCost"  label="Apify cost" right />
                     </tr>
                   </thead>
@@ -2130,92 +2275,120 @@ export default function AdminPage() {
                     {sortedUsage.map((u, i) => {
                       const cacheAgeMs  = u.syncedAt ? Date.now() - new Date(u.syncedAt).getTime() : null
                       const cacheAgeMin = cacheAgeMs !== null ? Math.floor(cacheAgeMs / 60000) : null
-                      const stale       = cacheAgeMin !== null && cacheAgeMin > 90
+                      const cacheStale  = cacheAgeMin !== null && cacheAgeMin > 90
+                      const dot         = healthDot(u)
+                      const critFlags   = u.serviceFlags.filter(f => f.severity === 'critical' || f.severity === 'warning')
 
                       return (
-                        <tr key={u.id} className={`transition-colors hover:bg-slate-800/20 ${i < sortedUsage.length - 1 ? 'border-b border-slate-800/50' : ''}`}>
-                          <td className="px-4 py-3.5 pl-5">
-                            <p className="text-slate-200 font-medium text-sm">{u.companyName || '—'}</p>
-                            <p className="text-slate-500 text-xs mt-0.5">{u.email}</p>
-                          </td>
-                          <td className="px-4 py-3.5 text-slate-400 text-xs">{u.plan || '—'}</td>
-                          <td className="px-4 py-3.5">
-                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
-                              u.status === 'Active' ? 'bg-green-900/30 text-green-400' : 'bg-red-900/30 text-red-400'
-                            }`}>
-                              <span className={`w-1 h-1 rounded-full ${u.status === 'Active' ? 'bg-green-400' : 'bg-red-400'}`} />
-                              {u.status}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3.5 text-right">
-                            {u.error === 'no_credentials' ? (
-                              <span className="text-slate-600 text-xs">No credentials</span>
-                            ) : u.error ? (
-                              <span className="text-amber-500 text-xs" title={u.error}>Error</span>
-                            ) : u.postCount === null ? (
-                              <span className="text-slate-600 text-xs">—</span>
-                            ) : (
-                              <span className="text-slate-200 font-semibold tabular-nums">
-                                {u.postCount.toLocaleString()}
+                        <Fragment key={u.id}>
+                          <tr className={`transition-colors hover:bg-slate-800/20 ${i < sortedUsage.length - 1 && !critFlags.length ? 'border-b border-slate-800/50' : ''}`}>
+                            {/* Health dot */}
+                            <td className="pl-3 pr-1 py-3.5">
+                              <span className={`inline-block w-2 h-2 rounded-full ${dot}`} title={
+                                u.serviceFlags.length === 0 ? 'Healthy' :
+                                critFlags.map(f => f.message).join(' | ')
+                              } />
+                            </td>
+                            <td className="px-4 py-3.5 pl-2">
+                              <p className="text-slate-200 font-medium text-sm">{u.companyName || '—'}</p>
+                              <p className="text-slate-500 text-xs mt-0.5">{u.email}</p>
+                            </td>
+                            <td className="px-4 py-3.5"><PlanBadge plan={u.plan} /></td>
+                            <td className="px-4 py-3.5"><RoleBadge u={u} /></td>
+                            <td className="px-4 py-3.5">
+                              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
+                                u.status === 'Active' ? 'bg-green-900/30 text-green-400' :
+                                u.status === 'Suspended' ? 'bg-red-900/30 text-red-400' :
+                                'bg-slate-800 text-slate-400'
+                              }`}>
+                                <span className={`w-1 h-1 rounded-full ${u.status === 'Active' ? 'bg-green-400' : u.status === 'Suspended' ? 'bg-red-400' : 'bg-slate-500'}`} />
+                                {u.status === 'trial_expired' ? 'Expired' : u.status}
                               </span>
-                            )}
-                          </td>
-                          <td className="px-4 py-3.5 text-right">
-                            {u.syncedAt ? (
-                              <span className={`text-xs tabular-nums ${stale ? 'text-amber-400' : 'text-slate-500'}`}
-                                title={new Date(u.syncedAt).toLocaleString()}>
-                                {cacheAgeMin === 0 ? 'just now' : `${cacheAgeMin}m ago`}
-                                {stale && ' ⚠'}
-                              </span>
-                            ) : (
-                              <span className="text-slate-700 text-xs">live</span>
-                            )}
-                          </td>
-                          <td className="px-4 py-3.5 pr-5 text-right">
-                            {u.realCost === null ? (
-                              <span className="text-slate-600 text-xs">—</span>
-                            ) : (
-                              <div className="flex flex-col items-end gap-0.5">
-                                <span className="text-slate-200 text-xs tabular-nums font-semibold">
-                                  ${u.realCost.toFixed(4)}
+                            </td>
+                            <td className="px-4 py-3.5"><ScanBadge u={u} /></td>
+                            <td className="px-4 py-3.5 text-right">
+                              {u.error ? (
+                                <span className="text-amber-500 text-xs" title={u.error}>
+                                  {u.error.startsWith('fetch_error') ? 'Fetch error' : u.error}
                                 </span>
-                                <span className={`text-[11px] tabular-nums ${
-                                  u.costSource === 'tagged'   ? 'text-green-500' :
-                                  u.costSource === 'own_key'  ? 'text-blue-400'  :
-                                  u.costSource === 'prorata'  ? 'text-amber-500' :
-                                  'text-slate-600'
-                                }`}>
-                                  {u.costSource === 'tagged'  ? 'exact' :
-                                   u.costSource === 'own_key' ? 'own key' :
-                                   u.costSource === 'prorata' ? 'pro-rata' : ''}
+                              ) : u.postCount === null ? (
+                                <span className="text-slate-600 text-xs">—</span>
+                              ) : (
+                                <div>
+                                  <span className="text-slate-200 font-semibold tabular-nums">{u.postCount.toLocaleString()}</span>
+                                  {!u.fromCache && <p className="text-[11px] text-slate-600">live</p>}
+                                </div>
+                              )}
+                            </td>
+                            <td className="px-4 py-3.5 text-right">
+                              {u.syncedAt ? (
+                                <span className={`text-xs tabular-nums ${cacheStale ? 'text-amber-400' : 'text-slate-500'}`}
+                                  title={new Date(u.syncedAt).toLocaleString()}>
+                                  {cacheAgeMin === 0 ? 'just now' : `${cacheAgeMin}m ago`}
+                                  {cacheStale && ' ⚠'}
                                 </span>
-                              </div>
-                            )}
-                          </td>
-                        </tr>
+                              ) : (
+                                <span className="text-slate-700 text-xs">live</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-3.5 pr-5 text-right">
+                              {u.realCost === null ? (
+                                <span className="text-slate-600 text-xs">—</span>
+                              ) : (
+                                <div className="flex flex-col items-end gap-0.5">
+                                  <span className="text-slate-200 text-xs tabular-nums font-semibold">${u.realCost.toFixed(4)}</span>
+                                  <span className={`text-[11px] ${
+                                    u.costSource === 'tagged'  ? 'text-green-500' :
+                                    u.costSource === 'own_key' ? 'text-blue-400'  :
+                                    u.costSource === 'prorata' ? 'text-amber-500' : 'text-slate-600'
+                                  }`}>
+                                    {u.costSource === 'tagged' ? 'exact' : u.costSource === 'own_key' ? 'own key' : u.costSource === 'prorata' ? 'pro-rata' : ''}
+                                  </span>
+                                </div>
+                              )}
+                            </td>
+                          </tr>
+                          {/* Inline service flags for flagged rows */}
+                          {critFlags.length > 0 && (
+                            <tr className={`${i < sortedUsage.length - 1 ? 'border-b border-slate-800/50' : ''}`}>
+                              <td />
+                              <td colSpan={8} className="px-4 pb-2.5 pt-0">
+                                <div className="flex flex-wrap gap-2">
+                                  {critFlags.map((f, fi) => (
+                                    <span key={fi} className={`text-[11px] px-2 py-0.5 rounded border ${
+                                      f.severity === 'critical'
+                                        ? 'bg-red-900/20 text-red-400 border-red-800/40'
+                                        : 'bg-amber-900/20 text-amber-400 border-amber-800/30'
+                                    }`}>
+                                      {f.severity === 'critical' ? '⚠ ' : '• '}{f.message}
+                                    </span>
+                                  ))}
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </Fragment>
                       )
                     })}
                   </tbody>
                   <tfoot>
                     <tr className="border-t border-slate-700 bg-[#0d0f15]">
-                      <td colSpan={3} className="px-5 py-3 text-xs text-slate-500 font-semibold uppercase tracking-wider">Totals</td>
+                      <td colSpan={6} className="px-5 py-3 text-xs text-slate-500 font-semibold uppercase tracking-wider">Totals</td>
                       <td className="px-4 py-3 text-right text-white font-bold text-sm tabular-nums">
                         {usageData.reduce((s, u) => s + (u.postCount || 0), 0).toLocaleString()}
                       </td>
                       <td className="px-4 py-3" />
                       <td className="px-5 py-3 text-right">
-                        <div className="flex flex-col items-end gap-0.5">
-                          {apifyAccount ? (
-                            <>
-                              <span className="text-white font-bold text-sm tabular-nums">${apifyAccount.totalUsd.toFixed(4)}</span>
-                              <span className="text-[11px] text-slate-500">billing cycle total</span>
-                            </>
-                          ) : (
-                            <span className="text-white font-bold text-sm tabular-nums">
-                              ${usageData.reduce((s, u) => s + (u.realCost || 0), 0).toFixed(4)}
-                            </span>
-                          )}
-                        </div>
+                        {apifyAccount ? (
+                          <div className="flex flex-col items-end gap-0.5">
+                            <span className="text-white font-bold text-sm tabular-nums">${apifyAccount.totalUsd.toFixed(4)}</span>
+                            <span className="text-[11px] text-slate-500">billing cycle total</span>
+                          </div>
+                        ) : (
+                          <span className="text-white font-bold text-sm tabular-nums">
+                            ${usageData.reduce((s, u) => s + (u.realCost || 0), 0).toFixed(4)}
+                          </span>
+                        )}
                       </td>
                     </tr>
                   </tfoot>
