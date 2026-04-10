@@ -144,7 +144,7 @@ export async function POST(req: Request) {
             <tr style="border-bottom:1px solid #eee">
               <td style="padding:10px 0;color:#888;width:120px">Login URL</td>
               <td style="padding:10px 0">
-                <a href="${BASE_URL_SITE}/sign-in" style="color:#4F6BFF;text-decoration:none">${BASE_URL_SITE}/sign-in</a>
+                <a href="${BASE_URL_SITE}/sign-in" style="color:#7C3AED;text-decoration:none">${BASE_URL_SITE}/sign-in</a>
               </td>
             </tr>
             <tr style="border-bottom:1px solid #eee">
