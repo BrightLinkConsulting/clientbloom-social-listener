@@ -588,6 +588,12 @@ export default function AdminPage() {
   const [openMenuId,       setOpenMenuId]       = useState<string | null>(null)
   const [menuAnchor,       setMenuAnchor]       = useState<{ top: number; right: number } | null>(null)
 
+  // Tenant list — sort + trial urgency filter
+  type TenantSortCol = 'company' | 'plan' | 'role' | 'status' | 'trialLeft' | 'created'
+  const [sortCol,      setSortCol]      = useState<TenantSortCol>('created')
+  const [sortDir,      setSortDir]      = useState<'asc' | 'desc'>('desc')
+  const [filterTrial,  setFilterTrial]  = useState<'all' | 'urgent' | 'checkin' | 'new' | 'trial-expired'>('all')
+
   // Task 1: Inline company name editing
   const [editingCompanyId,  setEditingCompanyId]  = useState<string | null>(null)
   const [editingCompanyVal, setEditingCompanyVal] = useState('')
@@ -1447,7 +1453,7 @@ export default function AdminPage() {
                   <option value="Owner">Owner</option>
                 </select>
 
-                {/* Status filter */}
+                {/* Account status filter */}
                 <select
                   value={filterStatus}
                   onChange={e => setFilterStatus(e.target.value)}
@@ -1455,13 +1461,45 @@ export default function AdminPage() {
                 >
                   <option value="all">All statuses</option>
                   <option value="Active">Active</option>
-                  <option value="Suspended">Suspended</option>
+                  <option value="Suspended">Suspended (manually disabled)</option>
+                </select>
+
+                {/* Trial urgency filter */}
+                <select
+                  value={filterTrial}
+                  onChange={e => setFilterTrial(e.target.value as typeof filterTrial)}
+                  className="bg-[#0f1117] border border-slate-700/60 rounded-lg px-3 py-2 text-sm text-slate-300 focus:outline-none focus:border-[#4F6BFF]/60"
+                >
+                  <option value="all">All trial stages</option>
+                  <option value="urgent">🔴 Urgent (0–3 days left)</option>
+                  <option value="checkin">🟡 Check in (4–5 days left)</option>
+                  <option value="new">🟢 Just started (6–7 days left)</option>
+                  <option value="trial-expired">⚫ Trial expired</option>
+                </select>
+
+                {/* Sort selector — mobile-friendly fallback when headers aren't visible */}
+                <select
+                  value={`${sortCol}-${sortDir}`}
+                  onChange={e => {
+                    const [col, dir] = e.target.value.split('-')
+                    setSortCol(col as TenantSortCol)
+                    setSortDir(dir as 'asc' | 'desc')
+                  }}
+                  className="bg-[#0f1117] border border-slate-700/60 rounded-lg px-3 py-2 text-sm text-slate-300 focus:outline-none focus:border-[#4F6BFF]/60"
+                >
+                  <option value="created-desc">Sort: Newest first</option>
+                  <option value="created-asc">Sort: Oldest first</option>
+                  <option value="company-asc">Sort: A → Z</option>
+                  <option value="company-desc">Sort: Z → A</option>
+                  <option value="plan-asc">Sort: Plan (A–Z)</option>
+                  <option value="trialLeft-asc">Sort: Trial expiring soonest</option>
+                  <option value="status-asc">Sort: Status</option>
                 </select>
 
                 {/* Clear filters */}
-                {(searchQuery || filterPlan !== 'all' || filterStatus !== 'all') && (
+                {(searchQuery || filterPlan !== 'all' || filterStatus !== 'all' || filterTrial !== 'all') && (
                   <button
-                    onClick={() => { setSearchQuery(''); setFilterPlan('all'); setFilterStatus('all') }}
+                    onClick={() => { setSearchQuery(''); setFilterPlan('all'); setFilterStatus('all'); setFilterTrial('all') }}
                     className="text-xs text-slate-500 hover:text-slate-300 transition-colors flex items-center gap-1"
                   >
                     <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -1481,72 +1519,176 @@ export default function AdminPage() {
                 <p className="text-slate-400 text-sm">No tenants yet.</p>
               </div>
             ) : (() => {
+              const now = Date.now()
               const q = searchQuery.toLowerCase()
+
+              // ── Trial urgency helper ─────────────────────────────────────────
+              function trialDaysLeft(t: Tenant): number | null {
+                if (!t.trialEndsAt) return null
+                return Math.floor((new Date(t.trialEndsAt).getTime() - now) / 86_400_000)
+              }
+
+              // ── Filter pass ──────────────────────────────────────────────────
               const filtered = tenants.filter(t => {
                 const matchesSearch = !q
                   || t.companyName?.toLowerCase().includes(q)
                   || t.email?.toLowerCase().includes(q)
                 const matchesPlan   = filterPlan   === 'all' || t.plan === filterPlan
                 const matchesStatus = filterStatus === 'all' || t.status === filterStatus
-                return matchesSearch && matchesPlan && matchesStatus
-              })
-              // Build account groups: owner rows with their members nested below
-              // Group by tenantId — owner is isFeedOnly=false, members are isFeedOnly=true
-              const groups: { owner: Tenant; members: Tenant[] }[] = []
-              const orphans: Tenant[] = []
-              const seenOwners = new Map<string, Tenant>()
 
-              // First pass: find all owners
-              filtered.forEach(t => {
-                if (!t.isFeedOnly && t.tenantId) {
-                  seenOwners.set(t.tenantId, t)
-                  groups.push({ owner: t, members: [] })
+                // Trial urgency filter — only applies to Trial plan accounts
+                let matchesTrial = true
+                if (filterTrial !== 'all') {
+                  const days = trialDaysLeft(t)
+                  if (filterTrial === 'trial-expired') {
+                    matchesTrial = days !== null && days < 0
+                  } else if (filterTrial === 'urgent') {
+                    matchesTrial = days !== null && days >= 0 && days <= 3
+                  } else if (filterTrial === 'checkin') {
+                    matchesTrial = days !== null && days >= 4 && days <= 5
+                  } else if (filterTrial === 'new') {
+                    matchesTrial = days !== null && days >= 6
+                  }
                 }
-              })
-              // Second pass: attach members to their owner
-              filtered.forEach(t => {
-                if (t.isFeedOnly) {
-                  const group = groups.find(g => g.owner.tenantId === t.tenantId)
-                  if (group) group.members.push(t)
-                  else orphans.push(t) // member whose owner is filtered out
-                }
-              })
-              // Tenants with no tenantId at all (legacy / admin records)
-              filtered.forEach(t => {
-                if (!t.tenantId && !t.isFeedOnly && !seenOwners.has(t.tenantId)) {
-                  orphans.push(t)
-                }
+                return matchesSearch && matchesPlan && matchesStatus && matchesTrial
               })
 
-              // Flatten to ordered rows with a flag for rendering
+              // ── Sort pass ────────────────────────────────────────────────────
+              function roleWeight(t: Tenant) {
+                if (t.isAdmin)     return 0  // Super Admin first
+                if (!t.isFeedOnly) return 1  // Primary
+                return 2                      // Feed Only / Member
+              }
+
+              const sorted = [...filtered].sort((a, b) => {
+                let av: number | string, bv: number | string
+                switch (sortCol) {
+                  case 'company':
+                    av = (a.companyName || a.email || '').toLowerCase()
+                    bv = (b.companyName || b.email || '').toLowerCase()
+                    break
+                  case 'plan':
+                    av = a.plan || ''
+                    bv = b.plan || ''
+                    break
+                  case 'role':
+                    av = roleWeight(a)
+                    bv = roleWeight(b)
+                    break
+                  case 'status':
+                    av = a.status || ''
+                    bv = b.status || ''
+                    break
+                  case 'trialLeft':
+                    // Sort by trial expiry: soonest first; no-trial accounts last
+                    av = a.trialEndsAt ? new Date(a.trialEndsAt).getTime() : Infinity
+                    bv = b.trialEndsAt ? new Date(b.trialEndsAt).getTime() : Infinity
+                    break
+                  case 'created':
+                  default:
+                    av = a.createdAt ? new Date(a.createdAt).getTime() : 0
+                    bv = b.createdAt ? new Date(b.createdAt).getTime() : 0
+                    break
+                }
+                if (av < bv) return sortDir === 'asc' ? -1 : 1
+                if (av > bv) return sortDir === 'asc' ? 1 : -1
+                return 0
+              })
+
+              // ── Grouping: only nest accounts that SHARE a tenantId ──────────
+              // If an account is the only one with its tenantId, it renders flat
+              // regardless of isFeedOnly state — this prevents the "jump to bottom"
+              // bug when feed-only is toggled on a standalone account.
+              const tenantIdCounts = new Map<string, number>()
+              sorted.forEach(t => {
+                if (t.tenantId) tenantIdCounts.set(t.tenantId, (tenantIdCounts.get(t.tenantId) || 0) + 1)
+              })
+              // tenantIds with more than one record = true workspace member groups
+              const sharedTenantIds = new Set(
+                Array.from(tenantIdCounts.entries()).filter(([, c]) => c > 1).map(([id]) => id)
+              )
+
               type TableRow =
+                | { kind: 'standalone'; tenant: Tenant }
                 | { kind: 'owner'; tenant: Tenant; hasMembers: boolean }
                 | { kind: 'member'; tenant: Tenant; ownerEmail: string; ownerCompanyName: string; isLast: boolean }
-                | { kind: 'orphan'; tenant: Tenant }
 
               const rows: TableRow[] = []
-              groups.forEach(g => {
-                rows.push({ kind: 'owner', tenant: g.owner, hasMembers: g.members.length > 0 })
-                g.members.forEach((m, mi) => {
-                  rows.push({ kind: 'member', tenant: m, ownerEmail: g.owner.email, ownerCompanyName: g.owner.companyName, isLast: mi === g.members.length - 1 })
-                })
+              const renderedIds = new Set<string>()
+
+              sorted.forEach(t => {
+                if (renderedIds.has(t.id)) return
+
+                const isShared = t.tenantId && sharedTenantIds.has(t.tenantId)
+                if (!isShared) {
+                  // Standalone — render flat regardless of isFeedOnly
+                  rows.push({ kind: 'standalone', tenant: t })
+                  renderedIds.add(t.id)
+                } else if (!t.isFeedOnly) {
+                  // Owner of a shared workspace — gather its members
+                  const members = sorted.filter(m => m.tenantId === t.tenantId && m.isFeedOnly && m.id !== t.id)
+                  rows.push({ kind: 'owner', tenant: t, hasMembers: members.length > 0 })
+                  renderedIds.add(t.id)
+                  members.forEach((m, mi) => {
+                    rows.push({ kind: 'member', tenant: m, ownerEmail: t.email, ownerCompanyName: t.companyName, isLast: mi === members.length - 1 })
+                    renderedIds.add(m.id)
+                  })
+                }
+                // isFeedOnly members in a shared group are handled above when their owner is processed
               })
-              orphans.forEach(t => rows.push({ kind: 'orphan', tenant: t }))
+
+              // Clickable sort column header
+              function SortTh({ col, label, right = false }: { col: TenantSortCol; label: string; right?: boolean }) {
+                const active = sortCol === col
+                return (
+                  <th
+                    onClick={() => {
+                      if (sortCol === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+                      else { setSortCol(col); setSortDir('asc') }
+                    }}
+                    className={`${right ? 'text-right px-6' : 'text-left px-4'} py-3.5 text-[12px] font-semibold uppercase tracking-wider cursor-pointer select-none transition-colors ${
+                      active ? 'text-[#4F6BFF]' : 'text-slate-500 hover:text-slate-300'
+                    }`}
+                  >
+                    <span className="inline-flex items-center gap-1">
+                      {label}
+                      <span className={`text-[10px] ${active ? 'text-[#4F6BFF]' : 'text-slate-600'}`}>
+                        {active ? (sortDir === 'asc' ? '↑' : '↓') : '⇅'}
+                      </span>
+                    </span>
+                  </th>
+                )
+              }
 
               return (
               <div className="overflow-x-auto">
               <div className="bg-[#0f1117] border border-slate-800 rounded-xl overflow-hidden min-w-[640px]">
+                {/* Result count + active filter summary */}
+                {(filterTrial !== 'all' || filterPlan !== 'all' || filterStatus !== 'all' || searchQuery) && (
+                  <div className="px-4 py-2 border-b border-slate-800/60 text-xs text-slate-500 flex items-center gap-2">
+                    <span className="text-slate-400 font-medium">{rows.length}</span> account{rows.length !== 1 ? 's' : ''} match your filters
+                    {filterTrial !== 'all' && <span className="px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700">
+                      {filterTrial === 'urgent' ? '🔴 Urgent' : filterTrial === 'checkin' ? '🟡 Check in' : filterTrial === 'new' ? '🟢 Just started' : '⚫ Expired'}
+                    </span>}
+                  </div>
+                )}
                 {filtered.length === 0 ? (
                   <div className="text-center py-10 text-slate-500 text-sm">No tenants match your filters.</div>
                 ) : (
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-slate-800/80 bg-[#0d0f15]">
-                      <th className="text-left text-[12px] font-semibold text-slate-500 uppercase tracking-wider px-6 py-3.5">Account</th>
+                      <th className="text-left text-[12px] font-semibold text-slate-500 uppercase tracking-wider px-6 py-3.5 cursor-pointer select-none hover:text-slate-300 transition-colors"
+                          onClick={() => { if (sortCol === 'company') setSortDir(d => d === 'asc' ? 'desc' : 'asc'); else { setSortCol('company'); setSortDir('asc') } }}>
+                        <span className="inline-flex items-center gap-1">
+                          Account <span className={`text-[10px] ${sortCol === 'company' ? 'text-[#4F6BFF]' : 'text-slate-600'}`}>{sortCol === 'company' ? (sortDir === 'asc' ? '↑' : '↓') : '⇅'}</span>
+                        </span>
+                      </th>
                       <th className="text-left text-[12px] font-semibold text-slate-500 uppercase tracking-wider px-4 py-3.5">Email</th>
-                      <th className="text-left text-[12px] font-semibold text-slate-500 uppercase tracking-wider px-4 py-3.5">Plan</th>
-                      <th className="text-left text-[12px] font-semibold text-slate-500 uppercase tracking-wider px-4 py-3.5">Role</th>
-                      <th className="text-left text-[12px] font-semibold text-slate-500 uppercase tracking-wider px-4 py-3.5">Status</th>
+                      <SortTh col="plan"      label="Plan" />
+                      <SortTh col="role"      label="Role" />
+                      <SortTh col="status"    label="Status" />
+                      <SortTh col="trialLeft" label="Trial" />
                       <th className="text-right text-[12px] font-semibold text-slate-500 uppercase tracking-wider px-6 py-3.5">Actions</th>
                     </tr>
                   </thead>
@@ -1555,6 +1697,10 @@ export default function AdminPage() {
                       const t = row.tenant
                       const isMember = row.kind === 'member'
                       const isLastRow = i === rows.length - 1
+                      // Inline trial badge for the Trial column cell
+                      const trialMs = t.trialEndsAt ? new Date(t.trialEndsAt).getTime() - now : null
+                      const trialDays = trialMs !== null ? Math.floor(trialMs / 86_400_000) : null
+                      const trialHrs  = trialMs !== null ? Math.floor((trialMs % 86_400_000) / 3_600_000) : 0
                       return (
                       <Fragment key={t.id}>
                         <tr className={`group transition-colors ${
@@ -1667,8 +1813,27 @@ export default function AdminPage() {
                                 : 'bg-red-900/20 text-red-400 border border-red-800/30'
                             }`}>
                               <span className={`w-1.5 h-1.5 rounded-full ${t.status === 'Active' ? 'bg-emerald-400' : 'bg-red-400'}`} />
-                              {t.status}
+                              {t.status === 'Active' ? 'Active' : 'Suspended'}
                             </span>
+                          </td>
+
+                          {/* Trial countdown — shown for Trial plan only */}
+                          <td className="px-4 py-4">
+                            {trialMs === null ? (
+                              <span className="text-slate-700 text-xs">—</span>
+                            ) : trialMs <= 0 ? (
+                              <span className="inline-flex items-center text-[11px] bg-red-900/30 text-red-400 px-2 py-0.5 rounded font-medium border border-red-800/30">Expired</span>
+                            ) : (
+                              <span className={`inline-flex items-center text-[11px] px-2 py-0.5 rounded font-medium border ${
+                                trialDays! <= 3
+                                  ? 'bg-red-900/30 text-red-400 border-red-800/30'
+                                  : trialDays! <= 5
+                                    ? 'bg-amber-900/30 text-amber-400 border-amber-800/30'
+                                    : 'bg-emerald-900/30 text-emerald-400 border-emerald-800/30'
+                              }`}>
+                                {trialDays === 0 ? `${trialHrs}h left` : `${trialDays}d ${trialHrs}h`}
+                              </span>
+                            )}
                           </td>
 
                           {/* Actions — compact: 2 icon toggles + ⋮ overflow menu */}
