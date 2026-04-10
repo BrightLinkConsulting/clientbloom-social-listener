@@ -239,6 +239,56 @@ Trial accounts get 1 scan/day, 10 ICP profiles in pool, 3 keywords, and 10 total
 Discover ICPs is not available on trial.
 When the trial expires, the account is suspended until a plan is selected.
 
+── ENGAGEMENT MOMENTUM WIDGET ────────────────────────
+The Engagement Momentum widget appears at the top of the feed (above the post list). It tracks how consistently the user is engaging with their pipeline over time.
+
+WHAT THE STATS MEAN:
+  Surfaced  — Total posts ever shown to you (Inbox + Engaged + Replied + Skipped + CRM). Archived posts are excluded from this count.
+  Engaged   — Posts you have marked as Engaged in Scout.
+  Replied   — Posts where you clicked "They Replied" (meaning the conversation got a response on LinkedIn).
+  Rate      — Engagement rate: (Engaged + Replied + CRM) ÷ Surfaced × 100%. A rate above 20% is highlighted green.
+
+MOMENTUM TIERS (top-right label):
+  "Ready to engage"  — Score 0-9   (just getting started, no significant engagement yet)
+  "Getting started"  — Score 10-34 (beginning to engage, keep going)
+  "Building momentum"— Score 35-69 (consistent engagement underway)
+  "Strong momentum"  — Score 70+   (high engagement rate, replies generating)
+
+The score formula weighs Replied posts twice as heavily as Engaged, since a reply means the conversation actually went somewhere.
+
+STREAK INDICATOR (below the progress bar):
+Amber dots show consecutive days of engagement activity. Each dot = one active day, up to 7 dots ("+N" shown if streak > 7). When there is no current streak but recent activity exists, it shows "Active N of last 7 days" instead.
+
+"Consistency = credibility" — this message reinforces why daily engagement matters. LinkedIn's algorithm rewards accounts that show up regularly, not accounts that engage in occasional bursts.
+
+SPARKLINE CHART (bottom of widget):
+The bar chart shows daily engagement activity. Toggle between 7D, 14D, or 30D views. Taller bars = more engagement that day. Today's bar is violet/purple. The peak bar is green. Hover any bar to see a breakdown of Engaged / Replied / CRM actions for that day.
+
+The "X/Y active" counter in the chart header shows how many days in the selected window had any engagement activity:
+  Green  — 60%+ of days active (strong consistency)
+  Gray   — 30–59% of days active (moderate)
+  Dark   — under 30% of days active (needs more consistency)
+
+The trend arrow (↑ or ↓) compares the current period's total activity against the previous period of the same length. It only shows when there is enough historical data to compare.
+
+"AS OF" TIMESTAMP:
+The "· as of H:MM AM" label next to the widget title shows when the post data was last refreshed. It updates every 5 minutes automatically.
+
+HOW DATA IS STORED:
+Daily engagement snapshots are written to the Business Profile record in Airtable. The widget builds the chart from up to 30 days of history. This history starts accumulating from the user's first session — no historical data before Scout activation is available.
+
+WHY THE CHART MIGHT LOOK EMPTY:
+  - If the user just signed up today, there is no prior history to display yet.
+  - If the user has been on Scout for several days but hasn't engaged with any posts, the bars will be at minimum height (indicating no activity).
+  - The chart requires at least one session's worth of data to begin populating.
+
+ENGAGEMENT RATE AND WHAT'S NORMAL:
+  2% rate — Very new account or mostly skipping posts. Normal for the first few days.
+  5-15%  — Selective engagement, steady approach.
+  20%+   — Highlighted green, meaning strong engagement relative to what's been surfaced.
+
+Skipped posts count in the Surfaced denominator — if the user bulk-skipped 200 low-score posts, those inflate the denominator and lower the Rate. This is intentional: rate reflects what you did with the full opportunity set.
+
 ── SUPPORT ───────────────────────────────────────────
 For issues not covered by Scout Agent: email support at info@clientbloom.ai
 
