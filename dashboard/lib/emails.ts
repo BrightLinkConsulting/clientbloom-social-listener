@@ -774,3 +774,163 @@ export function buildTrialDayEmail(
     default: return null
   }
 }
+
+// ── Service Flag Email (customer-facing) ──────────────────────────────────────
+
+/**
+ * Per-flag content: subject line fragment, heading, body copy, and CTA.
+ * All action links are relative to appUrl — the caller must supply the full base URL.
+ */
+const FLAG_CONTENT: Record<string, {
+  subjectFragment: string
+  heading:         string
+  body:            string
+  ctaLabel:        string
+  ctaPath:         string
+  color:           string
+}> = {
+  nothing_to_scan: {
+    subjectFragment: 'Scout isn\'t scanning yet',
+    heading:         'Your account isn\'t set up to scan anything yet',
+    body:            'Scout is active on your account, but there are no LinkedIn profiles or keyword topics configured. Without a source to monitor, every scan will return empty. It only takes two minutes to point Scout at your ideal clients.',
+    ctaLabel:        'Add your first ICP or keyword →',
+    ctaPath:         '/settings',
+    color:           '#f59e0b',
+  },
+  paid_zero_posts: {
+    subjectFragment: 'Scout isn\'t finding content',
+    heading:         'Your scans are running but not capturing any posts',
+    body:            'Your plan is active and scans are completing, but no LinkedIn posts have been captured this month. This usually means your ICP profile URLs need refreshing or your keyword topics are too narrow. A quick settings review typically fixes it.',
+    ctaLabel:        'Review your settings →',
+    ctaPath:         '/settings',
+    color:           '#f59e0b',
+  },
+  scan_failed: {
+    subjectFragment: 'your last scan hit an error',
+    heading:         'Your last scan encountered an error',
+    body:            'Something went wrong during your scheduled scan. Our system has already logged the issue and will retry automatically on the next run (within a few hours). Most scan errors are temporary and resolve on their own. If this continues beyond 24 hours, reply to this email and we\'ll look into it directly.',
+    ctaLabel:        'View your dashboard →',
+    ctaPath:         '/dashboard',
+    color:           '#ef4444',
+  },
+  paid_no_scan_48h: {
+    subjectFragment: 'scans haven\'t run in 2 days',
+    heading:         'Scout hasn\'t scanned your account in over 48 hours',
+    body:            'Your paid account\'s scheduled scans haven\'t completed successfully in more than two days. This means you may be missing LinkedIn conversations your ideal clients are having right now. We\'re looking into this and will follow up, but if you\'re seeing anything unusual in your dashboard, reply here and we\'ll prioritize it.',
+    ctaLabel:        'View your dashboard →',
+    ctaPath:         '/dashboard',
+    color:           '#ef4444',
+  },
+  trial_no_setup: {
+    subjectFragment: 'get more from your Scout trial',
+    heading:         'Your trial is running — but Scout isn\'t scanning anything yet',
+    body:            'Your trial account has been active for over a day, but you haven\'t added any LinkedIn profiles or keywords to monitor. Your trial window is short and we\'d hate for you to reach day 7 without having seen what Scout can actually do. Setup takes about two minutes.',
+    ctaLabel:        'Set up Scout now →',
+    ctaPath:         '/settings',
+    color:           '#7C3AED',
+  },
+  paid_no_scan_ever: {
+    subjectFragment: 'let\'s run your first scan',
+    heading:         'Your account is ready — let\'s run your first scan',
+    body:            'Your subscription is active but we haven\'t run a scan for your account yet. If you\'ve already added your ICP profiles and keywords, your first scan should trigger within the next scheduled window. If you haven\'t set up your sources yet, it takes about two minutes.',
+    ctaLabel:        'Go to your dashboard →',
+    ctaPath:         '/dashboard',
+    color:           '#4F6BFF',
+  },
+}
+
+export interface ServiceFlagEmailFlag {
+  code:     string
+  severity: 'critical' | 'warning' | 'info'
+  message:  string
+}
+
+export interface ServiceFlagEmailOpts {
+  appUrl:      string
+  flagCount:   number  // total number of actionable flags (may be more than rendered)
+  flags:       ServiceFlagEmailFlag[]
+}
+
+/**
+ * buildServiceFlagEmail — customer-facing notification for one or more service flags.
+ *
+ * Each flag that has known content renders as a distinct section. If only one
+ * flag renders, the subject is specific. If multiple flags render, the subject
+ * is a general "action needed" line.
+ *
+ * Flags without FLAG_CONTENT entries are silently skipped (admin-only issues
+ * should never reach this function — filter them before calling).
+ */
+export function buildServiceFlagEmail(opts: ServiceFlagEmailOpts): EmailTemplate {
+  const { appUrl, flags } = opts
+
+  // Only render flags we have content for
+  const rendered = flags.filter(f => FLAG_CONTENT[f.code])
+  if (rendered.length === 0) {
+    // Should not happen if caller filters correctly, but handle gracefully
+    return {
+      subject: 'A note about your Scout account',
+      html:    wrap(
+        header('Scout by ClientBloom', BRAND_BLUE),
+        `${h2('A note about your account')}
+         ${p('Our system detected a configuration issue on your Scout account. Please log in to review your settings.')}
+         <p style="margin:16px 0 8px">${cta('View dashboard →', `${appUrl}/dashboard`)}</p>`,
+        '',
+      ),
+    }
+  }
+
+  // Subject: specific for single flag, general for multiple
+  const hasCritical = rendered.some(f => f.severity === 'critical')
+  const subject = rendered.length === 1
+    ? `Scout — ${FLAG_CONTENT[rendered[0].code].subjectFragment}`
+    : hasCritical
+      ? `Action needed on your Scout account (${rendered.length} issues)`
+      : `A quick note about your Scout account`
+
+  // Header color: red if any critical, amber if warning only
+  const headerColor = hasCritical ? '#ef4444' : '#f59e0b'
+
+  // Build one section per flag
+  const sections = rendered.map(f => {
+    const fc    = FLAG_CONTENT[f.code]
+    const badge = f.severity === 'critical'
+      ? `<span style="display:inline-block;background:#fef2f2;color:#ef4444;font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px">Critical</span>`
+      : `<span style="display:inline-block;background:#fffbeb;color:#d97706;font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px">Action needed</span>`
+
+    return `
+      <div style="background:#fff;border:1px solid #e5e5e5;border-left:4px solid ${fc.color};border-radius:0 8px 8px 0;padding:16px 20px;margin:0 0 16px">
+        ${badge}
+        <p style="font-weight:700;font-size:15px;color:#1a1a1a;margin:0 0 8px">${fc.heading}</p>
+        ${p(fc.body)}
+        <a href="${appUrl}${fc.ctaPath}"
+           style="display:inline-block;background:${fc.color};color:#fff;font-weight:600;padding:10px 20px;border-radius:8px;text-decoration:none;font-size:13px;margin-top:8px">
+          ${fc.ctaLabel}
+        </a>
+      </div>`
+  }).join('')
+
+  const intro = rendered.length === 1
+    ? p('We noticed something on your Scout account that needs your attention.')
+    : p(`We noticed ${rendered.length} things on your Scout account that need your attention.`)
+
+  const body = `
+    ${h2(rendered.length === 1 ? FLAG_CONTENT[rendered[0].code].heading : 'Your account needs attention')}
+    ${intro}
+    ${sections}
+    ${p('Questions? Reply directly to this email — a real person reads every one.', 'color:#888;font-size:12px;margin-top:20px')}`
+
+  const footerHtml = `
+    <hr style="border:none;border-top:1px solid #e5e5e5;margin:28px 0 16px" />
+    <p style="font-size:11px;color:#aaa;margin:0;line-height:1.7">
+      You're receiving this because your Scout account by ClientBloom has an automated health alert.<br />
+      ${PHYSICAL_ADDR}<br />
+      <a href="${appUrl}/settings" style="color:#aaa;text-decoration:underline">Manage notification preferences</a>
+    </p>`
+
+  const headerHtml = rendered.length === 1
+    ? header(`Scout — ${rendered[0].severity === 'critical' ? '⚠ Action required' : 'Account notice'}`, headerColor)
+    : header(`Scout — Account notice (${rendered.length} items)`, headerColor)
+
+  return { subject, html: wrap(headerHtml, body, footerHtml) }
+}

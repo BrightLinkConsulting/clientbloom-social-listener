@@ -12,6 +12,17 @@
  * This fires even when the scan pipeline itself never ran — catching the
  * case where Vercel's cron scheduler silently skipped an invocation.
  *
+ * ── sendServiceFlagEmail ──────────────────────────────────────────────────────
+ * Called by the service-check cron for each tenant with new actionable flags.
+ * Sends a customer-facing email via Resend to the tenant's email address.
+ * Uses templates from lib/emails.ts. Subject + content are flag-specific.
+ * 24h dedup + per-code dedup prevent spam — the cron manages state tracking.
+ *
+ * ── sendCriticalFlagSlackAlert ────────────────────────────────────────────────
+ * Called by the service-check cron once per run when any tenant has a new
+ * critical flag. Batches all critical alerts into a single Slack message so
+ * Mike gets one digest per cron run, not one Slack ping per tenant.
+ *
  * ── Slack ─────────────────────────────────────────────────────────────────────
  * Set SLACK_WEBHOOK_URL in Vercel env vars to enable Slack notifications.
  * Create an Incoming Webhook at https://api.slack.com/apps → Incoming Webhooks.
@@ -240,4 +251,91 @@ export async function sendMissedScanAlert(payload: MissedScanPayload): Promise<v
     sendEmail(subject, html),
     postToSlack(slackText),
   ])
+}
+
+// ── sendServiceFlagEmail ──────────────────────────────────────────────────────
+
+import { buildServiceFlagEmail, type ServiceFlagEmailFlag } from '@/lib/emails'
+
+const CUSTOMER_FROM = 'Scout <info@clientbloom.ai>'
+
+export interface ServiceFlagEmailPayload {
+  to:          string                  // tenant email address
+  flags:       ServiceFlagEmailFlag[]  // new flags to notify about
+}
+
+/**
+ * Send a customer-facing service flag notification via Resend.
+ *
+ * The caller (service-check cron) is responsible for 24h dedup + per-code
+ * dedup. This function only builds the email and sends it.
+ *
+ * Returns true if the email was sent successfully, false on any error.
+ */
+export async function sendServiceFlagEmail(payload: ServiceFlagEmailPayload): Promise<boolean> {
+  if (!RESEND_KEY) {
+    console.warn('[notify] RESEND_API_KEY not set — skipping service flag email')
+    return false
+  }
+  if (!payload.to || !payload.flags.length) return false
+
+  const appUrl = BASE_URL
+  const { subject, html } = buildServiceFlagEmail({ appUrl, flags: payload.flags, flagCount: payload.flags.length })
+
+  try {
+    const res = await fetch('https://api.resend.com/emails', {
+      method:  'POST',
+      headers: { Authorization: `Bearer ${RESEND_KEY}`, 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ from: CUSTOMER_FROM, to: [payload.to], subject, html }),
+    })
+    if (!res.ok) {
+      const body = await res.text()
+      console.error(`[notify] Resend service flag email error ${res.status}: ${body.slice(0, 200)}`)
+      return false
+    }
+    console.log(`[notify] Service flag email sent to ${payload.to} — "${subject}"`)
+    return true
+  } catch (e: any) {
+    console.error('[notify] Failed to send service flag email:', e.message)
+    return false
+  }
+}
+
+// ── sendCriticalFlagSlackAlert ────────────────────────────────────────────────
+
+export interface CriticalFlagAlert {
+  email:     string
+  flagCodes: string[]
+  messages:  string[]
+}
+
+/**
+ * Send a single batched Slack alert for all new critical flags found in one
+ * service-check cron run. Only fires if SLACK_WEBHOOK_URL is set.
+ *
+ * Batching: the cron accumulates critical alerts during its tenant loop, then
+ * calls this once at the end. One Slack message per cron run = no alert spam.
+ */
+export async function sendCriticalFlagSlackAlert(alerts: CriticalFlagAlert[], adminUrl: string): Promise<void> {
+  if (!alerts.length) return
+
+  const timestamp = new Date().toLocaleString('en-US', {
+    timeZone:  'America/Los_Angeles',
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  })
+
+  const lines = alerts.map(a => {
+    const codes = a.flagCodes.map(c => `\`${c}\``).join(', ')
+    const msg   = a.messages[0]?.slice(0, 100) || ''
+    return `• *${a.email}* — ${codes}\n  _${msg}_`
+  })
+
+  const header = alerts.length === 1
+    ? `:rotating_light: *Scout Service Alert* — new critical flag on \`${alerts[0].email}\``
+    : `:rotating_light: *Scout Service Alert* — ${alerts.length} accounts have new critical flags`
+
+  const text = `${header}\n${lines.join('\n')}\n_${timestamp}_ | <${adminUrl}|View Admin Panel>`
+
+  await postToSlack(text)
 }
