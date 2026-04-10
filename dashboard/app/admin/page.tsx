@@ -598,6 +598,7 @@ export default function AdminPage() {
   const [usageFetchedAt,   setUsageFetchedAt]   = useState<Date | null>(null)
   const [apifyAccount,     setApifyAccount]     = useState<ApifyAccount | null>(null)
   const [serviceSummary,   setServiceSummary]   = useState<ServiceSummary | null>(null)
+  const [alertExpanded,    setAlertExpanded]    = useState(false)
   const [usageSortCol,     setUsageSortCol]     = useState<'postCount' | 'realCost' | 'companyName' | 'syncedAt'>('postCount')
   const [usageSortDir,     setUsageSortDir]     = useState<'asc' | 'desc'>('desc')
   const [loading,          setLoading]          = useState(true)
@@ -2163,45 +2164,73 @@ export default function AdminPage() {
               </div>
             </div>
 
-            {/* ── Service alert banner ─────────────────────────────────────── */}
+            {/* ── Service alert banner (collapsible) ───────────────────────── */}
             {serviceSummary && (serviceSummary.critical > 0 || serviceSummary.warning > 0) && (
-              <div className={`rounded-lg border px-4 py-3 ${
+              <div className={`rounded-lg border ${
                 serviceSummary.critical > 0 ? 'bg-red-900/10 border-red-800/40' : 'bg-amber-900/10 border-amber-800/40'
               }`}>
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <p className={`text-sm font-semibold ${serviceSummary.critical > 0 ? 'text-red-400' : 'text-amber-400'}`}>
+                {/* Always-visible summary row */}
+                <button
+                  onClick={() => setAlertExpanded(v => !v)}
+                  className="w-full flex items-center justify-between gap-4 px-4 py-3 text-left"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <span className={`text-sm font-semibold shrink-0 ${serviceSummary.critical > 0 ? 'text-red-400' : 'text-amber-400'}`}>
                       {serviceSummary.critical > 0
-                        ? `${serviceSummary.critical} critical issue${serviceSummary.critical > 1 ? 's' : ''} need attention`
-                        : `${serviceSummary.warning} warning${serviceSummary.warning > 1 ? 's' : ''} to review`}
-                    </p>
-                    <p className="text-xs text-slate-500 mt-0.5">
-                      Service Manager last ran:{' '}
+                        ? `${serviceSummary.critical} critical issue${serviceSummary.critical > 1 ? 's' : ''}`
+                        : `${serviceSummary.warning} warning${serviceSummary.warning > 1 ? 's' : ''}`}
+                    </span>
+                    {serviceSummary.critical > 0 && serviceSummary.warning > 0 && (
+                      <span className="text-xs text-amber-400 shrink-0">+ {serviceSummary.warning} warning{serviceSummary.warning > 1 ? 's' : ''}</span>
+                    )}
+                    <span className="text-xs text-slate-600 truncate hidden sm:block">
+                      {flaggedTenants.length} account{flaggedTenants.length !== 1 ? 's' : ''} affected
                       {serviceSummary.lastChecked
-                        ? new Date(serviceSummary.lastChecked).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
-                        : 'never — trigger /api/cron/service-check to initialize'}
-                    </p>
+                        ? ` · checked ${new Date(serviceSummary.lastChecked).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}`
+                        : ''}
+                    </span>
                   </div>
-                  <div className="text-right shrink-0">
-                    {serviceSummary.critical > 0 && <p className="text-xs text-red-400">{serviceSummary.critical} critical</p>}
-                    {serviceSummary.warning > 0  && <p className="text-xs text-amber-400">{serviceSummary.warning} warning</p>}
-                    {serviceSummary.info > 0     && <p className="text-xs text-blue-400">{serviceSummary.info} info</p>}
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className={`text-xs ${serviceSummary.critical > 0 ? 'text-red-500' : 'text-amber-500'}`}>
+                      {alertExpanded ? 'Hide details' : `Show ${flaggedTenants.length} account${flaggedTenants.length !== 1 ? 's' : ''}`}
+                    </span>
+                    <svg className={`w-3.5 h-3.5 transition-transform ${alertExpanded ? 'rotate-180' : ''} ${serviceSummary.critical > 0 ? 'text-red-500' : 'text-amber-500'}`}
+                      fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                    </svg>
                   </div>
-                </div>
-                {flaggedTenants.length > 0 && (
-                  <div className="mt-3 space-y-2">
-                    {flaggedTenants.map(u => (
-                      <div key={u.id} className="bg-[#0a0c10]/60 rounded-md px-3 py-2">
-                        <p className="text-xs text-slate-300 font-medium">{u.companyName || u.email}</p>
-                        {u.serviceFlags.filter(f => f.severity !== 'info').map((f, fi) => (
-                          <p key={fi} className={`text-[11px] mt-0.5 ${
-                            f.severity === 'critical' ? 'text-red-400' : 'text-amber-400'
-                          }`}>
-                            {f.severity === 'critical' ? '⚠ ' : '• '}{f.message}
-                          </p>
-                        ))}
-                      </div>
-                    ))}
+                </button>
+
+                {/* Expandable detail list */}
+                {alertExpanded && flaggedTenants.length > 0 && (
+                  <div className="border-t border-slate-800/60 px-4 pb-3 pt-2 space-y-1.5">
+                    {flaggedTenants.map(u => {
+                      const worstSev = u.serviceFlags.some(f => f.severity === 'critical') ? 'critical' : 'warning'
+                      const critCount = u.serviceFlags.filter(f => f.severity === 'critical').length
+                      const warnCount = u.serviceFlags.filter(f => f.severity === 'warning').length
+                      return (
+                        <div key={u.id} className="flex items-start gap-3 py-1.5">
+                          <span className={`mt-0.5 shrink-0 w-1.5 h-1.5 rounded-full ${worstSev === 'critical' ? 'bg-red-500' : 'bg-amber-400'}`} />
+                          <div className="min-w-0 flex-1">
+                            <span className="text-xs text-slate-200 font-medium">{u.companyName || u.email}</span>
+                            <span className="text-[11px] text-slate-500 ml-1.5">{u.email}</span>
+                          </div>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            {critCount > 0 && (
+                              <span className="text-[11px] bg-red-900/30 text-red-400 border border-red-800/40 px-1.5 py-0.5 rounded">
+                                {critCount} critical
+                              </span>
+                            )}
+                            {warnCount > 0 && (
+                              <span className="text-[11px] bg-amber-900/20 text-amber-400 border border-amber-800/30 px-1.5 py-0.5 rounded">
+                                {warnCount} warning
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      )
+                    })}
+                    <p className="text-[11px] text-slate-600 pt-1">Scroll to a flagged row in the table below to see the specific issues.</p>
                   </div>
                 )}
               </div>

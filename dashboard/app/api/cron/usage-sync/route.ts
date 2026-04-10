@@ -17,6 +17,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
+import { escapeAirtableString } from '@/lib/airtable'
 
 const PLATFORM_TOKEN = process.env.PLATFORM_AIRTABLE_TOKEN   || ''
 const PLATFORM_BASE  = process.env.PLATFORM_AIRTABLE_BASE_ID || ''
@@ -42,9 +43,9 @@ async function countTenantPostsThisMonth(
   const monthStartISO = monthStart.toISOString()
 
   // Build filter: (Tenant ID = tenantId) AND (Captured At >= month start)
-  const filter = encodeURIComponent(
-    `AND({Tenant ID}='${tenantId}',{Captured At}>='${monthStartISO}')`
-  )
+  // NOTE: Do NOT encodeURIComponent here — URLSearchParams.set() encodes automatically.
+  // Double-encoding breaks Airtable formula parsing (422).
+  const filter = `AND({Tenant ID}='${escapeAirtableString(tenantId)}',{Captured At}>='${monthStartISO}')`
 
   do {
     const url = new URL(`${AIRTABLE_API}/${PLATFORM_BASE}/Captured%20Posts`)

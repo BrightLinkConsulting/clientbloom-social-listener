@@ -116,9 +116,9 @@ async function liveFetchSharedBase(tenantId: string): Promise<{ count: number; l
 
   const now = new Date()
   const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString()
-  const filter = encodeURIComponent(
-    `AND({Tenant ID}='${escapeAirtableString(tenantId)}',{Captured At}>='${monthStart}')`
-  )
+  // NOTE: Do NOT encodeURIComponent here — URLSearchParams.set() encodes automatically.
+  // Double-encoding breaks Airtable formula parsing (422).
+  const filter = `AND({Tenant ID}='${escapeAirtableString(tenantId)}',{Captured At}>='${monthStart}')`
 
   do {
     const url = new URL(`${AIRTABLE_API}/${PLATFORM_BASE}/Captured%20Posts`)
