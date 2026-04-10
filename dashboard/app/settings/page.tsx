@@ -76,12 +76,18 @@ function ClientBloomMark({ size = 28 }: { size?: number }) {
 
 function Nav() {
   const { data: session } = useSession()
-  const plan        = (session?.user as any)?.plan       || ''
-  const trialEndsAt = (session?.user as any)?.trialEndsAt || null
-  const isTrial     = plan === 'Trial'
-  const daysLeft    = trialEndsAt
-    ? Math.max(0, Math.floor((new Date(trialEndsAt).getTime() - Date.now()) / 86_400_000))
+  const plan          = (session?.user as any)?.plan       || ''
+  const trialEndsAt   = (session?.user as any)?.trialEndsAt || null
+  const isTrial       = plan === 'Trial'
+  const trialMsLeft   = trialEndsAt ? new Date(trialEndsAt).getTime() - Date.now() : null
+  const trialExpired  = trialMsLeft !== null && trialMsLeft <= 0
+  // Math.floor matches the Feed banner exactly — "6d 14h left" not "7 days left"
+  const daysLeft      = trialMsLeft !== null && !trialExpired
+    ? Math.floor(trialMsLeft / 86_400_000)
     : null
+  const hoursLeft     = trialMsLeft !== null && !trialExpired
+    ? Math.floor((trialMsLeft % 86_400_000) / 3_600_000)
+    : 0
 
   return (
     <header className="sticky top-0 z-20">
@@ -94,7 +100,7 @@ function Nav() {
           100% { background-position: 0% 50%; }
         }
       `}</style>
-      {isTrial && (daysLeft === null || daysLeft > 0) && (
+      {isTrial && !trialExpired && (
         <div
           style={{
             background: 'linear-gradient(90deg, #1e0938 0%, #3b0764 20%, #6d28d9 45%, #9333ea 55%, #3b0764 80%, #1e0938 100%)',
@@ -111,7 +117,7 @@ function Nav() {
           <span className="text-violet-200 font-medium">Free Trial</span>
           <span className="text-violet-500 select-none">·</span>
           <span className="text-violet-300/80">
-            {daysLeft === 1 ? '1 day left' : daysLeft !== null ? `${daysLeft} days left` : 'Active'}
+            {daysLeft === null ? 'Active' : daysLeft === 0 ? `${hoursLeft}h left` : `${daysLeft}d ${hoursLeft}h left`}
           </span>
           <Link href="/upgrade" className="ml-1 text-violet-300 font-semibold underline underline-offset-2 decoration-violet-500/50 hover:text-white transition-colors duration-150">
             Upgrade
@@ -3184,8 +3190,7 @@ function PlanBillingSection() {
     if (daysLeft === null) return null
     const label =
       daysLeft === 0 ? `${hoursLeft}h left` :
-      daysLeft <= 1  ? `${daysLeft}d ${hoursLeft}h left` :
-                       `${daysLeft}d left`
+                       `${daysLeft}d ${hoursLeft}h left`
     const cls =
       daysLeft <= 1 ? 'bg-red-900/30 border-red-700/40 text-red-400' :
       daysLeft <= 5 ? 'bg-amber-900/30 border-amber-700/40 text-amber-400' :

@@ -228,6 +228,7 @@ export async function POST(req: NextRequest) {
       'Plan':            'Trial',
       'Trial Type':      'no_cc',
       'Trial Ends At':   trialEndsAt.toISOString(),
+      'Created At':      new Date().toISOString(),   // full ISO — enrollment datetime, not date-only
       'Trial Email Day': 1,
       'Is Admin':        false,
     })

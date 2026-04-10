@@ -112,7 +112,7 @@ export async function POST(req: Request) {
       'Password Hash': passwordHash,
       'Company Name':  companyName || email,
       'Status':        'Active',
-      'Created At':    new Date().toISOString().split('T')[0],
+      'Created At':    new Date().toISOString(),   // full ISO datetime — never date-only
     }
     if (airtableBaseId?.trim()) fields['Airtable Base ID']   = airtableBaseId.trim()
     if (airtableToken?.trim())  fields['Airtable API Token'] = airtableToken.trim()

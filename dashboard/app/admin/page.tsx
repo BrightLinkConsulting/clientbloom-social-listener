@@ -938,6 +938,7 @@ export default function AdminPage() {
             {/* ── Trial Pipeline — rep outreach view ── */}
             {(() => {
               const now = Date.now()
+              const TRIAL_DAYS_MS = 7 * 24 * 60 * 60 * 1000
 
               /**
                * Returns days + hours remaining using Math.floor — identical to
@@ -955,6 +956,25 @@ export default function AdminPage() {
                 if (msLeft <= 0) return 'Expires today'
                 if (days === 0)  return `${hours}h left`
                 return `${days}d ${hours}h left`
+              }
+
+              /**
+               * Enrolled date: use createdAt if available and looks like a full
+               * ISO datetime, otherwise back-compute from trialEndsAt − 7 days.
+               * This handles both self-signups (no Created At field) and admin-
+               * granted accounts (Created At stored as date-only string).
+               */
+              function enrolledLabel(t: Tenant): string {
+                // Prefer explicit Created At if it's a full datetime (has 'T')
+                if (t.createdAt && t.createdAt.includes('T')) {
+                  return new Date(t.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+                }
+                // Fallback: back-compute from Trial Ends At
+                if (t.trialEndsAt) {
+                  const enrolledMs = new Date(t.trialEndsAt).getTime() - TRIAL_DAYS_MS
+                  return new Date(enrolledMs).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+                }
+                return t.createdAt ? new Date(t.createdAt).toLocaleDateString() : '—'
               }
 
               const allTrials    = tenants.filter(t => t.plan === 'Trial' && t.trialEndsAt)
@@ -995,10 +1015,11 @@ export default function AdminPage() {
                             <div>
                               <p className="text-sm font-medium text-white">{t.companyName || t.email}</p>
                               <p className="text-xs text-slate-500">{t.email}</p>
+                              <p className="text-xs text-slate-600 mt-0.5">Enrolled {enrolledLabel(t)}</p>
                             </div>
                             <div className="text-right">
                               <span className="text-xs font-semibold text-red-400">{timeLabel(t)}</span>
-                              <p className="text-xs text-slate-600 mt-0.5">{new Date(t.trialEndsAt!).toLocaleDateString()}</p>
+                              <p className="text-xs text-slate-600 mt-0.5">Expires {new Date(t.trialEndsAt!).toLocaleDateString()}</p>
                             </div>
                           </div>
                         ))}
@@ -1016,10 +1037,11 @@ export default function AdminPage() {
                             <div>
                               <p className="text-sm font-medium text-white">{t.companyName || t.email}</p>
                               <p className="text-xs text-slate-500">{t.email}</p>
+                              <p className="text-xs text-slate-600 mt-0.5">Enrolled {enrolledLabel(t)}</p>
                             </div>
                             <div className="text-right">
                               <span className="text-xs font-semibold text-amber-400">{timeLabel(t)}</span>
-                              <p className="text-xs text-slate-600 mt-0.5">{new Date(t.trialEndsAt!).toLocaleDateString()}</p>
+                              <p className="text-xs text-slate-600 mt-0.5">Expires {new Date(t.trialEndsAt!).toLocaleDateString()}</p>
                             </div>
                           </div>
                         ))}
@@ -1037,10 +1059,11 @@ export default function AdminPage() {
                             <div>
                               <p className="text-sm font-medium text-white">{t.companyName || t.email}</p>
                               <p className="text-xs text-slate-500">{t.email}</p>
+                              <p className="text-xs text-slate-600 mt-0.5">Enrolled {enrolledLabel(t)}</p>
                             </div>
                             <div className="text-right">
                               <span className="text-xs font-semibold text-emerald-400">{timeLabel(t)}</span>
-                              <p className="text-xs text-slate-600 mt-0.5">{new Date(t.trialEndsAt!).toLocaleDateString()}</p>
+                              <p className="text-xs text-slate-600 mt-0.5">Expires {new Date(t.trialEndsAt!).toLocaleDateString()}</p>
                             </div>
                           </div>
                         ))}
@@ -1065,6 +1088,7 @@ export default function AdminPage() {
                               <div className="min-w-0 flex-1">
                                 <p className="text-sm font-medium text-slate-400">{t.companyName || t.email}</p>
                                 <p className="text-xs text-slate-600">{t.email}</p>
+                                <p className="text-xs text-slate-700 mt-0.5">Enrolled {enrolledLabel(t)}</p>
                                 {sentAt && (
                                   <p className="text-[12px] text-emerald-600 mt-0.5">
                                     ✓ Reactivation email sent {new Date(sentAt).toLocaleDateString()}

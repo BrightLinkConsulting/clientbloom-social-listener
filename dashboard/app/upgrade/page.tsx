@@ -92,10 +92,14 @@ export default function UpgradePage() {
   const paidPlan      = isPaidPlan(plan)
   const isStripePlan  = isStripeBilledPlan(plan)  // already has active Stripe subscription
   const trialEndsAt   = user?.trialEndsAt || null
+  const trialMsLeft   = trialEndsAt ? new Date(trialEndsAt).getTime() - Date.now() : null
   const trialExpired  = !!trialEndsAt && new Date() > new Date(trialEndsAt)
-  const daysLeft      = trialEndsAt
-    ? Math.max(0, Math.floor((new Date(trialEndsAt).getTime() - Date.now()) / 86400000))
+  const daysLeft      = trialMsLeft !== null && !trialExpired
+    ? Math.floor(trialMsLeft / 86_400_000)
     : null
+  const hoursLeft     = trialMsLeft !== null && !trialExpired
+    ? Math.floor((trialMsLeft % 86_400_000) / 3_600_000)
+    : 0
 
   // Portal handler for active paid subscribers who navigate to /upgrade
   const [portalLoading, setPortalLoading] = useState(false)
@@ -216,7 +220,7 @@ export default function UpgradePage() {
             ) : daysLeft !== null ? (
               <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-amber-900/30 border border-amber-700/40 text-amber-400 text-xs font-medium">
                 <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
-                {daysLeft <= 0 ? 'Trial ends today' : `Trial ends in ${daysLeft} day${daysLeft === 1 ? '' : 's'}`}
+                {daysLeft === 0 ? `${hoursLeft}h left` : `${daysLeft}d ${hoursLeft}h left`}
               </div>
             ) : null}
 

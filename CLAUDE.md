@@ -247,9 +247,18 @@ callers — never do this without auditing every reference first.
 - suggest/route.ts: retries once with a shorter fallback prompt if Claude returns empty content.
   Returns 503 (not 500) if both attempts fail — 503 signals transient unavailability.
 - Trial countdown: always Math.floor for days/hours — never Math.ceil (off-by-one bug).
-  Display format: "Xd Yh left" (or "Yh left" when d=0). Four surfaces must all agree:
-  TrialBanner (app/page.tsx), Nav banner (settings/page.tsx), PlanBillingSection
-  (settings/page.tsx), and the /upgrade page. Any future change updates ALL FOUR.
+  Display format: "Xd Yh left" (or "Yh left" when d=0). FIVE surfaces must all agree:
+  (1) TrialBanner (app/page.tsx), (2) Settings nav banner (settings/page.tsx top),
+  (3) Plan & Billing TrialBadge (settings/page.tsx PlanBillingSection),
+  (4) /upgrade page status badge, (5) Admin trial pipeline timeLabel().
+  Any future change updates ALL FIVE. Always show hours, not just days.
+  Banner/badge must remain visible when daysLeft===0 — use !trialExpired not daysLeft > 0.
+- Trial enrollment: trial/start writes `Created At` as full ISO datetime. Admin tenants
+  route also writes full ISO (not date-only). enrolledLabel() in admin pipeline prefers
+  createdAt when it contains 'T' (full ISO), otherwise back-computes from trialEndsAt − 7d.
+- Admin trial pipeline: each card shows "Enrolled [date]" (left column) and "Expires [date]"
+  (right column). enrolledLabel() handles both self-signup (back-compute) and admin-granted
+  (read createdAt) accounts correctly.
 - Reactivation email: admin sends via POST /api/admin/send-reactivation. After sending,
   'Reactivation Sent At' is written to Airtable. UI checks t.reactivationSentAt (from
   tenants GET) and local reactivationSent state (optimistic) to show send timestamp.
