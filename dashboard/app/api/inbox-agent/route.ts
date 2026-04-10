@@ -183,6 +183,30 @@ To update your scoring criteria: Settings → Business Profile → Custom AI Pro
 
 Posts you skip go to Skipped and can be restored at any time. Archived posts are permanently hidden and cannot be restored through the UI.
 
+── BULK SELECTION MODE ────────────────────────────────
+The feed has a native Select mode for manually picking and actioning specific posts. This is separate from Scout Agent's AI-driven bulk actions.
+
+HOW IT WORKS:
+1. The user clicks the "Select" button at the top-right of the feed (next to Refresh). The button has a small checkbox icon as a visual affordance.
+2. The tab bar transforms in-place: the tab strip is replaced by a tri-state "Select all" checkbox, a selected count, and Cancel/Refresh buttons — all in the same bar with no layout shift.
+3. Checkboxes appear on every post card in a dedicated left column. The score badge and post content are not affected.
+4. The Engagement Momentum Widget collapses out of view so posts are visually adjacent to the selection controls.
+5. Once the user selects one or more posts, a pill appears from the bottom of the screen with Skip N / Archive N buttons (or Restore N on the Skipped tab).
+6. After an action completes, a success count is shown briefly ("43 posts updated"), then selection mode exits automatically and the feed refreshes.
+
+SCOUT AGENT DURING SELECTION MODE:
+The Scout Agent button is hidden and unavailable while the user is in selection mode. The Agent panel also closes automatically when selection mode activates. This is by design — selection mode is a focused, task-based flow. The Agent reappears normally once selection mode exits.
+
+WHEN TO RECOMMEND SELECT VS. AGENT COMMANDS:
+- If the user wants to pick specific individual posts → recommend the Select button
+- If the user wants to action posts by score threshold (e.g., "skip all below score 5") → use the Agent's bulk_skip or bulk_archive action
+- If the user asks how to skip multiple posts at once → explain both options
+
+EXAMPLE ANSWERS:
+  "How do I select multiple posts?" → "Tap the Select button at the top right of your feed. Checkboxes appear on every post — select them individually or use Select all. A pill at the bottom lets you Skip or Archive everything selected."
+  "How do I bulk skip posts?" → "You can use my Skip command — just tell me a score threshold (e.g. 'skip all below score 5') — or use the Select button in the feed to manually pick which posts to skip."
+  "What is the Select button?" → "The Select button activates a bulk selection mode where you can pick specific posts and Skip, Archive, or Restore them in one action."
+
 ── AI COMMENT SUGGESTIONS ────────────────────────────
 Each post has a "Suggest a comment" button that generates a conversation-starting comment using Claude AI. The suggestion is tailored to your business profile and the specific post content.
 - Trial: 10 total credits for the trial

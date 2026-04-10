@@ -198,6 +198,43 @@ Used throughout for contextual help, warnings, and upgrade prompts.
 
 ---
 
+## Bulk Selection Mode
+
+Scout's feed supports bulk actions (Skip, Archive, Restore) on multiple posts at once. The selection flow uses a specific pattern that must be preserved across future UI changes.
+
+### How it works
+
+1. **Entry** — User clicks the "Select" button (top-right of the tab bar, next to Refresh). The button includes a small checkbox icon as a visual affordance for what it does.
+2. **Tab bar transforms in-place** — The tab strip disappears and is replaced in the same horizontal bar with: a tri-state select-all checkbox, a selected count, status feedback (working spinner / result message), and Cancel + Refresh on the right. No secondary row drops below the bar.
+3. **Post cards gain a checkbox column** — A dedicated left-gutter column (40px) holds the checkbox. The score badge and card content remain in their own flex track — they never share space with the checkbox.
+4. **Momentum Widget collapses** — When selection mode activates, the Engagement Momentum Widget animates to `max-h-0 / opacity-0` so the posts are visually adjacent to the selection controls. Widget re-expands when selection exits.
+5. **Bottom action bar slides up** — Once ≥1 post is selected, a centered pill appears from the bottom of the screen with: Skip N / Archive N (or Restore N on the Skipped tab). It slides back down when selection clears.
+6. **Completion** — After a bulk action, the success count ("43 posts updated") is shown for 1.5s in the top bar while Airtable propagates the writes and the post list refreshes silently. Then selection mode auto-exits.
+
+### Scout Agent interaction during selection mode
+
+- The Scout Agent floating button fades out (opacity-0, pointer-events-none) when selection mode activates — prevents z-index and pointer-events conflicts with the action bar.
+- The Agent panel closes automatically if it was already open when the user enters selection mode.
+- The Agent panel reopens normally once selection mode exits.
+
+### Implementation notes
+
+- `selectionMode: boolean` state in `page.tsx`
+- `selectedIds: Set<string>` — always by Airtable record ID
+- Selection state clears on tab switch (existing posts in another tab cannot be accidentally acted on)
+- `handleBulkAction` sets `setBulkLoading(false)` before the 1.5s propagation wait, so the result message is visible to the user during the wait window
+- Tab bar uses conditional rendering: `{selectionMode ? <SelectionBar /> : <TabStrip />}` — same container, same height, no layout shift
+- Post card article element uses `flex` layout; checkbox is first flex child with `shrink-0`, content div is `flex-1 min-w-0`
+- Bottom action bar: `fixed bottom-0 left-0 right-0 z-50 pointer-events-none` outer container, `pointer-events-auto` inner pill only
+
+### What used to exist (removed — do not re-add)
+
+- **"All" tab** — showed every post regardless of status. Removed because it was a superset of Inbox + Engaged + Replied + Skipped + In CRM with no additional utility.
+- **Secondary toolbar row** — the old bulk controls appeared as an extra row below the tab bar, invisible until Select was clicked. This caused discoverability failure and visual disconnect from the post checkboxes.
+- **Absolute-positioned checkbox** — `absolute top-4 left-4` overlapped the score badge dot. Replaced with flex left-column.
+
+---
+
 ## Changelog
 
 | Date | Change |

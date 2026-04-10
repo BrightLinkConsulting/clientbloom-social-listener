@@ -364,6 +364,49 @@ The panel closes automatically on tab switch (G3 fix) to prevent stale inbox con
 
 ---
 
+## Bulk Selection Mode Interaction
+
+Scout's feed supports a native bulk selection mode for skipping, archiving, and restoring multiple posts at once without involving the Scout Agent. This mode has specific interaction rules with the Agent.
+
+### What happens when the user enters selection mode
+
+1. **The Scout Agent button fades out.** The button transitions to `opacity-0 pointer-events-none scale-90`. This prevents z-index conflicts with the bottom action bar and avoids competing UI affordances during a task-focused flow.
+
+2. **The Agent panel closes automatically.** A `useEffect` with `selectionMode` as its dependency calls `setAgentOpen(false)` the moment selection mode activates — so if the user had the Agent panel open, it closes without the user needing to dismiss it.
+
+3. **Agent is completely unavailable during selection.** No workaround — the button is fully hidden and non-interactive. This is intentional. Selection mode is a focused, reversible bulk operation flow; having the AI assistant open simultaneously would create distraction and pointer-event conflicts.
+
+4. **Agent returns to normal when selection mode exits.** Cancelling selection mode (via the Cancel button or completing a bulk action) removes all the opacity/pointer-event overrides, and the Agent button reappears with its standard entrance animation.
+
+### How to answer user questions about bulk selection
+
+If a user asks the Scout Agent about bulk operations or the Select button, the agent should explain the native selection flow — not propose an AI-driven `bulk_skip` or `bulk_archive`. Reserve AI bulk actions for when the user asks the agent to take action directly.
+
+Example agent responses for common selection mode questions:
+
+**"How do I select multiple posts?"**
+> Tap the Select button at the top right of your feed (next to Refresh). Once you're in selection mode, checkboxes appear on every post. Select individual posts by tapping them, or use "Select all" to grab everything visible. A pill at the bottom of the screen will appear with Skip and Archive options once you've selected at least one post.
+
+**"How do I bulk skip posts?"**
+> You can use my Skip command (e.g., "skip all posts below score 5") or use the manual Select button in your feed to pick specific posts and tap Skip. The Select flow gives you post-by-post control; my commands let you filter by score across your whole inbox.
+
+**"What is the Select button for?"**
+> The Select button activates bulk selection mode, which lets you pick specific posts and skip, archive, or restore them in one action. It's useful when you want to manually curate which posts get actioned rather than using a score threshold filter.
+
+### Implementation reference
+
+| Element | Behavior during selection mode |
+|---------|-------------------------------|
+| Scout Agent button (`z-40`) | `opacity-0 pointer-events-none scale-90` — fully hidden and non-interactive |
+| Scout Agent panel | Closes automatically via `useEffect([selectionMode])` |
+| Bottom action bar (`z-50`) | Slides up from bottom — centered pill with Skip/Archive/Restore |
+| Tab bar | Transforms in-place: tab strip replaced by select-all checkbox + count + status |
+| Momentum Widget | Collapses to `max-h-0 opacity-0` so posts are adjacent to controls |
+
+The z-50 / z-40 layering means the action bar is above the Agent button in the stacking context — but hiding the Agent button entirely is the correct solution (not z-index coordination), because `pointer-events-none` on the outer action bar container already prevents the transparent overlay from intercepting clicks outside the pill.
+
+---
+
 ## Adding New Action Types
 
 To add a new inbox action type (e.g., `bulk_engage`):
@@ -378,6 +421,31 @@ To add a new inbox action type (e.g., `bulk_engage`):
 ---
 
 ## Session Changelog
+
+### Session 6 — April 2026 (Bulk Selection Mode UX Overhaul + Documentation)
+
+**Bulk selection mode rebuilt (app/page.tsx)**
+- Removed "All" tab (`ActionFilter` type simplified; `filter !== 'all'` guard removed from post removal logic)
+- Tab bar now transforms in-place on Select: tab strip conditionally replaced by tri-state select-all checkbox + selected count + status message + Cancel/Refresh — same container, no layout shift
+- Select button moved to the tab bar right side with a checkbox icon affordance; only visible when posts exist
+- Absolute-positioned checkbox (`absolute top-4 left-4 z-10`) removed; replaced with a proper flex left-column (`shrink-0`) on each post card article element — score badge no longer overlapped
+- Momentum Widget collapses to `max-h-0 opacity-0` when selection mode is active (smooth CSS max-height transition)
+- Scout Agent button fades out (`opacity-0 pointer-events-none scale-90`) during selection mode; panel closes automatically via `useEffect([selectionMode])`
+- Bottom action bar: `fixed bottom-0` full-width transparent outer container (`pointer-events-none`) + centered pill (`pointer-events-auto`) — slides up via `translate-y-0 opacity-100` when ≥1 post selected
+- Skip N / Archive N on non-Skipped tabs; Restore N on Skipped tab; action pill hides when selection clears
+- `main` padding-bottom increases to `pb-28` during active selection to prevent action bar from obscuring last post
+
+**Bug fixes**
+- BUG-1: `bulkResult` success message was invisible — `setBulkLoading(false)` now fires before the 1.5s propagation wait, so `{bulkResult && !bulkLoading}` condition passes during the wait window
+- BUG-2: Bottom action pill overlapped Scout Agent button on narrow viewports (~375px) — resolved by hiding Agent button entirely during selection mode rather than attempting z-index coordination
+- BUG-3: Checkbox column vertical alignment at `sm:` breakpoint — added `sm:pt-6 sm:pl-5` to match the `sm:p-6` content padding
+
+**Documentation**
+- `docs/ux-design-system.md` updated with full "Bulk Selection Mode" section (flow, Scout Agent interaction, implementation notes, removed elements)
+- `docs/scout-agent.md` updated with "Bulk Selection Mode Interaction" section (this session)
+- `docs/README.md` updated with Design and UX section pointing to `ux-design-system.md`
+
+---
 
 ### Session 5 — April 2026 (Scout Agent Button Redesign + Full Adversarial Validation)
 
