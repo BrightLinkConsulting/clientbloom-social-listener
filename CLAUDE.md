@@ -116,6 +116,19 @@ Completed:
   Gate enforced at 6 surfaces: UI in page.tsx + settings/page.tsx; server in crm-push + crm-settings
   routes; marketing copy in upgrade/page.tsx, page-landing.tsx, welcome/page.tsx, lib/emails.ts,
   and compare/page.tsx. Plan sweep confirmed zero remaining Pro+CRM references.
+- ✅ Admin panel — sortable columns, trial urgency filter, feed-only jump fix (April 2026):
+  (a) Trial urgency filter: 🔴 Urgent (0-3d), 🟡 Check in (4-5d), 🟢 Just started (6-7d),
+      ⚫ Expired — combinable with plan and status filters;
+  (b) Sortable column headers: Account, Plan, Role, Status, Trial — click to sort asc/desc;
+      SortTh component with active state indicator (↑/↓ when active, ⇅ when inactive);
+  (c) Sort selector dropdown in filter bar for mobile / quick access;
+  (d) Feed-only jump bug fixed: standalone accounts no longer jump to bottom when feed-only
+      is toggled. Root cause was grouping logic treating isFeedOnly=true as 'workspace member'.
+      Fix: only apply owner/member nesting when multiple tenants share a tenantId;
+  (e) 'orphan' row kind removed; new 'standalone' kind renders flat in sort order;
+  (f) Trial column added to table with color-coded countdown badges (red/amber/green);
+  (g) Status filter: 'Suspended' → 'Suspended (manually disabled)' for admin clarity;
+  (h) Active filter result count badge shows 'N accounts match your filters'.
 - ✅ Admin panel — 9-bug adversarial fix (April 2026):
   (a) grant-access/route.ts: Created At was date-only — fixed to full ISO datetime;
   (b) grant-access welcome email: header + CTA were BRAND_BLUE — fixed to BRAND_PURPLE + Scout SVG logo;
