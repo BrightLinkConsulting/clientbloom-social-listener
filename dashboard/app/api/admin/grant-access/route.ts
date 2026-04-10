@@ -85,7 +85,7 @@ export async function POST(req: Request) {
               'Plan':           'Trial',
               'Status':         'Active',
               'Trial Ends At':  trialEndsAt,
-              'Created At':     new Date().toISOString().split('T')[0],
+              'Created At':     new Date().toISOString(),  // full ISO datetime — never date-only
             },
           }],
         }),
@@ -115,8 +115,19 @@ export async function POST(req: Request) {
     // ── Step 3: Send welcome email ───────────────────────────────────────────
     const html = `
       <div style="font-family:sans-serif;max-width:520px;margin:0 auto;color:#1a1a1a">
-        <div style="background:#4F6BFF;padding:20px 28px;border-radius:12px 12px 0 0">
-          <p style="color:#fff;font-size:16px;font-weight:700;margin:0">Welcome to Scout — 7-Day Free Trial</p>
+        <div style="background:#7C3AED;padding:20px 28px;border-radius:12px 12px 0 0">
+          <table style="width:100%;border-collapse:collapse"><tr>
+            <td><p style="color:#fff;font-size:16px;font-weight:700;margin:0">Welcome to Scout — 7-Day Free Trial</p></td>
+            <td style="text-align:right;vertical-align:middle">
+              <svg width="28" height="28" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <ellipse cx="50" cy="21" rx="24" ry="13" fill="#F7B731"/>
+                <ellipse cx="20" cy="52" rx="13" ry="25" fill="#E91E8C"/>
+                <ellipse cx="80" cy="52" rx="13" ry="25" fill="#00B96B"/>
+                <ellipse cx="50" cy="79" rx="24" ry="13" fill="#fff"/>
+                <circle cx="50" cy="50" r="13" fill="#fff"/>
+              </svg>
+            </td>
+          </tr></table>
         </div>
         <div style="background:#f9f9f9;padding:28px 32px;border-radius:0 0 12px 12px;border:1px solid #e5e5e5;border-top:none">
           <h2 style="margin:0 0 8px;font-size:20px">Your Scout trial is ready 🎉</h2>
@@ -150,18 +161,18 @@ export async function POST(req: Request) {
             </tr>
           </table>
 
-          <div style="background:#f0f4ff;border:1px solid #c7d4ff;border-radius:8px;padding:14px 18px;margin:0 0 24px">
-            <p style="margin:0 0 6px;font-size:13px;font-weight:600;color:#1e40af">What happens next</p>
+          <div style="background:#f5f3ff;border:1px solid #c4b5fd;border-radius:8px;padding:14px 18px;margin:0 0 24px">
+            <p style="margin:0 0 6px;font-size:13px;font-weight:600;color:#5b21b6">What happens next</p>
             <ol style="margin:0;padding-left:16px;font-size:13px;color:#374151;line-height:1.7">
               <li>Sign in and complete the 2-minute ICP setup</li>
               <li>Scout runs your first scan automatically</li>
               <li>Check back daily — new opportunities arrive twice a day</li>
-              <li>Subscribe before ${trialEndLabel} to keep your data and feed running</li>
+              <li>Your trial expires on <strong>${trialEndLabel}</strong> — subscribe before then to keep your data</li>
             </ol>
           </div>
 
           <a href="${BASE_URL_SITE}/sign-in"
-             style="display:inline-block;background:#4F6BFF;color:#fff;font-weight:600;padding:12px 28px;border-radius:8px;text-decoration:none;font-size:14px">
+             style="display:inline-block;background:#7C3AED;color:#fff;font-weight:600;padding:12px 28px;border-radius:8px;text-decoration:none;font-size:14px">
             Start my free trial →
           </a>
 

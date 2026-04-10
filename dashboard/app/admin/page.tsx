@@ -167,6 +167,46 @@ function ChartTooltip({ active, payload, label }: any) {
   )
 }
 
+// ── Inline tooltip ─────────────────────────────────────────────────────────────
+// Renders a tooltip on hover — shows current state (top line) + what clicking does (bottom line).
+// Zero external dependencies; pure CSS + React state.
+function ActionTooltip({
+  children,
+  currentState,
+  clickAction,
+  danger = false,
+}: {
+  children: React.ReactNode
+  currentState: string
+  clickAction: string
+  danger?: boolean
+}) {
+  const [show, setShow] = useState(false)
+  return (
+    <div
+      className="relative inline-flex"
+      onMouseEnter={() => setShow(true)}
+      onMouseLeave={() => setShow(false)}
+    >
+      {children}
+      {show && (
+        <div className="absolute bottom-full right-0 mb-2 z-50 pointer-events-none">
+          <div className={`rounded-lg border shadow-xl text-xs px-3 py-2 whitespace-nowrap ${
+            danger
+              ? 'bg-[#160b0b] border-red-900/60 text-red-200'
+              : 'bg-[#111827] border-slate-700 text-slate-200'
+          }`}>
+            <p className="font-medium">{currentState}</p>
+            <p className={`mt-0.5 ${danger ? 'text-red-400' : 'text-slate-400'}`}>Click → {clickAction}</p>
+          </div>
+          {/* Arrow */}
+          <div className="absolute right-3 top-full w-0 h-0 border-l-4 border-r-4 border-t-4 border-l-transparent border-r-transparent border-t-slate-700" />
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Apify pool badge ───────────────────────────────────────────────────────────
 function ApifyPoolBadge({ hasKey }: { hasKey: boolean }) {
   return hasKey ? (
@@ -501,9 +541,9 @@ function GrantAccessModal({
                 className="w-full bg-[#161b27] border border-slate-700 rounded-lg px-3 py-2 text-slate-100 text-sm placeholder-slate-500 focus:outline-none focus:border-[#4F6BFF]"
               />
             </div>
-            <div className="bg-blue-950/30 border border-blue-800/30 rounded-lg px-4 py-3 text-xs text-blue-300 space-y-1">
+            <div className="bg-violet-950/30 border border-violet-800/30 rounded-lg px-4 py-3 text-xs text-violet-300 space-y-1">
               <p className="font-medium">What gets created automatically:</p>
-              <p className="text-blue-400/80">Full account provisioning · 7-day trial clock starts on first login · Temporary password emailed · Onboarding wizard runs on first login</p>
+              <p className="text-violet-400/80">Full account provisioning · Trial clock starts immediately (7 days from now) · Temp password auto-generated and emailed · Onboarding wizard runs on first login</p>
             </div>
             {error && <p className="text-red-400 text-sm">{error}</p>}
             <div className="flex gap-3 justify-end pt-1">
@@ -1255,10 +1295,17 @@ export default function AdminPage() {
               </div>
             )}
 
-            {/* Add tenant form */}
+            {/* Add tenant form — manual provisioning only (no Stripe billing) */}
             {showForm && (
               <div className="bg-[#0f1117] border border-slate-800 rounded-xl p-6">
-                <h2 className="font-semibold text-white mb-4">New Tenant</h2>
+                <div className="flex items-start justify-between mb-1">
+                  <h2 className="font-semibold text-white">New Tenant</h2>
+                </div>
+                <p className="text-xs text-slate-500 mb-4">
+                  Manual provisioning — no Stripe subscription is created. For 7-day trial onboarding use the{' '}
+                  <button onClick={() => { setShowForm(false); setShowFreeAccess(true) }} className="text-emerald-400 hover:underline">Grant 7-Day Trial</button>{' '}
+                  button instead. Paid plans (Starter/Pro/Agency) require Stripe checkout to activate billing.
+                </p>
                 <form onSubmit={handleCreate} className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-slate-300 text-xs font-medium mb-1">Email *</label>
@@ -1285,17 +1332,26 @@ export default function AdminPage() {
                     />
                   </div>
                   <div>
-                    <label className="block text-slate-300 text-xs font-medium mb-1">Plan</label>
+                    <label className="block text-slate-300 text-xs font-medium mb-1">
+                      Access Level
+                      {(form.plan === 'Scout Starter' || form.plan === 'Scout Pro' || form.plan === 'Scout Agency') && (
+                        <span className="ml-2 text-amber-400 font-normal normal-case">⚠ No billing — use Stripe checkout for paid plans</span>
+                      )}
+                    </label>
                     <select value={form.plan}
                       onChange={e => setForm(f => ({ ...f, plan: e.target.value }))}
                       className="w-full bg-[#161b27] border border-slate-700 rounded-lg px-3 py-2 text-slate-100 text-sm focus:outline-none focus:border-[#4F6BFF]"
                     >
-                      <option value="Scout Starter">Scout Starter ($49/mo)</option>
-                      <option value="Scout Pro">Scout Pro ($99/mo)</option>
-                      <option value="Scout Agency">Scout Agency ($249/mo)</option>
-                      <option value="Trial">Trial</option>
-                      <option value="Complimentary">Complimentary</option>
-                      <option value="Owner">Owner</option>
+                      <optgroup label="Non-billed (recommended for manual add)">
+                        <option value="Complimentary">Complimentary — gifted Pro-level access</option>
+                        <option value="Trial">Trial — 7-day access (use Grant Trial for auto email)</option>
+                        <option value="Owner">Owner — full internal access</option>
+                      </optgroup>
+                      <optgroup label="Paid plans (no Stripe — billing not automatic)">
+                        <option value="Scout Starter">Scout Starter ($49/mo — no billing created)</option>
+                        <option value="Scout Pro">Scout Pro ($99/mo — no billing created)</option>
+                        <option value="Scout Agency">Scout Agency ($249/mo — no billing created)</option>
+                      </optgroup>
                     </select>
                   </div>
                   <div className="col-span-2">
@@ -1318,12 +1374,30 @@ export default function AdminPage() {
                       className="w-full bg-[#161b27] border border-slate-700 rounded-lg px-3 py-2 text-slate-100 text-sm placeholder-slate-500 focus:outline-none focus:border-[#4F6BFF] font-mono"
                     />
                   </div>
-                  <div className="col-span-2 flex items-center gap-2">
-                    <input type="checkbox" id="isAdmin" checked={form.isAdmin}
-                      onChange={e => setForm(f => ({ ...f, isAdmin: e.target.checked }))}
-                      className="w-4 h-4 accent-[#4F6BFF]"
-                    />
-                    <label htmlFor="isAdmin" className="text-slate-300 text-sm">Grant admin access</label>
+                  <div className="col-span-2">
+                    <div className="flex items-start gap-2">
+                      <input type="checkbox" id="isAdmin" checked={form.isAdmin}
+                        onChange={e => setForm(f => ({ ...f, isAdmin: e.target.checked }))}
+                        className="w-4 h-4 accent-red-500 mt-0.5 shrink-0"
+                      />
+                      <div>
+                        <label htmlFor="isAdmin" className="text-slate-300 text-sm cursor-pointer">
+                          Grant Scout super admin access
+                        </label>
+                        {form.isAdmin && (
+                          <p className="text-xs text-red-400 mt-0.5">
+                            ⚠ This gives full access to the Scout admin panel — all tenant data, billing stats, and the ability to delete any account. Only grant this to internal team members.
+                          </p>
+                        )}
+                        {!form.isAdmin && (
+                          <p className="text-xs text-slate-600 mt-0.5">Grants access to this admin panel and all tenant data. Do not enable for customers.</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="col-span-2 bg-amber-950/20 border border-amber-900/30 rounded-lg px-4 py-3 text-xs text-amber-300/80">
+                    <strong className="text-amber-300">No email is sent.</strong> Share credentials with this user directly. To auto-generate a password and send a branded welcome email, use{' '}
+                    <button type="button" onClick={() => { setShowForm(false); setShowFreeAccess(true) }} className="underline hover:text-amber-200">Grant 7-Day Trial</button> instead.
                   </div>
                   <div className="col-span-2 flex justify-end gap-3 pt-2">
                     <button type="button" onClick={() => setShowForm(false)}
@@ -1358,16 +1432,19 @@ export default function AdminPage() {
                   />
                 </div>
 
-                {/* Plan filter */}
+                {/* Plan filter — hardcoded canonical list, never polluted by Airtable values */}
                 <select
                   value={filterPlan}
                   onChange={e => setFilterPlan(e.target.value)}
                   className="bg-[#0f1117] border border-slate-700/60 rounded-lg px-3 py-2 text-sm text-slate-300 focus:outline-none focus:border-[#4F6BFF]/60"
                 >
                   <option value="all">All plans</option>
-                  {Array.from(new Set(tenants.map(t => t.plan).filter(Boolean))).sort().map(p => (
-                    <option key={p} value={p}>{p}</option>
-                  ))}
+                  <option value="Trial">Trial</option>
+                  <option value="Scout Starter">Starter ($49/mo)</option>
+                  <option value="Scout Pro">Pro ($99/mo)</option>
+                  <option value="Scout Agency">Agency ($249/mo)</option>
+                  <option value="Complimentary">Complimentary</option>
+                  <option value="Owner">Owner</option>
                 </select>
 
                 {/* Status filter */}
@@ -1468,6 +1545,7 @@ export default function AdminPage() {
                       <th className="text-left text-[12px] font-semibold text-slate-500 uppercase tracking-wider px-6 py-3.5">Account</th>
                       <th className="text-left text-[12px] font-semibold text-slate-500 uppercase tracking-wider px-4 py-3.5">Email</th>
                       <th className="text-left text-[12px] font-semibold text-slate-500 uppercase tracking-wider px-4 py-3.5">Plan</th>
+                      <th className="text-left text-[12px] font-semibold text-slate-500 uppercase tracking-wider px-4 py-3.5">Role</th>
                       <th className="text-left text-[12px] font-semibold text-slate-500 uppercase tracking-wider px-4 py-3.5">Status</th>
                       <th className="text-right text-[12px] font-semibold text-slate-500 uppercase tracking-wider px-6 py-3.5">Actions</th>
                     </tr>
@@ -1559,6 +1637,28 @@ export default function AdminPage() {
                             <PlanBadge plan={t.plan} />
                           </td>
 
+                          {/* Role */}
+                          <td className="px-4 py-4">
+                            {t.isAdmin ? (
+                              <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-md border bg-red-900/20 text-red-400 border-red-800/40">
+                                <span className="w-1.5 h-1.5 rounded-full bg-red-400 shrink-0" />
+                                Super Admin
+                              </span>
+                            ) : isMember ? (
+                              <span className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-md border bg-slate-800/60 text-slate-400 border-slate-700">
+                                Member
+                              </span>
+                            ) : t.isFeedOnly ? (
+                              <span className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-md border bg-amber-900/20 text-amber-400 border-amber-800/30">
+                                Feed Only
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-md border bg-emerald-900/20 text-emerald-400 border-emerald-800/30">
+                                Primary
+                              </span>
+                            )}
+                          </td>
+
                           {/* Status */}
                           <td className="px-4 py-4">
                             <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${
@@ -1575,54 +1675,57 @@ export default function AdminPage() {
                           <td className="px-4 py-4">
                             <div className="flex items-center justify-end gap-1">
 
-                              {/* Suspend / Activate toggle
-                                  Grey = currently active (click to suspend)
-                                  Red  = currently suspended (click to reactivate) */}
-                              <button
-                                onClick={() => handleStatusToggle(t)}
-                                title={t.status === 'Active'
-                                  ? 'Currently active — click to suspend'
-                                  : 'Currently suspended — click to reactivate'}
-                                className={`w-8 h-8 rounded-lg border flex items-center justify-center transition-all ${
-                                  t.status === 'Active'
-                                    ? 'bg-slate-800/80 border-slate-700 text-slate-400 hover:bg-red-900/30 hover:border-red-700/50 hover:text-red-300'
-                                    : 'bg-red-900/20 border-red-700/40 text-red-400 hover:bg-emerald-900/20 hover:border-emerald-700/40 hover:text-emerald-300'
-                                }`}
+                              {/* Suspend / Activate toggle with tooltip
+                                  Grey = currently active  → click suspends
+                                  Red  = currently suspended → click reactivates */}
+                              <ActionTooltip
+                                currentState={t.status === 'Active' ? '✓ Active' : '✗ Suspended'}
+                                clickAction={t.status === 'Active' ? 'Suspend account' : 'Reactivate account'}
+                                danger={t.status === 'Active'}
                               >
-                                {t.status === 'Active' ? (
-                                  /* Ban icon — click will suspend */
-                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
-                                  </svg>
-                                ) : (
-                                  /* Check icon — click will reactivate */
-                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                  </svg>
-                                )}
-                              </button>
+                                <button
+                                  onClick={() => handleStatusToggle(t)}
+                                  className={`w-8 h-8 rounded-lg border flex items-center justify-center transition-all ${
+                                    t.status === 'Active'
+                                      ? 'bg-slate-800/80 border-slate-700 text-slate-400 hover:bg-red-900/30 hover:border-red-700/50 hover:text-red-300'
+                                      : 'bg-red-900/20 border-red-700/40 text-red-400 hover:bg-emerald-900/20 hover:border-emerald-700/40 hover:text-emerald-300'
+                                  }`}
+                                >
+                                  {t.status === 'Active' ? (
+                                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                                    </svg>
+                                  ) : (
+                                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                  )}
+                                </button>
+                              </ActionTooltip>
 
-                              {/* Feed-only toggle icon
-                                  Grey/eye-slash = full access (click to restrict)
-                                  Amber/eye-open = feed only (click to restore) */}
-                              <button
-                                onClick={() => handleFeedOnlyToggle(t)}
-                                title={t.isFeedOnly
-                                  ? 'Currently feed only — click to restore full access'
-                                  : 'Currently full access — click to restrict to feed only'}
-                                className={`w-8 h-8 rounded-lg border flex items-center justify-center transition-all ${
-                                  t.isFeedOnly
-                                    ? 'bg-amber-900/30 border-amber-700/50 text-amber-300 hover:bg-slate-800/80 hover:border-slate-700 hover:text-slate-400'
-                                    : 'bg-slate-800/80 border-slate-700 text-slate-400 hover:bg-amber-900/20 hover:border-amber-700/40 hover:text-amber-300'
-                                }`}
+                              {/* Feed-only toggle with tooltip
+                                  Grey/slash = full access (not restricted) → click restricts
+                                  Amber/eye  = feed only (restricted)       → click restores */}
+                              <ActionTooltip
+                                currentState={t.isFeedOnly ? '👁 Feed only (restricted)' : '⊘ Full access (not restricted)'}
+                                clickAction={t.isFeedOnly ? 'Restore full access' : 'Restrict to feed only'}
                               >
-                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                  <path strokeLinecap="round" strokeLinejoin="round" d={t.isFeedOnly
-                                    ? "M15 12a3 3 0 11-6 0 3 3 0 016 0z M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
-                                    : "M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"
-                                  } />
-                                </svg>
-                              </button>
+                                <button
+                                  onClick={() => handleFeedOnlyToggle(t)}
+                                  className={`w-8 h-8 rounded-lg border flex items-center justify-center transition-all ${
+                                    t.isFeedOnly
+                                      ? 'bg-amber-900/30 border-amber-700/50 text-amber-300 hover:bg-slate-800/80 hover:border-slate-700 hover:text-slate-400'
+                                      : 'bg-slate-800/80 border-slate-700 text-slate-400 hover:bg-amber-900/20 hover:border-amber-700/40 hover:text-amber-300'
+                                  }`}
+                                >
+                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d={t.isFeedOnly
+                                      ? "M15 12a3 3 0 11-6 0 3 3 0 016 0z M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+                                      : "M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"
+                                    } />
+                                  </svg>
+                                </button>
+                              </ActionTooltip>
 
                               {/* ⋮ Overflow menu — Apify, Reset PW, Delete */}
                               <div className="relative">

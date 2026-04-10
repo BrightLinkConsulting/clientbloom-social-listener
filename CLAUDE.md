@@ -116,6 +116,20 @@ Completed:
   Gate enforced at 6 surfaces: UI in page.tsx + settings/page.tsx; server in crm-push + crm-settings
   routes; marketing copy in upgrade/page.tsx, page-landing.tsx, welcome/page.tsx, lib/emails.ts,
   and compare/page.tsx. Plan sweep confirmed zero remaining Pro+CRM references.
+- ✅ Admin panel — 9-bug adversarial fix (April 2026):
+  (a) grant-access/route.ts: Created At was date-only — fixed to full ISO datetime;
+  (b) grant-access welcome email: header + CTA were BRAND_BLUE — fixed to BRAND_PURPLE + Scout SVG logo;
+  (c) grant-access info box: "trial clock starts on first login" was false — trial starts at creation; corrected;
+  (d) Admin modal "What gets created" info box: updated to match actual behavior (immediate clock);
+  (e) Add Tenant plan dropdown: restructured with optgroups — non-billed plans (Complimentary/Trial/Owner)
+      at top; paid plans demoted to bottom with "no billing created" warning; description note added;
+  (f) "Grant admin access" checkbox: renamed "Grant Scout super admin access" with live red warning
+      explaining this grants full panel access to all tenant data; checkbox is red not blue;
+  (g) Plan filter dropdown: replaced dynamic Airtable build with hardcoded canonical plan list —
+      eliminates "Member" and other non-canonical values polluting the filter;
+  (h) Role column added to tenant table: Primary / Member / Feed Only / Super Admin badges;
+  (i) ActionTooltip component: replaces browser title attr — shows current state + action on hover,
+      supports danger (red) variant for suspend toggle.
 
 Still open:
 - Security headers in next.config.js (X-Frame-Options, CSP, etc.)
