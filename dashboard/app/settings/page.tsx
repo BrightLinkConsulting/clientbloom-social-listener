@@ -126,7 +126,7 @@ function Nav() {
               <p className="text-sm font-semibold text-white leading-tight">Scout by ClientBloom</p>
               <span className="text-xs text-emerald-400 flex items-center gap-1">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                Live · 2× daily
+                {(plan === 'Scout Pro' || plan === 'Scout Agency' || plan === 'Owner') ? 'Live · 2× daily' : 'Live · 1× daily'}
               </span>
             </div>
           </div>
@@ -302,10 +302,11 @@ const INDUSTRY_PACKS: { label: string; value: string; terms: string[] }[] = [
 const WARN_ACTIVE_TERMS = 8
 
 // ---- LinkedIn Terms Section ----
-function LinkedInTermsSection({ sources, onUpdate, planLimit = 10 }: {
+function LinkedInTermsSection({ sources, onUpdate, planLimit = 10, plan = 'Trial' }: {
   sources: Source[]
   onUpdate: () => void
   planLimit?: number
+  plan?: string
 }) {
   const [showAdd, setShowAdd] = useState(false)
   const [showSuggestions, setShowSuggestions] = useState(false)
@@ -408,10 +409,12 @@ function LinkedInTermsSection({ sources, onUpdate, planLimit = 10 }: {
     onUpdate()
   }
 
+  const scanFreq = (plan === 'Scout Pro' || plan === 'Scout Agency' || plan === 'Owner') ? '2×' : '1×'
+
   return (
     <Section
       title="LinkedIn Keyword Search"
-      description={`${activeCount} of ${terms.length} terms active · Scout searches LinkedIn for these phrases 2× daily`}
+      description={`${activeCount} of ${terms.length} terms active · Scout searches LinkedIn for these phrases ${scanFreq} daily`}
     >
       {/* How it works tip */}
       <div className="mb-5 flex gap-3 px-3.5 py-3 rounded-xl bg-slate-800/50 border border-slate-700/40">
@@ -574,10 +577,23 @@ function LinkedInTermsSection({ sources, onUpdate, planLimit = 10 }: {
       {atCap && (
         <div className="mb-4 flex gap-2.5 px-3.5 py-3 rounded-xl bg-red-500/10 border border-red-500/20">
           <span className="text-red-400 text-sm shrink-0">⛔</span>
-          <div>
-            <p className="text-xs font-semibold text-red-300">Limit reached — {planLimit} active terms</p>
+          <div className="flex-1">
+            <p className="text-xs font-semibold text-red-300">{planLimit}-keyword limit reached</p>
             <p className="text-xs text-red-400/80 mt-0.5 leading-relaxed">
-              Each term runs a separate LinkedIn search every scan. More terms add cost and noise — not better results. Pause or remove a term before adding another.
+              Pause or remove a term to swap in a different one.
+              {(plan === 'Trial' || plan === 'Scout Starter') && (
+                <> Pro includes 10 searches · Agency includes 20.{' '}
+                  <a href="/upgrade" className="underline text-red-300 hover:text-white transition-colors">Upgrade →</a>
+                </>
+              )}
+              {plan === 'Scout Pro' && (
+                <> Agency includes 20 searches.{' '}
+                  <a href="/upgrade" className="underline text-red-300 hover:text-white transition-colors">Upgrade →</a>
+                </>
+              )}
+              {(plan === 'Scout Agency' || plan === 'Owner') && (
+                <> Keeping 6–10 tightly focused terms tends to surface higher-quality conversations.</>
+              )}
             </p>
           </div>
         </div>
@@ -586,7 +602,7 @@ function LinkedInTermsSection({ sources, onUpdate, planLimit = 10 }: {
         <div className="mb-4 flex gap-2.5 px-3.5 py-3 rounded-xl bg-amber-500/10 border border-amber-500/20">
           <span className="text-amber-400 text-sm shrink-0">⚠️</span>
           <p className="text-xs text-amber-400/90 leading-relaxed">
-            <span className="font-semibold">{activeCount} active terms.</span> Scout searches each one independently — above {planLimit} the signal-to-noise ratio drops. Aim for 5–8 tightly focused phrases.
+            <span className="font-semibold">{activeCount} active searches.</span> Fewer, more focused terms surface higher-quality conversations. Aim for 5–8 tightly targeted phrases.
           </p>
         </div>
       )}
@@ -624,21 +640,21 @@ function LinkedInTermsSection({ sources, onUpdate, planLimit = 10 }: {
 
       {/* Action buttons */}
       <div className="flex items-center gap-3 flex-wrap">
+        {/* Browse suggestions — always openable; addTerm blocks the add if at cap */}
         <button
           onClick={() => { setShowSuggestions(v => !v); setShowAdd(false); setShowPackPicker(false) }}
-          disabled={atCap}
-          className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-slate-700/50 text-slate-400 hover:text-white hover:border-slate-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-slate-700/50 text-slate-400 hover:text-white hover:border-slate-600 transition-colors"
         >
           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.347.346A3.51 3.51 0 0114.5 18H9.5a3.51 3.51 0 01-2.471-1.024l-.347-.346z" />
           </svg>
           Browse suggestions
         </button>
+        {/* Starter packs — always openable; loadIndustryPack respects planLimit */}
         {terms.length > 0 && (
           <button
             onClick={() => { setShowPackPicker(v => !v); setShowAdd(false); setShowSuggestions(false) }}
-            disabled={atCap}
-            className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-slate-700/50 text-slate-400 hover:text-white hover:border-slate-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-slate-700/50 text-slate-400 hover:text-white hover:border-slate-600 transition-colors"
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
@@ -646,6 +662,7 @@ function LinkedInTermsSection({ sources, onUpdate, planLimit = 10 }: {
             Starter packs
           </button>
         )}
+        {/* Add custom term — disabled when at cap; addTerm already blocks + shows error */}
         <button
           onClick={() => { setShowAdd(v => !v); setShowSuggestions(false); setShowPackPicker(false) }}
           disabled={atCap}
@@ -654,7 +671,7 @@ function LinkedInTermsSection({ sources, onUpdate, planLimit = 10 }: {
           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
           </svg>
-          Add custom term
+          {atCap ? 'At limit — pause a term to add' : 'Add custom term'}
         </button>
       </div>
     </Section>
@@ -1076,7 +1093,7 @@ function LinkedInICPSection() {
   return (
     <Section
       title="LinkedIn ICP Pool"
-      description={`${active} of ${total} profiles monitored · Scout checks their LinkedIn activity 2× daily and surfaces the best moments to show up in their conversations`}
+      description={`${active} of ${total} profiles monitored · Scout checks their LinkedIn activity ${(icpPlan === 'Scout Pro' || icpPlan === 'Scout Agency' || icpPlan === 'Owner') ? '2×' : '1×'} daily and surfaces the best moments to show up in their conversations`}
     >
       {error && (
         <div className="mb-4 px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/20 text-xs text-red-400 flex items-start justify-between gap-2">
@@ -3099,7 +3116,12 @@ export default function SettingsPage() {
               </div>
             )}
             {!loading && !loadError && (
-              <LinkedInTermsSection sources={sources} onUpdate={fetchSources} planLimit={getTierLimits((session?.user as any)?.plan || 'Trial').keywords} />
+              <LinkedInTermsSection
+                sources={sources}
+                onUpdate={fetchSources}
+                planLimit={getTierLimits((session?.user as any)?.plan || 'Trial').keywords}
+                plan={(session?.user as any)?.plan || 'Trial'}
+              />
             )}
             <LinkedInICPSection />
           </>

@@ -1,8 +1,25 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
+import { getTierLimits } from '@/lib/tier'
+
+// ---- Industry starter packs (mirrored from settings/page.tsx) ----
+const INDUSTRY_PACKS: { label: string; value: string; terms: string[] }[] = [
+  { label: 'Agency / Marketing Agency',     value: 'agency',          terms: ['client retention', 'agency growth', 'losing a client', 'client churn', 'retainer model', 'agency operations'] },
+  { label: 'B2B SaaS',                      value: 'saas',            terms: ['product led growth', 'reducing churn', 'customer onboarding', 'time to value', 'SaaS pricing', 'expansion revenue'] },
+  { label: 'Customer Success',              value: 'customer-success', terms: ['customer health score', 'churn prevention', 'renewal strategy', 'expansion playbook', 'QBR prep', 'CS team scaling'] },
+  { label: 'Sales / Revenue',               value: 'sales',           terms: ['pipeline review', 'cold outreach', 'deal closing', 'quota attainment', 'discovery call', 'objection handling'] },
+  { label: 'HR / Talent / Recruiting',      value: 'hr',              terms: ['talent acquisition', 'employee retention', 'reducing turnover', 'hiring mistakes', 'candidate experience', 'employer brand'] },
+  { label: 'Consulting / Professional Svcs',value: 'consulting',      terms: ['scope creep', 'client management', 'retainer clients', 'proposal writing', 'consulting fees', 'client results'] },
+  { label: 'Coaching / Solopreneurs',       value: 'coaching',        terms: ['coaching business', 'high ticket offer', 'client transformation', 'scaling services', 'lead generation coaching', 'online coaching'] },
+  { label: 'Finance / CFO / Accounting',    value: 'finance',         terms: ['cash flow management', 'financial planning', 'runway extension', 'unit economics', 'cost cutting', 'budgeting process'] },
+  { label: 'E-commerce / DTC',              value: 'ecommerce',       terms: ['customer acquisition cost', 'repeat purchase rate', 'abandoned cart', 'DTC growth', 'conversion rate', 'email revenue'] },
+  { label: 'Real Estate',                   value: 'real-estate',     terms: ['real estate investing', 'deal flow', 'property management', 'multifamily investing', 'passive income real estate', 'real estate portfolio'] },
+  { label: 'Legal / Law Firms',             value: 'legal',           terms: ['law firm growth', 'client acquisition lawyer', 'legal operations', 'billing rates', 'in-house counsel', 'law practice management'] },
+  { label: 'Healthcare / Wellness',         value: 'healthcare',      terms: ['patient retention', 'practice growth', 'patient experience', 'healthcare marketing', 'referral marketing', 'telehealth'] },
+]
 
 // ---- ClientBloom bloom mark ----
 function ClientBloomMark({ size = 32 }: { size?: number }) {
@@ -189,7 +206,231 @@ function Step2({
   )
 }
 
-// ── Step 3: Run First Scan ───────────────────────────────────────────────────
+// ── Step 3: Keyword Searches ─────────────────────────────────────────────────
+function StepKeywords({
+  planLimit,
+  onNext,
+  onBack,
+}: {
+  planLimit: number
+  onNext: () => void
+  onBack: () => void
+}) {
+  const [terms, setTerms]             = useState<{ id: string; value: string }[]>([])
+  const [selectedIndustry, setSel]    = useState('')
+  const [loadingPack, setLoadingPack] = useState(false)
+  const [customInput, setCustom]      = useState('')
+  const [showCustom, setShowCustom]   = useState(false)
+  const [adding, setAdding]           = useState(false)
+  const [error, setError]             = useState('')
+
+  const activeCount = terms.length
+  const atCap       = activeCount >= planLimit
+
+  const addTerm = useCallback(async (term: string) => {
+    const t = term.trim()
+    if (!t) return
+    if (terms.some(x => x.value.toLowerCase() === t.toLowerCase())) return
+    if (atCap) {
+      setError(`You've reached the ${planLimit}-term limit for your plan. Remove a term to add a different one.`)
+      return
+    }
+    setAdding(true)
+    setError('')
+    try {
+      const resp = await fetch('/api/sources', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: t, type: 'linkedin_term', value: t, priority: 'high' }),
+      })
+      if (!resp.ok) throw new Error('Failed to save keyword')
+      const data = await resp.json()
+      // Airtable response nests the record; fall back to a temp ID if needed
+      const id = data?.record?.id || data?.id || `tmp-${Date.now()}`
+      setTerms(prev => [...prev, { id, value: t }])
+      setCustom('')
+      setShowCustom(false)
+    } catch (e: any) {
+      setError(e.message || 'Could not save keyword — you can add it later in Settings.')
+    } finally {
+      setAdding(false)
+    }
+  }, [terms, atCap, planLimit])
+
+  const removeTerm = async (id: string, value: string) => {
+    try {
+      // Best-effort delete — non-fatal if it fails (term will show in settings)
+      if (!id.startsWith('tmp-')) await fetch(`/api/sources/${id}`, { method: 'DELETE' })
+    } catch { /* ignore */ }
+    setTerms(prev => prev.filter(t => t.id !== id))
+    setError('')
+  }
+
+  const loadPack = async () => {
+    if (!selectedIndustry) return
+    const pack = INDUSTRY_PACKS.find(p => p.value === selectedIndustry)
+    if (!pack) return
+    setLoadingPack(true)
+    setError('')
+    const available = pack.terms.filter(t => !terms.some(x => x.value.toLowerCase() === t.toLowerCase()))
+    const slots     = planLimit - activeCount
+    const toAdd     = available.slice(0, slots)
+    const added: { id: string; value: string }[] = []
+    for (const t of toAdd) {
+      try {
+        const resp = await fetch('/api/sources', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: t, type: 'linkedin_term', value: t, priority: 'high' }),
+        })
+        if (resp.ok) {
+          const data = await resp.json()
+          const id = data?.record?.id || data?.id || `tmp-${Date.now()}-${t}`
+          added.push({ id, value: t })
+        }
+      } catch { /* skip failed terms */ }
+    }
+    setTerms(prev => [...prev, ...added])
+    setLoadingPack(false)
+    setSel('')
+  }
+
+  return (
+    <div>
+      <h2 className="text-2xl font-bold text-white mb-2">Set up keyword searches</h2>
+      <p className="text-slate-400 text-sm mb-6">
+        Scout searches LinkedIn for public posts matching these phrases every day — from anyone on the platform, not just your tracked profiles. Add 2–4 word phrases your ideal clients post about.
+      </p>
+
+      {/* Plan limit pill */}
+      <div className="flex items-center gap-2 mb-5">
+        <span className={`text-xs px-2.5 py-1 rounded-full border font-medium ${atCap ? 'bg-red-500/10 border-red-500/20 text-red-400' : 'bg-blue-500/10 border-blue-500/20 text-blue-400'}`}>
+          {activeCount} / {planLimit} keywords used
+        </span>
+        {(planLimit === 3) && (
+          <span className="text-xs text-slate-600">Trial & Starter: 3 · Pro: 10 · Agency: 20</span>
+        )}
+      </div>
+
+      {/* Added terms */}
+      {terms.length > 0 && (
+        <div className="flex flex-wrap gap-2 mb-5">
+          {terms.map(t => (
+            <div key={t.id} className="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border bg-slate-800 text-slate-300 border-slate-700/50">
+              <span>{t.value}</span>
+              <button onClick={() => removeTerm(t.id, t.value)} className="text-slate-600 hover:text-red-400 transition-colors leading-none ml-0.5">×</button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {error && (
+        <div className="mb-4 px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/20 text-xs text-red-400 flex items-center justify-between">
+          {error}
+          <button onClick={() => setError('')} className="ml-2 opacity-60 hover:opacity-100">×</button>
+        </div>
+      )}
+
+      {/* Industry pack picker */}
+      {!atCap && (
+        <div className="mb-5 rounded-xl border border-slate-700/40 bg-slate-900/60 p-4 space-y-3">
+          <div>
+            <p className="text-xs font-semibold text-slate-200 mb-1">Start with a starter pack</p>
+            <p className="text-xs text-slate-500 leading-relaxed">
+              Pick your industry and Scout will load a set of high-signal phrases that match how your buyers post on LinkedIn. You can edit or remove any of them after.
+            </p>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <select
+              value={selectedIndustry}
+              onChange={e => setSel(e.target.value)}
+              className="flex-1 min-w-[200px] text-xs bg-slate-800 border border-slate-700/50 rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:border-blue-500/50"
+            >
+              <option value="">Select your industry…</option>
+              {INDUSTRY_PACKS.map(p => (
+                <option key={p.value} value={p.value}>{p.label}</option>
+              ))}
+            </select>
+            <button
+              onClick={loadPack}
+              disabled={!selectedIndustry || loadingPack}
+              className="text-xs px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white font-medium transition-colors flex items-center gap-1.5"
+            >
+              {loadingPack ? (
+                <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+                </svg>
+              ) : null}
+              Load pack
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Custom term input */}
+      {!atCap && !showCustom && (
+        <button
+          onClick={() => setShowCustom(true)}
+          className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-300 transition-colors mb-5"
+        >
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+          </svg>
+          Add your own term
+        </button>
+      )}
+      {showCustom && (
+        <div className="mb-5 space-y-2">
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              value={customInput}
+              onChange={e => setCustom(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && addTerm(customInput)}
+              placeholder='e.g. "client retention" or "scaling my agency"'
+              autoFocus
+              maxLength={60}
+              className="flex-1 text-sm bg-slate-800/80 border border-slate-700/50 rounded-lg px-3 py-2 text-slate-200 placeholder-slate-600 focus:outline-none focus:border-blue-500/50"
+            />
+            <button
+              onClick={() => { setShowCustom(false); setCustom('') }}
+              className="text-xs px-3 py-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-700/50 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={() => addTerm(customInput)}
+              disabled={adding || !customInput.trim()}
+              className="text-xs px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-medium transition-colors disabled:opacity-50 flex items-center gap-1.5"
+            >
+              {adding && <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" /></svg>}
+              Add
+            </button>
+          </div>
+          <p className="text-xs text-slate-600">Use 2–4 word phrases — single words pull too much noise.</p>
+        </div>
+      )}
+
+      <div className="mt-8 flex gap-3">
+        <button
+          onClick={onBack}
+          className="px-5 py-3.5 rounded-xl border border-slate-700 text-slate-400 hover:text-white hover:border-slate-600 text-sm font-medium transition-colors"
+        >
+          Back
+        </button>
+        <button
+          onClick={onNext}
+          className="flex-1 py-3.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-sm transition-colors"
+        >
+          {terms.length > 0 ? 'Continue →' : 'Skip for now →'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ── Step 4: Run First Scan ───────────────────────────────────────────────────
 function Step3({
   data,
   onBack,
@@ -407,6 +648,9 @@ export default function OnboardingPage() {
     signalTypes: [] as string[],
   })
 
+  const plan      = (session?.user as any)?.plan || 'Trial'
+  const planLimit = getTierLimits(plan).keywords
+
 
   // ── Already-onboarded guard ──────────────────────────────────────────────
   // If the user lands on /onboarding after completing setup (e.g. clicking the
@@ -451,7 +695,7 @@ export default function OnboardingPage() {
           </div>
         </div>
 
-        <StepDots current={step} total={3} />
+        <StepDots current={step} total={4} />
 
         {step === 0 && (
           <Step1 data={profile} onChange={updateProfile} onNext={() => setStep(1)} />
@@ -465,9 +709,16 @@ export default function OnboardingPage() {
           />
         )}
         {step === 2 && (
+          <StepKeywords
+            planLimit={planLimit}
+            onNext={() => setStep(3)}
+            onBack={() => setStep(1)}
+          />
+        )}
+        {step === 3 && (
           <Step3
             data={profile}
-            onBack={() => setStep(1)}
+            onBack={() => setStep(2)}
             onComplete={() => router.push('/')}
             onMarkComplete={markOnboardingComplete}
           />
