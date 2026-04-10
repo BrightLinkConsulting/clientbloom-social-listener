@@ -1775,7 +1775,13 @@ function FeedPage() {
   const [bulkResult, setBulkResult]       = useState<string | null>(null)
 
   // Scout Agent state
-  const [agentOpen, setAgentOpen] = useState(false)
+  const [agentOpen,  setAgentOpen]  = useState(false)
+  // Pulse draws attention on first inbox load — auto-stops after 5s or on first open
+  const [agentPulse, setAgentPulse] = useState(true)
+  useEffect(() => {
+    const t = setTimeout(() => setAgentPulse(false), 5000)
+    return () => clearTimeout(t)
+  }, [])
 
   // Trial expiry gate — show overlay modal instead of hard-redirecting so the
   // user can see what they are missing behind the gate before choosing a plan.
@@ -2436,20 +2442,27 @@ function FeedPage() {
       </main>
 
       {/* ── Scout Agent: floating trigger button ── */}
-      <button
-        onClick={() => setAgentOpen(prev => !prev)}
-        className={`fixed bottom-5 right-5 z-40 flex items-center gap-2 px-4 py-2.5 rounded-2xl shadow-lg border transition-all duration-200 ${
-          agentOpen
-            ? 'bg-blue-600 border-blue-500 text-white shadow-blue-500/25'
-            : 'bg-[#0d1017] border-slate-700/60 text-slate-300 hover:border-blue-500/40 hover:text-white shadow-black/40'
-        }`}
-        title="Scout Agent — AI inbox assistant"
-      >
-        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-        </svg>
-        <span className="text-xs font-semibold">Scout Agent</span>
-      </button>
+      {/* Wrapper holds the button + the attention-pulse ring */}
+      <div className="fixed bottom-5 right-5 z-40">
+        {/* Pulse ring — fires once on inbox load, stops after 5s or first open */}
+        {agentPulse && !agentOpen && (
+          <span className="absolute inset-0 rounded-2xl bg-violet-500 animate-ping opacity-40 pointer-events-none" />
+        )}
+        <button
+          onClick={() => { setAgentOpen(prev => !prev); setAgentPulse(false) }}
+          className={`relative flex items-center gap-2 px-4 py-2.5 rounded-2xl border font-semibold text-white transition-all duration-200 shadow-lg ${
+            agentOpen
+              ? 'bg-violet-700 border-violet-500/80 shadow-violet-700/50 scale-95'
+              : 'bg-violet-600 border-violet-500/60 shadow-violet-600/40 hover:bg-violet-500 hover:shadow-violet-500/60 hover:scale-105 active:scale-95'
+          }`}
+          title="Scout Agent — AI inbox assistant"
+        >
+          <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+          </svg>
+          <span className="text-xs font-semibold tracking-wide">Scout Agent</span>
+        </button>
+      </div>
 
       {/* ── Scout Agent panel ── */}
       <ScoutAgentPanel
