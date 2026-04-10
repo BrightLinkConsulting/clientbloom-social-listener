@@ -417,18 +417,24 @@ async function evaluateFlags(r: any, checkedAt: string): Promise<ServiceFlag[]> 
 
 // ── Notification dispatch ────────────────────────────────────────────────────
 
+interface DispatchResult {
+  criticalAlert: CriticalFlagAlert | null
+  sentCodes:     string[]  // flag codes actually emailed in THIS run (empty if dedup blocked)
+}
+
 /**
  * Decide whether to send a customer email for this tenant's flags, handle
  * dedup, and dispatch both customer email and admin Slack accumulation.
  *
- * Returns a CriticalFlagAlert if this tenant has new critical flags (for
- * batching into the end-of-run Slack message), or null otherwise.
+ * Returns { criticalAlert, sentCodes } where sentCodes contains only the codes
+ * emailed in this run (empty if dedup blocked or no email needed). The caller
+ * uses sentCodes for accurate response metrics.
  */
 async function dispatchNotifications(
   r:          any,
   flags:      ServiceFlag[],
   checkedAt:  string,
-): Promise<CriticalFlagAlert | null> {
+): Promise<DispatchResult> {
   const email        = r.fields?.['Email']                     || ''
   const sentAtRaw    = r.fields?.['Service Flag Email Sent At'] || null
   const sentCodesRaw = r.fields?.['Last Flag Codes Emailed']   || '[]'
@@ -452,11 +458,14 @@ async function dispatchNotifications(
   const lastSentMs     = sentAtRaw ? new Date(sentAtRaw).getTime() : 0
   const cooldownPassed = !sentAtRaw || (Date.now() - lastSentMs) > EMAIL_COOLDOWN_MS
 
+  let actuallySentCodes: string[] = []
+
   if (email && newCodes.length > 0 && cooldownPassed) {
     const flagsToSend = actionableFlags.filter(f => newCodes.includes(f.code))
     const sent = await sendServiceFlagEmail({ to: email, flags: flagsToSend })
 
     if (sent) {
+      actuallySentCodes = newCodes
       const allSentCodes = Array.from(new Set(sentCodes.concat(newCodes)))
       await patchNotificationState(recordId, new Date().toISOString(), allSentCodes)
     }
@@ -480,15 +489,11 @@ async function dispatchNotifications(
          !sentCodes.includes(f.code)   // only alert on genuinely new flags
   )
 
-  if (newCriticalFlags.length > 0 && email) {
-    return {
-      email,
-      flagCodes: newCriticalFlags.map(f => f.code),
-      messages:  newCriticalFlags.map(f => f.message),
-    }
-  }
+  const criticalAlert: CriticalFlagAlert | null = (newCriticalFlags.length > 0 && email)
+    ? { email, flagCodes: newCriticalFlags.map(f => f.code), messages: newCriticalFlags.map(f => f.message) }
+    : null
 
-  return null
+  return { criticalAlert, sentCodes: actuallySentCodes }
 }
 
 // ── Main handler ──────────────────────────────────────────────────────────────
@@ -540,14 +545,11 @@ export async function GET(req: NextRequest) {
         await patchTenantFlags(r.id, flags, checkedAt)
 
         // Then dispatch notifications (email + Slack accumulation)
-        const criticalAlert = await dispatchNotifications(r, flags, checkedAt)
+        const { criticalAlert, sentCodes: emailedThisRun } = await dispatchNotifications(r, flags, checkedAt)
         if (criticalAlert) criticalAlerts.push(criticalAlert)
 
-        const newCodes = flags
-          .filter(f => f.severity !== 'info' && CUSTOMER_EMAIL_CODES.has(f.code))
-          .map(f => f.code)
-
-        results.push({ id: r.id, email, flags: flags.length, emailedCodes: newCodes })
+        // emailedCodes = codes actually sent in THIS run (empty when dedup blocked)
+        results.push({ id: r.id, email, flags: flags.length, emailedCodes: emailedThisRun })
       } catch (e: any) {
         results.push({ id: r.id, email, flags: 0, error: e.message?.slice(0, 80) })
       }
