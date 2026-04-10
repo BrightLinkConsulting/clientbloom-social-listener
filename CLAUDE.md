@@ -314,6 +314,12 @@ The LinkedIn ICP system separates pool (storage) from scan slots (Apify cost). T
 - `scanSlots`: profiles actually fetched per scan run — the real Apify cost driver
 - `atPoolCap = total >= poolSize` — always use total (all records), never activeCount
 - `GET /api/linkedin-icps` returns `{ profiles, poolSize, scanSlots }` — UI reads limits from here
+- Section description: use `sectionDescription` variable — when `total > poolSize` (grandfathered data
+  from before pool cap was enforced) show "X profiles saved · Y-profile trial pool limit · ..." to
+  avoid the confusing "25 of 10" display. Normal path: "${total} of ${poolSize} in pool · ..."
+- Info box: always render "How the ICP Pool works" box (matches keyword section pattern). Trial users
+  see inline upgrade comparison: "Starter: 50 pool · 10 scanned · Pro: 150 pool · 25 scanned · Agency: 500 pool · 50 scanned"
+- Pool cap pill: show `{total}/{poolSize}` — NOT `{poolSize}/{poolSize}` (would hide over-limit state)
 - `runScanForTenant(tenantId, apifyKey?, plan)` — plan param is required; drives slot selection
 - Smart sort: Posts Found DESC → Added Date DESC → natural round-robin (no manual priority, v1)
 - Discover ICPs: gated (`discoverRunsPerDay === 0` → 403 with `upgrade:true`); daily frequency

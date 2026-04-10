@@ -39,15 +39,18 @@ await fetch('https://api.resend.com/emails', {
 ## 2. Brand Constants
 
 ```typescript
-const BRAND_BLUE   = '#4F6BFF'   // Secondary — upgrade links, non-primary actions
-const BRAND_PURPLE = '#7C3AED'   // Primary — Day 1 header, CTA button, logo header
-const BRAND_PINK   = '#E91E8C'   // Agency plan accent
+const BRAND_BLUE   = '#4F6BFF'   // Non-trial transactionals only (password reset, billing)
+const BRAND_PURPLE = '#7C3AED'   // All trial emails — header + CTA buttons
+const BRAND_PINK   = '#E91E8C'   // Agency plan accent (Days 5–7 body elements only)
 const BRAND_DARK   = '#0a0c10'   // Expiry + win-back headers (darker tone = urgency)
 ```
 
-**Rule:** Day 1 welcome email uses `BRAND_PURPLE` for the header background, CTA button,
-and infoBox accent. Days 2–4 and the dispatcher default to `BRAND_BLUE` (generic
-sequence tone). Days 5–7 use the recommended plan's color from `PLAN_COPY`.
+**Rule (updated April 2026):** ALL trial day emails (Days 1–7) use `logoHeader()` with
+`BRAND_PURPLE` header background and `BRAND_PURPLE` CTA buttons. `BRAND_BLUE` is reserved
+for non-trial transactionals only (password reset, billing alerts, admin emails).
+Days 5–7 body elements (infoBox border, table column header, CTA button) still use
+`planCopy.color` for plan-specific urgency styling — but the email header itself is
+always `logoHeader()` regardless of plan.
 
 ---
 
@@ -58,7 +61,7 @@ sequence tone). Days 5–7 use the recommended plan's color from `PLAN_COPY`.
 | Helper | Signature | Purpose |
 |--------|-----------|---------|
 | `header(text, color?)` | `string → string` | Standard colored header bar with text |
-| `logoHeader(color?)` | `string → string` | Day 1 header — ClientBloom mark + "Scout / by ClientBloom" stacked text |
+| `logoHeader(color?)` | `string → string` | All trial day headers (Days 1–7) — ClientBloom mark + "Scout / by ClientBloom" stacked text. Default color: `BRAND_PURPLE`. |
 | `footer(unsubUrl)` | `string → string` | CAN-SPAM footer with physical address and unsubscribe link |
 | `wrap(header, body, footerHtml)` | `string → string` | Outer container div (max-width 540px) |
 | `cta(label, href, color?)` | `string → string` | Styled call-to-action button |
@@ -254,11 +257,11 @@ is always sent at signup time.
 
 Days 5, 6, and 7 include a plan recommendation based on `opts.plan`:
 
-| Value | Label | Price | Color |
-|-------|-------|-------|-------|
-| `'starter'` | "Continue with Starter →" | $49/month | `BRAND_BLUE` |
-| `'pro'` | "Continue with Pro →" | $99/month | `BRAND_PURPLE` |
-| `'agency'` | "Continue with Agency →" | $249/month | `BRAND_PINK` |
+| Value | Label | Price | Body accent color | ICP highlight copy |
+|-------|-------|-------|-------------------|--------------------|
+| `'starter'` | "Continue with Starter →" | $49/month | `BRAND_PURPLE` | "3 keyword searches, 10 ICP profiles scanned (50-profile pool), 1 daily scan" |
+| `'pro'` | "Continue with Pro →" | $99/month | `BRAND_PURPLE` | "10 keyword searches, 25 ICP profiles scanned (150-profile pool), 2 daily scans, Slack digest" |
+| `'agency'` | "Continue with Agency →" | $249/month | `BRAND_PINK` | "20 keyword searches, 50 ICP profiles scanned (500-profile pool), 2 daily scans, up to 5 user seats" |
 
 Default is `'pro'` when no plan is specified. The trial-check cron currently does not
 pass a plan — this is a future improvement (matching the recommended plan to usage data).
