@@ -21,6 +21,11 @@ This folder is the developer knowledge base for Scout. Start here.
 | [`architecture-overview.md`](./architecture-overview.md) | System map, request lifecycle, data flow, component relationships |
 | [`auth-and-sessions.md`](./auth-and-sessions.md) | NextAuth configuration, JWT strategy, session refresh, rate limiting |
 
+### Design and UX
+| Document | What it covers |
+|----------|----------------|
+| [`ux-design-system.md`](./ux-design-system.md) | Typography scale, color system, spacing patterns, callout components, interactive states — source of truth for all UI decisions |
+
 ### Features and subsystems
 | Document | What it covers |
 |----------|----------------|
@@ -74,6 +79,9 @@ This folder is the developer knowledge base for Scout. Start here.
 | How does per-tenant Apify cost attribution work? | [`apify-integration.md`](./apify-integration.md) → "Per-Tenant Cost Attribution" |
 | What does a service flag mean? How do I add a new one? | [`service-manager.md`](./service-manager.md) → "Flag Reference" |
 | A paid customer has no posts — where do I look? | [`service-manager.md`](./service-manager.md) → `paid_zero_posts` flag |
+| What font size should this text be? | [`ux-design-system.md`](./ux-design-system.md) → "Typography Scale" |
+| What color should this score/status use? | [`ux-design-system.md`](./ux-design-system.md) → "Color System" |
+| How do I build a callout/info box? | [`ux-design-system.md`](./ux-design-system.md) → "Callout / Info Box Patterns" |
 
 ---
 

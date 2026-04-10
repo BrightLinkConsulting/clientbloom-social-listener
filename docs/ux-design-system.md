@@ -1,0 +1,208 @@
+# UX / Design System
+
+> **Scout** — `scout.clientbloom.ai`
+> Dark-mode SaaS dashboard. Tailwind CSS on Next.js 14. All design decisions here are the source of truth for any UI work.
+
+---
+
+## Typography Scale
+
+Scout uses a two-tier text size system. Getting this right is what separates readable UI from eye-strain UI.
+
+### The rule
+
+| Role | Tailwind class | Size | When to use |
+|------|---------------|------|-------------|
+| Body / labels / instructions | `text-sm` | 14px | Any text a user actually reads: section labels, field descriptions, helper text, instructional copy, status messages, empty states, activity log entries, score reason text |
+| Compact data / UI chrome | `text-xs` | 12px | Buttons, badge pills, nav items, tag chips, pagination controls, inline action links ("Done", "Cancel"), chart tooltip values, data widget micro-labels (e.g. Surfaced / Engaged / Rate under big numbers) |
+| Section headings | `text-base` | 16px | Top-level section titles inside the `Section` component |
+| Widget numbers | `text-xl` / `text-2xl` | 20–24px | Big stat values (engagement score, momentum counter) |
+| Page headings | `text-2xl` / `text-3xl` | 24–30px | Page-level titles |
+
+### Why the split matters
+
+The instinct is to make everything compact and use `text-xs` widely. Resist this. Instructional text at 12px on a dark background with low-contrast slate colors becomes a readability problem, especially on non-retina displays and for users over 40. The platform is asking users to make decisions based on copy — that copy must be legible without strain.
+
+Buttons and badge pills at 12px are fine because those are tap targets, not reading material. The user isn't parsing them, they're clicking them.
+
+### What never changes size
+
+These always stay `text-xs` regardless of context:
+- Nav menu items and user account dropdown
+- Action buttons (Save, Connect, Add, Cancel, Done)
+- Badge pills and status chips (plan badges, score tier badges, "ICP" / "Keyword" source tags)
+- Pagination controls ("Previous" / "Next" / "of N")
+- Inline toggle links ("Reset to default", "No thanks")
+- Sparkline chart internals (tooltip values, "No activity" state)
+- Avatar initials
+- Data widget micro-labels that sit directly below a large number in a compact widget
+
+### Common patterns to copy
+
+```jsx
+{/* Section label — use text-sm */}
+<p className="text-sm font-medium text-slate-300">What to enter here</p>
+
+{/* Helper / instructional text — use text-sm */}
+<p className="text-sm text-slate-500 leading-relaxed">
+  Use 2–4 word phrases that describe the topics your ideal clients post about.
+</p>
+
+{/* Form field label — use text-sm */}
+<label className="block text-sm font-medium text-slate-400">Bot OAuth Token</label>
+
+{/* Empty state message — use text-sm */}
+<p className="text-sm text-slate-500 mb-4">No profiles yet. Add one manually or use Discover.</p>
+
+{/* Button — stays text-xs */}
+<button className="text-xs px-4 py-2 rounded-lg bg-blue-600 text-white font-medium">Save</button>
+
+{/* Badge pill — stays text-xs */}
+<span className="text-xs px-2.5 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400">5/10</span>
+```
+
+---
+
+## Color System
+
+### Background layers (dark → light)
+| Token | Usage |
+|-------|-------|
+| `bg-slate-950` / `bg-[#0A0C10]` | Page base — the darkest layer |
+| `bg-slate-900` | Primary card/panel backgrounds |
+| `bg-slate-800` / `bg-slate-800/60` | Input fields, nested cards, hover states |
+| `bg-slate-700` | Selected states, secondary buttons |
+
+### Text colors
+| Token | Usage |
+|-------|-------|
+| `text-white` | Primary content, post titles, names |
+| `text-slate-200` | Section headings, strong labels |
+| `text-slate-300` | Sub-headings, secondary labels |
+| `text-slate-400` | Helper text, descriptions, form labels |
+| `text-slate-500` | Tertiary — timestamps, metadata, captions |
+| `text-slate-600` | Quaternary — inline helpers, detail text in compact spaces |
+
+Never go darker than `text-slate-600` for any user-facing text. `text-slate-700` is invisible on dark backgrounds.
+
+### Score / status color system
+
+This system is used consistently across the entire platform. When a color represents a score or status, always use the same color for that concept everywhere — in cards, badges, chart bars, dots, and text.
+
+| Meaning | Color | Tailwind tokens |
+|---------|-------|----------------|
+| High-value / strong / positive | Emerald | `text-emerald-400`, `bg-emerald-500/10`, `border-emerald-500/20` |
+| Active / engaged / in-progress | Blue | `text-blue-400`, `bg-blue-600/10`, `border-blue-500/30` |
+| Caution / floor / threshold | Amber | `text-amber-400`, `bg-amber-500/10`, `border-amber-500/20` |
+| Skipped / low-priority / inactive | Slate | `text-slate-400`, `bg-slate-800`, `border-slate-700/50` |
+| Error / expired / danger | Red | `text-red-400`, `bg-red-500/10`, `border-red-500/20` |
+| Premium / upgrade prompt | Violet | `text-violet-400`, `bg-violet-600/10`, `border-violet-500/30` |
+| Brand accent | Indigo | `text-[#4F6BFF]`, `bg-[#4F6BFF]/20` |
+
+#### AI Scoring threshold cards
+
+The three scoring threshold cards in Settings → AI & Scoring use color to reinforce the score's meaning:
+
+| Threshold | Score | Color | Rationale |
+|-----------|-------|-------|-----------|
+| Minimum to surface | 5/10 | Amber | Floor — caution, low bar |
+| Digest inclusion | 6/10 | Blue | Active quality — worth reviewing |
+| High-value flag | 8/10 | Emerald | Strong signal — top priority |
+
+These colors must match how the same scores are displayed in the feed post cards and score badges throughout the platform.
+
+#### Momentum / streak colors
+
+Streak and activity indicators in the Engagement Momentum widget:
+
+| Condition | Color | Meaning |
+|-----------|-------|---------|
+| Active ≥ 60% of last 7 days | Emerald | Strong consistency |
+| Active 30–59% | Medium gray (`text-slate-400`) | Building |
+| Active < 30% | Dark gray (`text-slate-600`) | Low activity |
+| Streak dots | Amber | Draws attention without alarm |
+
+---
+
+## Spacing and Layout
+
+### Card / panel pattern
+```jsx
+<div className="rounded-xl bg-slate-900/60 border border-slate-700/40 px-4 py-4">
+  {/* content */}
+</div>
+```
+
+### Section component
+The `<Section>` wrapper in settings/page.tsx handles consistent padding, heading, and optional description. Always use it for top-level settings sections rather than rolling custom layout.
+
+### Form field anatomy
+```
+[label — text-sm font-medium text-slate-400]
+[input — text-sm bg-slate-800/60 border border-slate-700/60 rounded-lg px-3 py-2.5 text-white]
+[helper text — text-sm text-slate-500 leading-relaxed mt-1]
+```
+
+Input text and label text should always be the same size (`text-sm`). Mismatched sizes — where input text is visibly larger than the label above it — signals a regression and should be fixed.
+
+---
+
+## Interactive States
+
+| State | Pattern |
+|-------|---------|
+| Default | `border-slate-700/50 text-slate-400` |
+| Hover | `hover:border-slate-600 hover:text-white` |
+| Active / selected | `border-blue-500/50 bg-blue-600/10 text-blue-400` |
+| Disabled | `disabled:opacity-40 disabled:cursor-not-allowed` |
+| Focus (input) | `focus:outline-none focus:border-blue-500/50` |
+| Destructive hover | `hover:text-red-400 hover:border-red-500/40` |
+
+---
+
+## Callout / Info Box Patterns
+
+Used throughout for contextual help, warnings, and upgrade prompts.
+
+```jsx
+{/* Info / how-it-works box */}
+<div className="rounded-xl bg-slate-800/40 border border-slate-700/30 px-4 py-3 flex gap-3">
+  <InfoIcon />
+  <div>
+    <p className="text-sm font-medium text-slate-300">Title</p>
+    <p className="text-sm text-slate-500 leading-relaxed mt-1">Body text.</p>
+  </div>
+</div>
+
+{/* Warning / amber */}
+<div className="flex gap-2.5 px-3.5 py-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-sm text-amber-400">
+  Warning text.
+</div>
+
+{/* Success / emerald */}
+<div className="flex gap-2.5 px-3.5 py-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-sm text-emerald-400">
+  Success text.
+</div>
+
+{/* Error / red */}
+<div className="px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/20 text-sm text-red-400">
+  Error text.
+</div>
+
+{/* Upgrade prompt / violet */}
+<div className="rounded-xl bg-violet-600/10 border border-violet-500/20 px-4 py-4">
+  <p className="text-sm font-semibold text-violet-300">Available on Pro</p>
+  <a href="/upgrade" className="text-xs font-semibold text-violet-400 hover:text-violet-300 underline">Upgrade →</a>
+</div>
+```
+
+---
+
+## Changelog
+
+| Date | Change |
+|------|--------|
+| April 2026 | Initial design system doc created |
+| April 2026 | Typography scale formalized: body/labels → `text-sm`, chrome/buttons → `text-xs` across settings/page.tsx and page.tsx (feed) |
+| April 2026 | AI Scoring threshold cards color-coded: amber (5/10), blue (6/10), emerald (8/10) |
+| April 2026 | Input field text size aligned with surrounding label text (both `text-sm`) |
