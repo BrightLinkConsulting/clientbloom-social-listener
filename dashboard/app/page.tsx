@@ -1779,6 +1779,15 @@ function FeedPage() {
   // Initial load + re-fetch when filters change
   useEffect(() => { fetchPosts() }, [fetchPosts])
 
+  // Clear selection state whenever the user switches tabs.
+  // Without this, IDs selected in tab A would survive into tab B and a
+  // bulk action would affect posts the user cannot even see.
+  useEffect(() => {
+    setSelectedIds(new Set())
+    setSelectionMode(false)
+    setBulkResult(null)
+  }, [filter])
+
   // Fetch CRM type once on mount (for Push button label)
   useEffect(() => {
     fetch('/api/crm-settings')
@@ -2281,8 +2290,9 @@ function FeedPage() {
               </p>
             </div>
 
-            {/* Zero-new-posts notice — shows breakdown when available */}
-            {scanHealth?.lastPostsFound === 0 &&
+            {/* Zero-new-posts notice — Inbox tab only, shows breakdown when available */}
+            {filter === 'New' &&
+              scanHealth?.lastPostsFound === 0 &&
               scanHealth?.lastScanStatus !== 'scanning' &&
               scanHealth?.lastScanStatus !== 'pending_fb' && (
               <div className="mb-4 px-3.5 py-3 rounded-xl bg-slate-800/40 border border-slate-700/30 space-y-2">
