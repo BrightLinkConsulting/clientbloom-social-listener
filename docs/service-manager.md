@@ -18,8 +18,15 @@ vercel.json cron (every 4h)
             │       │       ├── hasPostsThisMonth(tenantId)
             │       │       ├── hasIcps(tenantId)
             │       │       └── hasKeywords(tenantId)
-            │       └── patchTenantFlags(recordId, flags, checkedAt)
-            └── Return summary JSON { total, flagged, errors }
+            │       ├── patchTenantFlags(recordId, flags, checkedAt)
+            │       └── dispatchNotifications(record, flags, checkedAt)
+            │               ├── 24h cooldown check (Service Flag Email Sent At)
+            │               ├── Per-code dedup (Last Flag Codes Emailed)
+            │               ├── sendServiceFlagEmail() via Resend → tenant inbox
+            │               ├── patchNotificationState() → Airtable
+            │               └── Accumulate new critical flags for Slack batch
+            └── sendCriticalFlagSlackAlert() — one Slack message per run
+            └── Return summary JSON { total, flagged, emailed, slackAlerts, errors }
 
 GET /api/admin/usage
     └── Reads "Service Flags" JSON field from each Tenant record

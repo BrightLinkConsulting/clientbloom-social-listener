@@ -131,49 +131,80 @@ curl -X GET https://scout.clientbloom.ai/api/cron/service-check \
 
 ---
 
-## Service Flag Email Notification System (Recommended Design)
+## Service Flag Email Notification System
 
-### The problem
+Deployed April 2026. The `service-check` cron now sends customer-facing emails when new actionable flags appear, and posts a batched admin Slack alert when any tenant gains a new critical flag.
 
-Service flags appear in the admin panel. But:
-- Admins don't check the panel constantly
-- Users don't know something is misconfigured until they wonder why Scout isn't delivering value
+### Customer-facing emails
 
-### Recommended architecture
+Emails send FROM `Scout <info@clientbloom.ai>` TO the tenant's email address using templates in `lib/emails.ts` (`buildServiceFlagEmail`).
 
-**Tenant-facing emails (user gets these):**
-
-| Flag | Email trigger | Goal |
+| Flag | Email? | Subject fragment |
 |---|---|---|
-| `nothing_to_scan` | First occurrence after 24h account age | "Your account isn't configured to scan yet" — links directly to ICP setup + keyword setup |
-| `paid_zero_posts` | 48h after account becomes paid with 0 posts | "Your scans are running but not capturing anything" — check LinkedIn ICP URLs are valid |
-| `scan_failed` | Within 4h of flag detection | "Your last scan hit an error" — auto-clears when next scan succeeds |
-| `paid_no_scan_48h` | 48h mark | "Scans haven't run in 2 days" — escalation from scan_failed |
-| `trial_expiring_48h` | Already handled by trial-check cron | Upgrade nudge |
+| `nothing_to_scan` | Yes | "Scout isn't scanning yet" |
+| `paid_zero_posts` | Yes | "Scout isn't finding content" |
+| `scan_failed` | Yes | "your last scan hit an error" |
+| `paid_no_scan_48h` | Yes | "scans haven't run in 2 days" |
+| `trial_no_setup` | Yes | "get more from your Scout trial" |
+| `paid_no_scan_ever` | Yes | "let's run your first scan" |
+| `trial_expiring_48h` | **No** | Handled by trial-check cron |
+| `trial_billing_mismatch` | **No** | Admin Slack only |
+| `scan_stalled` | **No** | Transient — not worth emailing |
+| `no_icps_configured` | **No** | Info-level only |
+| `no_keywords` | **No** | Info-level only |
 
-**Admin Slack alerts (Mike gets these):**
+Multiple flags can appear in a single email. Subject becomes "Action needed on your Scout account (N issues)" when more than one flag is included.
 
-Rather than checking the panel manually, a Slack webhook call from the `service-check` cron when any new critical flag is detected would surface the issue immediately. The Slack message would include: tenant email, flag code, message, and a deep link to the admin Usage tab.
+### Cadence and dedup rules
 
-### Airtable fields required
+Two dedup mechanisms prevent spam — both must clear for an email to send:
 
-| Field | Type | Purpose |
-|---|---|---|
-| `Service Flag Email Sent At` | DateTime | Prevents re-sending the same flag email within 24h |
-| `Last Flag Codes Emailed` | Long text | JSON array of flag codes already emailed (prevents duplicate emails for same flag) |
+1. **24h cooldown** (`Service Flag Email Sent At`): No email within 24 hours of the last send, regardless of flags.
+2. **Per-code tracking** (`Last Flag Codes Emailed`): Once a flag code is emailed, it is never emailed again for the same account — even after the cooldown passes. Only codes not yet in this list trigger new emails.
 
-### Email cadence rules
+**On account recovery:** When all actionable flags clear, `Last Flag Codes Emailed` is reset to `[]` so the next occurrence of a flag triggers a fresh email. `Service Flag Email Sent At` is intentionally **not** reset — this preserves the flapping protection so a heal/break cycle within 24 hours doesn't re-notify immediately.
 
-1. Only send for `warning` and `critical` severity — not `info`
-2. Check `Service Flag Email Sent At` before sending — skip if sent within last 24h
-3. Store the flag codes emailed in `Last Flag Codes Emailed` — skip codes already sent
-4. Reset `Last Flag Codes Emailed` when all flags are cleared
-5. Never send email for `isAdmin` accounts or `Suspended` accounts
-6. Never send for `trial_expired` accounts
+**Never emails:** admin accounts (`Is Admin = true`), suspended accounts, `trial_expired` accounts.
 
-### Implementation location
+### Admin Slack alerts
 
-Add email-sending logic to the `service-check` cron (`app/api/cron/service-check/route.ts`) immediately after `patchTenantFlags()` writes the flags. Use `lib/emails.ts` for HTML templates consistent with brand standards.
+One batched Slack message per cron run (not per tenant). Fires when any tenant gains a new critical flag not already in `Last Flag Codes Emailed`. Critical codes that trigger Slack: `paid_no_scan_48h`, `scan_failed`, `trial_billing_mismatch`.
+
+Requires `SLACK_WEBHOOK_URL` in Vercel env vars. If not set, Slack is silently skipped (emails still send).
+
+### Cron response fields
+
+```json
+{
+  "ok": true,
+  "checkedAt": "ISO timestamp",
+  "total": 6,
+  "flagged": 2,
+  "emailed": 0,
+  "slackAlerts": 0,
+  "errors": 0,
+  "results": [
+    { "id": "rec...", "email": "user@co.com", "flags": 3, "emailedCodes": [] }
+  ]
+}
+```
+
+`emailed`: tenants where an email was actually sent in this run (dedup suppressed = 0, new codes found = N).
+`emailedCodes`: flag codes actually emailed in this run per tenant (empty = dedup blocked or no eligible flags).
+
+### Bugs found and fixed during implementation (April 2026)
+
+**Bug 6: patchNotificationState sentinel value**
+Symptom: `patchNotificationState(null)` on account reset cleared `Service Flag Email Sent At` in Airtable (null !== undefined is true, bypassing the guard). Flapping accounts would get re-notified on every heal/break cycle.
+Fix: Changed type from `string | null` to `string | undefined`. `undefined` = don't touch the field. The reset call now passes `undefined` to preserve the cooldown timestamp.
+
+**Bug 7: Misleading `emailed` metric**
+Symptom: `emailed` in cron response counted tenants with actionable codes, not tenants where an email was actually sent in this run. Dedup-blocked runs reported `emailed: 2` even when no emails fired.
+Fix: `dispatchNotifications` now returns `{ criticalAlert, sentCodes }` where `sentCodes` contains only codes emailed in this run. Results are populated from that return value.
+
+**Bug 8: Import statement buried mid-file**
+Symptom: `import { buildServiceFlagEmail }` was placed in the middle of `notify.ts` after function bodies. Syntactically valid in TypeScript (imports hoist) but violates lint conventions and can confuse bundlers.
+Fix: Moved to top of file with all other imports.
 
 ---
 
@@ -186,3 +217,5 @@ Add email-sending logic to the `service-check` cron (`app/api/cron/service-check
 | `Usage Synced At` | DateTime | usage-sync cron | Usage tab overdue indicator |
 | `Service Flags` | Long text (JSON) | service-check cron | Usage tab, admin/usage API |
 | `Service Checked At` | DateTime | service-check cron | Usage tab lastChecked |
+| `Service Flag Email Sent At` | DateTime | service-check cron | 24h email cooldown |
+| `Last Flag Codes Emailed` | Long text (JSON) | service-check cron | Per-code email dedup |
