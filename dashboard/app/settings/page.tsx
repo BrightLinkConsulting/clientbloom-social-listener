@@ -161,7 +161,7 @@ function Section({ title, description, children }: {
     <div className="rounded-2xl border border-slate-700/50 bg-[#12151e] overflow-hidden">
       <div className="px-6 py-4 border-b border-slate-700/50">
         <h2 className="text-sm font-semibold text-white">{title}</h2>
-        {description && <p className="text-xs text-slate-500 mt-0.5">{description}</p>}
+        {description && <p className="text-sm text-slate-500 mt-0.5">{description}</p>}
       </div>
       <div className="p-6">{children}</div>
     </div>
@@ -444,8 +444,8 @@ function LinkedInTermsSection({ sources, onUpdate, planLimit = 10, plan = 'Trial
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
         <div className="space-y-1">
-          <p className="text-xs font-medium text-slate-300">What to enter here</p>
-          <p className="text-xs text-slate-500 leading-relaxed">
+          <p className="text-sm font-medium text-slate-300">What to enter here</p>
+          <p className="text-sm text-slate-500 leading-relaxed">
             Use 2–4 word phrases that describe the topics your ideal clients post about — their role, their work, their industry challenges. Fewer focused terms get better results than a long list. <span className="text-slate-400">Example: if you sell to marketing agency owners, terms like "client retention" or "agency operations" will surface the right conversations.</span>
           </p>
         </div>
@@ -498,7 +498,7 @@ function LinkedInTermsSection({ sources, onUpdate, planLimit = 10, plan = 'Trial
             <span className="text-lg leading-none mt-0.5">🎯</span>
             <div>
               <p className="text-xs font-semibold text-slate-200 mb-1">Start with a starter pack</p>
-              <p className="text-xs text-slate-500 leading-relaxed">
+              <p className="text-sm text-slate-500 leading-relaxed">
                 Pick your industry and Scout will add 6–7 high-signal terms that match how your buyers actually post on LinkedIn. You can edit or remove any of them after.
               </p>
             </div>
@@ -523,7 +523,7 @@ function LinkedInTermsSection({ sources, onUpdate, planLimit = 10, plan = 'Trial
               Load Pack
             </button>
           </div>
-          <p className="text-xs text-slate-600">Prefer to build your own? Use <span className="text-slate-400">Browse suggestions</span> or <span className="text-slate-400">Add custom term</span> below.</p>
+          <p className="text-sm text-slate-600">Prefer to build your own? Use <span className="text-slate-400">Browse suggestions</span> or <span className="text-slate-400">Add custom term</span> below.</p>
         </div>
       )}
 
@@ -534,10 +534,10 @@ function LinkedInTermsSection({ sources, onUpdate, planLimit = 10, plan = 'Trial
             <p className="text-xs font-semibold text-slate-300">Suggested terms — click any to add</p>
             <button onClick={() => setShowSuggestions(false)} className="text-xs text-slate-600 hover:text-slate-400 transition-colors">Done</button>
           </div>
-          <p className="text-xs text-slate-600 -mt-2">These are starting points. Replace the generic phrases with the specific language your buyers actually use when they post on LinkedIn.</p>
+          <p className="text-sm text-slate-600 -mt-2">These are starting points. Replace the generic phrases with the specific language your buyers actually use when they post on LinkedIn.</p>
           {TERM_SUGGESTIONS.map(group => (
             <div key={group.label}>
-              <p className="text-xs text-slate-500 font-medium mb-2">{group.label}</p>
+              <p className="text-sm text-slate-500 font-medium mb-2">{group.label}</p>
               <div className="flex flex-wrap gap-1.5">
                 {group.terms.map(term => {
                   const already = existingValues.has(term.toLowerCase())
@@ -565,7 +565,7 @@ function LinkedInTermsSection({ sources, onUpdate, planLimit = 10, plan = 'Trial
       {/* Custom add input */}
       {showAdd && (
         <div className="mb-4 space-y-2">
-          <p className="text-xs text-slate-500">Enter a 2–4 word topic or phrase your ideal client would post about on LinkedIn. Avoid single words — they pull too much noise.</p>
+          <p className="text-sm text-slate-500">Enter a 2–4 word topic or phrase your ideal client would post about on LinkedIn. Avoid single words — they pull too much noise.</p>
           <div className="flex items-center gap-2">
             <input
               type="text"
@@ -636,7 +636,7 @@ function LinkedInTermsSection({ sources, onUpdate, planLimit = 10, plan = 'Trial
             <p className="text-xs font-semibold text-slate-300">Load a starter pack</p>
             <button onClick={() => { setShowPackPicker(false); setSelectedIndustry('') }} className="text-xs text-slate-600 hover:text-slate-400 transition-colors">Cancel</button>
           </div>
-          <p className="text-xs text-slate-500 -mt-1">Only terms you don't already have will be added. Won't exceed the {planLimit}-term limit.</p>
+          <p className="text-sm text-slate-500 -mt-1">Only terms you don't already have will be added. Won't exceed the {planLimit}-term limit.</p>
           <div className="flex items-center gap-2 flex-wrap">
             <select
               value={selectedIndustry}
@@ -791,7 +791,7 @@ function ProfileDrawer({
               )}
             </div>
             {(titleFromName || profile.jobTitle || profile.company) && (
-              <p className="text-xs text-slate-400 mt-0.5 leading-snug line-clamp-2">
+              <p className="text-sm text-slate-400 mt-0.5 leading-snug line-clamp-2">
                 {titleFromName || [profile.jobTitle, profile.company].filter(Boolean).join(' · ')}
               </p>
             )}
@@ -847,8 +847,8 @@ function ProfileDrawer({
           {/* Monitoring status */}
           <div className="flex items-center justify-between rounded-xl bg-slate-800/40 border border-slate-700/30 px-4 py-3">
             <div>
-              <p className="text-xs font-medium text-slate-300">Monitoring</p>
-              <p className="text-xs text-slate-600 mt-0.5">{profile.active ? 'Posts from this profile are being scanned' : 'Paused — not included in scans'}</p>
+              <p className="text-sm font-medium text-slate-300">Monitoring</p>
+              <p className="text-sm text-slate-600 mt-0.5">{profile.active ? 'Posts from this profile are being scanned' : 'Paused — not included in scans'}</p>
             </div>
             <button
               onClick={() => onToggle(profile)}
@@ -1144,13 +1144,13 @@ function LinkedInICPSection() {
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
         <div className="space-y-1.5">
-          <p className="text-xs font-medium text-slate-300">How the ICP Pool works</p>
-          <p className="text-xs text-slate-500 leading-relaxed">
+          <p className="text-sm font-medium text-slate-300">How the ICP Pool works</p>
+          <p className="text-sm text-slate-500 leading-relaxed">
             Add the LinkedIn profiles of people you want to build relationships with — prospects, partners, or industry voices. Scout monitors their posts and surfaces the right moments to engage.{' '}
             <span className="text-slate-400">Your pool holds all saved profiles. Each daily scan, Scout automatically fetches the most active ones — no manual ranking needed.</span>
           </p>
           {isTrial && (
-            <p className="text-xs text-slate-500 leading-relaxed pt-0.5">
+            <p className="text-sm text-slate-500 leading-relaxed pt-0.5">
               <span className="text-amber-400/90 font-medium">Trial:</span> 10-profile pool · 3 scanned per run.{' '}
               <span className="text-slate-500">Upgrade for more —{' '}
                 <a href="/upgrade" className="text-violet-400 hover:text-violet-300 underline underline-offset-2 transition-colors">Starter: 50 pool · 10 scanned · Pro: 150 pool · 25 scanned · Agency: 500 pool · 50 scanned →</a>
@@ -1231,7 +1231,7 @@ function LinkedInICPSection() {
             value={newUrl}
             onChange={e => setNewUrl(e.target.value)}
             autoFocus
-            className="w-full bg-slate-800/80 border border-slate-700/50 rounded-lg px-3 py-2 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50"
+            className="w-full bg-slate-800/80 border border-slate-700/50 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50"
           />
           <div className="grid grid-cols-3 gap-2">
             <div className="relative">
@@ -1240,7 +1240,7 @@ function LinkedInICPSection() {
                 placeholder="Full name"
                 value={newName}
                 onChange={e => setNewName(e.target.value)}
-                className="w-full bg-slate-800/80 border border-slate-700/50 rounded-lg px-3 py-2 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50"
+                className="w-full bg-slate-800/80 border border-slate-700/50 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50"
               />
             </div>
             <input
@@ -1248,14 +1248,14 @@ function LinkedInICPSection() {
               placeholder="Job title"
               value={newTitle}
               onChange={e => setNewTitle(e.target.value)}
-              className="bg-slate-800/80 border border-slate-700/50 rounded-lg px-3 py-2 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50"
+              className="bg-slate-800/80 border border-slate-700/50 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50"
             />
             <input
               type="text"
               placeholder="Company"
               value={newCompany}
               onChange={e => setNewCompany(e.target.value)}
-              className="bg-slate-800/80 border border-slate-700/50 rounded-lg px-3 py-2 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50"
+              className="bg-slate-800/80 border border-slate-700/50 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50"
             />
           </div>
           <div className="flex gap-2">
@@ -1289,10 +1289,10 @@ function LinkedInICPSection() {
                 </svg>
               </div>
               <p className="text-sm font-semibold text-white mb-1">Profile discovery is a paid feature</p>
-              <p className="text-xs text-slate-400 mb-4 max-w-sm mx-auto leading-relaxed">
+              <p className="text-sm text-slate-400 mb-4 max-w-sm mx-auto leading-relaxed">
                 Tell Scout which job titles and industries to look for, and it automatically finds and adds matching LinkedIn profiles to your pool. No manual searching required.
               </p>
-              <div className="text-xs text-slate-500 mb-4 space-y-1">
+              <div className="text-sm text-slate-500 mb-4 space-y-1">
                 <p>Starter: 1 discovery run/day · up to 10 profiles</p>
                 <p>Pro: 3 runs/day · up to 25 profiles</p>
                 <p>Agency: unlimited runs · up to 50 profiles</p>
@@ -1314,14 +1314,14 @@ function LinkedInICPSection() {
             <>
               <div>
                 <p className="text-xs font-semibold text-slate-300 mb-1">Discover ICPs</p>
-                <p className="text-xs text-slate-500 leading-relaxed">
+                <p className="text-sm text-slate-500 leading-relaxed">
                   Scout searches for LinkedIn profiles matching your criteria and adds them to your pool automatically. Results appear within about 60 seconds.
                 </p>
               </div>
 
               {/* Job Titles */}
               <div>
-                <p className="text-xs text-slate-400 mb-2 font-medium">Job Titles <span className="text-slate-600 font-normal">(required)</span></p>
+                <p className="text-sm text-slate-400 mb-2 font-medium">Job Titles <span className="text-slate-600 font-normal">(required)</span></p>
                 <div className="flex flex-wrap gap-1.5 mb-2">
                   {discTitles.map(t => (
                     <span key={t} className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700/50">
@@ -1348,7 +1348,7 @@ function LinkedInICPSection() {
                     value={discTitleInput}
                     onChange={e => setDiscTitleInput(e.target.value)}
                     onKeyDown={e => e.key === 'Enter' && addDiscTitle()}
-                    className="flex-1 bg-slate-800/80 border border-slate-700/50 rounded-lg px-3 py-1.5 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50"
+                    className="flex-1 bg-slate-800/80 border border-slate-700/50 rounded-lg px-3 py-1.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50"
                   />
                   <button onClick={addDiscTitle} className="text-xs px-3 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-300 transition-colors">Add</button>
                 </div>
@@ -1356,8 +1356,8 @@ function LinkedInICPSection() {
 
               {/* Narrowing Keywords */}
               <div>
-                <p className="text-xs text-slate-400 mb-1 font-medium">Narrowing Keywords <span className="text-slate-600 font-normal">(optional — recommended)</span></p>
-                <p className="text-xs text-slate-600 mb-2">Filters broad titles like "CEO" to the right people.</p>
+                <p className="text-sm text-slate-400 mb-1 font-medium">Narrowing Keywords <span className="text-slate-600 font-normal">(optional — recommended)</span></p>
+                <p className="text-sm text-slate-600 mb-2">Filters broad titles like "CEO" to the right people.</p>
                 <div className="flex flex-wrap gap-1.5 mb-2">
                   {discKeywords.map(k => (
                     <span key={k} className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700/50">
@@ -1373,7 +1373,7 @@ function LinkedInICPSection() {
                     value={discKwInput}
                     onChange={e => setDiscKwInput(e.target.value)}
                     onKeyDown={e => e.key === 'Enter' && addDiscKw()}
-                    className="flex-1 bg-slate-800/80 border border-slate-700/50 rounded-lg px-3 py-1.5 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50"
+                    className="flex-1 bg-slate-800/80 border border-slate-700/50 rounded-lg px-3 py-1.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50"
                   />
                   <button onClick={addDiscKw} className="text-xs px-3 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-300 transition-colors">Add</button>
                 </div>
@@ -1381,8 +1381,8 @@ function LinkedInICPSection() {
 
               {/* Max profiles — tier-aware, no arbitrary options */}
               <div>
-                <p className="text-xs text-slate-400 mb-1 font-medium">Max Profiles to Add</p>
-                <p className="text-xs text-slate-600 mb-2">Tighter searches find better matches than broad ones.</p>
+                <p className="text-sm text-slate-400 mb-1 font-medium">Max Profiles to Add</p>
+                <p className="text-sm text-slate-600 mb-2">Tighter searches find better matches than broad ones.</p>
                 <div className="flex gap-2 flex-wrap">
                   {Array.from({ length: 4 }, (_, i) => Math.round(tierLimits.discoverMaxPerRun * (i + 1) / 4))
                     .filter((n, i, a) => a.indexOf(n) === i && n > 0)
@@ -1445,9 +1445,9 @@ function LinkedInICPSection() {
 
       {/* ── Profile pool status + list ───────────────────────────────────────── */}
       {loading ? (
-        <div className="flex items-center gap-2 text-xs text-slate-500"><Spinner />Loading profiles...</div>
+        <div className="flex items-center gap-2 text-sm text-slate-500"><Spinner />Loading profiles...</div>
       ) : profiles.length === 0 ? (
-        <p className="text-xs text-slate-500 mb-4">No profiles in your pool yet. Add one manually or use Discover to find ICPs automatically.</p>
+        <p className="text-sm text-slate-500 mb-4">No profiles in your pool yet. Add one manually or use Discover to find ICPs automatically.</p>
       ) : (
         <>
           {/* Search bar */}
@@ -1460,7 +1460,7 @@ function LinkedInICPSection() {
               placeholder={`Search ${total} profiles...`}
               value={searchQuery}
               onChange={e => { setSearchQuery(e.target.value); setCurrentPage(0) }}
-              className="w-full bg-slate-800/60 border border-slate-700/50 rounded-xl pl-9 pr-8 py-2 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50 transition-colors"
+              className="w-full bg-slate-800/60 border border-slate-700/50 rounded-xl pl-9 pr-8 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50 transition-colors"
             />
             {searchQuery && (
               <button
@@ -1474,7 +1474,7 @@ function LinkedInICPSection() {
 
           {/* Search result count */}
           {q && (
-            <p className="text-xs text-slate-600 mb-2">
+            <p className="text-sm text-slate-600 mb-2">
               {filtered.length === 0 ? 'No matches' : `${filtered.length} match${filtered.length !== 1 ? 'es' : ''}`}
             </p>
           )}
@@ -1482,7 +1482,7 @@ function LinkedInICPSection() {
           {/* Profile list */}
           <div className="space-y-2 mb-3">
             {paged.length === 0 && q ? (
-              <p className="text-xs text-slate-500 py-3 text-center">No profiles match "{searchQuery}"</p>
+              <p className="text-sm text-slate-500 py-3 text-center">No profiles match "{searchQuery}"</p>
             ) : (
               paged.map(p => (
                 <div
@@ -1520,7 +1520,7 @@ function LinkedInICPSection() {
                       )}
                     </div>
                     {(p.jobTitle || p.company) && (
-                      <p className="text-xs text-slate-500 mt-0.5 truncate">
+                      <p className="text-sm text-slate-500 mt-0.5 truncate">
                         {[p.jobTitle, p.company].filter(Boolean).join(' · ')}
                       </p>
                     )}
@@ -1608,7 +1608,7 @@ function LinkedInICPSection() {
             placeholder="https://www.linkedin.com/in/username/"
             value={newUrl}
             onChange={e => setNewUrl(e.target.value)}
-            className="w-full bg-slate-800/80 border border-slate-700/50 rounded-lg px-3 py-2 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50"
+            className="w-full bg-slate-800/80 border border-slate-700/50 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50"
           />
           <div className="grid grid-cols-3 gap-2">
             <input
@@ -1616,21 +1616,21 @@ function LinkedInICPSection() {
               placeholder="Full name"
               value={newName}
               onChange={e => setNewName(e.target.value)}
-              className="bg-slate-800/80 border border-slate-700/50 rounded-lg px-3 py-2 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50"
+              className="bg-slate-800/80 border border-slate-700/50 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50"
             />
             <input
               type="text"
               placeholder="Job title"
               value={newTitle}
               onChange={e => setNewTitle(e.target.value)}
-              className="bg-slate-800/80 border border-slate-700/50 rounded-lg px-3 py-2 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50"
+              className="bg-slate-800/80 border border-slate-700/50 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50"
             />
             <input
               type="text"
               placeholder="Company"
               value={newCompany}
               onChange={e => setNewCompany(e.target.value)}
-              className="bg-slate-800/80 border border-slate-700/50 rounded-lg px-3 py-2 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50"
+              className="bg-slate-800/80 border border-slate-700/50 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50"
             />
           </div>
           <div className="flex gap-2">
@@ -1657,14 +1657,14 @@ function LinkedInICPSection() {
         <div className="rounded-xl border border-blue-500/20 bg-blue-600/5 p-4 space-y-4">
           <div>
             <p className="text-xs font-semibold text-slate-300 mb-1">Discover ICPs</p>
-            <p className="text-xs text-slate-500">
+            <p className="text-sm text-slate-500">
               Searches Google for LinkedIn profiles matching your criteria. No LinkedIn login required.
             </p>
           </div>
 
           {/* Job Titles */}
           <div>
-            <p className="text-xs text-slate-400 mb-2 font-medium">Job Titles <span className="text-slate-600 font-normal">(required)</span></p>
+            <p className="text-sm text-slate-400 mb-2 font-medium">Job Titles <span className="text-slate-600 font-normal">(required)</span></p>
             <div className="flex flex-wrap gap-1.5 mb-2">
               {discTitles.map(t => (
                 <span key={t} className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700/50">
@@ -1692,7 +1692,7 @@ function LinkedInICPSection() {
                 value={discTitleInput}
                 onChange={e => setDiscTitleInput(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && addDiscTitle()}
-                className="flex-1 bg-slate-800/80 border border-slate-700/50 rounded-lg px-3 py-1.5 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50"
+                className="flex-1 bg-slate-800/80 border border-slate-700/50 rounded-lg px-3 py-1.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50"
               />
               <button onClick={addDiscTitle} className="text-xs px-3 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-300 transition-colors">
                 Add
@@ -1702,8 +1702,8 @@ function LinkedInICPSection() {
 
           {/* Narrowing Keywords */}
           <div>
-            <p className="text-xs text-slate-400 mb-2 font-medium">Narrowing Keywords <span className="text-slate-600 font-normal">(optional, but recommended)</span></p>
-            <p className="text-xs text-slate-600 mb-2">Helps filter broad titles like "CEO" down to the right people.</p>
+            <p className="text-sm text-slate-400 mb-2 font-medium">Narrowing Keywords <span className="text-slate-600 font-normal">(optional, but recommended)</span></p>
+            <p className="text-sm text-slate-600 mb-2">Helps filter broad titles like "CEO" down to the right people.</p>
             <div className="flex flex-wrap gap-1.5 mb-2">
               {discKeywords.map(k => (
                 <span key={k} className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700/50">
@@ -1719,7 +1719,7 @@ function LinkedInICPSection() {
                 value={discKwInput}
                 onChange={e => setDiscKwInput(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && addDiscKw()}
-                className="flex-1 bg-slate-800/80 border border-slate-700/50 rounded-lg px-3 py-1.5 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50"
+                className="flex-1 bg-slate-800/80 border border-slate-700/50 rounded-lg px-3 py-1.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50"
               />
               <button onClick={addDiscKw} className="text-xs px-3 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-300 transition-colors">
                 Add
@@ -1729,7 +1729,7 @@ function LinkedInICPSection() {
 
           {/* Max profiles */}
           <div>
-            <p className="text-xs text-slate-400 mb-2 font-medium">Max Profiles to Add</p>
+            <p className="text-sm text-slate-400 mb-2 font-medium">Max Profiles to Add</p>
             <div className="flex gap-2">
               {[25, 50, 100, 200].map(n => (
                 <button
@@ -1745,7 +1745,7 @@ function LinkedInICPSection() {
                 </button>
               ))}
             </div>
-            <p className="text-xs text-slate-600 mt-1">Hard cap prevents runaway Apify usage with overly broad terms.</p>
+            <p className="text-sm text-slate-600 mt-1">Hard cap prevents runaway Apify usage with overly broad terms.</p>
           </div>
 
           {discResult && (
@@ -1856,7 +1856,7 @@ function BusinessProfileSection() {
       <div className="space-y-4">
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-xs text-slate-500 mb-1.5">Your business name</label>
+            <label className="block text-sm text-slate-500 mb-1.5">Your business name</label>
             <input
               value={profile.businessName}
               onChange={e => setProfile(p => ({ ...p, businessName: e.target.value }))}
@@ -1865,7 +1865,7 @@ function BusinessProfileSection() {
             />
           </div>
           <div>
-            <label className="block text-xs text-slate-500 mb-1.5">Your industry / niche</label>
+            <label className="block text-sm text-slate-500 mb-1.5">Your industry / niche</label>
             <input
               value={profile.industry}
               onChange={e => setProfile(p => ({ ...p, industry: e.target.value }))}
@@ -1876,7 +1876,7 @@ function BusinessProfileSection() {
         </div>
 
         <div>
-          <label className="block text-xs text-slate-500 mb-1.5">Who is your ideal client?</label>
+          <label className="block text-sm text-slate-500 mb-1.5">Who is your ideal client?</label>
           <textarea
             value={profile.idealClient}
             onChange={e => setProfile(p => ({ ...p, idealClient: e.target.value }))}
@@ -1887,7 +1887,7 @@ function BusinessProfileSection() {
         </div>
 
         <div>
-          <label className="block text-xs text-slate-500 mb-1.5">What value do you deliver for them?</label>
+          <label className="block text-sm text-slate-500 mb-1.5">What value do you deliver for them?</label>
           <textarea
             value={profile.problemSolved}
             onChange={e => setProfile(p => ({ ...p, problemSolved: e.target.value }))}
@@ -1898,7 +1898,7 @@ function BusinessProfileSection() {
         </div>
 
         <div>
-          <label className="block text-xs text-slate-500 mb-2">Conversation types to prioritize</label>
+          <label className="block text-sm text-slate-500 mb-2">Conversation types to prioritize</label>
           <div className="grid grid-cols-2 gap-2">
             {SIGNAL_OPTIONS.map(s => {
               const on = profile.signalTypes.includes(s.id)
@@ -2009,7 +2009,7 @@ function ScoringPromptSection() {
 
   if (!loaded) return null
 
-  const inputCls = "w-full bg-slate-800/60 border border-slate-700/60 rounded-lg px-3 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50 resize-none"
+  const inputCls = "w-full bg-slate-800/60 border border-slate-700/60 rounded-lg px-3 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50 resize-none leading-relaxed"
 
   return (
     <Section
@@ -2035,12 +2035,12 @@ function ScoringPromptSection() {
       {/* ── Build mode ── */}
       {mode === 'build' && (
         <div className="space-y-4">
-          <p className="text-xs text-slate-500 leading-relaxed">
+          <p className="text-sm text-slate-500 leading-relaxed">
             Answer these questions and the AI will write a custom scoring prompt tailored to your business. The more specific you are, the better your feed quality will be.
           </p>
 
           <div>
-            <label className="block text-xs font-medium text-slate-400 mb-1.5">
+            <label className="block text-sm font-medium text-slate-400 mb-1.5">
               1. Who is your ideal client? <span className="text-slate-600 font-normal">(role, industry, company size)</span>
             </label>
             <textarea rows={2} value={idealClient} onChange={e => setIdealClient(e.target.value)}
@@ -2049,7 +2049,7 @@ function ScoringPromptSection() {
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-slate-400 mb-1.5">
+            <label className="block text-sm font-medium text-slate-400 mb-1.5">
               2. What value do you deliver for them?
             </label>
             <textarea rows={2} value={problemSolved} onChange={e => setProblem(e.target.value)}
@@ -2058,7 +2058,7 @@ function ScoringPromptSection() {
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-slate-400 mb-1.5">
+            <label className="block text-sm font-medium text-slate-400 mb-1.5">
               3. What does a high-value post look like? <span className="text-slate-600 font-normal">(optional — AI will infer if blank)</span>
             </label>
             <textarea rows={2} value={highValue} onChange={e => setHighValue(e.target.value)}
@@ -2067,7 +2067,7 @@ function ScoringPromptSection() {
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-slate-400 mb-1.5">
+            <label className="block text-sm font-medium text-slate-400 mb-1.5">
               4. What should be filtered out? <span className="text-slate-600 font-normal">(optional)</span>
             </label>
             <textarea rows={2} value={lowValue} onChange={e => setLowValue(e.target.value)}
@@ -2076,7 +2076,7 @@ function ScoringPromptSection() {
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-slate-400 mb-1.5">
+            <label className="block text-sm font-medium text-slate-400 mb-1.5">
               5. How should comment suggestions read? <span className="text-slate-600 font-normal">(optional)</span>
             </label>
             <textarea rows={2} value={commentStyle} onChange={e => setCommentStyle(e.target.value)}
@@ -2204,11 +2204,11 @@ function SystemStatusSection() {
           >
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
-                <p className="text-xs text-slate-500 mb-0.5">{item.label}</p>
+                <p className="text-sm text-slate-500 mb-0.5">{item.label}</p>
                 <p className={`text-sm font-medium ${item.status === 'warning' ? 'text-amber-400' : 'text-slate-200'}`}>
                   {item.value}
                 </p>
-                <p className="text-xs text-slate-600 mt-1 leading-snug">{item.detail}</p>
+                <p className="text-sm text-slate-600 mt-1 leading-snug">{item.detail}</p>
               </div>
               <span className={`shrink-0 w-2 h-2 rounded-full mt-1 ${
                 item.status === 'warning' ? 'bg-amber-400' : 'bg-emerald-400'
@@ -2334,7 +2334,7 @@ function SlackIntegrationSection() {
           </svg>
           <div>
             <p className="text-xs font-semibold text-violet-300 mb-1">Available on Pro and Agency plans</p>
-            <p className="text-xs text-slate-500 leading-relaxed">
+            <p className="text-sm text-slate-500 leading-relaxed">
               Connect Slack to receive an AI-written daily digest of your highest-scored posts with comment angles, delivered every morning.
             </p>
             <a href="/upgrade" className="inline-block mt-2 text-xs font-semibold text-violet-400 hover:text-violet-300 transition-colors underline underline-offset-2 decoration-violet-600">
@@ -2376,7 +2376,7 @@ function SlackIntegrationSection() {
         <p className="text-xs font-semibold text-slate-300 mb-2">How to connect Slack</p>
         <ol className="space-y-1.5">
           {SLACK_STEPS.map((step, i) => (
-            <li key={i} className="flex gap-2 text-xs text-slate-500 leading-relaxed">
+            <li key={i} className="flex gap-2 text-sm text-slate-500 leading-relaxed">
               <span className="shrink-0 w-4 h-4 rounded-full bg-slate-800 border border-slate-700/50 flex items-center justify-center text-[11px] text-slate-600 mt-0.5">
                 {i + 1}
               </span>
@@ -2389,14 +2389,14 @@ function SlackIntegrationSection() {
       <div className="space-y-3">
         {/* Bot Token */}
         <div>
-          <p className="text-xs text-slate-400 font-medium mb-1.5">Bot OAuth Token</p>
+          <p className="text-sm text-slate-400 font-medium mb-1.5">Bot OAuth Token</p>
           <div className="relative">
             <input
               type={showToken ? 'text' : 'password'}
               value={botToken}
               onChange={e => { setBotToken(e.target.value); setTestResult(null) }}
               placeholder="xoxb-..."
-              className="w-full bg-slate-800/80 border border-slate-700/50 rounded-xl px-3 py-2 pr-10 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50 font-mono"
+              className="w-full bg-slate-800/80 border border-slate-700/50 rounded-xl px-3 py-2 pr-10 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50 font-mono"
             />
             <button
               onClick={() => setShowToken(!showToken)}
@@ -2410,23 +2410,23 @@ function SlackIntegrationSection() {
         {/* Channel */}
         <div className="grid grid-cols-2 gap-2">
           <div>
-            <p className="text-xs text-slate-400 font-medium mb-1.5">Channel Name <span className="text-slate-600 font-normal">(without #)</span></p>
+            <p className="text-sm text-slate-400 font-medium mb-1.5">Channel Name <span className="text-slate-600 font-normal">(without #)</span></p>
             <input
               type="text"
               value={channelName}
               onChange={e => setChannelName(e.target.value.replace(/^#/, ''))}
               placeholder="general"
-              className="w-full bg-slate-800/80 border border-slate-700/50 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50"
+              className="w-full bg-slate-800/80 border border-slate-700/50 rounded-xl px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50"
             />
           </div>
           <div>
-            <p className="text-xs text-slate-400 font-medium mb-1.5">Channel ID <span className="text-slate-600 font-normal">(optional)</span></p>
+            <p className="text-sm text-slate-400 font-medium mb-1.5">Channel ID <span className="text-slate-600 font-normal">(optional)</span></p>
             <input
               type="text"
               value={channelId}
               onChange={e => setChannelId(e.target.value)}
               placeholder="C0XXXXXXXX"
-              className="w-full bg-slate-800/80 border border-slate-700/50 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50 font-mono"
+              className="w-full bg-slate-800/80 border border-slate-700/50 rounded-xl px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50 font-mono"
             />
           </div>
         </div>
@@ -2601,7 +2601,7 @@ function CRMIntegrationSection() {
           </svg>
           <div>
             <p className="text-xs font-semibold text-violet-300 mb-1">Available on Agency plan</p>
-            <p className="text-xs text-slate-500 leading-relaxed">
+            <p className="text-sm text-slate-500 leading-relaxed">
               Connect GoHighLevel or HubSpot to push engaged contacts into your CRM with a single click directly from the Scout feed. CRM integration is included in the Agency plan.
             </p>
             <a href="/upgrade" className="inline-block mt-2 text-xs font-semibold text-violet-400 hover:text-violet-300 transition-colors underline underline-offset-2 decoration-violet-600">
@@ -2627,7 +2627,7 @@ function CRMIntegrationSection() {
 
       {/* CRM selector */}
       <div className="mb-4">
-        <p className="text-xs text-slate-400 font-medium mb-2">CRM Platform</p>
+        <p className="text-sm text-slate-400 font-medium mb-2">CRM Platform</p>
         <div className="flex gap-2">
           {['None', 'GoHighLevel', 'HubSpot'].map(opt => (
             <button
@@ -2653,7 +2653,7 @@ function CRMIntegrationSection() {
               <p className="text-xs font-semibold text-slate-300 mb-2">{instructions.title}</p>
               <ol className="space-y-1.5">
                 {instructions.steps.map((step, i) => (
-                  <li key={i} className="flex gap-2 text-xs text-slate-500 leading-relaxed">
+                  <li key={i} className="flex gap-2 text-sm text-slate-500 leading-relaxed">
                     <span className="shrink-0 w-4 h-4 rounded-full bg-slate-800 border border-slate-700/50 flex items-center justify-center text-[11px] text-slate-600 mt-0.5">
                       {i + 1}
                     </span>
@@ -2666,7 +2666,7 @@ function CRMIntegrationSection() {
 
           {/* API Key field */}
           <div>
-            <p className="text-xs text-slate-400 font-medium mb-1.5">
+            <p className="text-sm text-slate-400 font-medium mb-1.5">
               {crmType === 'GoHighLevel' ? 'Location API Key' : 'Private App Token'}
             </p>
             <div className="relative">
@@ -2675,7 +2675,7 @@ function CRMIntegrationSection() {
                 value={crmApiKey}
                 onChange={e => { setCrmApiKey(e.target.value); setTestResult(null) }}
                 placeholder={crmType === 'GoHighLevel' ? 'eyJ...' : 'pat-na1-...'}
-                className="w-full bg-slate-800/80 border border-slate-700/50 rounded-xl px-3 py-2 pr-10 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50 font-mono"
+                className="w-full bg-slate-800/80 border border-slate-700/50 rounded-xl px-3 py-2 pr-10 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50 font-mono"
               />
               <button
                 onClick={() => setShowKey(!showKey)}
@@ -2689,14 +2689,14 @@ function CRMIntegrationSection() {
           {/* Pipeline ID — GHL only */}
           {crmType === 'GoHighLevel' && (
             <div>
-              <p className="text-xs text-slate-400 font-medium mb-1">Pipeline ID <span className="text-slate-600 font-normal">(optional)</span></p>
-              <p className="text-xs text-slate-600 mb-1.5">Found in GHL → Pipelines → click a pipeline → copy the ID from the URL.</p>
+              <p className="text-sm text-slate-400 font-medium mb-1">Pipeline ID <span className="text-slate-600 font-normal">(optional)</span></p>
+              <p className="text-sm text-slate-600 mb-1.5">Found in GHL → Pipelines → click a pipeline → copy the ID from the URL.</p>
               <input
                 type="text"
                 value={crmPipelineId}
                 onChange={e => setCrmPipelineId(e.target.value)}
                 placeholder="pipeline_xxxxxxxx"
-                className="w-full bg-slate-800/80 border border-slate-700/50 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50 font-mono"
+                className="w-full bg-slate-800/80 border border-slate-700/50 rounded-xl px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50 font-mono"
               />
             </div>
           )}
@@ -2732,8 +2732,8 @@ function CRMIntegrationSection() {
 
           {/* What happens when you push */}
           <div className="rounded-xl bg-slate-900/40 border border-slate-700/30 px-4 py-3">
-            <p className="text-xs font-medium text-slate-400 mb-1">What gets pushed</p>
-            <p className="text-xs text-slate-600 leading-relaxed">
+            <p className="text-sm font-medium text-slate-400 mb-1">What gets pushed</p>
+            <p className="text-sm text-slate-600 leading-relaxed">
               Clicking "Push to {crmType}" on an engaged post creates a contact with the author's name, adds a note with their post snippet, your engagement notes, and a link back to the post. Duplicate contacts are handled gracefully — GHL upserts by identity, HubSpot creates a new record.
             </p>
           </div>
@@ -2741,7 +2741,7 @@ function CRMIntegrationSection() {
       )}
 
       {crmType === 'None' && (
-        <p className="text-xs text-slate-600">
+        <p className="text-sm text-slate-600">
           Select a CRM above to connect your account and enable one-click contact creation from the feed.
         </p>
       )}
@@ -2801,15 +2801,15 @@ function AccountSection() {
       <Section title="Account Details">
         <div className="space-y-3">
           <div>
-            <p className="text-xs text-slate-500 mb-1">Email</p>
+            <p className="text-sm text-slate-500 mb-1">Email</p>
             <p className="text-sm text-white font-medium">{user?.email || '—'}</p>
           </div>
           <div>
-            <p className="text-xs text-slate-500 mb-1">Company</p>
+            <p className="text-sm text-slate-500 mb-1">Company</p>
             <p className="text-sm text-white font-medium">{user?.name || '—'}</p>
           </div>
           <div>
-            <p className="text-xs text-slate-500 mb-1">Plan</p>
+            <p className="text-sm text-slate-500 mb-1">Plan</p>
             <p className="text-sm text-white font-medium">{(session?.user as any)?.plan || 'Trial'}</p>
           </div>
         </div>
@@ -2823,7 +2823,7 @@ function AccountSection() {
         <form onSubmit={handleSubmit} className="space-y-4 max-w-sm">
           {/* Current */}
           <div>
-            <label className="block text-xs font-medium text-slate-400 mb-1.5">Current password</label>
+            <label className="block text-sm font-medium text-slate-400 mb-1.5">Current password</label>
             <input
               type="password"
               value={current}
@@ -2837,7 +2837,7 @@ function AccountSection() {
 
           {/* New */}
           <div>
-            <label className="block text-xs font-medium text-slate-400 mb-1.5">New password</label>
+            <label className="block text-sm font-medium text-slate-400 mb-1.5">New password</label>
             <input
               type="password"
               value={next}
@@ -2852,7 +2852,7 @@ function AccountSection() {
 
           {/* Confirm */}
           <div>
-            <label className="block text-xs font-medium text-slate-400 mb-1.5">Confirm new password</label>
+            <label className="block text-sm font-medium text-slate-400 mb-1.5">Confirm new password</label>
             <input
               type="password"
               value={confirm}
@@ -2996,13 +2996,13 @@ function TeamSection() {
             </svg>
           </div>
           <div>
-            <p className="text-xs font-medium text-slate-300 mb-1">What a team member can do</p>
-            <ul className="text-xs text-slate-500 space-y-0.5">
+            <p className="text-sm font-medium text-slate-300 mb-1">What a team member can do</p>
+            <ul className="text-sm text-slate-500 space-y-0.5">
               <li>View and filter all posts in the Scout feed</li>
               <li>Copy AI comment starters and act on leads</li>
               <li>Mark posts as Engaged, Replied, or Skipped</li>
             </ul>
-            <p className="text-xs text-slate-600 mt-2">They cannot access Settings, billing, or any account configuration. You can remove their access at any time.</p>
+            <p className="text-sm text-slate-600 mt-2">They cannot access Settings, billing, or any account configuration. You can remove their access at any time.</p>
           </div>
         </div>
 
@@ -3032,7 +3032,7 @@ function TeamSection() {
                   </div>
                   <div>
                     <p className="text-sm text-white font-medium">{m.email}</p>
-                    <p className="text-xs text-slate-500">Feed access only · added {m.createdAt || 'recently'}</p>
+                    <p className="text-sm text-slate-500">Feed access only · added {m.createdAt || 'recently'}</p>
                   </div>
                 </div>
                 <button
@@ -3055,7 +3055,7 @@ function TeamSection() {
             </svg>
             <div>
               <p className="text-xs font-semibold text-violet-300 mb-1">Team access is a paid feature</p>
-              <p className="text-xs text-slate-500 leading-relaxed">
+              <p className="text-sm text-slate-500 leading-relaxed">
                 Inviting teammates is available on any paid plan. Upgrade to give your team read-only access to the Scout feed.
               </p>
               <a href="/upgrade" className="inline-block mt-2 text-xs font-semibold text-violet-400 hover:text-violet-300 transition-colors underline underline-offset-2 decoration-violet-600">
@@ -3070,7 +3070,7 @@ function TeamSection() {
         ) : (
           <div>
             {!hasMember && (
-              <p className="text-xs font-medium text-slate-400 mb-2">Invite your first team member</p>
+              <p className="text-sm font-medium text-slate-400 mb-2">Invite your first team member</p>
             )}
             <div className="flex gap-2">
               <input
@@ -3089,7 +3089,7 @@ function TeamSection() {
                 {inviting ? 'Sending...' : 'Send invite'}
               </button>
             </div>
-            <p className="text-xs text-slate-600 mt-2">
+            <p className="text-sm text-slate-600 mt-2">
               They'll receive an email with their login credentials and a walkthrough of the feed.
             </p>
           </div>
@@ -3211,7 +3211,7 @@ function PlanBillingSection() {
         {/* Plan header */}
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
-            <p className="text-xs text-slate-500 mb-1 uppercase tracking-wider font-medium">Current plan</p>
+            <p className="text-sm text-slate-500 mb-1 uppercase tracking-wider font-medium">Current plan</p>
             <p className="text-2xl font-bold text-white">{display.name}</p>
             <p className="text-slate-400 text-sm">{display.price}</p>
           </div>
@@ -3234,7 +3234,7 @@ function PlanBillingSection() {
             >
               Upgrade now
             </a>
-            <p className="text-xs text-slate-500">
+            <p className="text-sm text-slate-500">
               Your trial includes full access to all Starter features.{' '}
               <a href="/upgrade" className="text-[#4F6BFF] hover:underline">See plans →</a>
             </p>
@@ -3425,7 +3425,7 @@ export default function SettingsPage() {
               <svg className="w-5 h-5 text-[#4F6BFF] mt-0.5 shrink-0" fill="currentColor" viewBox="0 0 24 24"><path d="M19 3a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h14m-.5 15.5v-5.3a3.26 3.26 0 00-3.26-3.26c-.85 0-1.84.52-2.32 1.3v-1.11h-2.79v8.37h2.79v-4.93c0-.77.62-1.4 1.39-1.4a1.4 1.4 0 011.4 1.4v4.93h2.79M6.88 8.56a1.68 1.68 0 001.68-1.68c0-.93-.75-1.69-1.68-1.69a1.69 1.69 0 00-1.69 1.69c0 .93.76 1.68 1.69 1.68m1.39 9.94v-8.37H5.5v8.37h2.77z"/></svg>
               <div>
                 <p className="text-sm font-medium text-slate-200 mb-0.5">Scout is a LinkedIn-only tool</p>
-                <p className="text-xs text-slate-400 leading-relaxed">All posts come from two LinkedIn sources: <span className="text-slate-300 font-medium">Keyword Search</span> (finds public posts matching your terms) and <span className="text-slate-300 font-medium">ICP Profiles</span> (monitors specific people you're tracking). Configure both below for maximum coverage.</p>
+                <p className="text-sm text-slate-400 leading-relaxed">All posts come from two LinkedIn sources: <span className="text-slate-300 font-medium">Keyword Search</span> (finds public posts matching your terms) and <span className="text-slate-300 font-medium">ICP Profiles</span> (monitors specific people you're tracking). Configure both below for maximum coverage.</p>
               </div>
             </div>
             {loading && (
@@ -3459,14 +3459,41 @@ export default function SettingsPage() {
             >
               <div className="grid grid-cols-3 gap-4">
                 {[
-                  { label: 'Min score to save',    value: '5 / 10', note: 'Posts below this are dropped entirely — you never see them.' },
-                  { label: 'Min score for digest', value: '6 / 10', note: 'Posts at this score or above appear in your daily Slack digest.'  },
-                  { label: 'High-value threshold', value: '8 / 10', note: 'Posts here get the green priority badge — engage with these first.'    },
+                  {
+                    label:      'Min score to save',
+                    value:      '5 / 10',
+                    note:       'Posts below this are dropped entirely — you never see them.',
+                    border:     'border-amber-500/25',
+                    bg:         'bg-amber-500/5',
+                    dotColor:   'bg-amber-400',
+                    valueColor: 'text-amber-300',
+                  },
+                  {
+                    label:      'Min score for digest',
+                    value:      '6 / 10',
+                    note:       'Posts at this score or above appear in your daily Slack digest.',
+                    border:     'border-blue-500/25',
+                    bg:         'bg-blue-500/5',
+                    dotColor:   'bg-blue-400',
+                    valueColor: 'text-blue-300',
+                  },
+                  {
+                    label:      'High-value threshold',
+                    value:      '8 / 10',
+                    note:       'Posts here get the green priority badge — engage with these first.',
+                    border:     'border-emerald-500/25',
+                    bg:         'bg-emerald-500/5',
+                    dotColor:   'bg-emerald-400',
+                    valueColor: 'text-emerald-300',
+                  },
                 ].map((item) => (
-                  <div key={item.label} className="rounded-xl bg-slate-800/50 border border-slate-700/50 p-4">
-                    <p className="text-xs text-slate-500 mb-1">{item.label}</p>
-                    <p className="text-xl font-bold text-white">{item.value}</p>
-                    <p className="text-xs text-slate-600 mt-1">{item.note}</p>
+                  <div key={item.label} className={`rounded-xl ${item.bg} border ${item.border} p-4`}>
+                    <div className="flex items-center gap-1.5 mb-2">
+                      <div className={`w-1.5 h-1.5 rounded-full ${item.dotColor}`} />
+                      <p className="text-sm text-slate-400">{item.label}</p>
+                    </div>
+                    <p className={`text-2xl font-bold ${item.valueColor} mb-1.5`}>{item.value}</p>
+                    <p className="text-sm text-slate-500 leading-snug">{item.note}</p>
                   </div>
                 ))}
               </div>

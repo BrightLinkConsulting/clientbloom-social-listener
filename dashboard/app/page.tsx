@@ -500,7 +500,7 @@ function PostCard({
 
         {/* Score reason */}
         {f['Score Reason'] && !isSkipped && (
-          <p className="text-xs text-slate-600 mb-4 leading-relaxed">{f['Score Reason']}</p>
+          <p className="text-sm text-slate-600 mb-4 leading-relaxed">{f['Score Reason']}</p>
         )}
 
         {/* ── Engagement zone ── */}
@@ -510,7 +510,7 @@ function PostCard({
             {/* ── Engaged state: single editable note ── */}
             {isEngaged && (
               <div>
-                <p className="text-xs text-slate-500 font-medium mb-1.5">Your notes</p>
+                <p className="text-sm text-slate-500 font-medium mb-1.5">Your notes</p>
                 <textarea
                   value={notes}
                   onChange={e => { setNotes(e.target.value); setNotesDirty(true); setNotesSaved(false) }}
@@ -544,7 +544,7 @@ function PostCard({
             {/* ── Replied state: append-only activity log + CRM push ── */}
             {isReplied && (
               <div>
-                <p className="text-xs text-slate-500 font-medium mb-2">Activity log</p>
+                <p className="text-sm text-slate-500 font-medium mb-2">Activity log</p>
 
                 {/* Legacy note migrated as first entry if no log entries yet */}
                 {replyLog.length === 0 && notes && (
@@ -625,11 +625,11 @@ function PostCard({
                         )}
                       </button>
                       {!crmPushed && (
-                        <p className="text-xs text-slate-600">Pushes contact + notes and moves this post to your In CRM tab.</p>
+                        <p className="text-sm text-slate-600">Pushes contact + notes and moves this post to your In CRM tab.</p>
                       )}
                     </div>
                   ) : (
-                    <p className="text-xs text-slate-600">
+                    <p className="text-sm text-slate-600">
                       No CRM connected —{' '}
                       <a href="/settings" className="text-blue-400/70 hover:text-blue-400 underline transition-colors">
                         Connect GHL or HubSpot in Settings → System.
@@ -1464,7 +1464,7 @@ function MomentumWidget({
         ] as const).map((stat, i) => (
           <div key={i} className="text-center py-1">
             <div className={`text-xl font-bold leading-tight ${stat.color}`}>{stat.value}</div>
-            <div className="text-[12px] text-slate-500 mt-0.5">{stat.label}</div>
+            <div className="text-xs text-slate-500 mt-0.5">{stat.label}</div>
           </div>
         ))}
       </div>
@@ -1504,11 +1504,11 @@ function MomentumWidget({
       )}
 
       {totalActed === 0 ? (
-        <p className="text-[12px] text-slate-600 mt-2 leading-snug">
+        <p className="text-sm text-slate-600 mt-2 leading-snug">
           Engage with posts below to start building your score — every comment puts you in front of the right people.
         </p>
       ) : (
-        <p className="text-[12px] text-slate-600 mt-2 leading-snug">
+        <p className="text-sm text-slate-600 mt-2 leading-snug">
           {totalReplied > 0
             ? `${totalReplied} conversation${totalReplied !== 1 ? 's' : ''} started · ${totalNew} post${totalNew !== 1 ? 's' : ''} in queue`
             : `${totalEngaged} engagement${totalEngaged !== 1 ? 's' : ''} recorded · keep going — replies are where relationships begin`}
@@ -1723,7 +1723,7 @@ function ScoutAgentPanel({
         <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
           {messages.length === 0 && !loading && (
             <div className="text-center py-6">
-              <p className="text-xs text-slate-500 leading-relaxed mb-3">
+              <p className="text-sm text-slate-500 leading-relaxed mb-3">
                 I can help you manage your inbox, understand your stats, and answer any question about how Scout works — features, plans, settings, or what any number means.
               </p>
               <div className="flex flex-col gap-1.5">
@@ -2496,7 +2496,7 @@ function FeedPage() {
                   <svg className="w-3.5 h-3.5 mt-0.5 shrink-0 text-slate-500" fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
                   </svg>
-                  <p className="text-xs text-slate-500 leading-relaxed">
+                  <p className="text-sm text-slate-500 leading-relaxed">
                     Last scan found no new posts — posts below are from previous scans.
                     New results arrive automatically at the next scan.
                   </p>
