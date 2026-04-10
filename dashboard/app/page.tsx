@@ -215,12 +215,18 @@ function PostCard({
   updating,
   crmType,
   userEmail,
+  selected = false,
+  selectionMode = false,
+  onToggleSelect,
 }: {
   post: Post
   onAction: (id: string, action: string) => void
   updating: boolean
   crmType: string
   userEmail: string
+  selected?: boolean
+  selectionMode?: boolean
+  onToggleSelect?: (id: string) => void
 }) {
   const [expanded,         setExpanded]         = useState(false)
   const [angleOpen,        setAngleOpen]         = useState(false)
@@ -329,8 +335,13 @@ function PostCard({
 
   return (
     <article
+      onClick={selectionMode ? () => onToggleSelect?.(post.id) : undefined}
       className={`relative rounded-2xl border transition-all duration-300 ${
-        isSkipped
+        selectionMode ? 'cursor-pointer' : ''
+      } ${
+        selected
+          ? 'bg-blue-950/30 border-blue-500/50 ring-1 ring-blue-500/30'
+          : isSkipped
           ? 'opacity-35 bg-[#0d0f14] border-slate-800/30'
           : isReplied
           ? 'bg-[#0b1520] border-blue-800/50 ring-1 ring-blue-900/30'
@@ -339,7 +350,21 @@ function PostCard({
           : 'bg-[#12151e] border-slate-700/50 hover:border-slate-600/60'
       }`}
     >
-      <div className="p-5 sm:p-6">
+      {/* Selection checkbox */}
+      {selectionMode && (
+        <div className="absolute top-4 left-4 z-10">
+          <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-colors ${
+            selected ? 'bg-blue-500 border-blue-500' : 'border-slate-600 bg-slate-800/60'
+          }`}>
+            {selected && (
+              <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+              </svg>
+            )}
+          </div>
+        </div>
+      )}
+      <div className={`p-5 sm:p-6 ${selectionMode ? 'pl-12' : ''}`}>
 
         {/* Top meta */}
         <div className="flex items-start justify-between gap-3 mb-3">
@@ -870,10 +895,11 @@ function NextScanCountdown({ scanStatus, lastScanAt, plan = '' }: NextScanCountd
 
 // ---- Nav ----
 interface ScanHealth {
-  lastScanAt:     string | null
-  lastScanStatus: string | null
-  lastPostsFound: number
-  fbPending:      boolean
+  lastScanAt:        string | null
+  lastScanStatus:    string | null
+  lastPostsFound:    number
+  fbPending:         boolean
+  lastScanBreakdown: Record<string, number> | null
 }
 
 // If status is 'scanning' but the previous scan completed more than this long
@@ -1393,6 +1419,270 @@ function MomentumWidget({
   )
 }
 
+// ── Scout Agent types ────────────────────────────────────────────────────────
+
+interface AgentChatMessage {
+  role:    'user' | 'assistant'
+  content: string
+}
+
+interface AgentAction {
+  type:    'bulk_skip' | 'bulk_archive' | 'bulk_restore' | 'set_min_score' | 'none'
+  filter?: { maxScore?: number; currentAction?: string }
+  minScore?: number
+  confirm:  boolean
+  summary:  string
+}
+
+interface AgentResponse {
+  reply:   string
+  action?: AgentAction
+}
+
+// ── Scout Agent Panel ────────────────────────────────────────────────────────
+
+function ScoutAgentPanel({
+  open,
+  onClose,
+  inboxCount,
+  skippedCount,
+  topPosts,
+  scoreDistribution,
+  onExecuteAction,
+}: {
+  open:              boolean
+  onClose:           () => void
+  inboxCount:        number
+  skippedCount:      number
+  topPosts:          { id: string; author: string; score: number; text: string }[]
+  scoreDistribution: { high: number; mid: number; low: number }
+  onExecuteAction:   (action: AgentAction) => Promise<void>
+}) {
+  const [messages,       setMessages]       = useState<AgentChatMessage[]>([])
+  const [input,          setInput]          = useState('')
+  const [loading,        setLoading]        = useState(false)
+  const [pendingAction,  setPendingAction]  = useState<AgentAction | null>(null)
+  const [pendingReply,   setPendingReply]   = useState('')
+  const [executing,      setExecuting]      = useState(false)
+  const [execResult,     setExecResult]     = useState<string | null>(null)
+  const bottomRef = useRef<HTMLDivElement>(null)
+  const inputRef  = useRef<HTMLTextAreaElement>(null)
+
+  // Scroll to bottom on new messages
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages, pendingAction])
+
+  // Focus input when panel opens
+  useEffect(() => {
+    if (open) setTimeout(() => inputRef.current?.focus(), 150)
+  }, [open])
+
+  const sendMessage = async () => {
+    const text = input.trim()
+    if (!text || loading) return
+    setInput('')
+    setExecResult(null)
+
+    const userMsg: AgentChatMessage = { role: 'user', content: text }
+    const newMessages = [...messages, userMsg]
+    setMessages(newMessages)
+    setLoading(true)
+    setPendingAction(null)
+
+    try {
+      const res = await fetch('/api/inbox-agent', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({
+          message: text,
+          context: { inboxCount, skippedCount, topPosts, scoreDistribution },
+          history: messages.slice(-6),
+        }),
+      })
+
+      const data: AgentResponse = await res.json()
+      const assistantMsg: AgentChatMessage = { role: 'assistant', content: data.reply }
+      setMessages(prev => [...prev, assistantMsg])
+
+      if (data.action && data.action.type !== 'none') {
+        if (data.action.confirm) {
+          setPendingAction(data.action)
+          setPendingReply(data.reply)
+        } else {
+          // Auto-execute non-destructive actions like set_min_score
+          setExecuting(true)
+          await onExecuteAction(data.action)
+          setExecuting(false)
+          setExecResult(`Done: ${data.action.summary}`)
+        }
+      }
+    } catch {
+      setMessages(prev => [...prev, { role: 'assistant', content: "Sorry, I ran into an error. Try again?" }])
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleConfirm = async () => {
+    if (!pendingAction) return
+    setExecuting(true)
+    setPendingAction(null)
+    try {
+      await onExecuteAction(pendingAction)
+      setExecResult(`Done: ${pendingAction.summary}`)
+    } catch {
+      setExecResult('Action failed — please try again.')
+    } finally {
+      setExecuting(false)
+    }
+  }
+
+  const handleDismissAction = () => {
+    setPendingAction(null)
+    setMessages(prev => [...prev, { role: 'assistant', content: "No worries — let me know if you change your mind." }])
+  }
+
+  if (!open) return null
+
+  return (
+    <>
+      {/* Backdrop */}
+      <div className="fixed inset-0 z-40" onClick={onClose} />
+
+      {/* Panel */}
+      <div className="fixed bottom-20 right-5 z-50 w-80 sm:w-96 flex flex-col bg-[#0d1017] border border-slate-700/60 rounded-2xl shadow-2xl overflow-hidden"
+           style={{ height: '480px' }}>
+
+        {/* Header */}
+        <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800">
+          <div className="flex items-center gap-2">
+            <div className="w-6 h-6 rounded-full bg-blue-600/20 border border-blue-500/30 flex items-center justify-center">
+              <svg className="w-3.5 h-3.5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+            </div>
+            <span className="text-sm font-semibold text-white">Scout Agent</span>
+            <span className="text-xs text-slate-600">AI inbox assistant</span>
+          </div>
+          <button onClick={onClose} className="text-slate-600 hover:text-slate-400 transition-colors">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        {/* Messages */}
+        <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
+          {messages.length === 0 && !loading && (
+            <div className="text-center py-6">
+              <p className="text-xs text-slate-500 leading-relaxed mb-3">
+                I can help you clear inbox noise, skip low-score posts, and surface what matters most.
+              </p>
+              <div className="flex flex-col gap-1.5">
+                {[
+                  'What should I engage with today?',
+                  'Clear everything below score 5',
+                  'How many high-priority posts do I have?',
+                ].map(s => (
+                  <button key={s} onClick={() => { setInput(s) }} className="text-left text-xs px-3 py-2 rounded-lg bg-slate-800/60 border border-slate-700/40 text-slate-400 hover:text-slate-200 hover:border-slate-600/60 transition-colors">
+                    {s}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {messages.map((msg, i) => (
+            <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+              <div className={`max-w-[85%] px-3 py-2 rounded-xl text-xs leading-relaxed ${
+                msg.role === 'user'
+                  ? 'bg-blue-600/20 border border-blue-500/20 text-slate-200'
+                  : 'bg-slate-800/60 border border-slate-700/40 text-slate-300'
+              }`}>
+                {msg.content}
+              </div>
+            </div>
+          ))}
+
+          {loading && (
+            <div className="flex justify-start">
+              <div className="bg-slate-800/60 border border-slate-700/40 px-3 py-2 rounded-xl">
+                <div className="flex gap-1 items-center">
+                  <span className="w-1.5 h-1.5 rounded-full bg-slate-500 animate-bounce" style={{ animationDelay: '0ms' }} />
+                  <span className="w-1.5 h-1.5 rounded-full bg-slate-500 animate-bounce" style={{ animationDelay: '150ms' }} />
+                  <span className="w-1.5 h-1.5 rounded-full bg-slate-500 animate-bounce" style={{ animationDelay: '300ms' }} />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Pending action confirmation */}
+          {pendingAction && (
+            <div className="rounded-xl bg-amber-950/40 border border-amber-500/20 p-3 space-y-2">
+              <p className="text-xs text-amber-300 font-medium">{pendingAction.summary}</p>
+              <div className="flex gap-2">
+                <button
+                  onClick={handleConfirm}
+                  disabled={executing}
+                  className="flex-1 text-xs py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-medium transition-colors disabled:opacity-60"
+                >
+                  {executing ? 'Running…' : 'Confirm'}
+                </button>
+                <button
+                  onClick={handleDismissAction}
+                  disabled={executing}
+                  className="text-xs px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-slate-400 hover:text-slate-200 transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+
+          {execResult && (
+            <div className="text-center">
+              <span className="text-xs text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1 rounded-full">{execResult}</span>
+            </div>
+          )}
+
+          <div ref={bottomRef} />
+        </div>
+
+        {/* Input */}
+        <div className="px-3 pb-3 pt-2 border-t border-slate-800">
+          <div className="flex gap-2 items-end">
+            <textarea
+              ref={inputRef}
+              value={input}
+              onChange={e => setInput(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault()
+                  sendMessage()
+                }
+              }}
+              placeholder="Ask Scout Agent…"
+              rows={1}
+              className="flex-1 bg-slate-800/60 border border-slate-700/40 rounded-xl px-3 py-2 text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:border-blue-500/40 resize-none leading-relaxed"
+              style={{ minHeight: '36px', maxHeight: '80px' }}
+            />
+            <button
+              onClick={sendMessage}
+              disabled={!input.trim() || loading}
+              className="shrink-0 w-8 h-8 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
+            >
+              <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
+    </>
+  )
+}
+
 // ---- Root: route between landing page and authenticated dashboard ----
 export default function RootPage() {
   const { status } = useSession()
@@ -1432,6 +1722,15 @@ function FeedPage() {
   const [trialExpiredGate, setTrialExpiredGate] = useState(false)
   const historySyncedRef = useRef(false)
   const refreshTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  // Bulk selection state
+  const [selectionMode, setSelectionMode] = useState(false)
+  const [selectedIds, setSelectedIds]     = useState<Set<string>>(new Set())
+  const [bulkLoading, setBulkLoading]     = useState(false)
+  const [bulkResult, setBulkResult]       = useState<string | null>(null)
+
+  // Scout Agent state
+  const [agentOpen, setAgentOpen] = useState(false)
 
   // Trial expiry gate — show overlay modal instead of hard-redirecting so the
   // user can see what they are missing behind the gate before choosing a plan.
@@ -1631,6 +1930,84 @@ function FeedPage() {
     }
   }
 
+  // ── Selection helpers ────────────────────────────────────────────────────────
+
+  const toggleSelectPost = useCallback((id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }, [])
+
+  const toggleSelectAll = useCallback(() => {
+    if (selectedIds.size === posts.length) {
+      setSelectedIds(new Set())
+    } else {
+      setSelectedIds(new Set(posts.map(p => p.id)))
+    }
+  }, [posts, selectedIds.size])
+
+  const exitSelectionMode = useCallback(() => {
+    setSelectionMode(false)
+    setSelectedIds(new Set())
+    setBulkResult(null)
+  }, [])
+
+  // ── Bulk action handler (selection toolbar + agent) ───────────────────────
+
+  const handleBulkAction = useCallback(async (
+    action: 'skip' | 'archive' | 'restore',
+    opts?: { recordIds?: string[]; filter?: { maxScore?: number; currentAction?: string } }
+  ) => {
+    setBulkLoading(true)
+    setBulkResult(null)
+    try {
+      const body: Record<string, any> = { action }
+      if (opts?.recordIds && opts.recordIds.length > 0) {
+        body.recordIds = opts.recordIds
+      } else if (opts?.filter) {
+        body.filter = opts.filter
+      }
+
+      const res = await fetch('/api/posts/bulk', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify(body),
+      })
+      const data = await res.json()
+
+      if (data.ok) {
+        setBulkResult(`${data.affected} post${data.affected !== 1 ? 's' : ''} updated`)
+        // Re-fetch to reflect changes
+        await fetchPosts(true)
+        setSelectedIds(new Set())
+        setSelectionMode(false)
+      } else {
+        setBulkResult(`Error: ${data.error || 'Unknown error'}`)
+      }
+    } catch {
+      setBulkResult('Network error — please try again')
+    } finally {
+      setBulkLoading(false)
+    }
+  }, [fetchPosts])
+
+  // ── Agent action executor (called by ScoutAgentPanel) ────────────────────
+
+  const executeAgentAction = useCallback(async (agentAction: AgentAction) => {
+    if (agentAction.type === 'none' || agentAction.type === 'set_min_score') return
+    const bulkActionMap: Record<string, 'skip' | 'archive' | 'restore'> = {
+      bulk_skip:    'skip',
+      bulk_archive: 'archive',
+      bulk_restore: 'restore',
+    }
+    const action = bulkActionMap[agentAction.type]
+    if (!action) return
+    await handleBulkAction(action, agentAction.filter ? { filter: agentAction.filter } : undefined)
+  }, [handleBulkAction])
+
   const tabs: { id: ActionFilter; label: string }[] = [
     { id: 'New',     label: 'Inbox'    },
     { id: 'Engaged', label: 'Engaged'  },
@@ -1749,6 +2126,25 @@ function FeedPage() {
 
             {/* Fixed right-side controls */}
             <div className="flex items-center gap-2 py-1.5 shrink-0">
+              {posts.length > 0 && (
+                <button
+                  onClick={() => {
+                    if (selectionMode) {
+                      exitSelectionMode()
+                    } else {
+                      setSelectionMode(true)
+                      setBulkResult(null)
+                    }
+                  }}
+                  className={`text-xs px-3 py-1 rounded-lg border transition-colors whitespace-nowrap ${
+                    selectionMode
+                      ? 'bg-blue-600/20 border-blue-500/40 text-blue-300'
+                      : 'bg-slate-800 border-slate-700/40 text-slate-400 hover:text-slate-300'
+                  }`}
+                >
+                  {selectionMode ? 'Cancel' : 'Select'}
+                </button>
+              )}
               <button
                 onClick={() => fetchPosts()}
                 className="text-xs px-3 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 transition-colors whitespace-nowrap"
@@ -1757,6 +2153,51 @@ function FeedPage() {
               </button>
             </div>
           </div>
+
+          {/* Bulk action toolbar — appears when posts are selected */}
+          {selectionMode && (
+            <div className="flex items-center gap-3 pb-2.5 pt-0.5">
+              <button onClick={toggleSelectAll} className="text-xs text-slate-500 hover:text-slate-300 transition-colors shrink-0">
+                {selectedIds.size === posts.length ? 'Deselect all' : `Select all (${posts.length})`}
+              </button>
+              {selectedIds.size > 0 && (
+                <>
+                  <span className="text-xs text-slate-600">{selectedIds.size} selected</span>
+                  <div className="flex items-center gap-2 ml-auto">
+                    <button
+                      onClick={() => handleBulkAction('skip', { recordIds: Array.from(selectedIds) })}
+                      disabled={bulkLoading}
+                      className="text-xs px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700/40 text-slate-300 hover:text-white hover:border-slate-500/60 transition-colors disabled:opacity-50"
+                    >
+                      Skip selected
+                    </button>
+                    <button
+                      onClick={() => handleBulkAction('archive', { recordIds: Array.from(selectedIds) })}
+                      disabled={bulkLoading}
+                      className="text-xs px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700/40 text-slate-400 hover:text-slate-200 transition-colors disabled:opacity-50"
+                    >
+                      Archive
+                    </button>
+                    {filter === 'Skipped' && (
+                      <button
+                        onClick={() => handleBulkAction('restore', { recordIds: Array.from(selectedIds) })}
+                        disabled={bulkLoading}
+                        className="text-xs px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700/40 text-emerald-400 hover:text-emerald-300 transition-colors disabled:opacity-50"
+                      >
+                        Restore
+                      </button>
+                    )}
+                  </div>
+                </>
+              )}
+              {bulkLoading && <span className="text-xs text-slate-500 ml-auto">Working…</span>}
+              {bulkResult && !bulkLoading && (
+                <span className={`text-xs ml-auto ${bulkResult.startsWith('Error') ? 'text-red-400' : 'text-emerald-400'}`}>
+                  {bulkResult}
+                </span>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
@@ -1840,20 +2281,70 @@ function FeedPage() {
               </p>
             </div>
 
-            {/* Zero-new-posts notice — only when last scan explicitly returned 0 */}
+            {/* Zero-new-posts notice — shows breakdown when available */}
             {scanHealth?.lastPostsFound === 0 &&
               scanHealth?.lastScanStatus !== 'scanning' &&
               scanHealth?.lastScanStatus !== 'pending_fb' && (
-              <div className="mb-4 flex items-start gap-2 px-3.5 py-2.5 rounded-xl bg-slate-800/40 border border-slate-700/30">
-                <svg className="w-3.5 h-3.5 mt-0.5 shrink-0 text-slate-500" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-                </svg>
-                <p className="text-xs text-slate-500 leading-relaxed">
-                  Last scan found no new posts matching your keywords — posts below are from previous scans.
-                  {' '}New results arrive automatically at the next scan.
-                </p>
+              <div className="mb-4 px-3.5 py-3 rounded-xl bg-slate-800/40 border border-slate-700/30 space-y-2">
+                <div className="flex items-start gap-2">
+                  <svg className="w-3.5 h-3.5 mt-0.5 shrink-0 text-slate-500" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                  </svg>
+                  <p className="text-xs text-slate-500 leading-relaxed">
+                    Last scan found no new posts — posts below are from previous scans.
+                    New results arrive automatically at the next scan.
+                  </p>
+                </div>
+                {scanHealth?.lastScanBreakdown && (
+                  <div className="flex flex-wrap gap-x-4 gap-y-1 pl-5.5">
+                    {scanHealth.lastScanBreakdown.fetched !== undefined && (
+                      <span className="text-xs text-slate-600">
+                        Fetched <span className="text-slate-400">{scanHealth.lastScanBreakdown.fetched}</span>
+                      </span>
+                    )}
+                    {scanHealth.lastScanBreakdown.ageFiltered !== undefined && (
+                      <span className="text-xs text-slate-600">
+                        Too old <span className="text-slate-400">{scanHealth.lastScanBreakdown.ageFiltered}</span>
+                      </span>
+                    )}
+                    {scanHealth.lastScanBreakdown.deduped !== undefined && (
+                      <span className="text-xs text-slate-600">
+                        Already seen <span className="text-slate-400">{scanHealth.lastScanBreakdown.deduped}</span>
+                      </span>
+                    )}
+                    {scanHealth.lastScanBreakdown.belowThreshold !== undefined && (
+                      <span className="text-xs text-slate-600">
+                        Below score threshold <span className="text-slate-400">{scanHealth.lastScanBreakdown.belowThreshold}</span>
+                      </span>
+                    )}
+                  </div>
+                )}
               </div>
             )}
+
+            {/* Skipped tab — bulk management toolbar */}
+            {filter === 'Skipped' && posts.length > 0 && !selectionMode && (
+              <div className="mb-4 flex items-center gap-3 px-3.5 py-2.5 rounded-xl bg-slate-800/30 border border-slate-700/20">
+                <span className="text-xs text-slate-500 flex-1">
+                  {posts.length} skipped post{posts.length !== 1 ? 's' : ''} — these are permanently excluded from future scans.
+                </span>
+                <button
+                  onClick={() => handleBulkAction('restore', { filter: { currentAction: 'Skipped' } })}
+                  disabled={bulkLoading}
+                  className="text-xs px-3 py-1.5 rounded-lg border border-emerald-500/30 bg-emerald-500/5 text-emerald-400 hover:bg-emerald-500/10 transition-colors disabled:opacity-50 shrink-0"
+                >
+                  Restore all
+                </button>
+                <button
+                  onClick={() => handleBulkAction('archive', { filter: { currentAction: 'Skipped' } })}
+                  disabled={bulkLoading}
+                  className="text-xs px-3 py-1.5 rounded-lg border border-slate-700/40 bg-slate-800/60 text-slate-400 hover:text-slate-200 transition-colors disabled:opacity-50 shrink-0"
+                >
+                  Archive all
+                </button>
+              </div>
+            )}
+
             <div className="space-y-3">
               {posts.map(post => (
                 <PostCard
@@ -1863,12 +2354,55 @@ function FeedPage() {
                   updating={updating === post.id}
                   crmType={crmType}
                   userEmail={userEmail}
+                  selected={selectedIds.has(post.id)}
+                  selectionMode={selectionMode}
+                  onToggleSelect={toggleSelectPost}
                 />
               ))}
             </div>
           </>
         )}
       </main>
+
+      {/* ── Scout Agent: floating trigger button ── */}
+      <button
+        onClick={() => setAgentOpen(prev => !prev)}
+        className={`fixed bottom-5 right-5 z-40 flex items-center gap-2 px-4 py-2.5 rounded-2xl shadow-lg border transition-all duration-200 ${
+          agentOpen
+            ? 'bg-blue-600 border-blue-500 text-white shadow-blue-500/25'
+            : 'bg-[#0d1017] border-slate-700/60 text-slate-300 hover:border-blue-500/40 hover:text-white shadow-black/40'
+        }`}
+        title="Scout Agent — AI inbox assistant"
+      >
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+        </svg>
+        <span className="text-xs font-semibold">Scout Agent</span>
+      </button>
+
+      {/* ── Scout Agent panel ── */}
+      <ScoutAgentPanel
+        open={agentOpen}
+        onClose={() => setAgentOpen(false)}
+        inboxCount={actionCounts['New'] || 0}
+        skippedCount={actionCounts['Skipped'] || 0}
+        topPosts={posts
+          .filter(p => p.fields['Action'] === 'New' || p.fields['Action'] === '')
+          .sort((a, b) => (b.fields['Relevance Score'] || 0) - (a.fields['Relevance Score'] || 0))
+          .slice(0, 10)
+          .map(p => ({
+            id:     p.id,
+            author: p.fields['Author Name'] || 'Unknown',
+            score:  p.fields['Relevance Score'] || 0,
+            text:   (p.fields['Post Text'] || '').slice(0, 200),
+          }))}
+        scoreDistribution={{
+          high: posts.filter(p => (p.fields['Relevance Score'] || 0) >= 8).length,
+          mid:  posts.filter(p => { const s = p.fields['Relevance Score'] || 0; return s >= 6 && s < 8 }).length,
+          low:  posts.filter(p => (p.fields['Relevance Score'] || 0) < 6).length,
+        }}
+        onExecuteAction={executeAgentAction}
+      />
     </div>
   )
 }

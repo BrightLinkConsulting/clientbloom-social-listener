@@ -85,14 +85,132 @@ All require `isAdmin === true`.
 | Route | Method | Auth | Description |
 |-------|--------|------|-------------|
 | `/api/trigger-scan` | POST | Session | Manually trigger a scan for the current tenant. 30-minute cooldown enforced. Checks scan eligibility (plan, trial status). |
-| `/api/scan-status` | GET | Session | Current scan status for the tenant from Scan Health table. |
+| `/api/scan-status` | GET | Session | Current scan status for the tenant from Scan Health table. Now includes `lastScanBreakdown` (see below). |
 | `/api/posts` | GET | Session | List captured posts. Query: `?page=&limit=&status=`. Scoped to tenant. |
 | `/api/posts/[id]` | GET | Session | Get single post. Verifies tenant ownership. |
 | `/api/posts/[id]` | PATCH | Session | Update post fields (e.g. `status`). Verifies tenant ownership. |
 | `/api/posts/[id]/suggest` | POST | Session | Generate or regenerate a comment approach for a post via Claude. Checks `commentCredits` limit. |
+| `/api/posts/bulk` | POST | Session | Bulk skip / archive / restore multiple posts in one call. See full spec below. |
+| `/api/inbox-agent` | POST | Session | Conversational AI inbox assistant (Scout Agent). Interprets natural language into inbox management actions. See full spec below. |
 | `/api/engagement-history` | GET | Session | List engagement history records for the tenant. |
 | `/api/stats` | GET | Session | Scan stats (post count, last scan time, next scan window). |
 | `/api/generate-prompt` | POST | Session | Generate a custom AI scoring prompt from business profile. |
+
+---
+
+### POST /api/posts/bulk
+
+Bulk action endpoint for the inbox management system. Applies a single action to multiple posts in one request.
+
+**Request body:**
+```json
+{
+  "action": "skip" | "archive" | "restore",
+  "recordIds": ["recXXX", "recYYY"],
+  "filter": {
+    "maxScore": 5,
+    "currentAction": "New"
+  }
+}
+```
+
+Provide either `recordIds` (explicit list) or `filter` (server-side lookup), not both. Maximum 500 IDs per call.
+
+**Action → Airtable field mapping:**
+
+| Action | Effect |
+|--------|--------|
+| `skip` | `Action = 'Skipped'`, `Engagement Status = ''` |
+| `archive` | `Engagement Status = 'archived'` |
+| `restore` | `Action = 'New'`, `Engagement Status = ''` |
+
+**Response:**
+```json
+{ "ok": true, "affected": 47, "errors": 0 }
+```
+
+**Notes:**
+- Airtable PATCH is chunked at 10 records per batch (Airtable API limit)
+- Filter mode always includes `tenantId` in the Airtable formula for tenant isolation
+- For large inboxes (>50 posts), prefer `filter` mode over explicit `recordIds`
+- `affected` = number successfully updated; `errors` = number of failed Airtable batches
+
+---
+
+### POST /api/inbox-agent
+
+Conversational AI inbox assistant. Interprets a natural-language message into a structured action the frontend can execute via `/api/posts/bulk`.
+
+**Request body:**
+```json
+{
+  "message": "Skip everything below score 5",
+  "context": {
+    "inboxCount": 148,
+    "skippedCount": 52,
+    "topPosts": [
+      { "id": "recXXX", "author": "Jane Smith", "score": 9, "text": "We're struggling with..." }
+    ],
+    "scoreDistribution": { "high": 12, "mid": 28, "low": 108 }
+  },
+  "history": [
+    { "role": "user", "content": "What should I engage with?" },
+    { "role": "assistant", "content": "Top 3 posts to engage..." }
+  ]
+}
+```
+
+`history` is optional; capped at last 6 turns internally.
+
+**Response:**
+```json
+{
+  "reply": "You have 108 low-score posts. Want me to skip everything below score 6?",
+  "action": {
+    "type": "bulk_skip",
+    "filter": { "maxScore": 5, "currentAction": "New" },
+    "confirm": true,
+    "summary": "Skip 108 posts with score ≤ 5 in your inbox"
+  }
+}
+```
+
+**Action types:**
+
+| Type | Description |
+|------|-------------|
+| `bulk_skip` | Skip posts matching filter |
+| `bulk_archive` | Archive posts matching filter |
+| `bulk_restore` | Restore skipped posts to inbox |
+| `set_min_score` | Client-side score filter (no Airtable write) |
+| `none` | Conversational reply only |
+
+`confirm: true` means the frontend should show a confirmation dialog before executing. `confirm: false` is safe to auto-execute.
+
+---
+
+### GET /api/scan-status — `lastScanBreakdown`
+
+When the last scan found 0 new posts (normal in mature accounts), `lastScanBreakdown` explains why:
+
+```json
+{
+  "lastScanAt": "2026-04-10T13:01:00.000Z",
+  "lastScanStatus": "success",
+  "lastPostsFound": 0,
+  "lastScanBreakdown": {
+    "fetched": 47,
+    "ageFiltered": 12,
+    "deduped": 31,
+    "newToScore": 4,
+    "belowThreshold": 4
+  }
+}
+```
+
+`fetched` = total posts Apify returned; `ageFiltered` = too old (>7 days); `deduped` = already in the tenant's database; `newToScore` = sent to Claude for scoring; `belowThreshold` = scored but below the save threshold (score < 5).
+
+This breakdown is stored in the Airtable `Last Error` field as a JSON string when `postsFound = 0` and there is no actual error. `scan-health.ts` detects JSON by checking if the string starts with `{` and parses it into `lastScanBreakdown`, setting `lastError` to `null` in that case.
 
 ---
 

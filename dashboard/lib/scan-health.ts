@@ -29,12 +29,14 @@ function headers() {
 
 // ── Read health record for a tenant ──────────────────────────────────────────
 export interface ScanHealthRecord {
-  recordId:       string
-  lastScanAt:     string | null
-  lastScanStatus: string | null
-  lastPostsFound: number
-  lastScanSource: string | null
-  lastError:      string | null
+  recordId:          string
+  lastScanAt:        string | null
+  lastScanStatus:    string | null
+  lastPostsFound:    number
+  lastScanSource:    string | null
+  lastError:         string | null
+  /** Breakdown of why postsFound=0. Present when scan succeeded but nothing was new. */
+  lastScanBreakdown: Record<string, number> | null
 }
 
 export async function getScanHealth(tenantId: string): Promise<ScanHealthRecord | null> {
@@ -51,13 +53,28 @@ export async function getScanHealth(tenantId: string): Promise<ScanHealthRecord 
     if (!record) return null
 
     const f = record.fields
+
+    // lastError may be either a real error string OR a JSON breakdown object
+    // (stored when postsFound=0 but no actual error, to explain why 0 new posts).
+    // Detect by checking if the string starts with '{'.
+    const rawError = f['Last Error'] || null
+    let lastError: string | null = rawError
+    let lastScanBreakdown: Record<string, number> | null = null
+    if (rawError && rawError.startsWith('{')) {
+      try {
+        lastScanBreakdown = JSON.parse(rawError)
+        lastError = null  // not an actual error
+      } catch { /* treat as plain error string */ }
+    }
+
     return {
-      recordId:       record.id,
-      lastScanAt:     f['Last Scan At']     || null,
-      lastScanStatus: f['Last Scan Status'] || null,
-      lastPostsFound: f['Last Posts Found'] || 0,
-      lastScanSource: f['Last Scan Source'] || null,
-      lastError:      f['Last Error']       || null,
+      recordId:          record.id,
+      lastScanAt:        f['Last Scan At']     || null,
+      lastScanStatus:    f['Last Scan Status'] || null,
+      lastPostsFound:    f['Last Posts Found'] || 0,
+      lastScanSource:    f['Last Scan Source'] || null,
+      lastError,
+      lastScanBreakdown,
     }
   } catch {
     return null

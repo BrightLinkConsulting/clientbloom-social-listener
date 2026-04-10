@@ -192,15 +192,28 @@ export function normalizeLinkedInKeywordPost(raw: any, searchTerm: string) {
 
 // ── NEW A2: Post deduplication ──────────────────────────────────────────────
 // Query Captured Posts table for this tenant, return a Set of post URLs.
-// Filters to posts captured in the last 30 days to keep query fast.
+//
+// Two-layer deduplication:
+//   Layer 1 — Recent posts (last 30 days): prevents re-capture of any post
+//             recently seen, regardless of whether the user acted on it.
+//   Layer 2 — All skipped posts (no age limit): posts explicitly skipped by
+//             the user are permanently excluded from re-capture. Without this,
+//             a skipped post would reappear in the inbox after 30 days whenever
+//             the Apify actor surfaced it again — creating a ghost inbox problem.
+//
+// Bug fixed April 2026: original query only had layer 1. Layer 2 was missing.
 async function getExistingPostUrls(tenantId: string): Promise<Set<string>> {
   const thirtyDaysAgo = new Date()
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
   const thirtyDaysAgoIso = thirtyDaysAgo.toISOString()
-  
+
+  // OR: recent posts from last 30 days OR any explicitly skipped post (permanent exclusion)
+  const formula = `AND(${tenantFilter(tenantId)},OR(IS_AFTER({Captured At},'${thirtyDaysAgoIso}'),{Action}='Skipped'))`
+
   const url = new URL(`https://api.airtable.com/v0/${SHARED_BASE}/${encodeURIComponent('Captured Posts')}`)
-  url.searchParams.set('filterByFormula', `AND(${tenantFilter(tenantId)},IS_AFTER({Captured At},'${thirtyDaysAgoIso}'))`)
-  url.searchParams.set('fields[]', 'Post URL')
+  url.searchParams.set('filterByFormula', formula)
+  url.searchParams.append('fields[]', 'Post URL')
+  url.searchParams.append('fields[]', 'Action')
   url.searchParams.set('pageSize', '100')
   
   const records: any[] = []
@@ -223,6 +236,10 @@ async function getExistingPostUrls(tenantId: string): Promise<Set<string>> {
     offset = data.offset
   } while (offset)
   
+  const skippedCount = records.filter(r => r.fields['Action'] === 'Skipped').length
+  if (skippedCount > 0) {
+    console.log(`[scan] Dedup: ${records.length} existing URLs (${skippedCount} permanently skipped)`)
+  }
   return new Set(records.map(r => r.fields['Post URL'] as string).filter(Boolean))
 }
 
@@ -414,6 +431,19 @@ async function scanLinkedIn(
 }
 
 // ── Exports ───────────────────────────────────────────────────────────────────
+
+/**
+ * Scan pipeline breakdown — shows why postsFound may be 0.
+ * Useful for diagnosing "0 new posts" in the UI vs. a broken scan.
+ */
+export interface ScanBreakdown {
+  fetched:        number  // raw posts from Apify
+  ageFiltered:    number  // removed: older than 7 days
+  deduped:        number  // removed: already in Airtable (last 30d or skipped)
+  newToScore:     number  // passed to Claude for scoring
+  belowThreshold: number  // scored < 5, not saved
+}
+
 export interface ScanResult {
   tenantId:   string
   postsFound: number
@@ -421,6 +451,7 @@ export interface ScanResult {
   scanSource: string
   message:    string
   error?:     string
+  breakdown?: ScanBreakdown
 }
 
 // apifyTokenOverride: tenant's own Apify key (set by admin for account isolation).
@@ -505,26 +536,38 @@ export async function runScanForTenant(
     let allPosts    = linkedinResult.posts
     const scanSources = linkedinResult.source || 'none'
 
-    console.log(`[scan] Total: ${allPosts.length} LinkedIn posts before filtering`)
+    const fetchedCount = allPosts.length
+    console.log(`[scan] Total: ${fetchedCount} LinkedIn posts before filtering`)
 
     // A3: Filter to recent posts only
     allPosts = filterPostsByAge(allPosts, 7)
-    console.log(`[scan] After age filter (7 days): ${allPosts.length} posts`)
+    const ageFilteredCount = fetchedCount - allPosts.length
+    console.log(`[scan] After age filter (7 days): ${allPosts.length} posts (removed ${ageFilteredCount} too old)`)
 
-    // A2: Deduplicate against already-captured posts
+    // A2: Deduplicate against already-captured posts (includes permanently skipped)
     const existingUrls = await getExistingPostUrls(tenantId)
     const newPosts = allPosts.filter(post => !existingUrls.has(post.postUrl || ''))
-    console.log(`[scan] After deduplication: ${newPosts.length} new posts (${existingUrls.size} already in Airtable)`)
+    const dedupedCount = allPosts.length - newPosts.length
+    console.log(`[scan] After deduplication: ${newPosts.length} new posts (removed ${dedupedCount} already seen)`)
 
     if (!newPosts.length) {
       return {
         tenantId, postsFound: 0, scanned: allPosts.length, scanSource: scanSources,
         message: 'No new posts — all existing or too old.',
+        breakdown: {
+          fetched:        fetchedCount,
+          ageFiltered:    ageFilteredCount,
+          deduped:        dedupedCount,
+          newToScore:     0,
+          belowThreshold: 0,
+        },
       }
     }
 
     // 3. Score
     const scored = await scorePosts(ANTHROPIC_KEY, newPosts, businessContext, customPrompt)
+    const qualifying = scored.filter(p => (p.score ?? 5) >= 5)
+    const belowThresholdCount = scored.length - qualifying.length
 
     // 4. Save
     const saved = await saveScoredPosts(tenantId, scored)
@@ -537,6 +580,13 @@ export async function runScanForTenant(
       message: saved > 0
         ? `Found ${saved} relevant post${saved !== 1 ? 's' : ''}.`
         : 'Scan complete — no posts above threshold.',
+      breakdown: {
+        fetched:        fetchedCount,
+        ageFiltered:    ageFilteredCount,
+        deduped:        dedupedCount,
+        newToScore:     newPosts.length,
+        belowThreshold: belowThresholdCount,
+      },
     }
   } catch (e: any) {
     return { tenantId, postsFound: 0, scanned: 0, scanSource: '', message: '', error: e.message }

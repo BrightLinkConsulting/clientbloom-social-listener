@@ -38,10 +38,11 @@ export async function GET() {
   }
 
   return NextResponse.json({
-    lastScanAt:     health.lastScanAt,
-    lastScanStatus: health.lastScanStatus,
-    lastPostsFound: health.lastPostsFound,
-    lastScanSource: health.lastScanSource,
-    lastError:      health.lastError,
+    lastScanAt:        health.lastScanAt,
+    lastScanStatus:    health.lastScanStatus,
+    lastPostsFound:    health.lastPostsFound,
+    lastScanSource:    health.lastScanSource,
+    lastError:         health.lastError,
+    lastScanBreakdown: health.lastScanBreakdown,
   })
 }
