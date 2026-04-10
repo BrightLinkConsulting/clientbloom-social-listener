@@ -1481,6 +1481,11 @@ function ScoutAgentPanel({
   const sendMessage = async () => {
     const text = input.trim()
     if (!text || loading) return
+    // E1: Enforce client-side message length cap (server validates at 1000 chars)
+    if (text.length > 1000) {
+      setExecResult('Message is too long — please keep it under 1000 characters.')
+      return
+    }
     setInput('')
     setExecResult(null)
 
@@ -1559,6 +1564,14 @@ function ScoutAgentPanel({
     setMessages(prev => [...prev, { role: 'assistant', content: "No worries — let me know if you change your mind." }])
   }
 
+  const resetConversation = () => {
+    setMessages([])
+    setInput('')
+    setPendingAction(null)
+    setPendingReply('')
+    setExecResult(null)
+  }
+
   if (!open) return null
 
   return (
@@ -1581,11 +1594,25 @@ function ScoutAgentPanel({
             <span className="text-sm font-semibold text-white">Scout Agent</span>
             <span className="text-xs text-slate-600">AI inbox assistant</span>
           </div>
-          <button onClick={onClose} className="text-slate-600 hover:text-slate-400 transition-colors">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
+          <div className="flex items-center gap-2">
+            {messages.length > 0 && (
+              <button
+                onClick={resetConversation}
+                title="New conversation"
+                className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-300 transition-colors px-2 py-1 rounded-lg hover:bg-slate-800/60"
+              >
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                New
+              </button>
+            )}
+            <button onClick={onClose} className="text-slate-600 hover:text-slate-400 transition-colors">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
         </div>
 
         {/* Messages */}
@@ -1798,10 +1825,13 @@ function FeedPage() {
   // Clear selection state whenever the user switches tabs.
   // Without this, IDs selected in tab A would survive into tab B and a
   // bulk action would affect posts the user cannot even see.
+  // G3: Also close the Scout Agent panel on tab switch to prevent stale
+  // inbox context being used for actions in the new tab.
   useEffect(() => {
     setSelectedIds(new Set())
     setSelectionMode(false)
     setBulkResult(null)
+    setAgentOpen(false)
   }, [filter])
 
   // Fetch CRM type once on mount (for Push button label)

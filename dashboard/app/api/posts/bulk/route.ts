@@ -37,6 +37,9 @@ const AT_API     = `https://api.airtable.com/v0/${SHARED_BASE}/${encodeURICompon
 const BATCH_SIZE = 10    // Airtable PATCH limit
 const MAX_IDS    = 500   // abuse guard
 
+// Whitelist of valid currentAction values — prevents Airtable formula injection
+const ALLOWED_CURRENT_ACTIONS = new Set(['New', 'Skipped', 'Engaged'])
+
 // ── Action → Airtable fields map ─────────────────────────────────────────────
 
 function fieldsForAction(action: string): Record<string, any> | null {
@@ -84,23 +87,27 @@ async function fetchMatchingIds(
 ): Promise<string[]> {
   const clauses = [tenantFilter(tenantId)]
 
-  if (filter.currentAction) {
-    if (filter.currentAction === 'New') {
-      clauses.push(`OR({Action}='New',{Action}='')`)
-      clauses.push(`{Engagement Status}!='archived'`)
-    } else if (filter.currentAction === 'Skipped') {
-      clauses.push(`{Action}='Skipped'`)
-    } else {
-      clauses.push(`{Action}='${filter.currentAction}'`)
-    }
-  } else {
-    // Default: only act on inbox (New/unactioned) posts
+  // H1: Whitelist currentAction before interpolating into Airtable formula.
+  // Only allow known-safe values; default to 'New' if absent or unrecognised.
+  const currentAction = typeof filter.currentAction === 'string' && ALLOWED_CURRENT_ACTIONS.has(filter.currentAction)
+    ? filter.currentAction
+    : 'New'
+
+  if (currentAction === 'New') {
     clauses.push(`OR({Action}='New',{Action}='')`)
     clauses.push(`{Engagement Status}!='archived'`)
+  } else if (currentAction === 'Skipped') {
+    clauses.push(`{Action}='Skipped'`)
+  } else if (currentAction === 'Engaged') {
+    clauses.push(`{Action}='Engaged'`)
   }
 
+  // C2 (server-side): Clamp maxScore to integer 0-10 before formula interpolation
   if (filter.maxScore !== undefined) {
-    clauses.push(`{Relevance Score}<=${filter.maxScore}`)
+    const safeScore = Math.max(0, Math.min(10, Math.round(Number(filter.maxScore))))
+    if (Number.isFinite(safeScore)) {
+      clauses.push(`{Relevance Score}<=${safeScore}`)
+    }
   }
 
   const formula = `AND(${clauses.join(',')})`
