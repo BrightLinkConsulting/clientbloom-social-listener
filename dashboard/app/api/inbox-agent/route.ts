@@ -563,14 +563,20 @@ export async function POST(req: NextRequest) {
     const data = await res.json()
     const rawText = data.content?.[0]?.text || '{}'
 
-    // Parse agent response — extract JSON
+    // Parse agent response — extract JSON.
+    // The regex handles the case where Claude wraps its output in ```json ... ``` fences,
+    // because /\{[\s\S]*\}/ matches the JSON object regardless of surrounding markdown.
     let agentResponse: { reply?: string; action?: any } = {}
     try {
       const jsonMatch = rawText.match(/\{[\s\S]*\}/)
       if (jsonMatch) agentResponse = JSON.parse(jsonMatch[0])
     } catch {
-      // Fallback: treat raw text as reply with no action
-      agentResponse = { reply: rawText.slice(0, 500), action: { type: 'none', confirm: false, summary: '' } }
+      // Last-resort fallback: strip fences and treat as plain-text reply
+      const stripped = rawText
+        .replace(/^```(?:json)?\s*/i, '')
+        .replace(/\s*```\s*$/i, '')
+        .trim()
+      agentResponse = { reply: stripped.slice(0, 500), action: { type: 'none', confirm: false, summary: '' } }
     }
 
     // ── Output sanitization ─────────────────────────────────────────────────

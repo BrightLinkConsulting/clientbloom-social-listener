@@ -508,14 +508,22 @@ CRM integration: ${hasCrm ? 'Connected' : 'Not connected'}
     const data = await response.json()
     const rawContent = data?.content?.[0]?.text || ''
 
-    // Parse JSON reply (agent always returns { reply: "..." })
+    // Parse JSON reply — strip markdown code fences if present, then extract via regex.
+    // Claude occasionally wraps its JSON response in ```json ... ``` fences; a naive
+    // JSON.parse throws and the old catch returned the raw markdown string to the UI.
+    // Using a regex match (same approach as inbox-agent) handles fences transparently.
     let reply = ''
     try {
-      const parsed = JSON.parse(rawContent)
+      const jsonMatch = rawContent.match(/\{[\s\S]*\}/)
+      const parsed = JSON.parse(jsonMatch ? jsonMatch[0] : rawContent)
       reply = String(parsed.reply || '')
     } catch {
-      // Fallback: agent returned raw text (shouldn't happen, but be graceful)
-      reply = rawContent.slice(0, 500)
+      // Last-resort fallback: strip fences manually and treat as plain text
+      reply = rawContent
+        .replace(/^```(?:json)?\s*/i, '')
+        .replace(/\s*```\s*$/i, '')
+        .trim()
+        .slice(0, 500)
     }
 
     if (!reply) {
