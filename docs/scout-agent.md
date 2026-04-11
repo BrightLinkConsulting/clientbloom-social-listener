@@ -1,7 +1,7 @@
 # Scout Agent — Architecture & Operations Guide
 
 > **Audience:** Engineers maintaining or extending the Scout codebase.
-> **Last updated:** April 2026 (Session 8 — Settings Agent launched; ICP Pool UX rewrite; duplicate gating bug fixed)
+> **Last updated:** April 2026 (Session 12 — Agent JSON parsing hardened; markdown-fenced response bug fixed)
 
 ---
 
@@ -396,6 +396,45 @@ LinkedIn post text is wrapped in `[USER POST CONTENT]: ... [END USER POST CONTEN
 
 History entries with invalid roles are dropped; content is truncated to 2000 characters per entry; the array is capped at 6 turns.
 
+### JSON Response Parsing — Fence Stripping (P1)
+
+Claude Haiku intermittently wraps its JSON output in markdown code fences (` ```json ... ``` `). Both routes are hardened to handle this transparently.
+
+**Root cause of the bug (fixed April 2026):** The settings agent used `JSON.parse(rawContent)` directly. When the parse threw on a fenced response, the `catch` block returned `rawContent.slice(0, 500)` — the raw markdown string — to the UI. Users saw the literal ` ```json { "reply": "..." } ``` ` text rendered in the chat panel.
+
+**Fix:** Both routes now use a regex match `/\{[\s\S]*\}/` to extract the JSON object before parsing, which strips surrounding fences transparently. The inbox agent already used this approach; the fix brought the settings agent in line.
+
+**Parsing logic (both routes):**
+
+```typescript
+// settings-agent
+const jsonMatch = rawContent.match(/\{[\s\S]*\}/)
+const parsed = JSON.parse(jsonMatch ? jsonMatch[0] : rawContent)
+reply = String(parsed.reply || '')
+
+// catch fallback — strips fences manually before returning plain text
+reply = rawContent
+  .replace(/^```(?:json)?\s*/i, '')
+  .replace(/\s*```\s*$/i, '')
+  .trim()
+  .slice(0, 500)
+```
+
+```typescript
+// inbox-agent (same regex approach, consistent catch)
+const jsonMatch = rawText.match(/\{[\s\S]*\}/)
+if (jsonMatch) agentResponse = JSON.parse(jsonMatch[0])
+
+// catch fallback
+const stripped = rawText
+  .replace(/^```(?:json)?\s*/i, '')
+  .replace(/\s*```\s*$/i, '')
+  .trim()
+agentResponse = { reply: stripped.slice(0, 500), action: { type: 'none', confirm: false, summary: '' } }
+```
+
+**Stress tested:** 13 adversarial cases including the exact reproduction case from production, plain fences, mixed-case fences, preamble before JSON, Unicode content, and non-JSON fallback paths.
+
 ### Message Length Limits (E1/E2)
 
 Messages over 1000 characters are blocked client-side with an inline error and rejected server-side with HTTP 400.
@@ -594,6 +633,18 @@ To add a new inbox action type (e.g., `bulk_engage`):
 - "Can I change the thresholds?" → answered directly in section description
 - Score 5 inbox-only edge case → cumulative note spells it out
 - Mobile layout cramping → responsive grid added
+
+### Session 12 — April 2026 (Agent JSON parsing hardened)
+
+**Bug fixed: raw markdown-fenced JSON displayed in Settings Agent chat panel**
+- Root cause: `settings-agent/route.ts` called `JSON.parse(rawContent)` directly. Claude Haiku occasionally wraps its JSON output in ` ```json ... ``` ` fences — when the parse threw, the `catch` block returned `rawContent.slice(0, 500)` (the raw markdown string) to the UI.
+- Symptom: Settings Agent replies occasionally started with ` ```json { "reply": "..." } ``` ` as literal visible text. Reproduced consistently from the Settings page; not reproduced from the feed.
+- Fix: switched to `rawContent.match(/\{[\s\S]*\}/)` regex extraction before parsing — same approach already used by the inbox agent. The `catch` fallback also now strips fences before returning plain text.
+- `inbox-agent/route.ts` catch fallback hardened in the same way for consistency (the regex path was already correct, but the catch returned raw text).
+- Adversarial stress test: 13 cases covering fenced JSON, plain fences, mixed-case fences, preamble before JSON, Unicode content, non-JSON fallback, injection in reply content, and plan-gated feature questions — all pass.
+- Documentation: new "JSON Response Parsing — Fence Stripping (P1)" subsection added to Security Model.
+
+---
 
 ### Session 11 — April 2026 (System tab redesign)
 
