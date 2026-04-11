@@ -32,8 +32,9 @@ The onboarding wizard is the first experience a new Scout user has with the prod
 ## Current Version: v2.0
 
 **Git branch:** `onboarding-v2`
-**Status:** Production
+**Status:** Production — confirmed working
 **Merged:** April 2026
+**Production test:** April 11, 2026 — 14 posts in inbox after first onboarding run ✓
 **Previous rollback point:** `onboarding-v1.0` tag
 
 ### What changed from v1.0
@@ -197,6 +198,7 @@ This directly addresses the pattern where new users completed the wizard and saw
 | Feed empty state (firstScan=0) | New copy, no dead "Refresh feed" button | ✓ |
 | Feed empty state "Go to ICP Profiles" link | Routes to /settings?tab=linkedin | ✓ |
 | Email sequencing (trial nurture) | Unchanged — no cron or email code touched | ✓ |
+| End-to-end production test (owner account, April 11 2026) | 14 posts in inbox after first scan | ✓ CONFIRMED |
 
 ---
 
@@ -252,8 +254,9 @@ Before any onboarding change goes to main:
 
 ### v2.0 — Discover ICPs embedded in wizard
 **Git branch:** `onboarding-v2`
-**Status:** Current production
+**Status:** Current production — confirmed working
 **Merged:** April 2026
+**Production verified:** April 11, 2026 — owner account test produced 14 posts in inbox on first onboarding run
 
 Key changes:
 - **ClientBloom brand colors** applied throughout (violet-600 progress dots, CTA buttons)

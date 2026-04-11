@@ -1,8 +1,8 @@
 # Onboarding & First-Scan UX
 
 **File:** `dashboard/app/onboarding/page.tsx` (wizard) + `dashboard/app/page.tsx` (feed landing)  
-**Branch introduced:** `feature/onboarding-first-scan-ux`  
-**Status:** Production
+**Branch introduced:** `feature/onboarding-first-scan-ux` (v1.0) · `onboarding-v2` (v2.0)  
+**Status:** Production — v2.0 confirmed April 11, 2026 (14 posts on first scan)
 
 ---
 
@@ -10,12 +10,12 @@
 
 New Trial users were landing on an empty inbox after completing onboarding. Root causes:
 
-1. Only 3 keyword slots on Trial (too narrow a search net)
-2. "Skip for now" on keyword setup → zero keywords → scan finds nothing
-3. No ICP profiles on a fresh account → scan is keyword-only with generic coverage
-4. Passive empty state ("posts will be waiting at 6 AM") gave no feedback
+1. Only 3 keyword slots on Trial (too narrow a search net) — fixed in v1.0: raised to 6
+2. "Skip for now" on keyword setup → zero keywords → scan finds nothing — fixed in v1.0: keyword gate
+3. No ICP profiles on a fresh account → scan is keyword-only with generic coverage — fixed in v2.0: Discover ICPs embedded in wizard
+4. Passive empty state ("posts will be waiting at 6 AM") gave no feedback — fixed in both versions
 
-The redesign addresses all four with an opinionated, sequential onboarding wizard that requires at least one keyword before advancing, fires a first scan immediately, and handles the scan's three possible outcomes gracefully.
+**v2.0 result (April 11, 2026):** Owner account test completed the v2.0 wizard end-to-end and received 14 posts in inbox on the first scan. Empty-inbox onboarding pattern considered resolved.
 
 ---
 
@@ -197,6 +197,7 @@ All 18 issues were identified and resolved before production push:
 
 | Date | Change |
 |---|---|
-| April 2026 | First-scan UX overhaul: 4-step wizard, keyword gate, fire-and-redirect scan, `?firstScan` feed states |
+| April 2026 | First-scan UX overhaul (v1.0): 4-step wizard, keyword gate, fire-and-redirect scan, `?firstScan` feed states |
 | April 2026 | Trial tier: keywords 3→6, scanSlots 3→5 |
 | April 2026 | 18 adversarial issues identified and resolved; build confirmed clean |
+| April 11, 2026 | v2.0: Discover ICPs panel embedded in Step 3; ClientBloom violet brand colors; helper text on Steps 0 and 2; textarea sizing fix; dead "Refresh feed" button removed from feed empty state; race condition fix (scan locked during discovery). Production confirmed: 14 posts in inbox on first run. |
