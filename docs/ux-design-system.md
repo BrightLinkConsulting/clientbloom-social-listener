@@ -249,3 +249,4 @@ Scout's feed supports bulk actions (Skip, Archive, Restore) on multiple posts at
 | April 2026 | Settings Agent panel added to settings/page.tsx: floating violet button (bottom-right), proactive opening message per tab, context-aware coaching, `/api/settings-agent` route |
 | April 2026 | ICP Pool info box rewritten: two-column card layout distinguishing Add Profile (all plans) from Discover ICPs (Starter+), "any public LinkedIn profile" framing |
 | April 2026 | Duplicate Discover ICPs block removed from settings/page.tsx (194-line partial-refactor artifact that allowed Trial users to bypass the gating) |
+| April 2026 | AI & Scoring section redesigned: title changed to "How Scout filters and prioritizes your posts", score floor strip added (1–4 silently removed), cards revised with clearer labels and additive/cumulative explanation, responsive grid added (`grid-cols-1 sm:grid-cols-3`) |

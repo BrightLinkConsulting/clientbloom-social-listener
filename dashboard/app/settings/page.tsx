@@ -3213,7 +3213,10 @@ function buildSettingsOpening(ctx: SettingsAgentCtx): string {
   }
 
   if (activeTab === 'ai') {
-    return "These scoring thresholds control what Scout keeps, what shows up in your digest, and what gets the green priority badge. They're calibrated well for most users out of the box. The biggest lever here is adding a Custom Scoring Prompt — it lets you tell Scout exactly what signals matter most for your specific business. Want to know what makes a good prompt?"
+    if (!ctx.hasCustomPrompt) {
+      return "This tab shows how Scout automatically filters your feed, and gives you the one lever you can actually control: the AI Scoring Prompt. Scores 1–4 get filtered out silently, 5+ land in your inbox, 6+ go to your Slack digest, and 8+ get the priority badge. You can't change those numbers — but you can write a prompt that tells Scout exactly what kinds of posts should score high for your business. Want me to walk you through what makes a good one?"
+    }
+    return "You have a custom scoring prompt set up — that's the most impactful thing you can do on this tab. If your inbox quality feels off, tweaking the prompt is usually the fix. Want to talk through what's working or what you'd change?"
   }
 
   if (activeTab === 'system') {
@@ -3609,33 +3612,47 @@ export default function SettingsPage() {
         {activeTab === 'ai' && (
           <>
             <Section
-              title="Scoring Thresholds"
-              description="Every post gets an AI score from 1–10. These thresholds control what happens with it."
+              title="How Scout filters and prioritizes your posts"
+              description="Scout scores every LinkedIn post 1–10 before deciding what you see. These thresholds are the automatic filter — they run silently on every scan so your inbox stays focused on what matters. You can't adjust the numbers here, but the AI Scoring Prompt below gives you full control over how posts get scored in the first place."
             >
-              <div className="grid grid-cols-3 gap-4">
+              {/* Score floor — what happens to 1–4 (the missing context) */}
+              <div className="flex items-start gap-3 mb-5 px-3.5 py-3 rounded-xl bg-slate-900/50 border border-slate-700/30">
+                <div className="w-5 h-5 rounded-full bg-slate-700/60 border border-slate-600/40 flex items-center justify-center shrink-0 mt-0.5">
+                  <svg className="w-2.5 h-2.5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </div>
+                <div>
+                  <p className="text-sm text-slate-300 font-medium mb-0.5">Scores 1–4: filtered out before you see anything</p>
+                  <p className="text-sm text-slate-500 leading-relaxed">Scout found these posts but decided they weren&apos;t relevant enough for your business. They&apos;re removed silently — they don&apos;t appear in your inbox, don&apos;t count against any limits, and you never have to deal with them. A well-tuned scoring prompt keeps real opportunities well above this cutoff.</p>
+                </div>
+              </div>
+
+              {/* Three threshold cards — responsive grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
                 {[
                   {
-                    label:      'Min score to save',
+                    label:      'Saved to inbox',
                     value:      '5 / 10',
-                    note:       'Posts below this are dropped entirely — you never see them.',
+                    note:       'Any post scoring 5 or above lands in your inbox for review. This is your main workspace — everything you see here cleared the relevance bar.',
                     border:     'border-amber-500/25',
                     bg:         'bg-amber-500/5',
                     dotColor:   'bg-amber-400',
                     valueColor: 'text-amber-300',
                   },
                   {
-                    label:      'Min score for digest',
+                    label:      'Slack digest',
                     value:      '6 / 10',
-                    note:       'Posts at this score or above appear in your daily Slack digest.',
+                    note:       'Posts scoring 6 or above are bundled into your daily morning summary and sent to your Slack channel. Set up Slack under the System tab.',
                     border:     'border-blue-500/25',
                     bg:         'bg-blue-500/5',
                     dotColor:   'bg-blue-400',
                     valueColor: 'text-blue-300',
                   },
                   {
-                    label:      'High-value threshold',
+                    label:      'Priority badge',
                     value:      '8 / 10',
-                    note:       'Posts here get the green priority badge — engage with these first.',
+                    note:       'Posts scoring 8 or above get a green badge and sort to the top of your inbox. These are your best opportunities — engage with these first.',
                     border:     'border-emerald-500/25',
                     bg:         'bg-emerald-500/5',
                     dotColor:   'bg-emerald-400',
@@ -3652,6 +3669,11 @@ export default function SettingsPage() {
                   </div>
                 ))}
               </div>
+
+              {/* Additive / cumulative explanation */}
+              <p className="text-sm text-slate-500 leading-relaxed">
+                These checks are <span className="text-slate-400 font-medium">cumulative</span> — a post scoring 9 passes all three: it lands in your inbox, appears in your Slack digest, and gets the priority badge. A post scoring 5 passes only the first check and sits in your inbox without appearing in the digest.
+              </p>
             </Section>
 
             <ScoringPromptSection />

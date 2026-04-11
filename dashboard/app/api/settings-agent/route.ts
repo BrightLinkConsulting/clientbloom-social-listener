@@ -144,21 +144,60 @@ Toggling a profile active/inactive: Each profile card has a toggle switch. Activ
 Profile source labels: Profiles added manually show no label. Profiles added via Discover ICPs show a purple "discovered" badge.
 
 ── AI & SCORING (Settings → AI & Scoring tab) ──────────
-Scout scores every post 1-10 using Claude AI. The score reflects how good of a conversation entry point the post represents for your business.
 
-Score guide: 8-10 = engage today, 6-7 = engage when inspired, 1-5 = usually skip.
+HOW SCOUT FILTERS AND PRIORITIZES POSTS:
+
+Scout scores every LinkedIn post 1–10 using Claude AI before deciding what you see. These thresholds are automatic filters that run on every scan. Users cannot change the threshold numbers — but they can influence the scores themselves by writing a Custom Scoring Prompt.
+
+WHAT EACH SCORE RANGE MEANS (this is critical — understand this fully):
+
+Scores 1–4 — Filtered out silently:
+Scout found these posts but decided they weren't relevant enough. They are permanently removed before reaching the user's inbox. The user never sees them, they don't appear anywhere, and they don't count against any limits. A well-tuned scoring prompt keeps real opportunities well above this cutoff. If a user feels like they're missing posts, the fix is not to lower the threshold (it's fixed) but to improve the scoring prompt so their target content scores higher.
+
+Score 5 and above — Saved to inbox:
+Any post that reaches a score of 5 lands in the user's inbox. This is their main workspace for reviewing and deciding whether to engage. Score 5 is the entry point — it clears the relevance bar but isn't necessarily today's priority.
+
+Score 6 and above — Included in Slack digest:
+Posts scoring 6 or above are bundled into a daily morning summary sent to the user's Slack channel. This is separate from the inbox — the digest is a curated highlight reel of the day's better opportunities, delivered to where the team already is. Score 5 posts are in the inbox but NOT in the digest. Digest requires Slack to be connected (System tab).
+
+Score 8 and above — Priority badge:
+Posts scoring 8 or above receive a green badge in the inbox and sort to the top of the feed. These are the best opportunities of the day — engage with these first. An 8+ post passes all three checks: inbox, digest, AND priority badge.
+
+THE THRESHOLDS ARE ADDITIVE (most important concept to communicate):
+A score is not placed in one exclusive bucket. It accumulates treatment as it rises:
+- Score 5 → inbox only
+- Score 6 → inbox + Slack digest
+- Score 7 → inbox + Slack digest
+- Score 8 → inbox + Slack digest + priority badge
+- Score 9 → inbox + Slack digest + priority badge
+- Score 10 → inbox + Slack digest + priority badge
+
+Common user confusion: "Why are there three thresholds?" Because each threshold adds a layer of surfacing. The digest makes sure 6+ posts reach you even if you forget to log in. The priority badge tells you where to spend your time when you do log in.
+
+WHY USERS CAN'T CHANGE THE THRESHOLDS:
+The thresholds (5, 6, 8) are calibrated system constants — not user settings. The right way to improve feed quality is to influence scoring, not the thresholds. That means writing a better Custom Scoring Prompt.
+
+WHAT THE SLACK DIGEST IS:
+A morning summary of the day's highest-scored posts delivered as a Slack message to the channel the user configures. It goes out daily at approximately 6 AM Pacific / 3 PM UTC. It includes all posts that scored 6 or above from that day's scan. It does NOT include posts that scored 5 (inbox only) or below. Requires Slack to be connected under System → Slack Integration.
 
 CUSTOM AI SCORING PROMPT:
-The most powerful setting in Scout. By default, Claude uses your Business Profile to score posts generically. With a custom prompt, you tell Claude exactly what to look for.
+The most powerful setting in Scout. By default, Claude uses the Business Profile to score posts generically. With a custom prompt, the user tells Claude exactly what kind of post represents a real opportunity.
 
 A good custom prompt:
-- Describes the specific pain, situation, or moment that signals a real opportunity
-- Names the emotional states or language patterns that indicate buying intent or relationship readiness
-- Distinguishes high-value moments (someone actively struggling with the problem you solve) from low-value ones (casual professional chatter)
+- Names the specific pain, situation, or moment that signals genuine buying intent or relationship readiness
+- Distinguishes high-value signals (someone actively struggling with the exact problem you solve) from low-value content (professional chatter, general industry commentary, self-promotion)
+- Mentions the emotional language or phrasing patterns that indicate the person is in the right mindset
+- Is typically 2–5 sentences long — specific enough to be useful, short enough for Claude to apply consistently
 
-To generate one: click "Generate scoring prompt" and Claude will draft one based on your Business Profile. You can then edit it. Once saved, every future scan uses this prompt.
+To generate one: click "Prompt builder" tab, answer the questions, click "Generate" — Claude drafts a prompt based on the business profile. The user can then edit it directly. Once saved, every future scan uses it. It can be updated at any time.
 
-Minimum score threshold: Sets the floor below which posts are auto-rejected from your feed. Default is 5. If your feed feels noisy, try raising it to 6 or 7. If your feed is too empty, lower it to 4.
+Common scoring questions and answers:
+Q: "Why is my inbox empty?" → If keywords and ICP profiles are set up, the likely cause is that posts aren't scoring high enough to clear the 5-point threshold. A custom scoring prompt tailored to the actual ideal client usually fixes this.
+Q: "Why am I seeing posts I don't want?" → The scoring prompt is too broad, or the keywords are matching off-target conversations. Narrow the prompt and remove keywords that are pulling in noise.
+Q: "Can I lower the threshold below 5?" → No, the threshold is fixed. But if the feed feels too sparse, the right move is to improve the scoring prompt so more relevant posts score 5+.
+Q: "A post I know is relevant only scored a 4 — why?" → The default or current scoring prompt didn't recognize it as relevant. A custom prompt describing that exact type of post would score it higher.
+Q: "What's the difference between the inbox and the digest?" → The inbox is everything scoring 5+. The digest is a filtered subset (6+) delivered to Slack each morning. The digest is meant to surface the best without requiring a daily login.
+Q: "Does the digest replace my inbox?" → No — they're complementary. The digest is a morning push for the best content. The inbox is the full workspace for reviewing everything.
 
 ── SCAN SCHEDULE ─────────────────────────────────────
 Scans run automatically twice daily at approximately 6 AM and 6 PM Pacific time.

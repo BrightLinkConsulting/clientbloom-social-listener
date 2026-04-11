@@ -321,7 +321,7 @@ The knowledge base lives in Section 2 of `SYSTEM_PROMPT` in `app/api/inbox-agent
 | Feature limits | Full table: pool size, scan slots, keywords, comment credits, seats, workspaces, post history, CRM, discover runs |
 | CRM integration | Agency-only; GoHighLevel; setup via Settings |
 | Scans | Cadence by plan, manual trigger, 30-min cooldown, zero-posts breakdown |
-| Scoring | 1-10 scale, thresholds, custom prompt, how to update |
+| Scoring | 1–10 scale; 1–4 filtered silently; 5+ inbox; 6+ Slack digest; 8+ priority badge; thresholds are additive and not user-editable; custom prompt shapes scores |
 | Inbox tabs | Inbox, Engaged, Replied, Skipped, In CRM — meanings and behaviors |
 | Comment credits | Limits by plan, monthly reset, trial total |
 | Settings | Business Profile, ICP Pool, Keywords, Slack, CRM, Billing, Password |
@@ -487,6 +487,37 @@ To add a new inbox action type (e.g., `bulk_engage`):
 ---
 
 ## Session Changelog
+
+### Session 9 — April 2026 (AI & Scoring UX redesign + Settings Agent scoring knowledge)
+
+**AI & Scoring section redesigned (`app/settings/page.tsx`)**
+- Section title: "Scoring Thresholds" → "How Scout filters and prioritizes your posts"
+- Description rewritten to directly answer "what does this do for me?" and explicitly state thresholds are not user-configurable
+- Score floor strip added above the cards: explains scores 1–4 are filtered silently, with framing around why (relevance bar, not data loss) and what to do about it (tune the scoring prompt)
+- Three threshold card labels revised: "Min score to save" → "Saved to inbox", "Min score for digest" → "Slack digest", "High-value threshold" → "Priority badge"
+- Card notes rewritten to be outcome-focused and explain each threshold's distinct role
+- Digest card now directs users to "Set up Slack under the System tab" — removes assumption Slack is connected
+- Cumulative explanation added below the cards: "These checks are additive — a post scoring 9 passes all three: inbox + digest + priority badge. A post scoring 5 passes only the first."
+- Grid made responsive: `grid-cols-3` → `grid-cols-1 sm:grid-cols-3` (was cramped on mobile)
+
+**Settings Agent scoring knowledge updated (`app/api/settings-agent/route.ts`)**
+- AI & Scoring section in the system prompt completely rewritten with:
+  - Full score-range breakdown (1–4 filtered, 5+ inbox, 6+ digest, 8+ priority) with explicit per-score examples
+  - Critical additive/cumulative concept explained with score-by-score table (5→inbox only, 6→inbox+digest, 8+→all three)
+  - Why thresholds aren't user-editable, and what to do instead (scoring prompt)
+  - What the Slack digest is, when it goes out (6 AM PT / 3 PM UTC), what it includes/excludes
+  - 6 common user Q&A pairs covering: empty inbox, unwanted posts, threshold floor, post scored too low, digest vs inbox difference
+- Settings Agent `buildSettingsOpening()` updated for `ai` tab: now branches on `hasCustomPrompt` — users without a prompt get coached toward creating one; users with one get affirming feedback and a prompt-tuning offer
+
+**Adversarial issues resolved (pre-implementation)**
+- Users without Slack → digest card now always gives setup path
+- Trial users unsure if digest is a paid feature → confirmed available on all plans, copy is neutral
+- User confusion about overlapping ranges → cumulative note makes it explicit
+- "Can I change the thresholds?" → answered directly in section description
+- Score 5 inbox-only edge case → cumulative note spells it out
+- Mobile layout cramping → responsive grid added
+
+---
 
 ### Session 8 — April 2026 (Settings Agent + ICP Pool UX + Duplicate Bug Fix)
 
