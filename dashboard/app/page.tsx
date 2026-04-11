@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback, useRef } from 'react'
+import { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useSession, signOut } from 'next-auth/react'
@@ -1968,11 +1968,65 @@ function FeedPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [firstScanBanner])
 
+  // ── Feed control bar state (search / sort / score filter) ────────────────
+  // All three are client-side view transforms on the fetched posts[] array.
+  // They NEVER affect actionCounts, momentum data, or what the agent sees —
+  // those always derive from the raw posts[] or from server-side totals.
+  const [searchQuery,  setSearchQuery]  = useState('')
+  const [sortBy,       setSortBy]       = useState<'score-desc'|'score-asc'|'date-desc'|'date-asc'>('score-desc')
+  const [scoreFilter,  setScoreFilter]  = useState<'all'|'high'|'mid'|'low'>('all')
+
+  // Derived view — this is what the post list renders. The agent and bulk
+  // action machinery always reference the raw posts[] above.
+  const displayedPosts = useMemo(() => {
+    let result = [...posts]
+
+    // Score filter
+    if (scoreFilter === 'high') result = result.filter(p => (p.fields['Relevance Score'] || 0) >= 8)
+    else if (scoreFilter === 'mid') result = result.filter(p => { const s = p.fields['Relevance Score'] || 0; return s >= 6 && s < 8 })
+    else if (scoreFilter === 'low') result = result.filter(p => (p.fields['Relevance Score'] || 0) <= 5)
+
+    // Keyword search — author name + post text
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase()
+      result = result.filter(p =>
+        (p.fields['Author Name'] || '').toLowerCase().includes(q) ||
+        (p.fields['Post Text']   || '').toLowerCase().includes(q)
+      )
+    }
+
+    // Sort
+    result = result.sort((a, b) => {
+      if (sortBy === 'score-desc') return (b.fields['Relevance Score'] || 0) - (a.fields['Relevance Score'] || 0)
+      if (sortBy === 'score-asc')  return (a.fields['Relevance Score'] || 0) - (b.fields['Relevance Score'] || 0)
+      const da = new Date(a.fields['Captured At'] || 0).getTime()
+      const db = new Date(b.fields['Captured At'] || 0).getTime()
+      if (sortBy === 'date-desc') return db - da
+      if (sortBy === 'date-asc')  return da - db
+      return 0
+    })
+
+    return result
+  }, [posts, scoreFilter, searchQuery, sortBy])
+
+  const isFiltered = searchQuery.trim() !== '' || scoreFilter !== 'all' || sortBy !== 'score-desc'
+
+  const clearFilters = useCallback(() => {
+    setSearchQuery('')
+    setSortBy('score-desc')
+    setScoreFilter('all')
+  }, [])
+
   // Bulk selection state
   const [selectionMode, setSelectionMode] = useState(false)
   const [selectedIds, setSelectedIds]     = useState<Set<string>>(new Set())
   const [bulkLoading, setBulkLoading]     = useState(false)
   const [bulkResult, setBulkResult]       = useState<string | null>(null)
+
+  // Skipped tab density warnings — session-local, not persisted.
+  // Shown at 50+ and 100+ skipped posts to prompt users to archive.
+  const [skippedWarning50Dismissed,  setSkippedWarning50Dismissed]  = useState(false)
+  const [skippedWarning100Dismissed, setSkippedWarning100Dismissed] = useState(false)
 
   // Scout Agent state
   const [agentOpen,  setAgentOpen]  = useState(false)
@@ -2043,11 +2097,16 @@ function FeedPage() {
   // bulk action would affect posts the user cannot even see.
   // G3: Also close the Scout Agent panel on tab switch to prevent stale
   // inbox context being used for actions in the new tab.
+  // Reset feed control bar filters on tab switch — sort/search/scoreFilter
+  // are per-tab state; carrying them across tabs creates confusing phantom filters.
   useEffect(() => {
     setSelectedIds(new Set())
     setSelectionMode(false)
     setBulkResult(null)
     setAgentOpen(false)
+    setSearchQuery('')
+    setSortBy('score-desc')
+    setScoreFilter('all')
   }, [filter])
 
   // Close the Scout Agent panel when entering selection mode — the panel
@@ -2243,12 +2302,12 @@ function FeedPage() {
   }, [])
 
   const toggleSelectAll = useCallback(() => {
-    if (selectedIds.size === posts.length) {
+    if (selectedIds.size === displayedPosts.length) {
       setSelectedIds(new Set())
     } else {
-      setSelectedIds(new Set(posts.map(p => p.id)))
+      setSelectedIds(new Set(displayedPosts.map(p => p.id)))
     }
-  }, [posts, selectedIds.size])
+  }, [displayedPosts, selectedIds.size])
 
   const exitSelectionMode = useCallback(() => {
     setSelectionMode(false)
@@ -2446,30 +2505,30 @@ function FeedPage() {
                   <button
                     onClick={toggleSelectAll}
                     className="flex items-center gap-2 text-xs text-slate-400 hover:text-white transition-colors shrink-0 group"
-                    aria-label={selectedIds.size === posts.length && posts.length > 0 ? 'Deselect all posts' : 'Select all posts'}
+                    aria-label={selectedIds.size === displayedPosts.length && displayedPosts.length > 0 ? 'Deselect all posts' : 'Select all posts'}
                   >
                     {/* Tri-state checkbox: empty / indeterminate / all-checked */}
                     <div className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-colors ${
-                      selectedIds.size === posts.length && posts.length > 0
+                      selectedIds.size === displayedPosts.length && displayedPosts.length > 0
                         ? 'bg-blue-500 border-blue-500'
                         : selectedIds.size > 0
                         ? 'border-blue-400 bg-transparent'
                         : 'border-slate-500 bg-transparent group-hover:border-slate-400'
                     }`}>
-                      {selectedIds.size === posts.length && posts.length > 0 && (
+                      {selectedIds.size === displayedPosts.length && displayedPosts.length > 0 && (
                         <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
                           <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                         </svg>
                       )}
                       {/* Indeterminate dash */}
-                      {selectedIds.size > 0 && selectedIds.size < posts.length && (
+                      {selectedIds.size > 0 && selectedIds.size < displayedPosts.length && (
                         <div className="w-2 h-0.5 bg-blue-400 rounded-full" />
                       )}
                     </div>
                     <span>
-                      {selectedIds.size === posts.length && posts.length > 0
+                      {selectedIds.size === displayedPosts.length && displayedPosts.length > 0
                         ? 'Deselect all'
-                        : `Select all (${posts.length})`}
+                        : `Select all (${displayedPosts.length})`}
                     </span>
                   </button>
 
@@ -2546,29 +2605,6 @@ function FeedPage() {
                   })}
                 </div>
 
-                {/* Fixed right-side controls */}
-                <div className="flex items-center gap-2 py-1.5 shrink-0">
-                  {posts.length > 0 && (
-                    <button
-                      onClick={() => { setSelectionMode(true); setBulkResult(null) }}
-                      title="Select posts to skip or archive in bulk"
-                      className="flex items-center gap-1.5 text-xs px-3 py-1 rounded-lg border bg-slate-800 border-slate-700/40 text-slate-400 hover:text-slate-300 hover:border-slate-600/60 transition-colors whitespace-nowrap"
-                    >
-                      {/* Checkbox icon — signals what Select does before clicking */}
-                      <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                        <rect x="3" y="3" width="18" height="18" rx="3" />
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4" />
-                      </svg>
-                      Select
-                    </button>
-                  )}
-                  <button
-                    onClick={() => fetchPosts()}
-                    className="text-xs px-3 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 transition-colors whitespace-nowrap"
-                  >
-                    Refresh
-                  </button>
-                </div>
               </>
             )}
           </div>
@@ -2579,6 +2615,119 @@ function FeedPage() {
         {/* Momentum Widget — collapses when selection mode is active so posts are visually adjacent to the selection toolbar */}
         <div className={`overflow-hidden transition-all duration-300 ease-in-out ${selectionMode ? 'max-h-0 opacity-0' : 'max-h-[500px] opacity-100'}`}>
           <MomentumWidget actionCounts={actionCounts} history={momentumHistory} lastRefreshed={lastRefreshed} />
+        </div>
+
+        {/* ── Feed Control Bar — search / sort / score filter / Select / Refresh ──
+            Sticky below the tab strip (top-[105px] = 61px nav + 44px tab strip).
+            Collapses in selection mode (same pattern as Momentum widget).
+            Controls are client-side view transforms on displayedPosts; they never
+            affect actionCounts, momentum data, or server-side totals.
+        ── */}
+        <div className={`sticky top-[105px] z-10 -mx-5 px-5 border-b border-slate-800/50 bg-[#0a0c10]/95 backdrop-blur-md transition-all duration-300 overflow-hidden ${selectionMode ? 'max-h-0 py-0 opacity-0 border-transparent' : 'max-h-[100px] opacity-100 py-2.5'}`}>
+          <div className="flex items-center gap-2">
+
+            {/* Search — author name + post text */}
+            <div className="relative flex-1 min-w-0">
+              <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500 pointer-events-none" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                <circle cx="11" cy="11" r="8" /><path d="M21 21l-4.35-4.35" />
+              </svg>
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                placeholder="Search author or post…"
+                className="w-full pl-8 pr-7 py-1.5 rounded-lg bg-slate-800/70 border border-slate-700/40 text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:border-slate-600 transition-colors"
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery('')}
+                  aria-label="Clear search"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-600 hover:text-slate-400 transition-colors"
+                >
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                    <path d="M18 6L6 18M6 6l12 12" />
+                  </svg>
+                </button>
+              )}
+            </div>
+
+            {/* Sort dropdown */}
+            <div className="relative shrink-0">
+              <select
+                value={sortBy}
+                onChange={e => setSortBy(e.target.value as typeof sortBy)}
+                className="text-xs bg-slate-800/70 border border-slate-700/40 text-slate-300 rounded-lg pl-2.5 pr-6 py-1.5 focus:outline-none focus:border-slate-600 cursor-pointer appearance-none"
+              >
+                <option value="score-desc">Score: High → Low</option>
+                <option value="score-asc">Score: Low → High</option>
+                <option value="date-desc">Date: Newest first</option>
+                <option value="date-asc">Date: Oldest first</option>
+              </select>
+              <svg className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-500" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                <path d="M19 9l-7 7-7-7" />
+              </svg>
+            </div>
+
+            {/* Score filter dropdown */}
+            <div className="relative shrink-0">
+              <select
+                value={scoreFilter}
+                onChange={e => setScoreFilter(e.target.value as typeof scoreFilter)}
+                className="text-xs bg-slate-800/70 border border-slate-700/40 text-slate-300 rounded-lg pl-2.5 pr-6 py-1.5 focus:outline-none focus:border-slate-600 cursor-pointer appearance-none"
+              >
+                <option value="all">All scores</option>
+                <option value="high">High (8–10)</option>
+                <option value="mid">Medium (6–7)</option>
+                <option value="low">Low (5 and below)</option>
+              </select>
+              <svg className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-500" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                <path d="M19 9l-7 7-7-7" />
+              </svg>
+            </div>
+
+            {/* Select button (moved from tab strip header) */}
+            {posts.length > 0 && (
+              <button
+                onClick={() => { setSelectionMode(true); setBulkResult(null) }}
+                title="Select posts for bulk actions"
+                className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border bg-slate-800/70 border-slate-700/40 text-slate-400 hover:text-slate-300 hover:border-slate-600/60 transition-colors shrink-0 whitespace-nowrap"
+              >
+                <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <rect x="3" y="3" width="18" height="18" rx="3" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4" />
+                </svg>
+                Select
+              </button>
+            )}
+
+            {/* Refresh — icon on mobile, icon + text on desktop */}
+            <button
+              onClick={() => fetchPosts()}
+              title="Refresh posts"
+              className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-slate-800/70 border border-slate-700/40 text-slate-400 hover:text-slate-300 transition-colors shrink-0 whitespace-nowrap"
+            >
+              <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              <span className="hidden sm:inline">Refresh</span>
+            </button>
+          </div>
+
+          {/* Filter active indicator */}
+          {isFiltered && (
+            <div className="flex items-center gap-2 mt-1.5">
+              <span className="text-xs text-slate-500">
+                Showing {displayedPosts.length} of {posts.length}
+              </span>
+              <span className="text-slate-700 text-xs">·</span>
+              <button
+                onClick={clearFilters}
+                className="text-xs text-blue-400 hover:text-blue-300 transition-colors"
+              >
+                Clear filters
+              </button>
+            </div>
+          )}
         </div>
 
         {error && (
@@ -2751,31 +2900,67 @@ function FeedPage() {
               </div>
             )}
 
-            {/* Skipped tab — bulk management toolbar */}
-            {filter === 'Skipped' && posts.length > 0 && !selectionMode && (
-              <div className="mb-4 flex items-center gap-3 px-3.5 py-2.5 rounded-xl bg-slate-800/30 border border-slate-700/20">
-                <span className="text-xs text-slate-500 flex-1">
-                  {posts.length} skipped post{posts.length !== 1 ? 's' : ''} — these are permanently excluded from future scans.
-                </span>
-                <button
-                  onClick={() => handleBulkAction('restore', { filter: { currentAction: 'Skipped' } })}
-                  disabled={bulkLoading}
-                  className="text-xs px-3 py-1.5 rounded-lg border border-emerald-500/30 bg-emerald-500/5 text-emerald-400 hover:bg-emerald-500/10 transition-colors disabled:opacity-50 shrink-0"
-                >
-                  Restore all
-                </button>
-                <button
-                  onClick={() => handleBulkAction('archive', { filter: { currentAction: 'Skipped' } })}
-                  disabled={bulkLoading}
-                  className="text-xs px-3 py-1.5 rounded-lg border border-slate-700/40 bg-slate-800/60 text-slate-400 hover:text-slate-200 transition-colors disabled:opacity-50 shrink-0"
-                >
-                  Archive all
-                </button>
-              </div>
-            )}
+            {/* Skipped tab — density warnings (session-local, no Airtable write) */}
+            {filter === 'Skipped' && !selectionMode && (() => {
+              const count = posts.length
+              // 100+ tier takes precedence over 50+ tier
+              if (count >= 100 && !skippedWarning100Dismissed) {
+                return (
+                  <div className="mb-4 flex items-start gap-3 px-3.5 py-3 rounded-xl bg-amber-500/10 border border-amber-500/30">
+                    <svg className="w-4 h-4 text-amber-400 mt-0.5 shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                    </svg>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-amber-300 font-medium">{count} skipped posts — this is getting unwieldy</p>
+                      <p className="text-xs text-amber-400/70 mt-0.5">Use Select to pick posts to archive, or archive all at once to keep this list manageable.</p>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        onClick={() => handleBulkAction('archive', { filter: { currentAction: 'Skipped' } })}
+                        disabled={bulkLoading}
+                        className="text-xs px-3 py-1.5 rounded-lg border border-amber-500/30 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20 transition-colors disabled:opacity-50 whitespace-nowrap"
+                      >
+                        Archive all
+                      </button>
+                      <button
+                        onClick={() => setSkippedWarning100Dismissed(true)}
+                        className="text-amber-500/60 hover:text-amber-400 transition-colors"
+                        aria-label="Dismiss warning"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                          <path d="M18 6L6 18M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                )
+              }
+              if (count >= 50 && !skippedWarning50Dismissed) {
+                return (
+                  <div className="mb-4 flex items-center gap-3 px-3.5 py-2.5 rounded-xl bg-amber-500/7 border border-amber-500/20">
+                    <svg className="w-3.5 h-3.5 text-amber-500 shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                    </svg>
+                    <span className="text-xs text-amber-400/80 flex-1">
+                      {count} skipped posts — consider archiving ones you no longer need.
+                    </span>
+                    <button
+                      onClick={() => setSkippedWarning50Dismissed(true)}
+                      className="text-amber-600/60 hover:text-amber-500 transition-colors shrink-0"
+                      aria-label="Dismiss warning"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                        <path d="M18 6L6 18M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                )
+              }
+              return null
+            })()}
 
             <div className="space-y-3">
-              {posts.map(post => (
+              {displayedPosts.map(post => (
                 <PostCard
                   key={post.id}
                   post={post}
