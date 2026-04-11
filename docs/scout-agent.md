@@ -595,6 +595,24 @@ To add a new inbox action type (e.g., `bulk_engage`):
 - Score 5 inbox-only edge case → cumulative note spells it out
 - Mobile layout cramping → responsive grid added
 
+### Session 11 — April 2026 (System tab redesign)
+
+**System tab layout overhauled (`app/settings/page.tsx`)**
+- Removed `SystemStatusSection` entirely — the scanner/LinkedIn/digest status cards were hardcoded, non-actionable, and showed incorrect timing ("7 AM PST")
+- Added `SystemIntegrationCards`: two compact side-by-side hero cards (Slack Digest + CRM Integration) rendered at the top of the System tab
+  - Locked plans: shows plan gate badge (Pro+ / Agency) and upgrade CTA
+  - Unlocked + connected: green dot, channel name or CRM name, "configure below" nudge
+  - Unlocked + not connected: amber dot, setup nudge, "configure below" nudge
+- `SlackIntegrationSection` locked gate changed from inline locked card → `return null` (overview card handles that UX)
+- `CRMIntegrationSection` locked gate changed from inline locked card → `return null`
+- Fixed `buildSettingsOpening()` system tab timing bug: "6 AM" → "~8 AM Pacific (3 PM UTC)" in both connected and disconnected branches
+
+**Design rationale**
+- The integration cards are now the first thing a user sees on the System tab — they drive plan upgrades for Trial/Starter users and surface connection status for Pro/Agency users without requiring a scroll
+- Removing the status widget eliminated confusing hardcoded copy that never reflected real state
+
+---
+
 ### Session 10 — April 2026 (Slack app display name update)
 
 **Slack app renamed in Slack API dashboard**
