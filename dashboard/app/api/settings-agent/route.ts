@@ -229,41 +229,89 @@ WHAT SCOUT DOES WHEN YOU PUSH A CONTACT:
 2. Creates (or updates) a GHL contact with the author's name, LinkedIn profile URL, tags (scout-listener, linkedin-engaged), and source label.
 3. Adds a note to the contact with the post snippet, your engagement notes, and a direct link back to the LinkedIn post.
 4. If a Pipeline ID is configured, automatically creates a GHL Opportunity at the first stage of that pipeline.
-5. Moves the post to the "In CRM" tab in Scout so you always know who's been pushed.
+5. Moves the post to the "In CRM" tab in Scout and shows a "View in GoHighLevel" link to jump directly to the contact.
 
 HOW TO SET IT UP (3 required steps):
 Step 1 — Find your Location ID:
-  Log into GHL and open your sub-account. Look at the URL: app.gohighlevel.com/v2/location/XXXXXXXX/dashboard
+  Log into GHL and open your sub-account (not the agency-level account — you must be inside a specific sub-account). Look at the URL: app.gohighlevel.com/v2/location/XXXXXXXX/dashboard
   The Location ID is the portion after /location/ and before the next slash. It looks like a random string of letters and numbers (e.g. G43COt3uGbAzymts6uXB). Copy it and paste it into the Location ID field in Scout.
+  IMPORTANT: If the URL doesn't contain /location/, you're at the agency level — click into a specific sub-account first.
+  GHL reference: https://help.gohighlevel.com/support/solutions/articles/155000002161-private-integrations
 
 Step 2 — Create a Private Integration token:
   In GHL, go to Settings → Integrations → Private Integrations → click "Create new integration".
   Name it "Scout". Under Scopes, enable EXACTLY these three: contacts.write, contacts.readonly, and opportunities.write.
   Click Create and copy the Access Token. It starts with "eyJ..." — paste it into the Private Integration Token field in Scout.
-  IMPORTANT: This is NOT the same as the legacy "API Key" under Settings → Integrations → API Key. That old key will NOT work with Scout. You must use Private Integrations.
+  CRITICAL: This is NOT the same as the legacy "API Key" under Settings → Integrations → API Key. Both tokens look identical (both start with eyJ...) but the legacy key uses GHL's old v1 API and will ALWAYS return "Invalid JWT" errors with Scout. If you're getting 401 errors, you almost certainly copied the wrong token.
+  GHL Private Integrations guide: https://help.gohighlevel.com/support/solutions/articles/155000002161-private-integrations
+  API Key vs Private Integrations explained: https://help.gohighlevel.com/support/solutions/articles/155000002449
 
 Step 3 — Pipeline ID (optional but recommended):
   In GHL, go to Opportunities → Pipelines. Click the pipeline you want Scout to use (e.g. "Scout Leads").
   Copy the pipeline ID from the URL — it looks like OJuoy9LGTq9r6m5YxeH9.
-  Paste it into the Pipeline ID field in Scout. When set, Scout automatically creates an Opportunity at the "New Lead" (first) stage every time you push a contact.
+  Paste it into the Pipeline ID field in Scout. When set, Scout automatically creates an Opportunity at the first stage every time you push a contact.
   If left blank, Scout still creates the contact and note — just no Opportunity/pipeline entry.
 
 AFTER SETUP:
-  Click "Save" to store your credentials, then "Test Connection" to confirm they're working. If the test fails, the most common reasons are:
-  - Wrong token type (using legacy API Key instead of Private Integration token)
-  - Missing scopes (needs contacts.write, contacts.readonly, AND opportunities.write — all three)
-  - Wrong Location ID (make sure it's from the sub-account, not the agency account)
+  Click "Save" to store your credentials, then "Test Connection" to confirm they're working. A green "Connected" message means everything is correct. If the test fails, the error message will tell you exactly what's wrong.
+
+READING THE RESULTS AFTER A PUSH:
+  Green "✓ Added to GoHighLevel" = contact was created or updated in GHL.
+  "View in GoHighLevel ↗" link = click this to go directly to the contact record. If the link doesn't appear, check that the push completed without a red error.
+  Amber warning below the green = the contact was created but a secondary step failed (note or Opportunity). The warning message tells you what to fix — usually a missing scope on your Private Integration token.
+  Red error = the push failed entirely. The message tells you the root cause.
+
+COMMON MISTAKES AND HOW TO FIX THEM:
+
+MISTAKE: "Invalid token — 401 Unauthorized"
+Most likely cause: You copied the legacy API Key from GHL → Settings → Integrations → API Key instead of a Private Integration token.
+Fix: Go to GHL → Settings → Integrations → Private Integrations. Create a new integration with contacts.write, contacts.readonly, and opportunities.write scopes. Copy THAT token.
+How to tell them apart: Both start with "eyJ..." — the ONLY reliable way to tell them apart is where you found them. Legacy API Key = found at Settings → Integrations → API Key. Private Integration token = found at Settings → Integrations → Private Integrations after creating an integration.
+GHL guide: https://help.gohighlevel.com/support/solutions/articles/155000002449
+
+MISTAKE: "Token valid but missing permissions — 403"
+Cause: You have a valid Private Integration token but it's missing one or more of the required scopes.
+Fix: Go to GHL → Settings → Integrations → Private Integrations → find the Scout integration → click Edit → make sure contacts.write, contacts.readonly, AND opportunities.write are all enabled → save.
+All three scopes are needed: contacts.readonly to search for existing contacts, contacts.write to create/update contacts and notes, opportunities.write to create pipeline Opportunities.
+
+MISTAKE: "Contact created but note failed to attach"
+Cause: Your Private Integration token is missing contacts.write scope (notes use the same scope as contact writes).
+Fix: Edit your Private Integration to add contacts.write scope.
+Note: The contact was still created successfully. This is a non-fatal warning — you can still view the contact in GHL using the "View in GoHighLevel" link.
+
+MISTAKE: Contact created but no Opportunity in pipeline
+Causes: (a) Pipeline ID not saved in Scout settings, or (b) Private Integration token missing opportunities.write scope, or (c) Pipeline ID is wrong.
+Fix: (a) Go to Settings → System → CRM Integration and check that Pipeline ID is filled in and saved. (b) Edit your Private Integration to add opportunities.write scope. (c) Go to GHL → Opportunities → Pipelines, click your pipeline, copy the ID from the URL.
+
+MISTAKE: Wrong Pipeline ID / "pipeline not found" warning
+Cause: The Pipeline ID doesn't match any pipeline in the GHL sub-account.
+Fix: Go to GHL → Opportunities → Pipelines. Click the exact pipeline you want. The URL will look like: app.gohighlevel.com/v2/location/XXXX/opportunities/pipeline/PIPELINE_ID_HERE. Copy only the pipeline ID portion.
+Common error: Copying the Location ID (the part after /location/) instead of the Pipeline ID (the part after /pipeline/).
+
+MISTAKE: "GoHighLevel Location ID is missing"
+Cause: The Location ID field in Scout settings is empty.
+Fix: Follow Step 1 above to find and copy your Location ID, then paste it into Settings → System → CRM Integration → Location ID and save.
 
 COMMON QUESTIONS ABOUT CRM INTEGRATION:
-Q: "Do I need the person's email to push them?" → No. Scout identifies contacts by their LinkedIn profile URL. It searches GHL for an existing contact with that URL before creating a new one, preventing duplicates.
-Q: "Why does the push say 'pipeline not found'?" → Double-check the Pipeline ID. Go to GHL → Opportunities → Pipelines, click the pipeline, and copy the ID exactly from the URL.
-Q: "Can I push the same person twice?" → Scout deduplicates — if a contact with that LinkedIn URL already exists in GHL, Scout updates them instead of creating a duplicate. You can push the same person multiple times safely.
-Q: "The contact was created but there's no Opportunity in my pipeline." → Check that the Pipeline ID is saved in Scout settings and that your Private Integration token has opportunities.write scope.
-Q: "HubSpot isn't an option." → HubSpot integration is coming soon. GoHighLevel is the only supported CRM right now.
-Q: "I see 'Invalid token — 401 Unauthorized'." → You're using the legacy API Key, not a Private Integration token. Go to GHL → Settings → Integrations → Private Integrations to create one.
+Q: "Do I need the person's email to push them?" → No. Scout identifies contacts by their LinkedIn profile URL. It searches GHL for an existing contact with that URL before creating a new one, so no email is needed for deduplication.
+Q: "Can I push the same person twice?" → Yes, safely. Scout deduplicates — if a contact with that LinkedIn URL already exists in GHL, Scout updates them instead of creating a duplicate.
+Q: "Why does the 'View in GoHighLevel' link not appear?" → It appears only after a successful push (green state). If you see a red error, the push failed and no contact was created. Try again after fixing the error.
+Q: "What shows up in the GHL contact record?" → The contact's name, their LinkedIn URL (stored in the website field), tags (scout-listener, linkedin-engaged), source label "Scout by ClientBloom", and a note with the post text, your engagement notes, and the post URL.
+Q: "HubSpot isn't working." → HubSpot integration is coming soon. GoHighLevel is the only supported CRM right now.
+Q: "I see a yellow/amber warning after a successful push." → The contact was created. Read the warning — it tells you exactly what secondary step (note or Opportunity) failed and what scope to add to your Private Integration token.
 Q: "What plan do I need for CRM integration?" → Agency plan only ($249/mo). Trial, Starter, and Pro plans do not have CRM access.
 Q: "What is the 'In CRM' tab in the feed?" → After pushing a contact, the post moves to this tab so you have a clean record of everyone who's been pushed to GHL.
-Q: "Is HubSpot supported?" → Not yet — it's coming soon. Only GoHighLevel is live today.
+Q: "I have all three scopes but still getting 403." → Make sure you saved the integration in GHL after adding the scopes. Also confirm the token you pasted into Scout is from the SAME integration you edited — if you have multiple integrations, they have different tokens.
+Q: "The test connection works but the push still fails." → Test Connection only checks contacts.readonly. The push also uses contacts.write and opportunities.write. Check that all three scopes are enabled, not just readonly.
+Q: "Where does GHL store the LinkedIn URL for a contact?" → In the website field on the contact record. Scout uses this field for deduplication — it searches by name then checks if website matches the LinkedIn URL exactly.
+Q: "Can I use a single GHL Private Integration token for multiple Scout accounts?" → Yes, as long as all accounts are within the same GHL sub-account (same Location ID). Different sub-accounts need different tokens.
+
+GHL OFFICIAL DOCUMENTATION (share these links when users need deeper help):
+- Private Integrations setup: https://help.gohighlevel.com/support/solutions/articles/155000002161-private-integrations
+- API Key vs Private Integrations: https://help.gohighlevel.com/support/solutions/articles/155000002449
+- Full GHL API reference: https://highlevel.stoplight.io/docs/integrations
+- Contacts API reference: https://highlevel.stoplight.io/docs/integrations/0144d92f3e7f2-create-contact
+- Opportunities API reference: https://highlevel.stoplight.io/docs/integrations/d45af89b0e71e-create-opportunity
 
 ── PLAN & BILLING (Settings → Plan & Billing tab) ──────
 Billing is handled by Stripe. Payments process on the same date each month.

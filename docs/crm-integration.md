@@ -1,6 +1,6 @@
 # CRM Integration — Scout
 
-**Version:** 1.0  
+**Version:** 1.1  
 **Last updated:** April 2026  
 **Status:** GoHighLevel live · HubSpot coming soon  
 
@@ -36,6 +36,14 @@ When a user clicks "Add to GoHighLevel pipeline" on a post:
 3. Adds a note with the post snippet, engagement notes, and a direct link to the post
 4. If a Pipeline ID is configured, creates an Opportunity at the first stage of that pipeline
 5. Marks the post as "In CRM" in Scout's feed (moves to the In CRM tab)
+6. Returns a direct "View in GoHighLevel" link to the contact record
+
+> **GHL official documentation references used throughout this guide:**
+> - [Private Integrations guide](https://help.gohighlevel.com/support/solutions/articles/155000002161-private-integrations)
+> - [API Key vs Private Integrations](https://help.gohighlevel.com/support/solutions/articles/155000002449)
+> - [GHL API reference (Stoplight)](https://highlevel.stoplight.io/docs/integrations)
+> - [Contacts API](https://highlevel.stoplight.io/docs/integrations/0144d92f3e7f2-create-contact)
+> - [Opportunities API](https://highlevel.stoplight.io/docs/integrations/d45af89b0e71e-create-opportunity)
 
 ---
 
@@ -57,11 +65,13 @@ https://app.gohighlevel.com/v2/location/G43COt3uGbAzymts6uXB/dashboard
 
 The **Location ID** is the portion after `/location/` and before the next `/`. In this example it's `G43COt3uGbAzymts6uXB`. Copy it.
 
-> **Common mistake:** Using the agency-level URL. Make sure you're inside a sub-account, not the top-level agency view.
+> **Common mistake:** Using the agency-level URL. Make sure you're inside a sub-account, not the top-level agency view. The agency-level URL does not contain a Location ID.
 
 ### Step 2 — Create a Private Integration token
 
-> ⚠️ **Important:** You must use Private Integrations — not the legacy API Key. The legacy key (found at Settings → Integrations → API Key) uses GHL's old v1 API and will not work with Scout's v2 endpoints. A legacy key will always return "Invalid JWT" errors.
+> ⚠️ **Critical:** You must use a **Private Integration token** — not the legacy API Key. The legacy key (Settings → Integrations → API Key) uses GHL's old v1 API. Scout calls GHL's v2 API, which requires Private Integration tokens. A legacy key will always return "Invalid JWT" errors regardless of what you do.
+>
+> See GHL's official guide: [Private Integrations](https://help.gohighlevel.com/support/solutions/articles/155000002161-private-integrations) · [API Key vs Private Integrations](https://help.gohighlevel.com/support/solutions/articles/155000002449)
 
 1. In GHL, go to **Settings** (gear icon) → **Integrations** → **Private Integrations**
 2. Click **"Create new integration"**
@@ -74,6 +84,8 @@ The **Location ID** is the portion after `/location/` and before the next `/`. I
 6. Copy the **Access Token** shown — it starts with `eyJ...`
 
 > **Keep the token private.** Anyone with it can create contacts in your GHL account. Scout stores it encrypted in your Business Profile record in Airtable.
+>
+> **Visual check:** Both the legacy API Key and Private Integration tokens start with `eyJ...`. They look identical. The only way to tell them apart is where you copied them from. If you went to Settings → Integrations → API Key, that is the legacy key and it will NOT work.
 
 ### Step 3 — Get your Pipeline ID (optional but recommended)
 
@@ -85,6 +97,8 @@ If you want Scout to automatically create an Opportunity in a GHL pipeline when 
 
 When set, Scout places each new contact into the **first stage** of this pipeline automatically. Users can then move the Opportunity through subsequent stages in GHL as the relationship develops.
 
+> If the Pipeline ID field is left blank, Scout still creates the contact and note — it just skips Opportunity creation. You can add the Pipeline ID later without any data loss.
+
 ### Step 4 — Enter credentials in Scout
 
 1. Go to **Settings** → **System** tab
@@ -95,6 +109,8 @@ When set, Scout places each new contact into the **first stage** of this pipelin
 6. Enter your **Pipeline ID** (optional)
 7. Click **Save**
 8. Click **Test Connection** — you should see "Connected — GoHighLevel credentials are valid."
+
+> **After a successful push**, Scout shows a "View in GoHighLevel ↗" link on the feed card. This links directly to the contact's record in GHL. If you see a warning in amber below the success state, read it — it tells you exactly what secondary step (note or Opportunity) failed and what to fix.
 
 ---
 
@@ -108,8 +124,9 @@ The user is reviewing their feed, sees an engaged post they want to follow up on
 - OR **"Push to GoHighLevel"** (button in the expanded post view)
 
 The button shows a spinner while processing, then either:
-- Turns into a green "✓ Added to GoHighLevel" success state
-- Shows a red error message with enough detail to diagnose the issue
+- Turns into a green "✓ Added to GoHighLevel" success state with a "View in GoHighLevel ↗" link
+- Shows an amber warning if the contact was created but note/opportunity had an issue
+- Shows a red error message with enough detail to diagnose a fatal failure
 
 ### What happens server-side (detailed)
 
@@ -138,7 +155,9 @@ The button shows a spinner while processing, then either:
    - Extract contactId from response
    ↓
 8. POST /contacts/{contactId}/notes
-   - Body includes: source label, platform, engagement date, LinkedIn URL, post URL, post snippet (up to 400 chars), user's engagement notes
+   - Body includes: source label, platform, engagement date, LinkedIn URL, post URL,
+     post snippet (up to 400 chars), user's engagement notes
+   - NOTE: userId field is intentionally omitted — GHL rejects empty userId string
    - Failure is surfaced as noteWarning in response (non-fatal — contact still succeeds)
    ↓
 9. If pipelineId is set:
@@ -151,19 +170,22 @@ The button shows a spinner while processing, then either:
     - CRM Contact ID, CRM Pushed At, Action: 'CRM', clear Engagement Status
     ↓
 11. Return { ok: true, contactId, contactUrl, opportunityId?, noteWarning? }
+    - contactUrl = https://app.gohighlevel.com/v2/location/{locationId}/contacts/detail/{contactId}
+    - Feed displays "View in GoHighLevel ↗" using this URL
+    - amber noteWarning shown in feed card if secondary step failed
 ```
 
 ### GHL API endpoints used
 
-| Action | Method | Endpoint |
-|--------|--------|----------|
-| Test connection | GET | `/contacts/?locationId=X&limit=1` |
-| Dedup search | GET | `/contacts/?locationId=X&query=Name&limit=10` |
-| Update existing contact | PUT | `/contacts/{id}` |
-| Create new contact | POST | `/contacts/upsert` |
-| Add note | POST | `/contacts/{id}/notes` |
-| Fetch pipelines (for stage ID) | GET | `/opportunities/pipelines?locationId=X` |
-| Create opportunity | POST | `/opportunities/` |
+| Action | Method | Endpoint | GHL Docs |
+|--------|--------|----------|----------|
+| Test connection | GET | `/contacts/?locationId=X&limit=1` | [Contacts API](https://highlevel.stoplight.io/docs/integrations/0144d92f3e7f2-create-contact) |
+| Dedup search | GET | `/contacts/?locationId=X&query=Name&limit=10` | [Contacts API](https://highlevel.stoplight.io/docs/integrations/0144d92f3e7f2-create-contact) |
+| Update existing contact | PUT | `/contacts/{id}` | [Contacts API](https://highlevel.stoplight.io/docs/integrations/0144d92f3e7f2-create-contact) |
+| Create new contact | POST | `/contacts/upsert` | [Contacts API](https://highlevel.stoplight.io/docs/integrations/0144d92f3e7f2-create-contact) |
+| Add note | POST | `/contacts/{id}/notes` | [Contacts API](https://highlevel.stoplight.io/docs/integrations/0144d92f3e7f2-create-contact) |
+| Fetch pipelines (for stage ID) | GET | `/opportunities/pipelines?locationId=X` | [Opportunities API](https://highlevel.stoplight.io/docs/integrations/d45af89b0e71e-create-opportunity) |
+| Create opportunity | POST | `/opportunities/` | [Opportunities API](https://highlevel.stoplight.io/docs/integrations/d45af89b0e71e-create-opportunity) |
 
 All requests use: `https://services.leadconnectorhq.com` base URL, `Version: 2021-07-28` header.
 
@@ -175,7 +197,7 @@ After creating a contact, Scout returns a direct link to the GHL contact page:
 https://app.gohighlevel.com/v2/location/{locationId}/contacts/detail/{contactId}
 ```
 
-This link is stored in the Airtable post record and may be surfaced in future UI.
+This is the correct v2 URL format. The legacy format (`/contacts/{contactId}` without location) no longer works in GHL. The "View in GoHighLevel ↗" link in the feed uses this correct format.
 
 ---
 
@@ -189,7 +211,7 @@ This link is stored in the Airtable post record and may be surfaced in future UI
 | `app/api/crm-push/route.ts` | Main push handler — all GHL API calls happen here |
 | `app/api/crm-settings/route.ts` | GET/POST CRM credentials from Business Profile |
 | `app/settings/page.tsx` | `CRMIntegrationSection` component — settings UI |
-| `app/page.tsx` | Feed card — `handleCrmPush`, push buttons, `crmType` state |
+| `app/page.tsx` | Feed card — `handleCrmPush`, push buttons, `crmWarning`/`crmContactUrl` state |
 | `app/api/settings-agent/route.ts` | Scout Agent system prompt — CRM knowledge section |
 | `docs/crm-integration.md` | This file |
 
@@ -200,11 +222,13 @@ Both `crm-push` and `crm-settings` enforce:
 const CRM_ALLOWED_PLANS = new Set(['Scout Agency', 'Owner'])
 ```
 
-This check is server-side. The UI shows/hides CRM settings based on plan, but the API is the authoritative gate. Changing the plan set in one file requires changing it in both.
+This check is server-side. The UI shows/hides CRM settings based on plan, but the API is the authoritative gate. Changing the plan set in one file requires changing it in all three files (`crm-push`, `crm-settings`, `crm-test`).
 
 ### Why Test Connection is server-proxied
 
 GHL's API at `services.leadconnectorhq.com` does not send CORS headers. A direct `fetch()` from the browser always throws a CORS error before the request even reaches GHL — meaning even valid credentials look like failures. Routing through `/api/crm-test` (a Next.js server route) avoids CORS entirely.
+
+This is the root cause of the original "CORS error" bug that affected all users before v1.0.
 
 ### Deduplication strategy (no email available)
 
@@ -227,6 +251,38 @@ Future improvement: store LinkedIn URL in a dedicated GHL custom field and searc
 Pipeline stage is not hardcoded. Each push dynamically fetches the pipeline configuration from GHL to get `stages[0].id` (sorted by `position`). This ensures the integration works with any customer's pipeline structure, regardless of stage names or IDs.
 
 If pipelineId is blank, the opportunity step is skipped entirely — contact and note still succeed.
+
+### Note body construction
+
+The note attached to each GHL contact includes:
+```
+Source: Scout by ClientBloom
+Platform: LinkedIn
+Engaged: [date]
+LinkedIn: [profile URL]
+Post URL: [post URL]
+
+Post snippet:
+[first 400 chars of post text]
+
+My engagement notes: [user's notes]
+```
+
+> **Important implementation detail:** The `userId` field is intentionally NOT sent in the note POST body. GHL rejects an empty `userId` string with a validation error. If you need to attribute notes to a specific GHL user, pass the user's actual GHL user ID — never an empty string.
+
+### Feed UI state after push
+
+The feed card maintains these state variables post-push:
+
+```typescript
+const [crmPushed,     setCrmPushed]     = useState(false)
+const [crmWarning,    setCrmWarning]    = useState('')
+const [crmContactUrl, setCrmContactUrl] = useState('')
+```
+
+- `crmPushed=true` → shows "✓ Added to GoHighLevel" success state
+- `crmWarning` (non-empty) → shows amber warning paragraph below success
+- `crmContactUrl` (non-empty) → shows "View in GoHighLevel ↗" link
 
 ---
 
@@ -270,7 +326,8 @@ Tests CRM credentials server-side. Proxies to GHL to avoid CORS.
 **Response:**
 ```json
 { "ok": true, "message": "Connected — GoHighLevel credentials are valid." }
-{ "ok": false, "message": "Invalid token — 401 Unauthorized. Make sure you copied the Private Integration token..." }
+{ "ok": false, "message": "Invalid token — 401 Unauthorized. Make sure you copied the Private Integration token (not the legacy API Key) and that it has contacts.readonly scope." }
+{ "ok": false, "message": "Token valid but missing permissions. Ensure contacts.readonly and contacts.write scopes are enabled on the Private Integration." }
 ```
 
 ### GET /api/crm-settings
@@ -336,26 +393,38 @@ Pushes a post's author to the configured CRM.
 {
   "ok": true,
   "contactId": "abc123",
-  "contactUrl": "...",
+  "contactUrl": "https://app.gohighlevel.com/v2/location/.../contacts/detail/abc123",
   "opportunityId": "",
   "noteWarning": "Contact created but pipeline assignment failed (403). Check opportunities.write scope.",
   "crmType": "GoHighLevel"
 }
 ```
 
+> Partial success is shown in the UI as a green "✓ Added" state with an amber warning below. The contact was successfully created in GHL — only the secondary step failed.
+
 ---
 
 ## Error Reference
 
+### Fatal errors (red — push failed)
+
 | Error message | Root cause | Fix |
 |--------------|-----------|-----|
-| `Invalid token — 401 Unauthorized` | Using legacy API Key instead of Private Integration token | Create a Private Integration at GHL → Settings → Integrations → Private Integrations |
-| `Token valid but missing permissions — 403` | Private Integration exists but missing required scopes | Edit the integration to add contacts.write, contacts.readonly, opportunities.write |
+| `Invalid token — 401 Unauthorized` | Using legacy API Key instead of Private Integration token | Create a Private Integration at GHL → Settings → Integrations → Private Integrations. See [GHL guide](https://help.gohighlevel.com/support/solutions/articles/155000002161-private-integrations). |
+| `Token valid but missing permissions — 403` | Private Integration exists but missing required scopes | Edit the integration at GHL → Settings → Integrations → Private Integrations → add contacts.write, contacts.readonly, opportunities.write |
 | `GoHighLevel Location ID is missing` | locationId field empty in settings | Add your GHL sub-account Location ID in Settings → System → CRM Integration |
-| `Pipeline not found` | pipelineId doesn't match any pipeline in the GHL account | Double-check the Pipeline ID from the GHL URL; make sure it's from the same sub-account |
 | `GHL did not return a contact ID` | Upsert succeeded but response format unexpected | Check GHL API status; inspect server logs for raw response |
 | `CRM push requires the Scout Agency plan` | User on Trial/Starter/Pro trying to push | Upgrade to Agency plan |
 | `No CRM configured` | CRM type is 'None' or API key is missing | Complete CRM setup in Settings → System |
+| `Network error reaching GHL` | DNS/network issue between Scout server and GHL | Temporary — retry; if persistent, check GHL status at status.gohighlevel.com |
+
+### Non-fatal warnings (amber — contact created, secondary step failed)
+
+| Warning message | Root cause | Fix |
+|----------------|-----------|-----|
+| `Contact created but note failed to attach (...). Verify contacts.write scope is enabled on your Private Integration.` | Note POST failed | Check that contacts.write scope is enabled. See [Private Integrations guide](https://help.gohighlevel.com/support/solutions/articles/155000002161-private-integrations). |
+| `Contact created but pipeline assignment failed (403). Check opportunities.write scope.` | Missing opportunities.write scope | Edit Private Integration to add opportunities.write scope |
+| `Contact created but pipeline not found. Double-check the Pipeline ID in CRM settings.` | Pipeline ID doesn't match any pipeline in the account | Go to GHL → Opportunities → Pipelines, click your pipeline, copy the ID from the URL |
 
 ---
 
@@ -374,23 +443,29 @@ Pushes a post's author to the configured CRM.
    - Contact exists with correct name and LinkedIn URL in `website` field
    - Note is attached with post content and engagement notes
    - Opportunity exists in the configured pipeline at first stage
-   - Contact URL in Scout links directly to the GHL contact
+9. Verify in Scout feed:
+   - "View in GoHighLevel ↗" link appears — click it to confirm the URL resolves to the correct contact record
+   - No amber warning appears (if one does, read it and fix the scope issue it describes)
 
-### Adversarial test cases
+### Adversarial test cases (all verified in v1.0 / v1.1)
 
-| Test | Expected result |
-|------|----------------|
-| Push same person twice | Second push updates existing contact, does NOT create duplicate |
-| Missing pipeline ID | Contact + note created successfully; no Opportunity; no error |
-| Wrong pipeline ID | Contact + note created; warning in response about pipeline not found |
-| Legacy API Key (not Private Integration) | Clear "Invalid token — 401" error explaining the correct credential type |
-| Missing contacts.readonly scope | Test Connection returns "403 Missing permissions" error |
-| Missing opportunities.write scope | Contact + note succeed; Opportunity fails with warning surfaced in response |
-| Empty author name | Scout falls back to firstName: 'Unknown', lastName: '' |
-| Author name with 1 word only | firstName = that word, lastName = '' |
-| Push from non-Agency plan | 403 returned — plan gate enforced server-side |
-| Post record not owned by this tenant | 404 returned — IDOR protection active |
-| GHL API timeout | 502 returned with descriptive error message |
+| Test | Expected result | Status |
+|------|----------------|--------|
+| Push same person twice | Second push updates existing contact, does NOT create duplicate | ✓ |
+| Missing pipeline ID | Contact + note created successfully; no Opportunity; no error | ✓ |
+| Wrong pipeline ID | Contact + note created; amber warning about pipeline not found | ✓ |
+| Legacy API Key (not Private Integration) | Red: "Invalid token — 401" error explaining the correct credential type | ✓ |
+| Missing contacts.readonly scope | Test Connection returns "403 Missing permissions" error | ✓ |
+| Missing opportunities.write scope | Contact + note succeed; Opportunity fails; amber warning in feed | ✓ |
+| Missing contacts.write scope | Note creation fails; amber warning; contact may still succeed via upsert | ✓ |
+| Empty author name | firstName: 'Unknown', lastName: '' — contact created | ✓ |
+| Author name with 1 word only | firstName = that word, lastName = '' | ✓ |
+| Push from non-Agency plan | 403 returned — plan gate enforced server-side | ✓ |
+| Post record not owned by this tenant | 404 returned — IDOR protection active | ✓ |
+| GHL API timeout | 502 returned with descriptive error message | ✓ |
+| Empty userId in note body | No userId field sent — GHL validation passes | ✓ (post-prod fix) |
+| contactUrl in response | "View in GoHighLevel ↗" link displayed in feed | ✓ (post-prod fix) |
+| noteWarning in response | Amber warning displayed in feed below success state | ✓ (post-prod fix) |
 
 ---
 
@@ -408,11 +483,14 @@ Scout places every new Opportunity at the first stage of the configured pipeline
 **Single CRM per account**  
 Each Scout account can only connect one CRM at a time. If a user switches from GoHighLevel to HubSpot (when available), they must re-configure and re-test credentials.
 
+**Private Integration token scope — all three required**  
+Scout requires `contacts.write`, `contacts.readonly`, and `opportunities.write` simultaneously. Enabling only one or two will cause partial failures (contact created, note or Opportunity skipped). GHL's Private Integrations UI allows selecting scopes individually — users sometimes miss one.
+
 ---
 
 ## HubSpot Roadmap
 
-HubSpot integration is planned but not yet live. The existing `pushToHubSpot()` function stub has been removed — it was never tested against real HubSpot credentials and contained an unfixed deduplication gap (HubSpot creates a new contact on 409 instead of updating).
+HubSpot integration is planned but not yet live. The UI already shows HubSpot as "Coming Soon" with a disabled button. The existing `pushToHubSpot()` function stub has been removed — it was never tested against real HubSpot credentials and contained an unfixed deduplication gap (HubSpot creates a new contact on 409 instead of updating).
 
 When HubSpot is implemented, it will require:
 - HubSpot Private App token with scopes: `crm.objects.contacts.write`, `crm.objects.notes.write`, `crm.objects.deals.write`
@@ -420,13 +498,22 @@ When HubSpot is implemented, it will require:
 - Deal creation in a HubSpot pipeline (equivalent to GHL Opportunity)
 - HubSpot contact URL format: `https://app.hubspot.com/contacts/{portalId}/contact/{contactId}`
 
-The UI already shows HubSpot as "Coming Soon" with a disabled button.
-
 ---
 
 ## Version History
 
 | Version | Date | Summary |
 |---------|------|---------|
-| 1.0 | April 2026 | Initial GHL integration — contact upsert, note, Opportunity creation, dedup by LinkedIn URL, server-side test proxy, HubSpot coming soon UI |
+| 1.1 | April 2026 | Post-production fixes: removed empty `userId` from note body (GHL validation error), added `crmWarning` and `crmContactUrl` state to feed UI (response fields were ignored), corrected amber warning copy (was blaming `opportunities.write` for a `contacts.write` note failure), fixed feed copy ("Connect GHL or HubSpot" → "Connect GoHighLevel"). Added GHL official documentation links throughout. Updated error reference with non-fatal warning table. Added rollback tags to this file. |
+| 1.0 | April 2026 | Initial GHL integration overhaul — contact upsert with dedup by LinkedIn URL, note creation, Opportunity creation at pipeline stage 0, server-side test proxy (`/api/crm-test`) to eliminate CORS failures, correct GHL v2 deep link URL format, HubSpot "Coming Soon" UI, Airtable `CRM Location ID` field added. Replaced broken prototype. |
 | pre-1.0 | 2025 | Broken prototype — used legacy API Key (caused 401), browser-side test (CORS), no locationId, no Opportunity creation, wrong contact URL format, note failures silently dropped |
+
+### Rollback tags
+
+| Tag | State |
+|-----|-------|
+| `crm-overhaul-v1.0` | Production state after v1.0 merge + post-production fixes |
+| `crm-pre-overhaul-v1` | State immediately before v1.0 overhaul (broken prototype) |
+
+To roll back to pre-overhaul state: `git checkout crm-pre-overhaul-v1`  
+To inspect the v1.0 production state: `git checkout crm-overhaul-v1.0`
