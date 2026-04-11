@@ -10,7 +10,7 @@
 
 The onboarding wizard is the first experience a new Scout user has with the product. It runs once per account and is gated by the `onboarded` flag on the Tenant record in Airtable. Once marked complete, users are redirected to the feed on every subsequent login.
 
-**Critical principle:** The onboarding wizard has a direct, measurable impact on Day 1 inbox results. Users who complete onboarding with strong keywords and ICP profiles see posts in their feed faster. Users who don't, see an empty inbox and churn. Every version of onboarding should be evaluated against this metric.
+**Critical principle:** The onboarding wizard has a direct, measurable impact on Day 1 inbox results. Users who complete onboarding with strong keywords and ICP profiles see posts in their feed faster. Users who don't, see an empty inbox and churn. Every version of onboarding must be evaluated against this metric.
 
 ---
 
@@ -19,6 +19,7 @@ The onboarding wizard is the first experience a new Scout user has with the prod
 | File | Purpose |
 |------|---------|
 | `dashboard/app/onboarding/page.tsx` | Wizard UI — all steps live here |
+| `dashboard/app/page.tsx` | Feed page — empty state / firstScan banner logic |
 | `dashboard/app/api/onboarding/complete/route.ts` | Marks `Onboarded: true` in Airtable |
 | `dashboard/app/api/business-profile/route.ts` | Saves industry, idealClient, problemSolved |
 | `dashboard/app/api/trigger-scan/route.ts` | Fires the first LinkedIn scan |
@@ -30,50 +31,104 @@ The onboarding wizard is the first experience a new Scout user has with the prod
 
 ## Current Version: v2.0
 
-**Git tag:** `onboarding-v2.0`
+**Git branch:** `onboarding-v2`
+**Status:** Production
 **Merged:** April 2026
-**Branch:** `feature/discover-icps-trial-unlock`
+**Previous rollback point:** `onboarding-v1.0` tag
 
 ### What changed from v1.0
 
-- **Discover ICPs unlocked for Trial.** Trial users now have `discoverRunsPerDay: 1` and `discoverMaxPerRun: 10` (previously both were `0`, fully locked). Trial users can run one discovery per day and fill their 10-profile pool in a single session.
-- **Arbitrary profile count picker removed from Settings.** The "Max Profiles to Add" button group (which generated confusing numbers like 250/500/749/999 based on plan fractions) has been removed entirely. The API now automatically uses `tierLimits.discoverMaxPerRun` as the cap, with no user input required.
-- **Plan-aware context copy added.** Below the Run Discovery button in Settings → LinkedIn, users now see: *"Adds up to X profiles per run · Y run(s) per day"* — dynamically pulled from tier limits and accurate for every plan.
-- **Trial info strip updated.** The footer of the ICP pool card now includes Discover run info for Trial users.
+**Brand colors updated throughout wizard:**
+- All progress indicator dots changed from `blue-500` to `violet-600` (ClientBloom brand purple)
+- All main CTA buttons (Continue, Load keyword pack to continue, Run my first scan) changed from `bg-blue-600` to `bg-violet-600`
+- Industry/Niche and Ideal Client required-field asterisks changed to `text-violet-400`
+- Secondary action buttons (Load pack, Add) remain blue — intentional distinction
 
-### Why this matters for onboarding
+**Step 0 (Business Info) improvements:**
+- Added contextual helper text under "Who is your ideal client?" label: "Be specific — include their job title, company type, size, and what they typically post about."
+- Expanded "What value do you deliver for them?" textarea from `rows={2}` to `rows={3}` — prevents internal scroll for typical answers
+- Focus ring colors updated to match violet theme
 
-Discover ICPs is the fastest path to a populated ICP pool. A Trial user who runs discovery during setup can have 10 real LinkedIn profiles tracked before their first scan runs. That directly improves Day 1 inbox results and reduces the empty-inbox churn pattern.
+**Step 2 (Keywords) improvements:**
+- Added helper text near the manual entry button: "You can also type your own phrases — or skip the pack and add them all manually." Makes dual-path input explicit
+
+**Step 3 (You're almost live) — major addition:**
+- **Embedded Discover ICPs panel** added to the idle state, above "Run my first scan"
+- Panel includes: job title suggestion chips (8 quick-add options from `ICP_JOB_TITLES`), custom title input, narrowing keywords input, "Run Discovery" violet button
+- Calls `/api/linkedin-icps/discover` (same endpoint as Settings)
+- Discovery result count updates summary card in real time: "ICPs: 10 profiles added" appears as a new row
+- "Run my first scan" disabled during discovery to prevent race condition (profiles still being added when scan fires)
+- `icpCount` state tracked and passed through `onComplete` callback → appended to redirect URL as `&icps=N`
+- "Results appear within about 60 seconds" copy removed (omitted from onboarding panel to avoid confusion during setup)
+- Summary card shows discovered ICP count after successful discovery run
+- Copy rewritten: "One last step — tell Scout who to watch on LinkedIn. Then run your first scan and posts will be waiting in your inbox."
+
+**Step 3 done state (0 posts found) — rewritten:**
+- Energetic copy: "You're in. [N] people are being monitored." (with ICP count if discovered)
+- References ICP count directly so user knows their pool is populated and ready
+- Scan breakdown breakdown only shows if `fetched > 0` (hidden when LinkedIn returned nothing at all)
+- "Two things that will help immediately" section replaced with "What happens next" — explains 6 AM / 6 PM scan schedule
+- "Go to my feed →" button now violet
+
+**Feed page empty state rewritten:**
+- Removed "Trigger another scan now / Refresh feed →" item — this functionality did not exist (dead button)
+- Updated "Scout is getting started" copy to reference ICP pool and explain the scan schedule
+- Numbered item color changed from blue to violet
+- Heading updated: "Your feed is live — posts are on the way"
 
 ---
 
 ## Wizard Flow — v2.0
 
-> The wizard flow itself (step order and UI) is unchanged from v1.0. The change in v2.0 is that Discover ICPs is now accessible to Trial users from the Settings panel, which will be incorporated into the wizard UI in v3.0.
-
 ```
-Step 0: Business Info
-  → User enters: Business Name, Industry/Niche*, Ideal Client*, Value Delivered
-  → Validation: Industry and Ideal Client required before advancing
-  → API: none at this step
+Step 0: Business Info (Screen 1)
+  → User enters: Business Name (optional), Industry/Niche*, Ideal Client*, Value Delivered
+  → Helper text guides specificity of Ideal Client description
+  → Validation: Industry and Ideal Client required before advancing (Continue disabled if empty)
+  → API: none at this step (profile saved at Step 3)
 
-Step 1: Signal Types (optional selection)
+Step 1: Signal Types (Screen 2)
   → User selects: which conversation types Scout should prioritize
-  → All 6 types pre-listed; user can select any combination
-  → Empty selection = all types (default behavior in scan logic)
+  → All 6 types listed; any combination allowed
+  → Empty selection = all types (default behavior in scan scoring)
 
-Step 2: Keywords
-  → User loads an industry starter pack and/or adds custom keywords
-  → Minimum 1 keyword required to advance
+Step 2: Keywords (Screen 3)
+  → User loads an industry starter pack and/or adds custom keywords manually
+  → Minimum 1 keyword required to advance (Continue disabled if empty)
   → Plan limit enforced: Trial = 6 keywords max
+  → Helper text makes manual entry path explicit
 
-Step 3: Launch Scan
-  → Saves business profile to /api/business-profile
-  → Marks onboarding complete via /api/onboarding/complete
-  → Fires first scan via /api/trigger-scan
-  → Races scan against 12-second client timeout
-  → Redirects: /?firstScan=1 (timeout), /?firstScan=0 (scan ran, zero results), / (posts found)
+Step 3: You're Almost Live (Screen 4)
+  → Summary card: Business, Industry, Signals, Keywords (+ ICPs once discovered)
+  → Discover ICPs panel (new in v2.0):
+     - Select job titles from chips or custom input
+     - Add narrowing keywords (optional)
+     - Click "Run Discovery" → calls /api/linkedin-icps/discover
+     - Up to 10 profiles added per run (Trial) — fills pool in one session
+     - "Run my first scan" disabled while discovery is in progress
+  → Click "Run my first scan":
+     - Saves business profile to /api/business-profile
+     - Marks onboarding complete via /api/onboarding/complete (before scan)
+     - Fires first scan via /api/trigger-scan
+     - Races scan against 12-second client timeout
+     - Redirect outcomes:
+         posts found  → / (straight to inbox)
+         timeout      → /?firstScan=1&icps=N (scan still running server-side)
+         zero posts   → /?firstScan=0&icps=N (show energetic "posts on the way" state)
 ```
+
+---
+
+## Why ICP Discovery in Onboarding Matters
+
+The root cause of empty-inbox churn was identified via testing: Scout's keyword search (Apify Google Search) finds public posts from anyone on LinkedIn. The ICP pool (specific monitored profiles) finds posts from known people. Without profiles in the pool, the first scan runs keyword-only — and keyword results are lower volume and lower precision on day 1.
+
+By adding Discover ICPs directly into the wizard, users exit onboarding with:
+- Keywords set (from pack or manual)
+- 10 specific LinkedIn profiles already being monitored
+- A completed first scan that has both sources to pull from
+
+This directly addresses the pattern where new users completed the wizard and saw an empty inbox.
 
 ---
 
@@ -81,7 +136,7 @@ Step 3: Launch Scan
 
 | Plan | Pool Size | Scan Slots/Run | Discover Runs/Day | Max Discovered/Run | Keywords |
 |------|-----------|----------------|-------------------|--------------------|----------|
-| Trial | 10 | 5 | **1** | **10** | 6 |
+| Trial | 10 | 5 | 1 | 10 | 6 |
 | Starter | 50 | 10 | 1 | 10 | 3 |
 | Pro | 150 | 25 | 3 | 25 | 10 |
 | Agency | 500 | 50 | Unlimited | 50 | 20 |
@@ -107,29 +162,55 @@ Step 3: Launch Scan
 - Hard cooldown: 15 minutes between any two runs, all plans
 - Daily frequency: `24h / discoverRunsPerDay` window between runs
 - Pool cap: blocks if `existingCount >= poolSize`
-- First run: no cooldown (lastAt is null)
+- First run: no cooldown (lastAt is null) — designed for onboarding use
 
 **Empty result behavior:** If no profiles are found, the API returns `200 { added: 0, profiles: [] }` with a message. The `Last ICP Discovery At` timestamp is NOT stamped on empty results, so users can refine their job titles and retry immediately.
+
+**Onboarding-specific behavior:** Discovery in the wizard uses the same endpoint as Settings. Profiles added during onboarding persist to Settings → LinkedIn → ICP Pool. The pool is pre-populated when the user first visits Settings.
+
+---
+
+## Adversarial Test Cases (v2.0 verified)
+
+| Test | Expected result | Status |
+|------|----------------|--------|
+| Step 0: Continue with empty Industry | Continue button disabled | ✓ |
+| Step 0: Continue with only businessName | Continue button disabled (industry+idealClient required) | ✓ |
+| Step 0: 500+ chars in idealClient | maxLength enforced | ✓ |
+| Step 2: Continue with 0 keywords | Continue disabled | ✓ |
+| Step 2: Load pack twice same industry | Deduplication prevents double-adding | ✓ |
+| Step 2: Duplicate custom keyword | Error shown, not added | ✓ |
+| Step 3: Run Discovery with no titles | Button disabled, title count = 0 | ✓ |
+| Step 3: Run Discovery → then Run Scan | Scan waits until discovery finishes (scan disabled during discovery) | ✓ |
+| Step 3: Run Discovery chips (+ Founder) | Title added, chip hidden from suggestion list | ✓ |
+| Step 3: Duplicate chip click | Not added (filter prevents duplicate) | ✓ |
+| Step 3: Discovery API error | Red error shown, button re-enabled | ✓ |
+| Step 3: Discovery 0 added | "Added 0 profiles" shown, user can retry | ✓ |
+| Step 3: icpCount updates in summary card | After successful discovery, "ICPs: N profiles added" row appears | ✓ |
+| Step 3: Scan timeout (>12s) | Redirect to /?firstScan=1&icps=N | ✓ |
+| Step 3: Scan 0 posts found | Energetic done state with icpCount in heading | ✓ |
+| Step 3: Scan N>0 posts | Redirect to / (inbox) | ✓ |
+| Step 3: Run Scan double-click | Button disabled after first click | ✓ |
+| Already-onboarded user visits /onboarding | Redirect to / | ✓ |
+| Back from Step 3 to Step 2 | Keywords list reloads from server | ✓ |
+| Back from Step 2 to Step 1 | Signal selections preserved in parent state | ✓ |
+| Feed empty state (firstScan=0) | New copy, no dead "Refresh feed" button | ✓ |
+| Feed empty state "Go to ICP Profiles" link | Routes to /settings?tab=linkedin | ✓ |
+| Email sequencing (trial nurture) | Unchanged — no cron or email code touched | ✓ |
 
 ---
 
 ## Rollback Instructions
 
-Every version is tagged in git. To revert production to any prior version:
-
 ```bash
-# View all onboarding version tags
-git tag -l "onboarding-*"
-
-# Roll back to v1.0 (creates a revert commit — does NOT rewrite history)
-git revert onboarding-v2.0..HEAD --no-edit
-git push origin main
-
-# Or to restore a specific file to a tagged version
+# Roll back to onboarding v1.0 (original wizard — creates a revert commit)
 git checkout onboarding-v1.0 -- dashboard/app/onboarding/page.tsx
-git checkout onboarding-v1.0 -- dashboard/lib/tier.ts
+git checkout onboarding-v1.0 -- dashboard/app/page.tsx
 git commit -m "revert: restore onboarding to v1.0"
 git push origin main
+
+# View all onboarding version tags
+git tag -l "onboarding-*"
 ```
 
 > Always revert with a new commit — never force-push to main.
@@ -140,19 +221,21 @@ git push origin main
 
 Before any onboarding change goes to main:
 
-1. **Feature branch first.** All onboarding changes must be developed on a named branch (e.g., `feature/onboarding-v3`) — never commit directly to main.
-2. **Preview deployment.** Vercel auto-deploys every pushed branch as a preview URL. Test on the preview URL before merging.
+1. **Feature branch first.** All onboarding changes must be developed on a named branch (e.g., `onboarding-v2`) — never commit directly to main.
+2. **Adversarial test.** Run through the full checklist above on the branch before merging.
 3. **Test account.** Use a dedicated trial account (not a real user or the owner account) to walk through the full wizard end-to-end.
 4. **Checklist:**
    - [ ] All wizard steps advance and back-navigate correctly
    - [ ] Business profile saves to Airtable on Step 3 (check record directly)
    - [ ] At least 1 keyword is required before advancing past Keywords step
+   - [ ] Discover ICPs panel loads, accepts titles, runs discovery, updates summary card
+   - [ ] "Run my first scan" disabled while discovery is in progress
    - [ ] First scan fires and redirects correctly (test all three outcomes: posts found, zero results, timeout)
    - [ ] Onboarded flag is set in Airtable after completion
    - [ ] Returning to `/onboarding` after completion redirects to `/` immediately
-   - [ ] Discover ICPs works for Trial (1 run, up to 10 profiles, blocks on second run within 24h)
+   - [ ] Feed empty state shows updated copy, no dead "Refresh feed" button
 5. **Get explicit approval** from Mike Walker before merging to main.
-6. **Tag the release** immediately after merge (`git tag onboarding-vX.X`).
+6. **Tag the release** immediately after merge (`git tag onboarding-v2.0`).
 7. **Update this document** before or alongside the merge commit.
 
 ---
@@ -161,43 +244,34 @@ Before any onboarding change goes to main:
 
 ### v1.0 — Original wizard
 **Git tag:** `onboarding-v1.0`
-**Status:** Stable, tagged revert point
+**Status:** Stable rollback point
 
-4-step wizard:
-- Step 0: Business Info
-- Step 1: Signal Types (6 options, any combination, empty = all)
-- Step 2: Keywords (industry starter pack + custom terms, min 1 required)
-- Step 3: Launch Scan (saves profile, marks complete, fires scan, races 12s timeout)
-
-Discover ICPs locked for Trial. Settings had an arbitrary "Max Profiles to Add" button group generating plan-fraction numbers (e.g., 250/500/749/999 for Owner account).
+4-step wizard (Steps 0–3). Blue progress dots and CTA buttons. No ICP discovery in wizard — users had to visit Settings separately. Discover ICPs was locked for Trial users. Feed empty state showed a dead "Trigger another scan now / Refresh feed" button that had no backend.
 
 ---
 
-### v2.0 — Discover ICPs unlocked for Trial
-**Git tag:** `onboarding-v2.0`
+### v2.0 — Discover ICPs embedded in wizard
+**Git branch:** `onboarding-v2`
 **Status:** Current production
+**Merged:** April 2026
 
-Wizard flow: unchanged from v1.0.
-
-Settings changes:
-- Trial users can now run Discover ICPs (1 run/day, up to 10 profiles)
-- Arbitrary profile count picker removed from Settings → LinkedIn → Discover ICPs panel
-- Plan-aware context copy added below Run Discovery button
-- Trial info strip updated to include Discover run info
-
-See [What changed from v1.0](#what-changed-from-v10) above for full detail.
+Key changes:
+- **ClientBloom brand colors** applied throughout (violet-600 progress dots, CTA buttons)
+- **ICP Discovery panel** embedded in Step 3, before "Run my first scan"
+- **Trial users** get 1 discovery run per day, up to 10 profiles — fills pool in one onboarding session
+- **"Run my first scan" blocked during discovery** to prevent race condition
+- **icpCount tracked and passed to URL** after scan (`&icps=N`) for analytics
+- **Feed empty state rewritten** — removed dead "Refresh feed" button, new energetic copy referencing ICP pool
+- **Helper text added** on Step 0 (ideal client field) and Step 2 (manual keyword entry)
+- **Textarea sizing fixed** on Step 0 (value delivered: rows 2→3)
 
 ---
 
 ### v3.0 — Planned
-**Status:** In design
+**Status:** Ideas / backlog
 
-Key goals:
-- Incorporate Discover ICPs directly into the onboarding wizard as a dedicated step
-- Remove Signal Types step (auto-select all — users don't differentiate these meaningfully)
-- Save business profile to API on Step 0 advance (cross-device persistence, currently only saved at Step 3)
+Potential improvements:
 - AI keyword enhancement — let users type a rough keyword and get AI-tuned phrase variations
-- Update Launch Scan summary card to show ICP pool count alongside keyword count
-- Evaluation metric: % of new users with at least 1 post in inbox within 24h of completing onboarding
-
-> v3.0 will be developed on `feature/onboarding-v3`, tested on preview deployment, and requires Mike's explicit approval before merging to main.
+- Auto-detect industry from business name during onboarding
+- Save business profile to API on Step 0 advance (cross-device persistence, currently only saved at Step 3)
+- Option to add LinkedIn profiles manually (Add Profile) in addition to Discover ICPs

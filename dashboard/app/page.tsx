@@ -2647,36 +2647,23 @@ function FeedPage() {
               if (isNewUser || firstScanZero) {
                 // Brand-new user: never had a successful scan yet
                 return (
-                  <div className="w-full max-w-sm">
-                    <div className="text-3xl mb-4">🔍</div>
-                    <p className="text-slate-200 text-base font-semibold mb-2">Scout is getting started</p>
+                  <div className="w-full max-w-sm text-center">
+                    <div className="text-3xl mb-4">🎯</div>
+                    <p className="text-slate-200 text-base font-semibold mb-2">Your feed is live — posts are on the way</p>
                     <p className="text-slate-500 text-sm leading-relaxed mb-6">
-                      Your first scan searched LinkedIn for relevant conversations. Posts matching your keywords will appear here as Scout continues scanning — usually by end of day.
+                      Scout is actively monitoring your ICP pool and keywords. Your next scan runs at 6 AM or 6 PM PST and will populate your inbox with posts ready to engage. If you added ICP profiles during setup, those will be the first ones in.
                     </p>
                     <div className="text-left space-y-3 mb-6">
-                      <div className="bg-slate-800/50 border border-slate-700/40 rounded-xl p-4 space-y-3">
-                        <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Speed up your results</p>
+                      <div className="bg-slate-800/50 border border-slate-700/40 rounded-xl p-4">
+                        <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3">While you wait</p>
                         <div className="flex items-start gap-3">
-                          <span className="w-5 h-5 rounded-full bg-blue-600/20 border border-blue-500/30 text-blue-400 text-xs flex items-center justify-center shrink-0 mt-0.5 font-semibold">1</span>
+                          <span className="w-5 h-5 rounded-full bg-violet-600/20 border border-violet-500/30 text-violet-400 text-xs flex items-center justify-center shrink-0 mt-0.5 font-semibold">1</span>
                           <div>
-                            <p className="text-sm text-slate-200 font-medium">Add LinkedIn profiles to track</p>
-                            <p className="text-xs text-slate-500 mt-0.5">Scout pulls posts directly from specific accounts — this is the fastest way to see results.</p>
-                            <Link href="/settings?tab=linkedin" className="text-xs text-blue-400 hover:text-blue-300 mt-1 inline-block transition-colors">
+                            <p className="text-sm text-slate-200 font-medium">Add more LinkedIn profiles to track</p>
+                            <p className="text-xs text-slate-500 mt-0.5">The more specific people you monitor, the faster your inbox fills with relevant conversations.</p>
+                            <Link href="/settings?tab=linkedin" className="text-xs text-violet-400 hover:text-violet-300 mt-1 inline-block transition-colors">
                               Go to ICP Profiles →
                             </Link>
-                          </div>
-                        </div>
-                        <div className="flex items-start gap-3">
-                          <span className="w-5 h-5 rounded-full bg-blue-600/20 border border-blue-500/30 text-blue-400 text-xs flex items-center justify-center shrink-0 mt-0.5 font-semibold">2</span>
-                          <div>
-                            <p className="text-sm text-slate-200 font-medium">Trigger another scan now</p>
-                            <p className="text-xs text-slate-500 mt-0.5">Run a manual scan to check for new posts on your keywords right now.</p>
-                            <button
-                              onClick={() => fetchPosts()}
-                              className="text-xs text-blue-400 hover:text-blue-300 mt-1 inline-block transition-colors"
-                            >
-                              Refresh feed →
-                            </button>
                           </div>
                         </div>
                       </div>
