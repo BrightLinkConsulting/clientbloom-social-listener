@@ -135,8 +135,8 @@ To manage or cancel an active subscription: Settings → Plan & Billing → Mana
 Feature                   Trial   Starter   Pro      Agency
 ─────────────────────────────────────────────────────────────
 ICP Pool (profiles saved)    10       50     150        500
-Scan Slots (scanned/run)      3       10      25         50
-Keyword Sources               3        3      10         20
+Scan Slots (scanned/run)      5       10      25         50
+Keyword Sources               6        3      10         20
 Scans per day                 1        1       2          2
 AI Comment Credits           10       30    Unlimited  Unlimited
 Discover ICPs             Locked    1/day   3/day    Unlimited
@@ -222,7 +222,7 @@ Business Profile: Set your company name, description, and custom AI scoring prom
 
 ICP Pool: Add or remove LinkedIn profiles to monitor. You can add profiles manually (paste a LinkedIn URL) or use Discover ICPs to find them automatically. The pool shows how many profiles you have vs. your plan limit.
 
-Keyword Sources: Add keywords Scout searches for across LinkedIn. Be specific — "CFO hiring" finds better posts than just "hiring". Max keywords: Trial/Starter=3, Pro=10, Agency=20.
+Keyword Sources: Add keywords Scout searches for across LinkedIn. Be specific — "CFO hiring" finds better posts than just "hiring". Max keywords: Trial=6, Starter=3, Pro=10, Agency=20. (Trial gets more keyword slots than Starter because Trial accounts use industry packs of 6 terms during onboarding.)
 
 Slack Integration: Connect a Slack webhook to receive your daily digest. Settings → Slack → paste your Slack webhook URL → Save → Test it.
 
@@ -259,9 +259,34 @@ To view invoices: Settings → Plan & Billing → Manage subscription → Stripe
 
 ── TRIAL ─────────────────────────────────────────────
 The free trial lasts 7 days from signup. No credit card is required to start.
-Trial accounts get 1 scan/day, 10 ICP profiles in pool, 3 keywords, and 10 total AI comment credits.
+Trial accounts get 1 scan/day, 10 ICP profiles in pool, 6 keywords, and 10 total AI comment credits.
 Discover ICPs is not available on trial.
 When the trial expires, the account is suspended until a plan is selected.
+
+── ONBOARDING & FIRST SCAN ───────────────────────────
+New users complete a 4-step setup wizard before reaching the feed:
+
+Step 1 (Business Info): Sets business name, industry/niche, ideal client description, and value proposition. Industry and ideal client are required before advancing.
+
+Step 2 (Signal Types): Selects which conversation types to prioritize (asking for help, milestones, hiring, etc.). Optional — defaults to all types if nothing is selected.
+
+Step 3 (Keywords): Loads an industry keyword pack or adds custom keywords. At least one keyword is required before the user can advance — there is no "skip" option. Industry packs contain 6 terms. Trial accounts have 6 keyword slots (matching full pack size).
+
+Step 4 (First Scan): Fires the very first scan immediately. The scan races against a 12-second client-side timer:
+  - If results arrive in time: shows exact post count found.
+  - If 12s passes (scan still running): redirects to the feed with a "First scan in progress" banner. The scan completes server-side and posts appear within 30–60 seconds.
+  - If scan errors: shows retry option.
+
+After onboarding, the user sees one of three feed states depending on what happened:
+  - Posts found immediately → normal feed load (Inbox tab populated)
+  - Scan still running → blue "First scan in progress" banner at top of feed; posts appear automatically when scan finishes (polls every 5 seconds, auto-dismisses when posts arrive)
+  - Scan completed, zero posts → "Scout is getting started" empty state with two CTAs: Add ICP Profiles and Try scanning again
+
+COMMON NEW-USER QUESTIONS:
+  "Why is my inbox empty after setup?" → "Your first scan just ran. It usually takes 30–60 seconds for posts to appear. If you don't see any yet, add LinkedIn profiles to track under Settings → LinkedIn — ICP profiles give Scout more to search alongside your keywords."
+  "Where are my posts?" → "If your first scan just finished, posts should appear shortly. On the trial, Scout scans once per day, so new posts arrive daily. You can trigger a manual scan from the feed using the scan button (30-minute cooldown between scans)."
+  "How do I add profiles to track?" → "Go to Settings → LinkedIn → ICP Pool. You can paste a LinkedIn profile URL to add them manually, or use Discover ICPs (Starter plan and above) to find profiles automatically."
+  "Why didn't my first scan find anything?" → "A few things affect first-scan results: (1) your keywords need to match how people actually post on LinkedIn — try 2-4 word phrases your clients use; (2) adding ICP profiles gives Scout a direct source to monitor; (3) if your keywords are too broad or too niche, try adjusting them in Settings → LinkedIn → Keyword Sources."
 
 ── ENGAGEMENT MOMENTUM WIDGET ────────────────────────
 The Engagement Momentum widget appears at the top of the feed (above the post list). It tracks how consistently the user is engaging with their pipeline over time.

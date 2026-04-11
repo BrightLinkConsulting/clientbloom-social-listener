@@ -243,3 +243,6 @@ Scout's feed supports bulk actions (Skip, Archive, Restore) on multiple posts at
 | April 2026 | Typography scale formalized: body/labels → `text-sm`, chrome/buttons → `text-xs` across settings/page.tsx and page.tsx (feed) |
 | April 2026 | AI Scoring threshold cards color-coded: amber (5/10), blue (6/10), emerald (8/10) |
 | April 2026 | Input field text size aligned with surrounding label text (both `text-sm`) |
+| April 2026 | Onboarding wizard: 4-step design, hero pack CTA (blue-bordered card), keyword gate (Continue disabled until ≥1 keyword), Step 4 fire-and-redirect scan with progress bar ramping to 88% max |
+| April 2026 | Feed post-onboarding states: `?firstScan=1` (scanning banner + poll), `?firstScan=0` (rich "Scout is getting started" empty state with two CTAs) |
+| April 2026 | Settings page deep-link: `/settings?tab=linkedin` now activates the LinkedIn tab on mount (reads `window.location.search` in useEffect) |
