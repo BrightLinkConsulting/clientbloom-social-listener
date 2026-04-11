@@ -1041,15 +1041,25 @@ function Step4({
 
       <button
         onClick={runScan}
-        disabled={status !== 'idle' || discovering}
-        title={discovering ? 'Wait for discovery to finish before scanning' : undefined}
-        className="w-full py-3.5 rounded-xl bg-violet-600 hover:bg-violet-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold text-sm transition-colors flex items-center justify-center gap-2"
+        disabled={status !== 'idle' || discovering || !discResult}
+        title={
+          discovering       ? 'Wait for discovery to finish before scanning' :
+          !discResult       ? 'Run Discovery first to add ICP profiles, then scan' :
+          undefined
+        }
+        className="w-full py-3.5 rounded-xl bg-violet-600 hover:bg-violet-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold text-sm transition-colors flex items-center justify-center gap-2"
       >
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
         </svg>
         Run my first scan
       </button>
+
+      {!discResult && (
+        <p className="text-center text-xs text-slate-600 -mt-1">
+          Run Discovery above to unlock your first scan
+        </p>
+      )}
 
       <div className="mt-5 flex items-center justify-between">
         <button onClick={onBack} className="text-xs text-slate-600 hover:text-slate-400 transition-colors">
