@@ -2553,8 +2553,34 @@ function FeedPage() {
                   )}
                 </div>
 
-                {/* Right: Cancel + Refresh */}
+                {/* Right: action buttons + Cancel + Refresh */}
                 <div className="flex items-center gap-2 shrink-0">
+                  {/* Skip / Restore — only when posts are selected and not mid-flight */}
+                  {selectedIds.size > 0 && !bulkLoading && filter !== 'Skipped' && (
+                    <button
+                      onClick={() => handleBulkAction('skip', { recordIds: Array.from(selectedIds) })}
+                      className="text-xs px-3 py-1 rounded-lg bg-slate-700/80 border border-slate-600/40 text-slate-200 hover:text-white hover:bg-slate-600/80 transition-colors whitespace-nowrap"
+                    >
+                      Skip {selectedIds.size}
+                    </button>
+                  )}
+                  {selectedIds.size > 0 && !bulkLoading && filter === 'Skipped' && (
+                    <button
+                      onClick={() => handleBulkAction('restore', { recordIds: Array.from(selectedIds) })}
+                      className="text-xs px-3 py-1 rounded-lg bg-emerald-700/70 border border-emerald-600/40 text-emerald-200 hover:text-white hover:bg-emerald-600/80 transition-colors whitespace-nowrap"
+                    >
+                      Restore {selectedIds.size}
+                    </button>
+                  )}
+                  {/* Archive — always available when posts are selected */}
+                  {selectedIds.size > 0 && !bulkLoading && (
+                    <button
+                      onClick={() => handleBulkAction('archive', { recordIds: Array.from(selectedIds) })}
+                      className="text-xs px-3 py-1 rounded-lg bg-slate-800 border border-slate-700/40 text-slate-400 hover:text-slate-200 transition-colors whitespace-nowrap"
+                    >
+                      Archive {selectedIds.size}
+                    </button>
+                  )}
                   <button
                     onClick={exitSelectionMode}
                     className="text-xs px-3 py-1 rounded-lg border bg-blue-600/20 border-blue-500/40 text-blue-300 hover:bg-blue-600/30 transition-colors whitespace-nowrap"
