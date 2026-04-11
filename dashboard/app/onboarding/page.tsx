@@ -72,9 +72,9 @@ function StepDots({ current, total }: { current: number; total: number }) {
           key={i}
           className={`rounded-full transition-all duration-300 ${
             i === current
-              ? 'w-6 h-2 bg-blue-500'
+              ? 'w-6 h-2 bg-violet-600'
               : i < current
-              ? 'w-2 h-2 bg-blue-500/40'
+              ? 'w-2 h-2 bg-violet-600/40'
               : 'w-2 h-2 bg-slate-700'
           }`}
         />
@@ -117,28 +117,31 @@ function Step1({
 
         <div>
           <label className="block text-xs font-medium text-slate-400 mb-1.5 uppercase tracking-wide">
-            Industry / Niche <span className="text-blue-400">*</span>
+            Industry / Niche <span className="text-violet-400">*</span>
           </label>
           <input
             value={data.industry}
             onChange={e => onChange('industry', e.target.value)}
             placeholder="e.g. Marketing agency software, B2B SaaS, Coaching & Consulting..."
             maxLength={120}
-            className="w-full bg-slate-800/60 border border-slate-700/60 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/60 focus:ring-1 focus:ring-blue-500/20 transition-colors"
+            className="w-full bg-slate-800/60 border border-slate-700/60 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-violet-500/60 focus:ring-1 focus:ring-violet-500/20 transition-colors"
           />
         </div>
 
         <div>
-          <label className="block text-xs font-medium text-slate-400 mb-1.5 uppercase tracking-wide">
-            Who is your ideal client? <span className="text-blue-400">*</span>
+          <label className="block text-xs font-medium text-slate-400 mb-1 uppercase tracking-wide">
+            Who is your ideal client? <span className="text-violet-400">*</span>
           </label>
+          <p className="text-xs text-slate-600 mb-1.5 leading-relaxed">
+            Be specific — include their job title, company type, size, and what they typically post about. The more detail you give, the sharper Scout's scoring will be.
+          </p>
           <textarea
             value={data.idealClient}
             onChange={e => onChange('idealClient', e.target.value)}
             rows={3}
             maxLength={500}
             placeholder="e.g. Marketing agency owners with 10–50 clients who use GoHighLevel. Decision-makers, usually the founder or ops lead, typically posting about growth, systems, or client management."
-            className="w-full bg-slate-800/60 border border-slate-700/60 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/60 focus:ring-1 focus:ring-blue-500/20 transition-colors resize-none"
+            className="w-full bg-slate-800/60 border border-slate-700/60 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-violet-500/60 focus:ring-1 focus:ring-violet-500/20 transition-colors resize-none"
           />
         </div>
 
@@ -149,10 +152,10 @@ function Step1({
           <textarea
             value={data.problemSolved}
             onChange={e => onChange('problemSolved', e.target.value)}
-            rows={2}
+            rows={3}
             maxLength={500}
             placeholder="e.g. We help agencies systematize client retention so they stop losing clients they thought were happy — and start getting referrals instead."
-            className="w-full bg-slate-800/60 border border-slate-700/60 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/60 focus:ring-1 focus:ring-blue-500/20 transition-colors resize-none"
+            className="w-full bg-slate-800/60 border border-slate-700/60 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-violet-500/60 focus:ring-1 focus:ring-violet-500/20 transition-colors resize-none"
           />
         </div>
       </div>
@@ -160,7 +163,7 @@ function Step1({
       <button
         onClick={onNext}
         disabled={!valid}
-        className="mt-8 w-full py-3.5 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold text-sm transition-colors"
+        className="mt-8 w-full py-3.5 rounded-xl bg-violet-600 hover:bg-violet-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold text-sm transition-colors"
       >
         Continue →
       </button>
@@ -222,7 +225,7 @@ function Step2({
         </button>
         <button
           onClick={onNext}
-          className="flex-1 py-3.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-sm transition-colors"
+          className="flex-1 py-3.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white font-semibold text-sm transition-colors"
         >
           Continue →
         </button>
@@ -470,15 +473,18 @@ function StepKeywords({
 
       {/* Custom term input */}
       {!atCap && !showCustom && (
-        <button
-          onClick={() => setShowCustom(true)}
-          className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-300 transition-colors mb-5"
-        >
-          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-          </svg>
-          Add your own keyword
-        </button>
+        <div className="mb-5">
+          <p className="text-xs text-slate-600 mb-1.5">You can also type your own phrases — or skip the pack and add them all manually.</p>
+          <button
+            onClick={() => setShowCustom(true)}
+            className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-300 transition-colors"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            Add your own keyword
+          </button>
+        </div>
       )}
       {showCustom && (
         <div className="mb-5 space-y-2">
@@ -532,7 +538,7 @@ function StepKeywords({
         <button
           onClick={() => onNext(terms.length)}
           disabled={terms.length === 0}
-          className="flex-1 py-3.5 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold text-sm transition-colors"
+          className="flex-1 py-3.5 rounded-xl bg-violet-600 hover:bg-violet-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold text-sm transition-colors"
         >
           {terms.length > 0 ? `Continue with ${terms.length} keyword${terms.length !== 1 ? 's' : ''} →` : 'Load a keyword pack to continue'}
         </button>
@@ -541,7 +547,20 @@ function StepKeywords({
   )
 }
 
+// ── ICP_JOB_TITLES — mirrored from settings/page.tsx ────────────────────────
+const ICP_JOB_TITLES = [
+  'Founder', 'Co-Founder', 'CEO', 'Managing Director',
+  'VP of Sales', 'Head of Sales', 'Sales Director', 'Account Executive',
+  'VP of Marketing', 'Head of Marketing', 'Marketing Director', 'CMO',
+  'Head of Operations', 'COO', 'VP of Product', 'Director of Partnerships',
+  'Consultant', 'Business Owner', 'Entrepreneur', 'Independent Advisor',
+]
+
 // ── Step 4: Launch Scan ──────────────────────────────────────────────────────
+//
+// v2.0: Embeds the Discover ICPs panel before "Run my first scan" so that
+// Apify has real profiles to scan. ICPs discovered here are stored in the
+// user's account — they persist to Settings → LinkedIn → ICP Pool.
 //
 // Strategy: fire the scan immediately and race against a 12-second client-side
 // timer. If the scan completes in time, show the full result. If the scan is
@@ -559,7 +578,7 @@ function Step4({
 }: {
   data: any
   onBack: () => void
-  onComplete: (postsFound: number, scanCompleted: boolean) => void
+  onComplete: (postsFound: number, scanCompleted: boolean, icpCount: number) => void
   onMarkComplete: () => Promise<void>
 }) {
   const [status, setStatus]         = useState<'idle' | 'saving' | 'scanning' | 'done' | 'error'>('idle')
@@ -568,6 +587,49 @@ function Step4({
   const [progress, setProgress]     = useState(0)
   const [errorMsg, setErrorMsg]     = useState('')
   const [scanCompleted, setScanCompleted] = useState(false)
+
+  // ── Discover ICPs state ───────────────────────────────────────────────────
+  const [discTitles, setDiscTitles]       = useState<string[]>([])
+  const [discKeywords, setDiscKeywords]   = useState<string[]>([])
+  const [discTitleInput, setDiscTitleInput] = useState('')
+  const [discKwInput, setDiscKwInput]     = useState('')
+  const [discovering, setDiscovering]     = useState(false)
+  const [discResult, setDiscResult]       = useState('')
+  const [discError, setDiscError]         = useState('')
+  const [icpCount, setIcpCount]           = useState(0)
+
+  const addDiscTitle = () => {
+    const t = discTitleInput.trim()
+    if (t && !discTitles.includes(t)) setDiscTitles(prev => [...prev, t])
+    setDiscTitleInput('')
+  }
+  const addDiscKw = () => {
+    const k = discKwInput.trim()
+    if (k && !discKeywords.includes(k)) setDiscKeywords(prev => [...prev, k])
+    setDiscKwInput('')
+  }
+  const handleDiscover = async () => {
+    if (!discTitles.length) { setDiscError('Add at least one job title to search.'); return }
+    setDiscovering(true)
+    setDiscResult('')
+    setDiscError('')
+    try {
+      const resp = await fetch('/api/linkedin-icps/discover', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jobTitles: discTitles, keywords: discKeywords }),
+      })
+      const json = await resp.json()
+      if (!resp.ok) throw new Error(json.error || 'Discovery failed')
+      const added = json.added ?? 0
+      setIcpCount(prev => prev + added)
+      setDiscResult(`Added ${added} profile${added !== 1 ? 's' : ''}${json.skipped > 0 ? ` · ${json.skipped} already in your pool` : ''}. Your pool is ready for the first scan.`)
+    } catch (e: any) {
+      setDiscError(e.message || 'Discovery failed — you can still run your first scan.')
+    } finally {
+      setDiscovering(false)
+    }
+  }
 
   const runScan = async () => {
     setStatus('saving')
@@ -652,7 +714,7 @@ function Step4({
       setStatus('done')
       // Small visual pause so the "Setup complete!" animation renders before redirect
       await new Promise(r => setTimeout(r, 600))
-      onComplete(0, false)   // → /?firstScan=1 — show "scan in progress" banner
+      onComplete(0, false, icpCount)   // → /?firstScan=1 — show "scan in progress" banner
       return
     }
 
@@ -715,14 +777,18 @@ function Step4({
           </>
         ) : (
           <>
-            <h2 className="text-2xl font-bold text-white mb-2">Your feed is ready</h2>
+            <h2 className="text-2xl font-bold text-white mb-2">
+              {icpCount > 0 ? `You're in. ${icpCount} people are being monitored.` : "You're in. Scout is on it."}
+            </h2>
             <p className="text-slate-400 text-sm mb-4">
-              Your first scan searched LinkedIn but didn&apos;t find posts that crossed the relevance threshold yet — this is normal on a brand-new account.
+              {icpCount > 0
+                ? `Scout is now monitoring ${icpCount} LinkedIn profile${icpCount !== 1 ? 's' : ''} from your ICP pool. Your inbox will fill with posts as soon as the next scan runs — tonight or tomorrow morning.`
+                : 'Your account is set up and Scout is scanning. Posts will appear in your inbox as Scout finds conversations worth joining — usually within the next scan cycle.'}
             </p>
             {/* Scan breakdown — explains the filtering so it doesn't feel broken */}
-            {breakdown && (
+            {breakdown && (breakdown.fetched ?? 0) > 0 && (
               <div className="text-left bg-slate-800/40 border border-slate-700/30 rounded-xl p-4 mb-4 space-y-2">
-                <p className="text-xs font-medium text-slate-400 uppercase tracking-wide mb-3">What happened</p>
+                <p className="text-xs font-medium text-slate-400 uppercase tracking-wide mb-3">First scan results</p>
                 {breakdown.fetched !== undefined && (
                   <div className="flex justify-between text-xs">
                     <span className="text-slate-500">Posts found on LinkedIn</span>
@@ -747,21 +813,18 @@ function Step4({
                 </div>
               </div>
             )}
-            <div className="text-left bg-blue-600/5 border border-blue-500/15 rounded-xl p-4 mb-8 space-y-2">
-              <p className="text-xs font-medium text-blue-400 mb-2">Two things that will help immediately</p>
+            <div className="text-left bg-violet-600/5 border border-violet-500/15 rounded-xl p-4 mb-8 space-y-2">
+              <p className="text-xs font-medium text-violet-400 mb-2">What happens next</p>
               <p className="text-xs text-slate-400 leading-relaxed">
-                1. <span className="text-slate-200">Add LinkedIn profiles</span> of specific people you want to follow — scout fetches their latest posts directly.
-              </p>
-              <p className="text-xs text-slate-400 leading-relaxed">
-                2. <span className="text-slate-200">Your next automatic scan</span> runs tonight and tomorrow morning — posts will be waiting.
+                Scout scans automatically at <span className="text-slate-200">6 AM and 6 PM PST</span> every day. Each scan scores fresh posts against your keywords and ICP pool, and the best ones land directly in your inbox — ready to engage.
               </p>
             </div>
           </>
         )}
 
         <button
-          onClick={() => onComplete(postsFound, true)}
-          className="w-full py-3.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-sm transition-colors"
+          onClick={() => onComplete(postsFound, true, icpCount)}
+          className="w-full py-3.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white font-semibold text-sm transition-colors"
         >
           {postsFound > 0 ? 'Go to my inbox →' : 'Go to my feed →'}
         </button>
@@ -814,7 +877,7 @@ function Step4({
             Try again
           </button>
           <button
-            onClick={() => onComplete(0, true)}
+            onClick={() => onComplete(0, true, icpCount)}
             className="flex-1 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm transition-colors"
           >
             Go to my feed
@@ -824,16 +887,16 @@ function Step4({
     )
   }
 
-  // ── Idle state (launch screen) ─────────────────────────────────────────────
+  // ── Idle state (launch screen with Discover ICPs) ──────────────────────────
   return (
     <div>
       <h2 className="text-2xl font-bold text-white mb-2">You&apos;re almost live</h2>
-      <p className="text-slate-400 text-sm mb-8">
-        Scout will search LinkedIn for conversations worth joining right now and score them for relevance. Takes about 30–45 seconds, then your feed is live with daily updates from here on.
+      <p className="text-slate-400 text-sm mb-6">
+        One last step — tell Scout who to watch on LinkedIn. Then run your first scan and posts will be waiting in your inbox.
       </p>
 
       {/* Summary card */}
-      <div className="bg-slate-800/40 border border-slate-700/40 rounded-xl p-4 mb-8 space-y-3">
+      <div className="bg-slate-800/40 border border-slate-700/40 rounded-xl p-4 mb-5 space-y-3">
         {data.businessName && (
           <div className="flex items-start gap-3">
             <span className="text-slate-600 text-xs mt-0.5 w-20 shrink-0">Business</span>
@@ -856,12 +919,131 @@ function Step4({
           <span className="text-slate-600 text-xs mt-0.5 w-20 shrink-0">Keywords</span>
           <span className="text-sm text-emerald-400">{data.keywordCount ?? 0} active</span>
         </div>
+        {icpCount > 0 && (
+          <div className="flex items-start gap-3">
+            <span className="text-slate-600 text-xs mt-0.5 w-20 shrink-0">ICPs</span>
+            <span className="text-sm text-emerald-400">{icpCount} profile{icpCount !== 1 ? 's' : ''} added</span>
+          </div>
+        )}
+      </div>
+
+      {/* ── Discover ICPs Panel ────────────────────────────────────────────── */}
+      <div className="rounded-xl border border-violet-500/20 bg-violet-600/5 p-4 mb-5 space-y-4">
+        <div>
+          <p className="text-sm font-semibold text-white mb-1">Discover ICPs</p>
+          <p className="text-sm text-slate-500 leading-relaxed">
+            Scout searches for LinkedIn profiles matching your criteria and adds them to your pool automatically. This gives Scout real people to monitor so your first scan has posts waiting for you.
+          </p>
+        </div>
+
+        {/* Job Titles */}
+        <div>
+          <p className="text-sm text-slate-400 mb-2 font-medium">
+            Job Titles <span className="text-slate-600 font-normal">(required)</span>
+          </p>
+          {discTitles.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 mb-2">
+              {discTitles.map(t => (
+                <span key={t} className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700/50">
+                  {t}
+                  <button onClick={() => setDiscTitles(discTitles.filter(x => x !== t))} className="text-slate-600 hover:text-red-400 ml-0.5">×</button>
+                </span>
+              ))}
+            </div>
+          )}
+          <div className="flex flex-wrap gap-1 mb-2">
+            {ICP_JOB_TITLES.filter(t => !discTitles.includes(t)).slice(0, 8).map(t => (
+              <button
+                key={t}
+                onClick={() => setDiscTitles(prev => [...prev, t])}
+                className="text-xs px-2 py-0.5 rounded-full bg-slate-900/60 border border-slate-700/40 text-slate-500 hover:text-slate-300 hover:border-slate-600 transition-colors"
+              >
+                + {t}
+              </button>
+            ))}
+          </div>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              placeholder="Custom job title..."
+              value={discTitleInput}
+              onChange={e => setDiscTitleInput(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && addDiscTitle()}
+              className="flex-1 bg-slate-800/80 border border-slate-700/50 rounded-lg px-3 py-1.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-violet-500/50"
+            />
+            <button onClick={addDiscTitle} className="text-xs px-3 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-300 transition-colors">Add</button>
+          </div>
+        </div>
+
+        {/* Narrowing Keywords */}
+        <div>
+          <p className="text-sm text-slate-400 mb-1 font-medium">
+            Narrowing Keywords <span className="text-slate-600 font-normal">(optional — recommended)</span>
+          </p>
+          <p className="text-sm text-slate-600 mb-2">Filters broad titles like &quot;CEO&quot; to the right people.</p>
+          {discKeywords.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 mb-2">
+              {discKeywords.map(k => (
+                <span key={k} className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700/50">
+                  {k}
+                  <button onClick={() => setDiscKeywords(discKeywords.filter(x => x !== k))} className="text-slate-600 hover:text-red-400 ml-0.5">×</button>
+                </span>
+              ))}
+            </div>
+          )}
+          <div className="flex gap-2">
+            <input
+              type="text"
+              placeholder="e.g. SaaS, B2B consulting, fintech..."
+              value={discKwInput}
+              onChange={e => setDiscKwInput(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && addDiscKw()}
+              className="flex-1 bg-slate-800/80 border border-slate-700/50 rounded-lg px-3 py-1.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-violet-500/50"
+            />
+            <button onClick={addDiscKw} className="text-xs px-3 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-300 transition-colors">Add</button>
+          </div>
+        </div>
+
+        {discResult && (
+          <div className="px-3 py-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-400">
+            ✓ {discResult}
+          </div>
+        )}
+        {discError && (
+          <div className="px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/20 text-xs text-red-400 flex items-center justify-between">
+            {discError}
+            <button onClick={() => setDiscError('')} className="ml-2 opacity-60 hover:opacity-100">×</button>
+          </div>
+        )}
+
+        <div className="flex gap-2 items-center flex-wrap">
+          <button
+            onClick={handleDiscover}
+            disabled={discovering || !discTitles.length}
+            className="flex items-center gap-1.5 text-xs px-4 py-2 rounded-lg bg-violet-600 hover:bg-violet-500 text-white font-medium transition-colors disabled:opacity-50"
+          >
+            {discovering ? (
+              <>
+                <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+                </svg>
+                Searching…
+              </>
+            ) : 'Run Discovery'}
+          </button>
+        </div>
+
+        <p className="text-xs text-slate-600 leading-relaxed">
+          Adds up to <span className="text-slate-500">10 profiles</span> per run · 1 run per day. Tighter job titles and keywords find better matches than running broad searches.
+        </p>
       </div>
 
       <button
         onClick={runScan}
-        disabled={status !== 'idle'}
-        className="w-full py-3.5 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold text-sm transition-colors flex items-center justify-center gap-2"
+        disabled={status !== 'idle' || discovering}
+        title={discovering ? 'Wait for discovery to finish before scanning' : undefined}
+        className="w-full py-3.5 rounded-xl bg-violet-600 hover:bg-violet-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold text-sm transition-colors flex items-center justify-center gap-2"
       >
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -935,16 +1117,17 @@ export default function OnboardingPage() {
   }
 
   // Called when Step4 finishes (scan result or timeout redirect)
-  const handleScanComplete = (postsFound: number, scanCompleted: boolean) => {
+  const handleScanComplete = (postsFound: number, scanCompleted: boolean, icpCount: number) => {
+    const icpParam = icpCount > 0 ? `&icps=${icpCount}` : ''
     if (scanCompleted && postsFound > 0) {
       // Happy path: posts found, go straight to feed
       router.push('/')
     } else if (!scanCompleted) {
       // Scan still running — redirect with banner so user knows to wait
-      router.push('/?firstScan=1')
+      router.push(`/?firstScan=1${icpParam}`)
     } else {
       // Scan completed but found nothing — go to feed with helpful empty state
-      router.push('/?firstScan=0')
+      router.push(`/?firstScan=0${icpParam}`)
     }
   }
 
