@@ -94,6 +94,9 @@ This folder is the developer knowledge base for Scout. Start here.
 | A threshold or digest timing changed — what do I update? | [`scout-agent.md`](./scout-agent.md) → "Scoring Model — Keeping both agents in sync" |
 | How does the onboarding wizard work end to end? | [`onboarding-first-scan-ux.md`](./onboarding-first-scan-ux.md) |
 | What does `?firstScan=1` or `?firstScan=0` mean in the feed URL? | [`onboarding-first-scan-ux.md`](./onboarding-first-scan-ux.md) → "URL States" |
+| How does the Feed Control Bar work? What do the filters touch? | [`scout-agent.md`](./scout-agent.md) → Session 14 changelog |
+| How does bulk selection mode work? Where are the action buttons? | [`scout-agent.md`](./scout-agent.md) → Session 14 changelog + `inbox-agent/route.ts` → "Bulk Selection Mode" |
+| How does the comment suggestion system work? What rules govern output? | [`scout-agent.md`](./scout-agent.md) → "Comment Suggestion System" + Session 13 changelog |
 
 ---
 
