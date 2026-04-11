@@ -965,7 +965,7 @@ function LinkedInICPSection() {
   const [showDiscover, setShowDiscover]         = useState(false)
   const [discTitles, setDiscTitles]             = useState<string[]>([])
   const [discKeywords, setDiscKeywords]         = useState<string[]>([])
-  const [discMax, setDiscMax]                   = useState(tierLimits.discoverMaxPerRun)
+  // discMax removed — plan limit (tierLimits.discoverMaxPerRun) is used automatically by the API
   const [discTitleInput, setDiscTitleInput]     = useState('')
   const [discKwInput, setDiscKwInput]           = useState('')
   const [discovering, setDiscovering]           = useState(false)
@@ -1065,7 +1065,7 @@ function LinkedInICPSection() {
 
   const handleDiscover = async () => {
     if (!canDiscover) {
-      setError('Profile discovery is available on paid plans.')
+      setError('Profile discovery is not available on your current plan.')
       return
     }
     if (profiles.length >= poolSize) {
@@ -1080,7 +1080,7 @@ function LinkedInICPSection() {
       const resp = await fetch('/api/linkedin-icps/discover', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ jobTitles: discTitles, keywords: discKeywords, maxProfiles: discMax }),
+        body: JSON.stringify({ jobTitles: discTitles, keywords: discKeywords }),
       })
       const data = await resp.json()
       if (!resp.ok) throw new Error(data.error || 'Discovery failed')
@@ -1177,9 +1177,9 @@ function LinkedInICPSection() {
         {isTrial && (
           <div className="px-3.5 py-2.5 border-t border-slate-700/30 bg-slate-900/30">
             <p className="text-xs text-slate-500">
-              <span className="text-amber-400/90 font-medium">Trial:</span> 10-profile pool · 5 scanned per run.{' '}
+              <span className="text-amber-400/90 font-medium">Trial:</span> 10-profile pool · 5 scanned per run · 1 Discover run/day.{' '}
               <a href="/upgrade" className="text-violet-400 hover:text-violet-300 underline underline-offset-2 transition-colors">
-                Starter: 50 pool · 10 scanned · Pro: 150 pool · 25 scanned · Agency: 500 pool · 50 scanned →
+                Starter: 50 pool · 10 discovered/run · Pro: 150 pool · 25/run · Agency: 500 pool · 50/run →
               </a>
             </p>
           </div>
@@ -1208,7 +1208,7 @@ function LinkedInICPSection() {
           {atPoolCap ? 'Pool full' : 'Add Profile'}
         </button>
 
-        {/* Discover ICPs — locked for trial, available otherwise */}
+        {/* Discover ICPs — available on all plans including Trial (1 run/day, 10 profiles) */}
         {canDiscover ? (
           <button
             onClick={() => { setShowDiscover(!showDiscover); setShowAdd(false); setDiscResult('') }}
@@ -1222,7 +1222,7 @@ function LinkedInICPSection() {
             Discover ICPs
           </button>
         ) : (
-          /* Trial: show locked button with upgrade prompt */
+          /* Suspended/expired plan: show locked button with upgrade prompt */
           <button
             onClick={() => setShowDiscover(!showDiscover)}
             className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-slate-700/40 bg-slate-900/40 text-slate-500 hover:text-slate-400 transition-colors"
@@ -1405,36 +1405,13 @@ function LinkedInICPSection() {
                 </div>
               </div>
 
-              {/* Max profiles — tier-aware, no arbitrary options */}
-              <div>
-                <p className="text-sm text-slate-400 mb-1 font-medium">Max Profiles to Add</p>
-                <p className="text-sm text-slate-600 mb-2">Tighter searches find better matches than broad ones.</p>
-                <div className="flex gap-2 flex-wrap">
-                  {Array.from({ length: 4 }, (_, i) => Math.round(tierLimits.discoverMaxPerRun * (i + 1) / 4))
-                    .filter((n, i, a) => a.indexOf(n) === i && n > 0)
-                    .map(n => (
-                      <button
-                        key={n}
-                        onClick={() => setDiscMax(n)}
-                        className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${
-                          discMax === n
-                            ? 'bg-violet-600/20 border-violet-500/40 text-violet-400'
-                            : 'border-slate-700/50 bg-slate-800/60 text-slate-400 hover:text-white'
-                        }`}
-                      >
-                        {n}
-                      </button>
-                    ))}
-                </div>
-              </div>
-
               {discResult && (
                 <div className="px-3 py-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-400">
                   {discResult}
                 </div>
               )}
 
-              <div className="flex gap-2">
+              <div className="flex gap-2 items-center flex-wrap">
                 <button
                   onClick={handleDiscover}
                   disabled={discovering || !discTitles.length || atPoolCap}
@@ -1449,6 +1426,15 @@ function LinkedInICPSection() {
                   Close
                 </button>
               </div>
+
+              {/* Plan-aware run context — replaces the old arbitrary number picker */}
+              <p className="text-xs text-slate-600 leading-relaxed">
+                Adds up to <span className="text-slate-500">{tierLimits.discoverMaxPerRun} profile{tierLimits.discoverMaxPerRun !== 1 ? 's' : ''}</span> per run
+                {tierLimits.discoverRunsPerDay < 999
+                  ? ` · ${tierLimits.discoverRunsPerDay} run${tierLimits.discoverRunsPerDay !== 1 ? 's' : ''} per day`
+                  : ' · unlimited runs per day'}.
+                {' '}Tighter job titles and keywords find better matches than running broad searches.
+              </p>
             </>
           )}
         </div>

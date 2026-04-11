@@ -72,8 +72,8 @@ export function getTierLimits(plan: string): TierLimits {
         profiles:           5,    // legacy alias for scanSlots
         poolSize:           10,
         scanSlots:          5,    // 5 ICP profiles per scan run (was 3) — wider net for first scan
-        discoverRunsPerDay: 0,    // locked — upgrade to unlock
-        discoverMaxPerRun:  0,
+        discoverRunsPerDay: 1,    // 1 run/day — fills the 10-profile trial pool in one session
+        discoverMaxPerRun:  10,   // matches poolSize — one run fills the pool
         scansPerDay:        1,
         commentCredits:     10,   // 10 total (not per-month) during trial
         workspaces:         1,
