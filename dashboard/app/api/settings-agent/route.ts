@@ -25,7 +25,7 @@
  *     icpCount:                number   — how many ICP profiles in pool
  *     hasCustomPrompt:         boolean  — has custom AI scoring prompt?
  *     hasSlack:                boolean  — Slack webhook configured?
- *     hasCrm:                  boolean  — CRM (GHL) webhook configured?
+ *     hasCrm:                  boolean  — CRM (GHL) connected and configured?
  *   }
  *   history?: Array<{ role: 'user'|'assistant'; content: string }>
  * }
