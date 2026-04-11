@@ -580,6 +580,83 @@ The z-50 / z-40 layering means the action bar is above the Agent button in the s
 
 ---
 
+## Comment Suggestion System
+
+The comment suggestion feature generates a ready-to-paste LinkedIn comment for any post in the inbox. It is distinct from the conversational Scout Agent — it is a single-shot generation call, not a dialogue.
+
+### File
+
+`app/api/posts/[id]/suggest/route.ts`
+
+### How it works
+
+1. User clicks "Suggest a comment" on any post card.
+2. The route checks the tenant's `commentCredits` limit (plan-gated; unlimited on Pro and Agency).
+3. Fetches the post text and author name from Airtable.
+4. Fetches the user's business profile (name, industry, ideal client, problem solved) for context.
+5. Calls Claude Haiku with a **system prompt** containing 10 hard behavioral rules and a user message containing the post and business context.
+6. Post-processes the output: strips any residual leading/trailing quotes Claude might still return.
+7. Saves the result back to the `Comment Approach` field in Airtable.
+8. Increments the tenant's `Suggestions Used` counter.
+9. Returns `{ commentApproach, creditsUsed, creditsLimit }`.
+
+### The system prompt (10 hard rules)
+
+The system prompt enforces human-sounding output. Key design decisions:
+
+| Rule | Rationale |
+|------|-----------|
+| Write the comment itself — never coaching instructions | "Comment approach" framing caused Claude to output directions like "Share a specific insight…" instead of the actual comment text |
+| First-person voice | The user pastes this directly — it must be written as them |
+| 2–3 sentences maximum | LinkedIn comments that run longer read as AI-generated |
+| Never open with a compliment | "Great post", "This resonates", "Well said" are immediate AI signals |
+| No em dashes (—) | Claude Haiku's most common AI tell; replace with comma or period |
+| Banned vocabulary | "certainly", "absolutely", "I'd love to", "fantastic", "delve", "leverage" as a verb, "game-changer", "paradigm shift", "groundbreaking", "transformative", "kudos" |
+| Business context is perspective-only | Context informs the comment's angle — must never appear in the comment as a mention of the user's company |
+| No meta-labels | No "Comment:", "Here's the comment:", "Suggested comment:" prefixes |
+| Raw text output | No surrounding quotes, no asterisks, no markdown |
+| Sound like a real person | The test: would a real B2B professional write this? |
+
+### Why system prompt, not user message?
+
+Behavioral rules enforced via the `system` parameter are more reliably followed than rules buried inside a long user message. Post content from LinkedIn (which could contain prompt injection attempts) is isolated in the user message and cannot override the system rules.
+
+### Adversarial failure modes (pre-fix catalogue)
+
+These were the documented failure patterns before the Session 13 rewrite. All are resolved by the current system prompt:
+
+| Failure | Root cause |
+|---------|-----------|
+| Coaching instructions instead of comment text | "comment approach" framing signalled Claude to describe HOW to comment |
+| Em dashes throughout | No prohibition; Claude Haiku uses them by default |
+| Compliment openers ("Great post…") | No rule against them |
+| AI hollow phrases ("this really resonates") | No vocabulary constraint |
+| Business pitch bleed | Business context not isolated; "no pitching" rule too vague |
+| Run-on single sentence | No length constraint |
+| "Comment:" label prepended | Claude sometimes labels output despite instructions |
+| Outer quotes wrapping the text | UI displays in quotes already; Claude also quoting = double-wrapped |
+| AI-isms (leverage, paradigm shift) | No explicit blacklist |
+
+### Updating the comment prompt
+
+When updating the system prompt:
+1. Edit `SYSTEM_PROMPT` in `app/api/posts/[id]/suggest/route.ts`
+2. Do not change the credit gating logic or Airtable field name (`Comment Approach`)
+3. Test against the 10 failure mode checks listed above before deploying
+4. Update this document's adversarial table if new failure modes are discovered
+
+### UI display
+
+| Element | Behavior |
+|---------|---------|
+| "Suggest a comment" button | Appears when no comment exists for the post; triggers generation |
+| "Suggested comment" label | Expandable toggle; was previously "Suggested comment angle" (renamed Session 13) |
+| Comment text display | Plain text, not italic — it is copy-ready, not advisory |
+| Copy button | Copies raw comment text to clipboard |
+| "About this post" label | Appears above the Score Reason to disambiguate it from the suggested comment |
+
+---
+
 ## Adding New Action Types
 
 To add a new inbox action type (e.g., `bulk_engage`):
@@ -594,6 +671,47 @@ To add a new inbox action type (e.g., `bulk_engage`):
 ---
 
 ## Session Changelog
+
+### Session 13 — April 2026 (Comment suggestion system rewrite)
+
+**Bug:** Suggested comments were inconsistently generated — some accounts received coaching instructions ("Share a specific contrarian insight: '...' Extends their argument...") instead of ready-to-paste comment text. Root cause was the prompt framing: "Write a 2-sentence comment approach" caused Claude to interpret "approach" as a directive to describe HOW to comment rather than to write the comment itself.
+
+**10 adversarial failure modes catalogued and resolved:**
+1. Meta-commentary / coaching instructions — "comment approach" framing fixed
+2. Em dashes in output — explicit prohibition added to system prompt
+3. Compliment openers ("Great post", "This resonates") — banned
+4. AI hollow phrases ("I'd love to", "certainly") — banned
+5. Business context pitch bleed — context isolated with explicit "never mention in comment" rule
+6. Run-on single sentences — 2–3 sentence maximum enforced
+7. Meta-label prepended ("Comment:") — banned
+8. Instruction framing (the screenshot bug from support@clientbloom.ai test account)
+9. Double-quoting (UI wraps output in quotes; Claude also quoting = double-wrapped) — post-processing strip added
+10. AI-isms ("leverage", "paradigm shift", "delve", "groundbreaking") — blacklist added
+
+**Changes (`app/api/posts/[id]/suggest/route.ts`):**
+- Moved behavioral rules from user message to `system` parameter for stronger enforcement
+- Rewrote framing: "comment approach" → "LinkedIn comment", "Write the comment itself"
+- Added 10-rule system prompt covering: first-person voice, 2–3 sentence max, no em dashes, no compliment openers, banned vocabulary list, business context isolation, no meta-labels, raw text output
+- Post-processing: strip leading/trailing curly and straight quotes from output
+- `max_tokens` reduced 256 → 200 (2–3 sentences don't need more)
+- Fallback prompt (used when primary returns empty) also updated with core guardrails
+- `callClaude()` signature updated to accept `sysPrompt: string | null` as first arg
+
+**Changes (`app/page.tsx`):**
+- "Suggested comment angle" → "Suggested comment" (toggle label)
+- "Generate comment idea" → "Suggest a comment" (button label)
+- "Generating comment idea…" → "Generating comment…" (loading state)
+- Comment text display: removed `italic` styling — output is copy-ready, not advisory
+- Score Reason now has "About this post" label above it to prevent confusion with the suggested comment
+- Score Reason wrapped in `<div>` with `mb-4` spacing consistent with surrounding blocks
+
+**Documentation (`docs/scout-agent.md`):**
+- Added "Comment Suggestion System" section with full architecture, system prompt rationale, adversarial failure mode table, update guide, and UI display reference
+- Added this Session 13 changelog entry
+
+**Note:** A full agent tone and brand voice documentation section is planned for a future session. The core rule is: em dashes are forbidden in all AI-generated content for Scout users; comments must always sound authentically human.
+
+---
 
 ### Session 9 — April 2026 (AI & Scoring UX redesign + Settings Agent scoring knowledge)
 

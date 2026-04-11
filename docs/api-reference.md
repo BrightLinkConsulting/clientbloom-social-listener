@@ -89,7 +89,7 @@ All require `isAdmin === true`.
 | `/api/posts` | GET | Session | List captured posts. Query: `?page=&limit=&status=`. Scoped to tenant. |
 | `/api/posts/[id]` | GET | Session | Get single post. Verifies tenant ownership. |
 | `/api/posts/[id]` | PATCH | Session | Update post fields (e.g. `status`). Verifies tenant ownership. |
-| `/api/posts/[id]/suggest` | POST | Session | Generate or regenerate a comment approach for a post via Claude. Checks `commentCredits` limit. |
+| `/api/posts/[id]/suggest` | POST | Session | Generate a ready-to-paste LinkedIn comment for a post via Claude. Uses system prompt with hard behavioral rules (no em dashes, no AI-isms, first-person, 2-3 sentences). Checks `commentCredits` limit. Returns `{ commentApproach, creditsUsed, creditsLimit }`. |
 | `/api/posts/bulk` | POST | Session | Bulk skip / archive / restore multiple posts in one call. See full spec below. |
 | `/api/inbox-agent` | POST | Session | Conversational AI inbox assistant (Scout Agent — inbox). Interprets natural language into inbox management actions. See full spec below. |
 | `/api/settings-agent` | POST | Session | Conversational AI settings guide (Scout Agent — settings). Advisory only; no action execution. See full spec below. |

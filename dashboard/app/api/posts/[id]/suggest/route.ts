@@ -148,30 +148,57 @@ export async function POST(
     }
   } catch {}
 
-  // ── Generate comment approach via Claude ───────────────────────────────────
-  const contextBlock = businessContext ? `BUSINESS CONTEXT:\n${businessContext}\n\n` : ''
-  const prompt = `${contextBlock}A LinkedIn user named "${authorName || 'someone'}" posted the following:
+  // ── Generate LinkedIn comment via Claude ──────────────────────────────────
+  //
+  // System prompt enforces hard behavioral rules that must not be overridden
+  // by post content (prompt injection) or business context bleed-through.
+  // User message provides the post and context only.
+  //
+  // Key design decisions:
+  //   - "Write the comment itself" framing prevents coaching-instruction output
+  //   - Em-dash prohibition is explicit — Claude Haiku's top AI tell on LinkedIn
+  //   - AI-isms blacklist prevents hollow vocabulary
+  //   - Business context is framed as perspective-only, not to be mentioned
+  //   - No surrounding quotes in output — UI already wraps in display quotes
+  const SYSTEM_PROMPT = `You write LinkedIn comments for B2B professionals. Every output must be the actual comment text — copy-paste ready, not coaching instructions or directions.
 
-"${postText.slice(0, 800)}"
+HARD RULES — never break these:
+1. Write the comment itself. Never write instructions such as "Share a specific insight..." or describe what angle to take or how to respond. The text you return IS the comment the user will paste into LinkedIn.
+2. First-person voice. The user pastes this directly as their own comment.
+3. 2 to 3 sentences maximum. Keep each sentence short enough to read comfortably on a phone.
+4. Never open with a compliment: no "Great post", "Love this", "This is so true", "This resonates", "Well said", "Spot on", "Brilliant", "Powerful".
+5. Never use em dashes (—). Replace with a comma, a period, or rewrite the sentence.
+6. Never use these words or phrases: "certainly", "absolutely", "I'd love to", "fantastic", "delve", "leverage" as a verb, "game-changer", "paradigm shift", "in conclusion", "at the end of the day", "it's important to note", "I completely agree", "groundbreaking", "transformative", "kudos".
+7. Never mention the user's business, company name, or services in the comment — use the business context only to understand their perspective.
+8. Do not prepend any label: no "Comment:", "Here's the comment:", "Suggested comment:", or similar.
+9. Return raw text only — no surrounding quotes, no asterisks, no markdown formatting.
+10. Sound like a real professional who read the post carefully and has something genuine to contribute.`
 
-Write a 2-sentence comment approach for this post. The comment should add a specific insight the post didn't cover, share a counterintuitive perspective, or ask one genuinely curious follow-up question. Peer-to-peer tone. No pitching, no offering services. Goal: be someone they want to know.
+  const userMessage = `${authorName || 'Someone'} posted this on LinkedIn:
 
-Return ONLY the comment approach text — no labels, no quotes, no explanation.`
+${postText.slice(0, 800)}
+${businessContext ? `\n[Your context — for perspective only, never mention it directly]:\n${businessContext}` : ''}
 
-  // Fallback prompt — shorter, used if primary returns empty
-  const fallbackPrompt = `LinkedIn post: "${postText.slice(0, 400)}"
+Write the LinkedIn comment. Return only the comment text.`
 
-Write exactly 2 sentences: a comment approach that adds value without pitching. Return only the text.`
+  // Fallback — no system prompt, minimal framing, used if primary returns empty
+  const fallbackMessage = `LinkedIn post by ${authorName || 'someone'}:
 
-  async function callClaude(userPrompt: string): Promise<string> {
+"${postText.slice(0, 400)}"
+
+Write a short 2-sentence LinkedIn comment in first person, ready to copy and paste. No em dashes. No compliments. No AI phrases. Return only the comment text.`
+
+  async function callClaude(sysPrompt: string | null, userPrompt: string): Promise<string> {
+    const body: Record<string, unknown> = {
+      model:      'claude-haiku-4-5-20251001',
+      max_tokens: 200,
+      messages:   [{ role: 'user', content: userPrompt }],
+    }
+    if (sysPrompt) body.system = sysPrompt
     const aiResp = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: { 'x-api-key': anthropicKey!, 'anthropic-version': '2023-06-01', 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model:      'claude-haiku-4-5-20251001',
-        max_tokens: 256,
-        messages:   [{ role: 'user', content: userPrompt }],
-      }),
+      body: JSON.stringify(body),
     })
     if (!aiResp.ok) {
       const errBody = await aiResp.text().catch(() => '')
@@ -188,13 +215,22 @@ Write exactly 2 sentences: a comment approach that adds value without pitching. 
 
   let commentApproach = ''
   try {
-    commentApproach = await callClaude(prompt)
+    commentApproach = await callClaude(SYSTEM_PROMPT, userMessage)
     if (!commentApproach) {
-      console.warn('[suggest] Primary prompt returned empty — retrying with fallback prompt')
-      commentApproach = await callClaude(fallbackPrompt)
+      console.warn('[suggest] Primary prompt returned empty — retrying with fallback')
+      commentApproach = await callClaude(null, fallbackMessage)
     }
   } catch (err: any) {
     console.error('[suggest] Claude API fetch exception:', err?.message)
+  }
+
+  // Post-process: strip any residual outer quotes Claude might still return
+  // and trim whitespace
+  if (commentApproach) {
+    commentApproach = commentApproach
+      .replace(/^["'\u201C\u2018]+/, '')  // strip leading quotes
+      .replace(/["'\u201D\u2019]+$/, '')  // strip trailing quotes
+      .trim()
   }
 
   if (!commentApproach) {
