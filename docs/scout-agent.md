@@ -454,6 +454,12 @@ These are advisory brackets the inbox agent uses to help users decide what to do
 
 Sent daily at **3 PM UTC / ~8 AM Pacific** (adjusts slightly between PST/PDT). Includes all posts scoring 6 or above from that day's scan. Available on all plans (Trial, Starter, Pro, Agency) as long as Slack is connected. Score 5 posts are **not** included in the digest — they are inbox-only.
 
+### Slack app display name
+
+The Slack app that delivers digest messages is named **"Scout by ClientBloom"**. This display name is configured entirely within the Slack API dashboard at [api.slack.com](https://api.slack.com) under the app's **Basic Information → Display Information** section. It is not stored in the codebase, Airtable, or any environment variable.
+
+Changing the display name is a cosmetic operation — it has no effect on the webhook URL, bot token, or any Scout functionality. No code changes or deploys are required. The previous name was "ClientBloom Listener" (updated April 2026).
+
 ### Common user questions both agents must answer consistently
 
 | Question | Correct answer |
@@ -588,6 +594,13 @@ To add a new inbox action type (e.g., `bulk_engage`):
 - "Can I change the thresholds?" → answered directly in section description
 - Score 5 inbox-only edge case → cumulative note spells it out
 - Mobile layout cramping → responsive grid added
+
+### Session 10 — April 2026 (Slack app display name update)
+
+**Slack app renamed in Slack API dashboard**
+- Display name updated from "ClientBloom Listener" → "Scout by ClientBloom" via api.slack.com → Basic Information → Display Information
+- No code changes, no deploy — cosmetic change only; webhook URL and bot token unaffected
+- Added "Slack app display name" section to docs/scout-agent.md for future maintainer reference
 
 ---
 
