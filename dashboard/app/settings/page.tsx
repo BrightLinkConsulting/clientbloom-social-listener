@@ -1981,74 +1981,143 @@ function ScoringPromptSection() {
   )
 }
 
-// ---- System Status Section ----
-function SystemStatusSection() {
-  const [slackChannel,  setSlackChannel]  = useState('')
-  const [slackHasToken, setSlackHasToken] = useState(false)
-  const [slackLoaded,   setSlackLoaded]   = useState(false)
+// ---- System Integration Overview Cards ----
+function SystemIntegrationCards() {
+  const { data: session } = useSession()
+  const plan        = (session?.user as any)?.plan || 'Trial'
+  const slackUnlocked = plan === 'Scout Pro' || plan === 'Scout Agency' || plan === 'Owner'
+  const crmUnlocked   = plan === 'Scout Agency' || plan === 'Owner'
+
+  const [slackConnected, setSlackConnected] = useState(false)
+  const [slackChannel,   setSlackChannel]   = useState('')
+  const [crmType,        setCrmType]        = useState('None')
+  const [crmConnected,   setCrmConnected]   = useState(false)
+  const [loaded,         setLoaded]         = useState(false)
 
   useEffect(() => {
-    fetch('/api/slack-settings')
-      .then(r => r.json())
-      .then(d => {
-        setSlackHasToken(!!d.slackBotToken)
-        setSlackChannel(d.slackChannelName || d.slackChannelId || '')
-        setSlackLoaded(true)
-      })
-      .catch(() => setSlackLoaded(true))
-  }, [])
+    const fetches: Promise<void>[] = [
+      fetch('/api/slack-settings')
+        .then(r => r.json())
+        .then(d => {
+          setSlackConnected(!!d.slackBotToken)
+          setSlackChannel(d.slackChannelName || d.slackChannelId || '')
+        })
+        .catch(() => {}),
+    ]
+    if (crmUnlocked) {
+      fetches.push(
+        fetch('/api/crm-settings')
+          .then(r => r.json())
+          .then(d => {
+            setCrmType(d.crmType || 'None')
+            setCrmConnected(!!d.crmApiKey && d.crmType !== 'None')
+          })
+          .catch(() => {})
+      )
+    }
+    Promise.all(fetches).finally(() => setLoaded(true))
+  }, [crmUnlocked])
 
-  const slackConfigured = slackLoaded && slackHasToken
+  if (!loaded) return null
 
-  const items = [
-    {
-      label:  'Scanner',
-      value:  'Runs at 6 AM + 6 PM PST',
-      detail: 'Scans LinkedIn ICP profiles and keyword searches for new posts',
-      status: 'active' as const,
-    },
-    {
-      label:  'LinkedIn',
-      value:  'Active — ICP + keyword',
-      detail: 'Posts from your ICP pool and keyword searches scored for conversation value',
-      status: 'active' as const,
-    },
-    {
-      label:  'Daily Digest',
-      value:  'Sent to Slack at 7 AM PST',
-      detail: 'AI-written summary of top posts with comment angles — requires Slack to be connected below',
-      status: slackConfigured ? 'active' as const : 'warning' as const,
-    },
-  ]
+  const lockBadge = (label: string) => (
+    <span className="flex items-center gap-1 text-[10px] font-medium text-violet-400 bg-violet-500/10 border border-violet-500/20 px-2 py-0.5 rounded-full shrink-0">
+      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+      </svg>
+      {label}
+    </span>
+  )
+
+  const statusDot = (connected: boolean) => (
+    <span className={`w-2 h-2 rounded-full mt-1 shrink-0 ${connected ? 'bg-emerald-400' : 'bg-amber-400'}`} />
+  )
+
+  const cardBorder = (unlocked: boolean, connected: boolean) =>
+    !unlocked ? 'border-violet-700/30' : connected ? 'border-emerald-500/20' : 'border-amber-500/20'
 
   return (
-    <Section title="System Status" description="Live overview of all connected services">
-      <div className="grid grid-cols-2 gap-3">
-        {items.map(item => (
-          <div
-            key={item.label}
-            className={`p-3 rounded-lg border ${
-              item.status === 'warning'
-                ? 'bg-amber-500/5 border-amber-500/20'
-                : 'bg-slate-800/40 border-slate-700/30'
-            }`}
-          >
-            <div className="flex items-start justify-between gap-2">
-              <div className="min-w-0">
-                <p className="text-sm text-slate-500 mb-0.5">{item.label}</p>
-                <p className={`text-sm font-medium ${item.status === 'warning' ? 'text-amber-400' : 'text-slate-200'}`}>
-                  {item.value}
-                </p>
-                <p className="text-sm text-slate-600 mt-1 leading-snug">{item.detail}</p>
-              </div>
-              <span className={`shrink-0 w-2 h-2 rounded-full mt-1 ${
-                item.status === 'warning' ? 'bg-amber-400' : 'bg-emerald-400'
-              }`} />
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+
+      {/* Slack card */}
+      <div className={`rounded-2xl border bg-[#12151e] p-5 flex flex-col gap-3 ${cardBorder(slackUnlocked, slackConnected)}`}>
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-slate-800/60 flex items-center justify-center shrink-0">
+              <svg className="w-4 h-4 text-slate-300" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M5.042 15.165a2.528 2.528 0 0 1-2.52 2.523A2.528 2.528 0 0 1 0 15.165a2.527 2.527 0 0 1 2.522-2.52h2.52v2.52zM6.313 15.165a2.527 2.527 0 0 1 2.521-2.52 2.527 2.527 0 0 1 2.521 2.52v6.313A2.528 2.528 0 0 1 8.834 24a2.528 2.528 0 0 1-2.521-2.522v-6.313zM8.834 5.042a2.528 2.528 0 0 1-2.521-2.52A2.528 2.528 0 0 1 8.834 0a2.528 2.528 0 0 1 2.521 2.522v2.52H8.834zM8.834 6.313a2.528 2.528 0 0 1 2.521 2.521 2.528 2.528 0 0 1-2.521 2.521H2.522A2.528 2.528 0 0 1 0 8.834a2.528 2.528 0 0 1 2.522-2.521h6.312zM18.956 8.834a2.528 2.528 0 0 1 2.522-2.521A2.528 2.528 0 0 1 24 8.834a2.528 2.528 0 0 1-2.522 2.521h-2.522V8.834zM17.688 8.834a2.528 2.528 0 0 1-2.523 2.521 2.527 2.527 0 0 1-2.52-2.521V2.522A2.527 2.527 0 0 1 15.165 0a2.528 2.528 0 0 1 2.523 2.522v6.312zM15.165 18.956a2.528 2.528 0 0 1 2.523 2.522A2.528 2.528 0 0 1 15.165 24a2.527 2.527 0 0 1-2.52-2.522v-2.522h2.52zM15.165 17.688a2.527 2.527 0 0 1-2.52-2.523 2.526 2.526 0 0 1 2.52-2.52h6.313A2.527 2.527 0 0 1 24 15.165a2.528 2.528 0 0 1-2.522 2.523h-6.313z"/>
+              </svg>
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-white">Slack Digest</p>
+              <p className="text-xs text-slate-500">Daily AI briefing</p>
             </div>
           </div>
-        ))}
+          {!slackUnlocked ? lockBadge('Pro+') : statusDot(slackConnected)}
+        </div>
+
+        {!slackUnlocked ? (
+          <>
+            <p className="text-sm text-slate-500 leading-relaxed">
+              Receive an AI-written digest of your highest-scored posts every morning, with ready-to-use comment angles.
+            </p>
+            <a href="/upgrade" className="text-xs font-semibold text-violet-400 hover:text-violet-300 transition-colors underline underline-offset-2 decoration-violet-600">
+              Upgrade to Pro to unlock →
+            </a>
+          </>
+        ) : slackConnected ? (
+          <>
+            <p className="text-sm font-medium text-emerald-400">Connected · #{slackChannel.replace(/^#/, '')}</p>
+            <p className="text-xs text-slate-500">Daily digest at ~8 AM Pacific · Configure below</p>
+          </>
+        ) : (
+          <>
+            <p className="text-sm font-medium text-amber-400">Not connected</p>
+            <p className="text-xs text-slate-500">Set up your bot token and channel below to receive your daily digest</p>
+          </>
+        )}
       </div>
-    </Section>
+
+      {/* CRM card */}
+      <div className={`rounded-2xl border bg-[#12151e] p-5 flex flex-col gap-3 ${cardBorder(crmUnlocked, crmConnected)}`}>
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-slate-800/60 flex items-center justify-center shrink-0">
+              <svg className="w-4 h-4 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-white">CRM Integration</p>
+              <p className="text-xs text-slate-500">Push contacts to GHL or HubSpot</p>
+            </div>
+          </div>
+          {!crmUnlocked ? lockBadge('Agency') : statusDot(crmConnected)}
+        </div>
+
+        {!crmUnlocked ? (
+          <>
+            <p className="text-sm text-slate-500 leading-relaxed">
+              Push engaged contacts directly into GoHighLevel or HubSpot with a single click from your Scout feed.
+            </p>
+            <a href="/upgrade" className="text-xs font-semibold text-violet-400 hover:text-violet-300 transition-colors underline underline-offset-2 decoration-violet-600">
+              Upgrade to Agency to unlock →
+            </a>
+          </>
+        ) : crmConnected ? (
+          <>
+            <p className="text-sm font-medium text-emerald-400">Connected · {crmType}</p>
+            <p className="text-xs text-slate-500">Push contacts from the feed · Configure below</p>
+          </>
+        ) : (
+          <>
+            <p className="text-sm font-medium text-amber-400">Not connected</p>
+            <p className="text-xs text-slate-500">Choose GoHighLevel or HubSpot and add your API key below</p>
+          </>
+        )}
+      </div>
+
+    </div>
   )
 }
 
@@ -2152,30 +2221,8 @@ function SlackIntegrationSection() {
 
   if (loading) return null
 
-  // Gate: Slack is only available on Pro and Agency plans
-  if (!slackUnlocked) {
-    return (
-      <Section
-        title="Slack Integration"
-        description="The daily digest and scan alerts are delivered via Slack. Required for the digest to work."
-      >
-        <div className="rounded-xl bg-slate-800/30 border border-violet-700/30 px-4 py-4 flex items-start gap-3">
-          <svg className="w-4 h-4 text-violet-400 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-          </svg>
-          <div>
-            <p className="text-xs font-semibold text-violet-300 mb-1">Available on Pro and Agency plans</p>
-            <p className="text-sm text-slate-500 leading-relaxed">
-              Connect Slack to receive an AI-written daily digest of your highest-scored posts with comment angles, delivered every morning.
-            </p>
-            <a href="/upgrade" className="inline-block mt-2 text-xs font-semibold text-violet-400 hover:text-violet-300 transition-colors underline underline-offset-2 decoration-violet-600">
-              Upgrade to unlock →
-            </a>
-          </div>
-        </div>
-      </Section>
-    )
-  }
+  // Locked plans: overview card (SystemIntegrationCards) handles the upgrade prompt
+  if (!slackUnlocked) return null
 
   const isConfigured = !!botToken && !!channelName
 
@@ -2420,29 +2467,8 @@ function CRMIntegrationSection() {
 
   if (loading) return null
 
-  if (!crmUnlocked) {
-    return (
-      <Section
-        title="CRM Integration"
-        description="Push engaged contacts directly into your CRM with one click from the feed."
-      >
-        <div className="rounded-xl bg-slate-800/30 border border-violet-700/30 px-4 py-4 flex items-start gap-3">
-          <svg className="w-4 h-4 text-violet-400 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-          </svg>
-          <div>
-            <p className="text-xs font-semibold text-violet-300 mb-1">Available on Agency plan</p>
-            <p className="text-sm text-slate-500 leading-relaxed">
-              Connect GoHighLevel or HubSpot to push engaged contacts into your CRM with a single click directly from the Scout feed. CRM integration is included in the Agency plan.
-            </p>
-            <a href="/upgrade" className="inline-block mt-2 text-xs font-semibold text-violet-400 hover:text-violet-300 transition-colors underline underline-offset-2 decoration-violet-600">
-              Upgrade to Agency to unlock →
-            </a>
-          </div>
-        </div>
-      </Section>
-    )
-  }
+  // Locked plans: overview card (SystemIntegrationCards) handles the upgrade prompt
+  if (!crmUnlocked) return null
 
   return (
     <Section
@@ -3221,9 +3247,9 @@ function buildSettingsOpening(ctx: SettingsAgentCtx): string {
 
   if (activeTab === 'system') {
     if (!hasSlack) {
-      return "You haven't connected Slack yet. That's how you get your daily digest — Scout sends your top-scored posts to a Slack channel every morning at around 8 AM Pacific (3 PM UTC). It takes about 2 minutes to set up. Want me to walk you through it?"
+      return "You haven't connected Slack yet. That's how you get your daily digest — Scout sends your top-scored posts to a Slack channel every morning at ~8 AM Pacific (3 PM UTC). It takes about 2 minutes to set up. Want me to walk you through it?"
     }
-    return "Slack is connected — you'll get your daily digest at 6 AM with posts that scored 6/10 or higher. Anything about the system integrations you'd like me to explain?"
+    return "Slack is connected — you'll get your daily digest at ~8 AM Pacific (3 PM UTC) with posts that scored 6/10 or higher. Anything about the system integrations you'd like me to explain?"
   }
 
   if (activeTab === 'billing') {
@@ -3683,7 +3709,7 @@ export default function SettingsPage() {
         {/* ── System ── */}
         {activeTab === 'system' && (
           <div className="space-y-4">
-            <SystemStatusSection />
+            <SystemIntegrationCards />
             <SlackIntegrationSection />
             <CRMIntegrationSection />
           </div>
