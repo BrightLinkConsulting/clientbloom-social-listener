@@ -9,6 +9,12 @@ This folder is the developer knowledge base for Scout. Start here.
 
 ## Documentation Index
 
+### ClientBloom platform
+
+| File | What it covers |
+|------|---------------|
+| [`clientbloom-knowledge-base.md`](./clientbloom-knowledge-base.md) | Authoritative agent reference: what ClientBloom is, both products, CRS scoring, BI Agent, integrations, FAQ, and full guardrail set (pricing hard rule, competitor policy, out-of-scope template). Used by both Scout agents at runtime. |
+
 ### Getting started
 | Document | What it covers |
 |----------|----------------|
@@ -97,6 +103,9 @@ This folder is the developer knowledge base for Scout. Start here.
 | How does the Feed Control Bar work? What do the filters touch? | [`scout-agent.md`](./scout-agent.md) → Session 14 changelog |
 | How does bulk selection mode work? Where are the action buttons? | [`scout-agent.md`](./scout-agent.md) → Session 14 changelog + `inbox-agent/route.ts` → "Bulk Selection Mode" |
 | How does the comment suggestion system work? What rules govern output? | [`scout-agent.md`](./scout-agent.md) → "Comment Suggestion System" + Session 13 changelog |
+| What is ClientBloom? How should the agent talk about it? | [`clientbloom-knowledge-base.md`](./clientbloom-knowledge-base.md) |
+| What is the CRS / BI Agent / Launch Tracker? | [`clientbloom-knowledge-base.md`](./clientbloom-knowledge-base.md) → Part 3 |
+| How should the agent handle pricing questions about ClientBloom? | [`clientbloom-knowledge-base.md`](./clientbloom-knowledge-base.md) → Parts 1.3 and 6.1 |
 
 ---
 
