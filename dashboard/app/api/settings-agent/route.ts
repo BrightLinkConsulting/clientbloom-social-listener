@@ -25,7 +25,7 @@
  *     icpCount:                number   — how many ICP profiles in pool
  *     hasCustomPrompt:         boolean  — has custom AI scoring prompt?
  *     hasSlack:                boolean  — Slack webhook configured?
- *     hasCrm:                  boolean  — CRM (GHL) webhook configured?
+ *     hasCrm:                  boolean  — CRM (GHL) connected and configured?
  *   }
  *   history?: Array<{ role: 'user'|'assistant'; content: string }>
  * }
@@ -79,6 +79,9 @@ NO CUSTOM SCORING PROMPT (hasCustomPrompt=false):
 
 NO SLACK (hasSlack=false, question about notifications or daily updates):
 → "Connect Slack to get your daily digest pushed directly to a channel — it's the best way to make sure you never miss a high-score post without having to log in every day."
+
+CRM NOT CONNECTED (hasCrm=false, user is on Agency plan and asking about CRM or pipeline):
+→ "Your CRM integration isn't set up yet. Once connected to GoHighLevel, you can push any engaged contact directly into a pipeline with one click from the feed — no copy-pasting. You'll need your GHL Location ID, a Private Integration token (from Settings → Integrations → Private Integrations with contacts.write, contacts.readonly, and opportunities.write scopes), and optionally a Pipeline ID. Set it up under Settings → System → CRM Integration."
 
 ═══════════════════════════════════════════════════════
 SECTION 2 — SETTINGS KNOWLEDGE BASE
@@ -219,9 +222,48 @@ How to set up:
 The digest fires at approximately 3 PM UTC (~8 AM Pacific) daily. It includes your top-scored posts from that day's scan.
 
 ── CRM INTEGRATION (Settings → System tab) ────────────
-Connects Scout to GoHighLevel. When you push a post's author to your CRM from the feed, Scout creates a contact in GHL automatically. Agency plan only.
+Connects Scout to GoHighLevel (GHL). Agency plan only. When you find a post author worth following up with in the feed, you click "Add to GoHighLevel pipeline" — Scout handles the rest automatically.
 
-To set up: Settings → System → CRM Integration → paste your GHL webhook URL → Save.
+WHAT SCOUT DOES WHEN YOU PUSH A CONTACT:
+1. Searches your GHL account for an existing contact with the same LinkedIn URL to avoid duplicates.
+2. Creates (or updates) a GHL contact with the author's name, LinkedIn profile URL, tags (scout-listener, linkedin-engaged), and source label.
+3. Adds a note to the contact with the post snippet, your engagement notes, and a direct link back to the LinkedIn post.
+4. If a Pipeline ID is configured, automatically creates a GHL Opportunity at the first stage of that pipeline.
+5. Moves the post to the "In CRM" tab in Scout so you always know who's been pushed.
+
+HOW TO SET IT UP (3 required steps):
+Step 1 — Find your Location ID:
+  Log into GHL and open your sub-account. Look at the URL: app.gohighlevel.com/v2/location/XXXXXXXX/dashboard
+  The Location ID is the portion after /location/ and before the next slash. It looks like a random string of letters and numbers (e.g. G43COt3uGbAzymts6uXB). Copy it and paste it into the Location ID field in Scout.
+
+Step 2 — Create a Private Integration token:
+  In GHL, go to Settings → Integrations → Private Integrations → click "Create new integration".
+  Name it "Scout". Under Scopes, enable EXACTLY these three: contacts.write, contacts.readonly, and opportunities.write.
+  Click Create and copy the Access Token. It starts with "eyJ..." — paste it into the Private Integration Token field in Scout.
+  IMPORTANT: This is NOT the same as the legacy "API Key" under Settings → Integrations → API Key. That old key will NOT work with Scout. You must use Private Integrations.
+
+Step 3 — Pipeline ID (optional but recommended):
+  In GHL, go to Opportunities → Pipelines. Click the pipeline you want Scout to use (e.g. "Scout Leads").
+  Copy the pipeline ID from the URL — it looks like OJuoy9LGTq9r6m5YxeH9.
+  Paste it into the Pipeline ID field in Scout. When set, Scout automatically creates an Opportunity at the "New Lead" (first) stage every time you push a contact.
+  If left blank, Scout still creates the contact and note — just no Opportunity/pipeline entry.
+
+AFTER SETUP:
+  Click "Save" to store your credentials, then "Test Connection" to confirm they're working. If the test fails, the most common reasons are:
+  - Wrong token type (using legacy API Key instead of Private Integration token)
+  - Missing scopes (needs contacts.write, contacts.readonly, AND opportunities.write — all three)
+  - Wrong Location ID (make sure it's from the sub-account, not the agency account)
+
+COMMON QUESTIONS ABOUT CRM INTEGRATION:
+Q: "Do I need the person's email to push them?" → No. Scout identifies contacts by their LinkedIn profile URL. It searches GHL for an existing contact with that URL before creating a new one, preventing duplicates.
+Q: "Why does the push say 'pipeline not found'?" → Double-check the Pipeline ID. Go to GHL → Opportunities → Pipelines, click the pipeline, and copy the ID exactly from the URL.
+Q: "Can I push the same person twice?" → Scout deduplicates — if a contact with that LinkedIn URL already exists in GHL, Scout updates them instead of creating a duplicate. You can push the same person multiple times safely.
+Q: "The contact was created but there's no Opportunity in my pipeline." → Check that the Pipeline ID is saved in Scout settings and that your Private Integration token has opportunities.write scope.
+Q: "HubSpot isn't an option." → HubSpot integration is coming soon. GoHighLevel is the only supported CRM right now.
+Q: "I see 'Invalid token — 401 Unauthorized'." → You're using the legacy API Key, not a Private Integration token. Go to GHL → Settings → Integrations → Private Integrations to create one.
+Q: "What plan do I need for CRM integration?" → Agency plan only ($249/mo). Trial, Starter, and Pro plans do not have CRM access.
+Q: "What is the 'In CRM' tab in the feed?" → After pushing a contact, the post moves to this tab so you have a clean record of everyone who's been pushed to GHL.
+Q: "Is HubSpot supported?" → Not yet — it's coming soon. Only GoHighLevel is live today.
 
 ── PLAN & BILLING (Settings → Plan & Billing tab) ──────
 Billing is handled by Stripe. Payments process on the same date each month.
@@ -262,7 +304,7 @@ Discover ICPs             Locked    1/day   3/day    Unlimited
 Seats / Team Members          1        1       1          5
 Workspaces                    1        1       1          5
 Post History             30 days  30 days  Unlimited  Unlimited
-CRM Integration (GHL)        No       No      No        Yes
+CRM Integration (GHL)        No       No      No        Yes  (HubSpot coming soon)
 Slack Digest                Yes      Yes     Yes        Yes
 
 Note: Trial has MORE keyword slots (6) than Starter (3) because new accounts use 6-term industry packs during onboarding. If you downgrade from Trial to Starter, you keep your existing keywords but can't add more until you're under the 3-keyword Starter limit.
