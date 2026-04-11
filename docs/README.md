@@ -44,6 +44,7 @@ This folder is the developer knowledge base for Scout. Start here.
 | [`linkedin-keyword-search.md`](./linkedin-keyword-search.md) | Keyword source management, Apify actor, scan deduplication |
 | [`airtable-rate-limit-resilience.md`](./airtable-rate-limit-resilience.md) | Rate-limit math, `airtableFetch` retry strategy, jitter |
 | [`apify-integration.md`](./apify-integration.md) | Actor IDs, run tagging, per-tenant cost attribution, rate limits, debugging |
+| [`apify-knowledge-base.md`](./apify-knowledge-base.md) | **Strategic reference:** full Apify platform internals, concentration risk analysis, risk-ranked recommendations, alternative providers, operational runbook, and recommended code changes to `lib/scan.ts` |
 | [`service-manager.md`](./service-manager.md) | Automated health checks, all flag codes and severity, Airtable schema, cron details |
 | [`usage-service-manager.md`](./usage-service-manager.md) | Admin Usage tab — columns, post count cache vs live, cost attribution, service banner, all bugs fixed April 2026 |
 | [`onboarding-first-scan-ux.md`](./onboarding-first-scan-ux.md) | 4-step onboarding wizard, fire-and-redirect scan, `?firstScan` URL states, polling banner, empty-state UX |
@@ -86,6 +87,9 @@ This folder is the developer knowledge base for Scout. Start here.
 | How do ICP scan slots differ from pool size? | [`linkedin-icp-pool.md`](./linkedin-icp-pool.md) |
 | Full list of API routes with auth requirements | [`api-reference.md`](./api-reference.md) |
 | How does per-tenant Apify cost attribution work? | [`apify-integration.md`](./apify-integration.md) → "Per-Tenant Cost Attribution" |
+| What are Scout's biggest Apify concentration risks? | [`apify-knowledge-base.md`](./apify-knowledge-base.md) → Part 4 — Risk Assessment |
+| What should we do if an Apify actor breaks or goes down? | [`apify-knowledge-base.md`](./apify-knowledge-base.md) → Part 6 — Operational Runbook |
+| What alternative LinkedIn data providers exist? | [`apify-knowledge-base.md`](./apify-knowledge-base.md) → Part 7 — Alternative Provider Reference |
 | What does a service flag mean? How do I add a new one? | [`service-manager.md`](./service-manager.md) → "Flag Reference" |
 | A paid customer has no posts — where do I look? | [`service-manager.md`](./service-manager.md) → `paid_zero_posts` flag |
 | What font size should this text be? | [`ux-design-system.md`](./ux-design-system.md) → "Typography Scale" |
