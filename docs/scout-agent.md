@@ -689,20 +689,31 @@ To add a new inbox action type (e.g., `bulk_engage`):
 
 **Skipped tab improvements:**
 - Replaced old "Restore all / Archive all" toolbar with session-local density warnings: amber banner at 50+ posts (dismissible), stronger amber banner with inline Archive all CTA at 100+ posts (dismissible). Warning state is React-local — not written to Airtable.
-- "Archive N" was already present in the bottom selection pill for all tabs (including Skipped), so no pill change was required.
+
+**Selection mode UX fix (follow-up commit):**
+- Root cause: the floating bottom pill (Skip N / Archive N) was nearly invisible — dark buttons on dark background with no contrast. Users couldn't find the action buttons after selecting posts.
+- Fix: Skip N, Archive N (and Restore N on the Skipped tab) moved into the top selection bar on the right side, immediately next to Cancel and Refresh. Buttons are only rendered when `selectedIds.size > 0` and no bulk operation is in-flight.
+- Bottom pill entirely removed. Also removed the `pb-28` bottom padding that existed solely to prevent the pill from covering the last post card.
+- "Select all (N)" now counts only `displayedPosts` (not raw `posts[]`), so filtered views select only visible posts.
 
 **Changes (`app/page.tsx`):**
 - Added `useMemo` to React imports
 - Added `displayedPosts` useMemo, `searchQuery` / `sortBy` / `scoreFilter` state
 - Added `isFiltered` boolean and `clearFilters` callback
 - Added `skippedWarning50Dismissed` and `skippedWarning100Dismissed` state (session-local)
-- FeedControlBar JSX inserted between momentum widget and error/loading blocks
+- FeedControlBar JSX inserted between momentum widget and error/loading blocks (sticky `top-[105px]`)
 - `posts.map` → `displayedPosts.map` in post list render
 - `toggleSelectAll` updated to use `displayedPosts`
 - Tri-state checkbox and "Select all (N)" label updated to use `displayedPosts.length`
 - Tab-switch `useEffect` now also resets `searchQuery`, `sortBy`, `scoreFilter`
 - Select + Refresh removed from tab strip `{/* Fixed right-side controls */}` div
 - Old Skipped toolbar (Restore all / Archive all) replaced by density warning IIFE block
+- Skip N / Archive N / Restore N added to top selection bar right side (conditional on `selectedIds.size > 0 && !bulkLoading`)
+- Floating bottom pill and `pb-28` main padding removed
+
+**Agent knowledge updated (`app/api/inbox-agent/route.ts`):**
+- Added "Feed Control Bar" section explaining search, sort, score filter, Select, and Refresh with example Q&A pairs
+- Updated "Bulk Selection Mode" section: corrected Select button location, removed pill reference, updated action button location description, added "power move" tip (filter → Select all → Skip N), added example answer for "Where did the bottom pill go?"
 
 ---
 

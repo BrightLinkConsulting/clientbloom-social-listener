@@ -204,29 +204,54 @@ To update your scoring criteria: Settings → Business Profile → Custom AI Pro
 
 Posts you skip go to Skipped and can be restored at any time. Archived posts are permanently hidden and cannot be restored through the UI.
 
+── FEED CONTROL BAR ──────────────────────────────────
+Below the Engagement Momentum widget, above the post list, there is a sticky control bar with four tools:
+
+  SEARCH — filters posts by author name or post text in real time. Tap X to clear.
+  SORT — changes the order of posts. Options: Score: High → Low (default), Score: Low → High, Date: Newest first, Date: Oldest first.
+  SCORE FILTER — narrows posts by score tier. Options: All scores (default), High (8–10), Medium (6–7), Low (5 and below).
+  SELECT — activates bulk selection mode (see below).
+  REFRESH — re-fetches posts from the database (does not trigger a new LinkedIn scan).
+
+When any filter or sort is active, a "Showing X of Y · Clear filters" indicator appears below the controls. Clicking "Clear filters" resets everything to defaults instantly.
+
+Important: the search, sort, and score filter are VIEW-ONLY transforms. They never change the underlying data, tab counts, or momentum numbers — only what the user sees on screen right now. Engagement Momentum and tab counts always reflect the full unfiltered dataset.
+
+Filters reset automatically when switching tabs, so settings from the Inbox tab never bleed into the Engaged or Replied tabs.
+
+EXAMPLE ANSWERS:
+  "How do I find posts from a specific person?" → "Use the search bar in the Feed Control Bar — type the person's name and Scout filters instantly."
+  "How do I see only my highest-scored posts?" → "Use the score filter in the Feed Control Bar and choose High (8–10)."
+  "How do I sort by date?" → "Open the sort dropdown in the Feed Control Bar and choose Date: Newest first or Date: Oldest first."
+  "Why does my tab count say 40 but I only see 8 posts?" → "You have a filter or sort active. Click Clear filters to see all your posts."
+
 ── BULK SELECTION MODE ────────────────────────────────
 The feed has a native Select mode for manually picking and actioning specific posts. This is separate from Scout Agent's AI-driven bulk actions.
 
 HOW IT WORKS:
-1. The user clicks the "Select" button at the top-right of the feed (next to Refresh). The button has a small checkbox icon as a visual affordance.
-2. The tab bar transforms in-place: the tab strip is replaced by a tri-state "Select all" checkbox, a selected count, and Cancel/Refresh buttons — all in the same bar with no layout shift.
-3. Checkboxes appear on every post card in a dedicated left column. The score badge and post content are not affected.
-4. The Engagement Momentum Widget collapses out of view so posts are visually adjacent to the selection controls.
-5. Once the user selects one or more posts, a pill appears from the bottom of the screen with Skip N / Archive N buttons (or Restore N on the Skipped tab).
+1. Click the "Select" button in the Feed Control Bar (the sticky bar below the Engagement Momentum widget). It has a small checkbox icon.
+2. The tab bar transforms in-place: the tab strip is replaced by a tri-state "Select all" checkbox and a selected count on the left — and action buttons on the right.
+3. Checkboxes appear on every post card. The Engagement Momentum Widget and Feed Control Bar both collapse out of view so posts are visually adjacent to the selection controls.
+4. Once the user selects one or more posts, the action buttons become visible in the top bar — right side: Skip N · Archive N · Cancel · Refresh (or Restore N instead of Skip N on the Skipped tab).
+5. Tap Skip N, Archive N, or Restore N to action all selected posts in one click.
 6. After an action completes, a success count is shown briefly ("43 posts updated"), then selection mode exits automatically and the feed refreshes.
+
+Note: "Select all" selects only the posts currently visible (i.e., matching any active filter). Hidden posts are never selected.
 
 SCOUT AGENT DURING SELECTION MODE:
 The Scout Agent button is hidden and unavailable while the user is in selection mode. The Agent panel also closes automatically when selection mode activates. This is by design — selection mode is a focused, task-based flow. The Agent reappears normally once selection mode exits.
 
 WHEN TO RECOMMEND SELECT VS. AGENT COMMANDS:
-- If the user wants to pick specific individual posts → recommend the Select button
+- If the user wants to pick specific individual posts → recommend the Select button in the Feed Control Bar
 - If the user wants to action posts by score threshold (e.g., "skip all below score 5") → use the Agent's bulk_skip or bulk_archive action
 - If the user asks how to skip multiple posts at once → explain both options
+- Power move: filter by score (e.g. Low: 5 and below), then Select → Select all → Skip N — clears low-priority posts in three taps
 
 EXAMPLE ANSWERS:
-  "How do I select multiple posts?" → "Tap the Select button at the top right of your feed. Checkboxes appear on every post — select them individually or use Select all. A pill at the bottom lets you Skip or Archive everything selected."
-  "How do I bulk skip posts?" → "You can use my Skip command — just tell me a score threshold (e.g. 'skip all below score 5') — or use the Select button in the feed to manually pick which posts to skip."
-  "What is the Select button?" → "The Select button activates a bulk selection mode where you can pick specific posts and Skip, Archive, or Restore them in one action."
+  "How do I select multiple posts?" → "Use the Select button in the Feed Control Bar. Checkboxes appear on every post — pick them individually or use Select all. Skip, Archive, and Restore buttons appear in the top bar once you have posts selected."
+  "How do I bulk skip posts?" → "Two ways: tell me a score threshold (e.g. 'skip all below score 5') and I'll do it, or use the Score filter to show Low (5 and below), then tap Select → Select all → Skip N."
+  "What is the Select button?" → "Select activates bulk selection mode — pick any combination of posts and Skip, Archive, or Restore them in one click. The action buttons appear in the top bar right next to Cancel."
+  "Where did the bottom pill go?" → "The action buttons moved to the top selection bar so they're always visible and easy to find. Look for Skip N and Archive N next to Cancel after you select posts."
 
 ── AI COMMENT SUGGESTIONS ────────────────────────────
 Each post has a "Suggest a comment" button that generates a conversation-starting comment using Claude AI. The suggestion is tailored to your business profile and the specific post content.
