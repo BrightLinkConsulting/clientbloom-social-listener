@@ -1,7 +1,7 @@
 # Scout Agent — Architecture & Operations Guide
 
 > **Audience:** Engineers maintaining or extending the Scout codebase.
-> **Last updated:** April 2026 (Session 5 — Scout Agent button redesign + adversarial validation)
+> **Last updated:** April 2026 (Session 7 — Onboarding & first-scan UX overhaul; agent trained on onboarding flow)
 
 ---
 
@@ -604,3 +604,13 @@ All pre-existing security scenarios retained, plus new categories:
 **Knowledge base sync automation.** Consider auto-generating Section 2 from `lib/tier.ts` at build time to keep plan limits in sync automatically without manual dual-maintenance.
 
 **Evals.** A test suite of common scenarios (inbox management, platform Q&A, unknown question fallback, upgrade suggestion accuracy) would catch regressions on system prompt changes.
+
+---
+
+## Changelog
+
+| Session | Date | Changes |
+|---|---|---|
+| Session 5 | April 2026 | Scout Agent button redesign; adversarial validation of all behavioral rules |
+| Session 6 | April 2026 | Bulk Selection Mode knowledge block added to Section 2 |
+| Session 7 | April 2026 | Onboarding & First Scan knowledge block added to Section 2; Trial tier limits updated (keywords 3→6, scanSlots 3→5); feature limits table corrected in system prompt |

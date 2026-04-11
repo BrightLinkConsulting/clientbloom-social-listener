@@ -3366,6 +3366,19 @@ export default function SettingsPage() {
   }, [session, status, router])
 
   const [activeTab, setActiveTab] = useState<TabId>('profile')
+
+  // Read ?tab= param on mount so deep-links like /settings?tab=linkedin work.
+  // Reads directly from window.location.search (client-only, inside useEffect)
+  // to avoid adding useSearchParams() which requires a Suspense boundary.
+  useEffect(() => {
+    const tabParam = new URLSearchParams(window.location.search).get('tab')
+    const validIds = ['profile', 'linkedin', 'ai', 'system', 'billing', 'account', 'team']
+    if (tabParam && validIds.includes(tabParam)) {
+      setActiveTab(tabParam as TabId)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const [sources, setSources]     = useState<Source[]>([])
   const [loading, setLoading]     = useState(true)
   const [loadError, setLoadError] = useState('')
