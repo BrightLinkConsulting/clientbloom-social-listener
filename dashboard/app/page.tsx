@@ -2637,7 +2637,7 @@ function FeedPage() {
         </div>
       </div>
 
-      <main className={`max-w-3xl mx-auto px-5 py-6 transition-all duration-300 ${selectionMode && selectedIds.size > 0 ? 'pb-28' : ''}`}>
+      <main className="max-w-3xl mx-auto px-5 py-6">
         {/* Momentum Widget — collapses when selection mode is active so posts are visually adjacent to the selection toolbar */}
         <div className={`overflow-hidden transition-all duration-300 ease-in-out ${selectionMode ? 'max-h-0 opacity-0' : 'max-h-[500px] opacity-100'}`}>
           <MomentumWidget actionCounts={actionCounts} history={momentumHistory} lastRefreshed={lastRefreshed} />
@@ -3003,57 +3003,6 @@ function FeedPage() {
           </>
         )}
       </main>
-
-      {/* ── Bulk action bottom bar — slides up when posts are selected ── */}
-      {/* Fixed position, centered, floats above the page. pb-safe handles iPhone home bar. */}
-      <div
-        className={`fixed bottom-0 left-0 right-0 z-50 flex justify-center px-5 pb-6 pt-2 pointer-events-none transition-all duration-300 ease-out ${
-          selectionMode && selectedIds.size > 0
-            ? 'translate-y-0 opacity-100'
-            : 'translate-y-full opacity-0'
-        }`}
-      >
-        <div className="flex items-center gap-3 px-5 py-3 rounded-2xl bg-[#1a1d28] border border-slate-700/60 shadow-2xl shadow-black/70 pointer-events-auto">
-          {/* Spinner shown during bulk operation */}
-          {bulkLoading && (
-            <span className="flex items-center gap-2 text-sm text-slate-400 px-2">
-              <span className="w-4 h-4 border-2 border-slate-600 border-t-blue-400 rounded-full animate-spin" />
-              Working…
-            </span>
-          )}
-
-          {/* Skip — only on non-Skipped tabs */}
-          {filter !== 'Skipped' && (
-            <button
-              onClick={() => handleBulkAction('skip', { recordIds: Array.from(selectedIds) })}
-              disabled={bulkLoading}
-              className="text-sm px-4 py-2 rounded-xl bg-slate-700/80 hover:bg-slate-600/80 border border-slate-600/40 text-slate-200 hover:text-white font-medium transition-colors disabled:opacity-40 whitespace-nowrap"
-            >
-              Skip {selectedIds.size}
-            </button>
-          )}
-
-          {/* Restore — only on Skipped tab */}
-          {filter === 'Skipped' && (
-            <button
-              onClick={() => handleBulkAction('restore', { recordIds: Array.from(selectedIds) })}
-              disabled={bulkLoading}
-              className="text-sm px-4 py-2 rounded-xl bg-emerald-700/70 hover:bg-emerald-600/80 border border-emerald-600/40 text-emerald-200 hover:text-white font-medium transition-colors disabled:opacity-40 whitespace-nowrap"
-            >
-              Restore {selectedIds.size}
-            </button>
-          )}
-
-          {/* Archive — always available */}
-          <button
-            onClick={() => handleBulkAction('archive', { recordIds: Array.from(selectedIds) })}
-            disabled={bulkLoading}
-            className="text-sm px-4 py-2 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 border border-slate-600/40 text-slate-400 hover:text-slate-200 font-medium transition-colors disabled:opacity-40 whitespace-nowrap"
-          >
-            Archive {selectedIds.size}
-          </button>
-        </div>
-      </div>
 
       {/* ── Scout Agent: floating trigger button ── */}
       {/* Hidden during selection mode to prevent z-index conflict with the bulk action bar */}
