@@ -42,45 +42,6 @@ function detectIndustryPack(industry: string): string {
   return ''
 }
 
-/**
- * Try to extract a job title from the free-text idealClient field.
- * Returns a best-guess string or '' if nothing clear was found.
- */
-function guessJobTitle(idealClient: string): string {
-  if (!idealClient) return ''
-  const lower = idealClient.toLowerCase()
-  const patterns = [
-    [/ceo|chief executive/i,            'CEO'],
-    [/cfo|chief financial/i,            'CFO'],
-    [/cto|chief technology/i,           'CTO'],
-    [/cmo|chief marketing/i,            'CMO'],
-    [/vp of sales/i,                    'VP of Sales'],
-    [/vp of marketing/i,                'VP of Marketing'],
-    [/vp of customer success/i,         'VP of Customer Success'],
-    [/director of (sales|marketing|cs|customer)/i, (m: RegExpMatchArray) => `Director of ${m[1]}`],
-    [/agency owner/i,                   'Agency Owner'],
-    [/founder/i,                        'Founder'],
-    [/co-founder/i,                     'Co-Founder'],
-    [/managing director/i,              'Managing Director'],
-    [/head of (sales|marketing|growth|customer)/i, (m: RegExpMatchArray) => `Head of ${m[1]}`],
-    [/marketing manager/i,              'Marketing Manager'],
-    [/sales manager/i,                  'Sales Manager'],
-    [/account executive/i,              'Account Executive'],
-    [/customer success manager/i,       'Customer Success Manager'],
-    [/recruiter|talent acquisition/i,   'Talent Acquisition Manager'],
-    [/consultant/i,                     'Consultant'],
-    [/coach/i,                          'Business Coach'],
-  ] as const
-
-  for (const [regex, result] of patterns) {
-    const m = idealClient.match(regex as RegExp)
-    if (m) {
-      return typeof result === 'function' ? (result as Function)(m) : result as string
-    }
-  }
-  return ''
-}
-
 // ---- ClientBloom bloom mark ----
 function ClientBloomMark({ size = 32 }: { size?: number }) {
   return (
@@ -94,14 +55,14 @@ function ClientBloomMark({ size = 32 }: { size?: number }) {
   )
 }
 
-function Spinner({ size = 4 }: { size?: number }) {
-  return (
-    <svg className={`w-${size} h-${size} animate-spin`} fill="none" viewBox="0 0 24 24">
-      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
-    </svg>
-  )
-}
+const SIGNALS = [
+  { id: 'asking_for_help',      label: 'Asking questions or seeking advice from their network' },
+  { id: 'industry_discussion',  label: 'Starting or joining an industry debate or discussion' },
+  { id: 'milestone',            label: 'Announcing a milestone, promotion, or company change' },
+  { id: 'growing_team',         label: 'Talking about growing, hiring, or scaling their business' },
+  { id: 'shopping_alternatives',label: 'Comparing tools, vendors, or evaluating alternatives' },
+  { id: 'thought_leadership',   label: 'Sharing bold takes or opinions you can thoughtfully add to' },
+]
 
 function StepDots({ current, total }: { current: number; total: number }) {
   return (
@@ -122,8 +83,8 @@ function StepDots({ current, total }: { current: number; total: number }) {
   )
 }
 
-// ── Step 0: Business Info ────────────────────────────────────────────────────
-function StepBusinessInfo({
+// ── Step 1: Business Info ────────────────────────────────────────────────────
+function Step1({
   data,
   onChange,
   onNext,
@@ -132,24 +93,7 @@ function StepBusinessInfo({
   onChange: (k: string, v: string) => void
   onNext: () => void
 }) {
-  const [saving, setSaving] = useState(false)
   const valid = data.industry.trim() && data.idealClient.trim()
-
-  const handleNext = async () => {
-    if (!valid) return
-    setSaving(true)
-    // Save profile cross-device immediately — don't wait until final step
-    try {
-      await fetch('/api/business-profile', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      })
-    } catch { /* non-fatal */ }
-    setSaving(false)
-    onNext()
-  }
-
   return (
     <div>
       <h2 className="text-2xl font-bold text-white mb-2">Tell Scout who you serve</h2>
@@ -178,7 +122,7 @@ function StepBusinessInfo({
           <input
             value={data.industry}
             onChange={e => onChange('industry', e.target.value)}
-            placeholder="e.g. Marketing agency software, B2B SaaS, Coaching & Consulting…"
+            placeholder="e.g. Marketing agency software, B2B SaaS, Coaching & Consulting..."
             maxLength={120}
             className="w-full bg-slate-800/60 border border-slate-700/60 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/60 focus:ring-1 focus:ring-blue-500/20 transition-colors"
           />
@@ -214,32 +158,90 @@ function StepBusinessInfo({
       </div>
 
       <button
-        onClick={handleNext}
-        disabled={!valid || saving}
-        className="mt-8 w-full py-3.5 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold text-sm transition-colors flex items-center justify-center gap-2"
+        onClick={onNext}
+        disabled={!valid}
+        className="mt-8 w-full py-3.5 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold text-sm transition-colors"
       >
-        {saving && <Spinner size={4} />}
-        {saving ? 'Saving…' : 'Continue →'}
+        Continue →
       </button>
     </div>
   )
 }
 
-// ── Step 1: Keyword Searches ─────────────────────────────────────────────────
-function StepKeywords({
-  planLimit,
-  industry,
-  idealClient,
-  problemSolved,
+// ── Step 2: Signal Types ─────────────────────────────────────────────────────
+function Step2({
+  selected,
+  onToggle,
   onNext,
   onBack,
 }: {
-  planLimit:     number
-  industry:      string
-  idealClient:   string
-  problemSolved: string
-  onNext:        (keywords: string[]) => void
-  onBack:        () => void
+  selected: string[]
+  onToggle: (id: string) => void
+  onNext: () => void
+  onBack: () => void
+}) {
+  return (
+    <div>
+      <h2 className="text-2xl font-bold text-white mb-2">What conversation moments matter?</h2>
+      <p className="text-slate-400 text-sm mb-8">
+        Scout surfaces LinkedIn posts that create a natural opening for you to show up and add value. Select the types of conversations you want to be part of — these train Scout&apos;s scoring for your feed.
+      </p>
+
+      <div className="space-y-2.5">
+        {SIGNALS.map(s => {
+          const on = selected.includes(s.id)
+          return (
+            <button
+              key={s.id}
+              onClick={() => onToggle(s.id)}
+              className={`w-full text-left flex items-center gap-3 px-4 py-3.5 rounded-xl border transition-all duration-150 ${
+                on
+                  ? 'bg-blue-600/15 border-blue-500/40 text-white'
+                  : 'bg-slate-800/40 border-slate-700/40 text-slate-400 hover:border-slate-600 hover:text-slate-300'
+              }`}
+            >
+              <div className={`w-4 h-4 rounded flex items-center justify-center shrink-0 border transition-colors ${on ? 'bg-blue-500 border-blue-500' : 'border-slate-600'}`}>
+                {on && (
+                  <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                  </svg>
+                )}
+              </div>
+              <span className="text-sm">{s.label}</span>
+            </button>
+          )
+        })}
+      </div>
+
+      <div className="mt-8 flex gap-3">
+        <button
+          onClick={onBack}
+          className="px-5 py-3.5 rounded-xl border border-slate-700 text-slate-400 hover:text-white hover:border-slate-600 text-sm font-medium transition-colors"
+        >
+          Back
+        </button>
+        <button
+          onClick={onNext}
+          className="flex-1 py-3.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-sm transition-colors"
+        >
+          Continue →
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ── Step 3: Keyword Searches ─────────────────────────────────────────────────
+function StepKeywords({
+  planLimit,
+  industry,
+  onNext,
+  onBack,
+}: {
+  planLimit: number
+  industry:  string                      // from Step 1 — used to auto-suggest a pack
+  onNext:   (count: number) => void      // passes keyword count up to parent for Step4 summary
+  onBack:   () => void
 }) {
   const [terms, setTerms]               = useState<{ id: string; value: string }[]>([])
   const [loadingTerms, setLoadingTerms] = useState(true)
@@ -249,8 +251,6 @@ function StepKeywords({
   const [customInput, setCustom]        = useState('')
   const [showCustom, setShowCustom]     = useState(false)
   const [adding, setAdding]             = useState(false)
-  const [enhancing, setEnhancing]       = useState(false)
-  const [suggestions, setSuggestions]   = useState<string[]>([])
   const [error, setError]               = useState('')
 
   // Load any terms already saved (handles back-navigation remount)
@@ -311,7 +311,6 @@ function StepKeywords({
       setTerms(prev => [...prev, { id, value: t }])
       setCustom('')
       setShowCustom(false)
-      setSuggestions([])
     } catch (e: any) {
       setError(e.message || 'Could not save keyword — you can add it later in Settings.')
     } finally {
@@ -372,34 +371,13 @@ function StepKeywords({
     }
   }
 
-  const enhanceKeyword = async () => {
-    const kw = customInput.trim()
-    if (!kw) return
-    setEnhancing(true)
-    setSuggestions([])
-    setError('')
-    try {
-      const resp = await fetch('/api/onboarding/suggest-keywords', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ keyword: kw, industry, idealClient, problemSolved }),
-      })
-      if (!resp.ok) throw new Error('Could not get suggestions — add the keyword as typed.')
-      const data = await resp.json()
-      setSuggestions((data.suggestions || []).filter((s: string) =>
-        !terms.some(t => t.value.toLowerCase() === s.toLowerCase())
-      ))
-    } catch (e: any) {
-      setError(e.message)
-    } finally {
-      setEnhancing(false)
-    }
-  }
-
   if (loadingTerms) {
     return (
       <div className="flex items-center justify-center py-16 text-slate-500 text-sm gap-2">
-        <Spinner size={4} />
+        <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+        </svg>
         Loading…
       </div>
     )
@@ -412,12 +390,12 @@ function StepKeywords({
         Scout searches LinkedIn every day for public posts matching these phrases — from anyone on the platform, not just your tracked profiles. Add 2–4 word phrases your ideal clients post about.
       </p>
 
-      {/* Hero pack loader */}
+      {/* Hero pack loader — the primary CTA */}
       <div className="mb-5 rounded-xl border border-blue-500/20 bg-blue-600/5 p-4 space-y-3">
         <div>
           <p className="text-sm font-semibold text-white mb-0.5">Load an industry starter pack</p>
           <p className="text-xs text-slate-500 leading-relaxed">
-            Pick your industry and we&apos;ll load proven high-signal phrases that match how your buyers post on LinkedIn.
+            Pick your industry and we&apos;ll load proven high-signal phrases that match how your buyers post on LinkedIn. Takes 2 seconds.
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
@@ -437,7 +415,12 @@ function StepKeywords({
             title={atCap ? `You're at your ${planLimit}-keyword limit. Remove a term first.` : ''}
             className="text-sm px-5 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold transition-colors flex items-center gap-1.5"
           >
-            {loadingPack && <Spinner size={3.5} />}
+            {loadingPack ? (
+              <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+              </svg>
+            ) : null}
             {atCap ? 'At limit' : 'Load pack'}
           </button>
         </div>
@@ -485,7 +468,7 @@ function StepKeywords({
         </div>
       )}
 
-      {/* Custom term input with AI enhancement */}
+      {/* Custom term input */}
       {!atCap && !showCustom && (
         <button
           onClick={() => setShowCustom(true)}
@@ -503,63 +486,29 @@ function StepKeywords({
             <input
               type="text"
               value={customInput}
-              onChange={e => { setCustom(e.target.value); setSuggestions([]) }}
-              onKeyDown={e => e.key === 'Enter' && customInput.trim() && addTerm(customInput)}
+              onChange={e => setCustom(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && addTerm(customInput)}
               placeholder='e.g. "client retention" or "scaling my agency"'
               autoFocus
               maxLength={60}
               className="flex-1 text-sm bg-slate-800/80 border border-slate-700/50 rounded-lg px-3 py-2 text-slate-200 placeholder-slate-600 focus:outline-none focus:border-blue-500/50"
             />
             <button
-              onClick={() => { setShowCustom(false); setCustom(''); setSuggestions([]) }}
+              onClick={() => { setShowCustom(false); setCustom('') }}
               className="text-xs px-3 py-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-700/50 transition-colors"
             >
               Cancel
             </button>
-          </div>
-          <div className="flex items-center gap-2">
             <button
               onClick={() => addTerm(customInput)}
               disabled={adding || !customInput.trim()}
-              className="text-xs px-4 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-medium transition-colors disabled:opacity-50 flex items-center gap-1.5"
+              className="text-xs px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-medium transition-colors disabled:opacity-50 flex items-center gap-1.5"
             >
-              {adding && <Spinner size={3} />}
-              Add as typed
-            </button>
-            <button
-              onClick={enhanceKeyword}
-              disabled={enhancing || !customInput.trim()}
-              className="text-xs px-4 py-1.5 rounded-lg bg-violet-600/80 hover:bg-violet-600 text-white font-medium transition-colors disabled:opacity-50 flex items-center gap-1.5"
-              title="Let AI suggest better variations of this keyword phrase"
-            >
-              {enhancing ? <Spinner size={3} /> : (
-                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                </svg>
-              )}
-              {enhancing ? 'Generating…' : 'Enhance with AI'}
+              {adding && <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" /></svg>}
+              Add
             </button>
           </div>
           <p className="text-xs text-slate-600">Use 2–4 word phrases — single words pull too much noise.</p>
-
-          {/* AI keyword suggestions */}
-          {suggestions.length > 0 && (
-            <div className="mt-3 space-y-2">
-              <p className="text-xs font-medium text-violet-400">AI-suggested variations — click to add:</p>
-              <div className="flex flex-wrap gap-2">
-                {suggestions.map((s, i) => (
-                  <button
-                    key={i}
-                    onClick={() => addTerm(s)}
-                    disabled={adding || atCap || terms.some(t => t.value.toLowerCase() === s.toLowerCase())}
-                    className="text-xs px-2.5 py-1.5 rounded-lg border border-violet-500/30 bg-violet-600/10 text-violet-300 hover:bg-violet-600/20 hover:border-violet-500/50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                  >
-                    {s}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
         </div>
       )}
 
@@ -581,7 +530,7 @@ function StepKeywords({
           Back
         </button>
         <button
-          onClick={() => onNext(terms.map(t => t.value))}
+          onClick={() => onNext(terms.length)}
           disabled={terms.length === 0}
           className="flex-1 py-3.5 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold text-sm transition-colors"
         >
@@ -592,307 +541,7 @@ function StepKeywords({
   )
 }
 
-// ── Step 2: Discover ICPs ────────────────────────────────────────────────────
-//
-// The onboarding "wow moment". Uses the Discover ICPs feature (normally
-// Trial-locked) with onboardingMode=true to bypass the plan gate.
-// Profiles are saved automatically by the API — user just sees the results.
-//
-function StepDiscoverICPs({
-  keywords,
-  idealClient,
-  poolLimit,
-  onNext,
-  onBack,
-}: {
-  keywords:   string[]
-  idealClient: string
-  poolLimit:  number
-  onNext:     (icpCount: number) => void
-  onBack:     () => void
-}) {
-  const [jobTitleInput, setJobTitleInput] = useState(() => guessJobTitle(idealClient))
-  const [status, setStatus]         = useState<'idle' | 'discovering' | 'done' | 'error'>('idle')
-  const [results, setResults]       = useState<{ id: string; name: string; profileUrl: string }[]>([])
-  const [added, setAdded]           = useState(0)
-  const [skipped, setSkipped]       = useState(0)
-  const [poolWasFull, setPoolFull]  = useState(false)
-  const [existingCount, setExisting]= useState(0)
-  const [error, setError]           = useState('')
-
-  const runDiscover = async () => {
-    const titles = jobTitleInput
-      .split(',')
-      .map(t => t.trim())
-      .filter(Boolean)
-
-    if (!titles.length) {
-      setError('Enter at least one job title so Scout knows who to look for.')
-      return
-    }
-
-    setStatus('discovering')
-    setError('')
-
-    try {
-      const resp = await fetch('/api/linkedin-icps/discover', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          jobTitles:      titles,
-          keywords:       keywords.slice(0, 4),   // top 4 keywords as search signal
-          maxProfiles:    poolLimit,
-          onboardingMode: true,                    // bypass Trial plan gate
-        }),
-      })
-      const data = await resp.json()
-
-      if (!resp.ok) {
-        // Pool already full — profiles from a prior session are already tracked
-        if (resp.status === 429 && data.current !== undefined) {
-          setResults([])
-          setAdded(0)
-          setSkipped(0)
-          setPoolFull(true)
-          setExisting(data.current)
-          setStatus('done')
-          return
-        }
-        throw new Error(data.error || 'Discovery failed — try again or skip this step.')
-      }
-
-      setResults(data.profiles || [])
-      setAdded(data.added || 0)
-      setSkipped(data.skipped || 0)
-      setStatus('done')
-    } catch (e: any) {
-      setError(e.message)
-      setStatus('error')
-    }
-  }
-
-  // ── Discovering state ──────────────────────────────────────────────────────
-  if (status === 'discovering') {
-    return (
-      <div className="text-center">
-        <div className="w-16 h-16 rounded-full bg-violet-500/10 border border-violet-500/20 flex items-center justify-center mx-auto mb-6">
-          <div className="w-7 h-7 border-2 border-slate-700 border-t-violet-400 rounded-full animate-spin" />
-        </div>
-        <h2 className="text-xl font-bold text-white mb-2">Searching LinkedIn…</h2>
-        <p className="text-slate-400 text-sm mb-2">
-          Scout is combing through LinkedIn to find profiles that match your ICP. This usually takes 20–40 seconds.
-        </p>
-        <p className="text-xs text-slate-600 mt-6">Don&apos;t close this tab — your results are on the way.</p>
-      </div>
-    )
-  }
-
-  // ── Done state ─────────────────────────────────────────────────────────────
-  if (status === 'done') {
-    // Pool was already full from a prior session
-    if (poolWasFull) {
-      return (
-        <div>
-          <div className="flex items-center gap-3 mb-6">
-            <div className="w-10 h-10 rounded-full bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center shrink-0">
-              <svg className="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-              </svg>
-            </div>
-            <div>
-              <h2 className="text-xl font-bold text-white">Your ICP pool is full</h2>
-              <p className="text-sm text-slate-400">
-                {existingCount} profile{existingCount !== 1 ? 's are' : ' is'} already tracked — Scout will surface their posts in your feed.
-              </p>
-            </div>
-          </div>
-          <button
-            onClick={() => onNext(existingCount)}
-            className="w-full py-3.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-sm transition-colors"
-          >
-            Continue →
-          </button>
-        </div>
-      )
-    }
-
-    return (
-      <div>
-        <div className="flex items-center gap-3 mb-6">
-          <div className="w-10 h-10 rounded-full bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center shrink-0">
-            <svg className="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-            </svg>
-          </div>
-          <div>
-            <h2 className="text-xl font-bold text-white">
-              {added > 0 ? `${added} profile${added !== 1 ? 's' : ''} added to your pool` : 'Your ICP pool is ready'}
-            </h2>
-            <p className="text-sm text-slate-400">
-              {added > 0
-                ? 'Scout will track these people and surface their posts in your feed.'
-                : 'Scout will pull from your keyword searches for your first scan.'}
-            </p>
-          </div>
-        </div>
-
-        {results.length > 0 && (
-          <div className="mb-6 space-y-2 max-h-64 overflow-y-auto pr-1">
-            {results.map(p => (
-              <div key={p.id} className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-slate-800/60 border border-slate-700/40">
-                <div className="w-7 h-7 rounded-full bg-slate-700 flex items-center justify-center shrink-0 text-xs font-medium text-slate-300">
-                  {p.name?.[0]?.toUpperCase() || '?'}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-medium text-slate-200 truncate">{p.name}</p>
-                  <p className="text-xs text-slate-600 truncate">{p.profileUrl.replace('https://www.linkedin.com/in/', 'linkedin.com/in/')}</p>
-                </div>
-                <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 shrink-0">Added</span>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {skipped > 0 && (
-          <p className="text-xs text-slate-600 mb-4">{skipped} profile{skipped !== 1 ? 's were' : ' was'} already in your pool.</p>
-        )}
-
-        {added === 0 && results.length === 0 && (
-          <div className="mb-6 px-4 py-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-sm text-amber-400">
-            No new profiles found for those job titles. You can add profiles manually in Settings after setup.
-          </div>
-        )}
-
-        <button
-          onClick={() => onNext(added)}
-          className="w-full py-3.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-sm transition-colors"
-        >
-          {added > 0 ? `Continue with ${added} ICP profile${added !== 1 ? 's' : ''} →` : 'Continue →'}
-        </button>
-      </div>
-    )
-  }
-
-  // ── Error state ────────────────────────────────────────────────────────────
-  if (status === 'error') {
-    return (
-      <div>
-        <div className="w-14 h-14 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center mx-auto mb-5">
-          <svg className="w-6 h-6 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-        </div>
-        <h2 className="text-xl font-bold text-white text-center mb-2">Discovery hit a snag</h2>
-        <p className="text-xs text-slate-500 text-center mb-6">{error}</p>
-        <div className="flex gap-3">
-          <button
-            onClick={() => { setStatus('idle'); setError('') }}
-            className="flex-1 py-3 rounded-xl border border-slate-700 text-slate-400 hover:text-white text-sm transition-colors"
-          >
-            Try again
-          </button>
-          <button
-            onClick={() => onNext(0)}
-            className="flex-1 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm transition-colors"
-          >
-            Skip this step
-          </button>
-        </div>
-      </div>
-    )
-  }
-
-  // ── Idle state ─────────────────────────────────────────────────────────────
-  return (
-    <div>
-      <h2 className="text-2xl font-bold text-white mb-2">Find your ideal clients on LinkedIn</h2>
-      <p className="text-slate-400 text-sm mb-6">
-        Scout will search LinkedIn and automatically add up to {poolLimit} people who match your ICP to your tracking pool. Their posts will appear in your feed every day.
-      </p>
-
-      {/* How it works callout */}
-      <div className="mb-6 rounded-xl bg-slate-800/40 border border-slate-700/30 px-4 py-3 flex gap-3">
-        <svg className="w-4 h-4 text-violet-400 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-        </svg>
-        <div>
-          <p className="text-sm font-medium text-slate-300">AI-powered profile discovery</p>
-          <p className="text-sm text-slate-500 leading-relaxed mt-0.5">
-            Scout builds a targeted Google search using your job titles and keywords to find matching LinkedIn profiles and adds them to your feed automatically.
-          </p>
-        </div>
-      </div>
-
-      <div className="space-y-4">
-        <div>
-          <label className="block text-xs font-medium text-slate-400 mb-1.5 uppercase tracking-wide">
-            Job titles to target <span className="text-blue-400">*</span>
-          </label>
-          <input
-            value={jobTitleInput}
-            onChange={e => setJobTitleInput(e.target.value)}
-            placeholder="e.g. Agency Owner, Marketing Director, VP of Sales"
-            maxLength={200}
-            className="w-full bg-slate-800/60 border border-slate-700/60 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/60 focus:ring-1 focus:ring-blue-500/20 transition-colors"
-          />
-          <p className="text-xs text-slate-600 mt-1.5">Separate multiple titles with commas.</p>
-        </div>
-
-        {keywords.length > 0 && (
-          <div>
-            <p className="text-xs font-medium text-slate-400 mb-2 uppercase tracking-wide">Search signal (from your keywords)</p>
-            <div className="flex flex-wrap gap-1.5">
-              {keywords.slice(0, 4).map((kw, i) => (
-                <span key={i} className="text-xs px-2.5 py-1 rounded-full bg-slate-800 border border-slate-700/50 text-slate-400">
-                  {kw}
-                </span>
-              ))}
-              {keywords.length > 4 && (
-                <span className="text-xs px-2.5 py-1 rounded-full bg-slate-800 border border-slate-700/50 text-slate-600">
-                  +{keywords.length - 4} more
-                </span>
-              )}
-            </div>
-          </div>
-        )}
-      </div>
-
-      {error && (
-        <div className="mt-4 px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/20 text-xs text-red-400">
-          {error}
-        </div>
-      )}
-
-      <div className="mt-6 flex gap-3">
-        <button
-          onClick={onBack}
-          className="px-5 py-3.5 rounded-xl border border-slate-700 text-slate-400 hover:text-white hover:border-slate-600 text-sm font-medium transition-colors"
-        >
-          Back
-        </button>
-        <button
-          onClick={runDiscover}
-          disabled={!jobTitleInput.trim()}
-          className="flex-1 py-3.5 rounded-xl bg-violet-600 hover:bg-violet-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold text-sm transition-colors flex items-center justify-center gap-2"
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-          </svg>
-          Discover profiles
-        </button>
-      </div>
-
-      <button
-        onClick={() => onNext(0)}
-        className="mt-3 w-full text-xs text-slate-600 hover:text-slate-400 transition-colors py-1"
-      >
-        Skip — I&apos;ll add profiles manually in Settings
-      </button>
-    </div>
-  )
-}
-
-// ── Step 3: Launch Scan ──────────────────────────────────────────────────────
+// ── Step 4: Launch Scan ──────────────────────────────────────────────────────
 //
 // Strategy: fire the scan immediately and race against a 12-second client-side
 // timer. If the scan completes in time, show the full result. If the scan is
@@ -902,7 +551,7 @@ function StepDiscoverICPs({
 // killed by client disconnects; they run to maxDuration). The feed detects the
 // query param and shows a "first scan in progress" banner while polling.
 //
-function StepLaunchScan({
+function Step4({
   data,
   onBack,
   onComplete,
@@ -924,8 +573,7 @@ function StepLaunchScan({
     setStatus('saving')
     setProgress(10)
 
-    // 1. Save business profile (non-fatal — already saved on Step 0 advance,
-    //    this is a belt-and-suspenders write in case that failed)
+    // 1. Save business profile (non-fatal)
     try {
       await fetch('/api/business-profile', {
         method: 'POST',
@@ -952,9 +600,21 @@ function StepLaunchScan({
     }, 800)
 
     // 3. Race scan against 12-second client timeout.
+    //    If scan completes fast → show exact result.
+    //    If timeout fires first → redirect immediately; Vercel continues the scan.
+    //
+    // FIX #4 (HIGH — race condition): Use a `scanWon` flag set exclusively inside
+    // the .then() success handler, not inferred from `!timedOut && scanResult`.
+    // Without this, the 1–2 ms window between `timedOut = true` and Promise.race
+    // returning can incorrectly classify a fast scan as a timeout (or vice-versa).
+    //
+    // FIX #16 (HIGH — 500 errors): Track scan failures separately with `scanErrored`.
+    // Previously a 500/network error resolved `scanFetch` silently (catch swallowed),
+    // causing fall-through to the "scan completed with 0 posts" branch even though
+    // the scan never actually completed. Now explicit API errors show the retry UI.
     let scanResult: { postsFound: number; breakdown?: any } | null = null
-    let scanWon     = false
-    let scanErrored = false
+    let scanWon     = false   // true only when the scan API responded successfully
+    let scanErrored = false   // true when the API returned !ok or threw before timeout
     let timedOut    = false
 
     const scanFetch = fetch('/api/trigger-scan', { method: 'POST' })
@@ -963,15 +623,16 @@ function StepLaunchScan({
         return r.json()
       })
       .then(result => {
-        if (!timedOut) {
+        if (!timedOut) {        // only claim the win if the timeout hasn't fired yet
           scanResult = result
           scanWon    = true
         }
       })
       .catch(() => {
-        if (!timedOut) {
+        if (!timedOut) {        // explicit API error before our timeout fired
           scanErrored = true
         }
+        // If timedOut already fired, the server may still be running — stay silent
       })
 
     const timeoutFence = new Promise<void>(resolve => setTimeout(() => {
@@ -983,14 +644,15 @@ function StepLaunchScan({
 
     clearInterval(progressInterval)
 
-    // Case 1: Scan timed out — Vercel function still running server-side
+    // Case 1: Scan timed out — Vercel function is still running server-side
     if (!scanWon && !scanErrored) {
       setProgress(100)
       setScanCompleted(false)
       setPostsFound(0)
       setStatus('done')
+      // Small visual pause so the "Setup complete!" animation renders before redirect
       await new Promise(r => setTimeout(r, 600))
-      onComplete(0, false)
+      onComplete(0, false)   // → /?firstScan=1 — show "scan in progress" banner
       return
     }
 
@@ -1011,6 +673,7 @@ function StepLaunchScan({
 
   // ── Done state ──────────────────────────────────────────────────────────────
   if (status === 'done') {
+    // If scan is still running server-side, this view flashes briefly before redirect
     if (!scanCompleted) {
       return (
         <div className="text-center">
@@ -1025,6 +688,7 @@ function StepLaunchScan({
       )
     }
 
+    // Scan completed and returned a result
     return (
       <div className="text-center">
         <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6 ${postsFound > 0 ? 'bg-emerald-500/15 border border-emerald-500/30' : 'bg-slate-800 border border-slate-700'}`}>
@@ -1055,6 +719,7 @@ function StepLaunchScan({
             <p className="text-slate-400 text-sm mb-4">
               Your first scan searched LinkedIn but didn&apos;t find posts that crossed the relevance threshold yet — this is normal on a brand-new account.
             </p>
+            {/* Scan breakdown — explains the filtering so it doesn't feel broken */}
             {breakdown && (
               <div className="text-left bg-slate-800/40 border border-slate-700/30 rounded-xl p-4 mb-4 space-y-2">
                 <p className="text-xs font-medium text-slate-400 uppercase tracking-wide mb-3">What happened</p>
@@ -1085,7 +750,7 @@ function StepLaunchScan({
             <div className="text-left bg-blue-600/5 border border-blue-500/15 rounded-xl p-4 mb-8 space-y-2">
               <p className="text-xs font-medium text-blue-400 mb-2">Two things that will help immediately</p>
               <p className="text-xs text-slate-400 leading-relaxed">
-                1. <span className="text-slate-200">Add more ICP profiles</span> in Settings — Scout fetches their latest posts directly.
+                1. <span className="text-slate-200">Add LinkedIn profiles</span> of specific people you want to follow — scout fetches their latest posts directly.
               </p>
               <p className="text-xs text-slate-400 leading-relaxed">
                 2. <span className="text-slate-200">Your next automatic scan</span> runs tonight and tomorrow morning — posts will be waiting.
@@ -1180,16 +845,16 @@ function StepLaunchScan({
           <span className="text-sm text-slate-300">{data.industry}</span>
         </div>
         <div className="flex items-start gap-3">
-          <span className="text-slate-600 text-xs mt-0.5 w-20 shrink-0">Keywords</span>
-          <span className="text-sm text-emerald-400">{data.keywordCount ?? 0} active</span>
+          <span className="text-slate-600 text-xs mt-0.5 w-20 shrink-0">Signals</span>
+          <span className="text-sm text-slate-300">
+            {data.signalTypes.length > 0
+              ? `${data.signalTypes.length} conversation type${data.signalTypes.length !== 1 ? 's' : ''} selected`
+              : 'All conversation types'}
+          </span>
         </div>
         <div className="flex items-start gap-3">
-          <span className="text-slate-600 text-xs mt-0.5 w-20 shrink-0">ICP pool</span>
-          <span className={`text-sm ${(data.icpCount ?? 0) > 0 ? 'text-emerald-400' : 'text-slate-500'}`}>
-            {(data.icpCount ?? 0) > 0
-              ? `${data.icpCount} profile${data.icpCount !== 1 ? 's' : ''} tracked`
-              : 'None yet — add in Settings after setup'}
-          </span>
+          <span className="text-slate-600 text-xs mt-0.5 w-20 shrink-0">Keywords</span>
+          <span className="text-sm text-emerald-400">{data.keywordCount ?? 0} active</span>
         </div>
       </div>
 
@@ -1214,27 +879,21 @@ function StepLaunchScan({
 }
 
 // ── Main Onboarding Page ─────────────────────────────────────────────────────
-//
-// Step flow: 0 Business Info → 1 Keywords → 2 Discover ICPs → 3 Launch Scan
-// Signal Types step has been removed — signalTypes defaults to [] (all types).
-//
 export default function OnboardingPage() {
   const router = useRouter()
   const { data: session, status, update: updateSession } = useSession()
-  const [step, setStep]             = useState(0)
-  const [keywords, setKeywords]     = useState<string[]>([])
+  const [step, setStep]     = useState(0)
   const [keywordCount, setKeywordCount] = useState(0)
-  const [icpCount, setIcpCount]     = useState(0)
-  const [profile, setProfile]       = useState({
-    businessName:  '',
-    industry:      '',
-    idealClient:   '',
-    problemSolved: '',
-    signalTypes:   [] as string[],   // always empty = all signal types
+  const [profile, setProfile] = useState({
+    businessName: '',
+    industry:     '',
+    idealClient:  '',
+    problemSolved:'',
+    signalTypes:  [] as string[],
   })
 
   const plan      = (session?.user as any)?.plan || 'Trial'
-  const tierLimits = getTierLimits(plan)
+  const planLimit = getTierLimits(plan).keywords
 
   // Already-onboarded guard — skip wizard if setup is already done
   useEffect(() => {
@@ -1246,8 +905,19 @@ export default function OnboardingPage() {
   const updateProfile = (key: string, value: string) =>
     setProfile(prev => ({ ...prev, [key]: value }))
 
+  const toggleSignal = (id: string) =>
+    setProfile(prev => ({
+      ...prev,
+      signalTypes: prev.signalTypes.includes(id)
+        ? prev.signalTypes.filter(s => s !== id)
+        : [...prev.signalTypes, id],
+    }))
+
   // Marks onboarding complete server-side and refreshes the JWT so the
   // feed redirect guard clears immediately — no localStorage needed.
+  // Retries the Airtable write once on failure to guard against transient
+  // network blips; the updateSession() call always fires regardless so the
+  // current session's JWT is updated even if the server write fails.
   const markOnboardingComplete = async () => {
     const apiWrite = async () => {
       const resp = await fetch('/api/onboarding/complete', { method: 'POST' })
@@ -1256,18 +926,24 @@ export default function OnboardingPage() {
     try {
       await apiWrite()
     } catch {
-      try { await apiWrite() } catch { /* both attempts non-fatal */ }
+      try { await apiWrite() } catch { /* second attempt — both non-fatal */ }
     }
+    // Always update the JWT even if the server write failed — prevents the
+    // redirect-to-onboarding loop on the current session. The Airtable write
+    // will succeed on their next login (the session data re-reads from Airtable).
     try { await updateSession({ onboarded: true }) } catch { /* non-fatal */ }
   }
 
-  // Called when StepLaunchScan finishes (scan result or timeout redirect)
+  // Called when Step4 finishes (scan result or timeout redirect)
   const handleScanComplete = (postsFound: number, scanCompleted: boolean) => {
     if (scanCompleted && postsFound > 0) {
+      // Happy path: posts found, go straight to feed
       router.push('/')
     } else if (!scanCompleted) {
+      // Scan still running — redirect with banner so user knows to wait
       router.push('/?firstScan=1')
     } else {
+      // Scan completed but found nothing — go to feed with helpful empty state
       router.push('/?firstScan=0')
     }
   }
@@ -1287,41 +963,31 @@ export default function OnboardingPage() {
         <StepDots current={step} total={4} />
 
         {step === 0 && (
-          <StepBusinessInfo
-            data={profile}
-            onChange={updateProfile}
-            onNext={() => setStep(1)}
-          />
+          <Step1 data={profile} onChange={updateProfile} onNext={() => setStep(1)} />
         )}
         {step === 1 && (
-          <StepKeywords
-            planLimit={tierLimits.keywords}
-            industry={profile.industry}
-            idealClient={profile.idealClient}
-            problemSolved={profile.problemSolved}
-            onNext={(kws: string[]) => {
-              setKeywords(kws)
-              setKeywordCount(kws.length)
-              setStep(2)
-            }}
+          <Step2
+            selected={profile.signalTypes}
+            onToggle={toggleSignal}
+            onNext={() => setStep(2)}
             onBack={() => setStep(0)}
           />
         )}
         {step === 2 && (
-          <StepDiscoverICPs
-            keywords={keywords}
-            idealClient={profile.idealClient}
-            poolLimit={tierLimits.poolSize}
+          <StepKeywords
+            planLimit={planLimit}
+            industry={profile.industry}
             onNext={(count: number) => {
-              setIcpCount(count)
+              // Capture keyword count for display in Step4 summary card
+              setKeywordCount(count)
               setStep(3)
             }}
             onBack={() => setStep(1)}
           />
         )}
         {step === 3 && (
-          <StepLaunchScan
-            data={{ ...profile, keywordCount, icpCount }}
+          <Step4
+            data={{ ...profile, keywordCount }}
             onBack={() => setStep(2)}
             onComplete={handleScanComplete}
             onMarkComplete={markOnboardingComplete}

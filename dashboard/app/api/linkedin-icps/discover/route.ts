@@ -70,7 +70,7 @@ export async function POST(req: Request) {
   const APIFY_TOKEN = process.env.APIFY_API_TOKEN
 
   try {
-    const { jobTitles = [], keywords = [], maxProfiles = 50, onboardingMode = false } = await req.json()
+    const { jobTitles = [], keywords = [], maxProfiles = 50 } = await req.json()
 
     if (!jobTitles.length) {
       return NextResponse.json({ error: 'At least one job title is required.' }, { status: 400 })
@@ -79,24 +79,14 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Profile discovery is not available on this platform.' }, { status: 500 })
     }
 
-    const tierLimits = getTierLimits(plan)
-
-    // ── Onboarding bypass: Trial users get one discovery run during wizard ─────
-    // onboardingMode=true skips the plan gate but still enforces the 10-profile
-    // pool cap (poolSize for Trial = 10). The hard cooldown and dedup logic
-    // remain active to prevent abuse from page refreshes.
-    const isOnboardingBypass = onboardingMode === true && plan === 'Trial'
-
     // ── Plan gate: Discover ICPs locked for Trial ─────────────────────────────
-    if (!isOnboardingBypass && tierLimits.discoverRunsPerDay === 0) {
+    const tierLimits = getTierLimits(plan)
+    if (tierLimits.discoverRunsPerDay === 0) {
       return NextResponse.json(
         { error: 'Profile discovery is available on paid plans. Upgrade to unlock it.', upgrade: true },
         { status: 403 }
       )
     }
-
-    // Effective per-run cap: onboarding Trial users get up to 10 (their poolSize)
-    const effectiveMaxPerRun = isOnboardingBypass ? 10 : tierLimits.discoverMaxPerRun
 
     // ── Daily run frequency check (paid plans) ─────────────────────────────────
     // Note: discoverRunsPerDay = 999 means effectively unlimited (Agency)
@@ -155,11 +145,11 @@ export async function POST(req: Request) {
       )
     }
 
-    // Cap to effective per-run limit, then to remaining pool slots
+    // Cap to tier's discoverMaxPerRun, then to remaining pool slots
     const slotsRemaining = tierLimits.poolSize - existingCount
     const cap = Math.min(
-      Number(maxProfiles) || effectiveMaxPerRun,
-      effectiveMaxPerRun,
+      Number(maxProfiles) || tierLimits.discoverMaxPerRun,
+      tierLimits.discoverMaxPerRun,
       slotsRemaining
     )
 
