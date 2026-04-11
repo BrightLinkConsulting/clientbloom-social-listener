@@ -246,3 +246,6 @@ Scout's feed supports bulk actions (Skip, Archive, Restore) on multiple posts at
 | April 2026 | Onboarding wizard: 4-step design, hero pack CTA (blue-bordered card), keyword gate (Continue disabled until ≥1 keyword), Step 4 fire-and-redirect scan with progress bar ramping to 88% max |
 | April 2026 | Feed post-onboarding states: `?firstScan=1` (scanning banner + poll), `?firstScan=0` (rich "Scout is getting started" empty state with two CTAs) |
 | April 2026 | Settings page deep-link: `/settings?tab=linkedin` now activates the LinkedIn tab on mount (reads `window.location.search` in useEffect) |
+| April 2026 | Settings Agent panel added to settings/page.tsx: floating violet button (bottom-right), proactive opening message per tab, context-aware coaching, `/api/settings-agent` route |
+| April 2026 | ICP Pool info box rewritten: two-column card layout distinguishing Add Profile (all plans) from Discover ICPs (Starter+), "any public LinkedIn profile" framing |
+| April 2026 | Duplicate Discover ICPs block removed from settings/page.tsx (194-line partial-refactor artifact that allowed Trial users to bypass the gating) |

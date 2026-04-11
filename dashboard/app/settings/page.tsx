@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useSession, signOut } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { getTierLimits, getPlanDisplay, isPaidPlan, isStripeBilledPlan } from '@/lib/tier'
@@ -1139,25 +1139,51 @@ function LinkedInICPSection() {
       description={sectionDescription}
     >
       {/* ── How the ICP Pool works info box ──────────────────────────────────── */}
-      <div className="mb-5 flex gap-3 px-3.5 py-3 rounded-xl bg-slate-800/50 border border-slate-700/40">
-        <svg className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
-        <div className="space-y-1.5">
-          <p className="text-sm font-medium text-slate-300">How the ICP Pool works</p>
-          <p className="text-sm text-slate-500 leading-relaxed">
-            Add the LinkedIn profiles of people you want to build relationships with — prospects, partners, or industry voices. Scout monitors their posts and surfaces the right moments to engage.{' '}
-            <span className="text-slate-400">Your pool holds all saved profiles. Each daily scan, Scout automatically fetches the most active ones — no manual ranking needed.</span>
-          </p>
-          {isTrial && (
-            <p className="text-sm text-slate-500 leading-relaxed pt-0.5">
-              <span className="text-amber-400/90 font-medium">Trial:</span> 10-profile pool · 5 scanned per run.{' '}
-              <span className="text-slate-500">Upgrade for more —{' '}
-                <a href="/upgrade" className="text-violet-400 hover:text-violet-300 underline underline-offset-2 transition-colors">Starter: 50 pool · 10 scanned · Pro: 150 pool · 25 scanned · Agency: 500 pool · 50 scanned →</a>
-              </span>
+      <div className="mb-5 rounded-xl bg-slate-800/50 border border-slate-700/40 overflow-hidden">
+        <div className="flex gap-3 px-3.5 py-3 border-b border-slate-700/30">
+          <svg className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <div>
+            <p className="text-sm font-medium text-slate-300 mb-1">How the ICP Pool works</p>
+            <p className="text-sm text-slate-500 leading-relaxed">
+              These don&apos;t have to be people you already know or are connected with. You can add{' '}
+              <span className="text-slate-400 font-medium">any public LinkedIn profile</span> — prospects you&apos;ve never met, industry voices you follow, potential referral partners. Scout monitors their posts and alerts you when they create a natural opening for you to add value.
             </p>
-          )}
+          </div>
         </div>
+        <div className="grid grid-cols-2 divide-x divide-slate-700/30">
+          <div className="px-3.5 py-3">
+            <p className="text-xs font-semibold text-slate-400 mb-1 flex items-center gap-1.5">
+              <svg className="w-3 h-3 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              Add Profile
+              <span className="font-normal text-slate-600">— all plans</span>
+            </p>
+            <p className="text-xs text-slate-600 leading-relaxed">Paste any LinkedIn URL to add a specific person you want to track. Great for prospects, clients, or industry names you already have in mind.</p>
+          </div>
+          <div className="px-3.5 py-3">
+            <p className="text-xs font-semibold text-slate-400 mb-1 flex items-center gap-1.5">
+              <svg className="w-3 h-3 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+              Discover ICPs
+              <span className="font-normal text-slate-600">— Starter+</span>
+            </p>
+            <p className="text-xs text-slate-600 leading-relaxed">Tell Scout a job title and industry, and it finds matching profiles automatically — people you may have never thought to search for.</p>
+          </div>
+        </div>
+        {isTrial && (
+          <div className="px-3.5 py-2.5 border-t border-slate-700/30 bg-slate-900/30">
+            <p className="text-xs text-slate-500">
+              <span className="text-amber-400/90 font-medium">Trial:</span> 10-profile pool · 5 scanned per run.{' '}
+              <a href="/upgrade" className="text-violet-400 hover:text-violet-300 underline underline-offset-2 transition-colors">
+                Starter: 50 pool · 10 scanned · Pro: 150 pool · 25 scanned · Agency: 500 pool · 50 scanned →
+              </a>
+            </p>
+          </div>
+        )}
       </div>
 
       {error && (
@@ -3146,6 +3172,314 @@ function PlanBillingSection() {
   )
 }
 
+// ---- Settings Agent ----
+
+interface SettingsChatMessage {
+  role:    'user' | 'assistant'
+  content: string
+}
+
+interface SettingsAgentCtx {
+  plan:                   string
+  activeTab:              string
+  businessProfileComplete: boolean
+  businessName:           string
+  industry:               string
+  keywordCount:           number
+  icpCount:               number
+  hasCustomPrompt:        boolean
+  hasSlack:               boolean
+  hasCrm:                 boolean
+}
+
+function buildSettingsOpening(ctx: SettingsAgentCtx): string {
+  const { activeTab, businessProfileComplete, keywordCount, icpCount, hasSlack, plan } = ctx
+
+  if (activeTab === 'profile') {
+    if (!businessProfileComplete) {
+      return "I noticed your Business Profile isn't filled in yet. This is the most important first step — Scout uses your industry and ideal client description to score posts more accurately. Want me to walk you through what to enter in each field?"
+    }
+    return "Your Business Profile looks good. If you want to fine-tune how Scout scores posts, the AI & Scoring tab has a Custom Scoring Prompt where you can describe exactly what signals matter most for your business."
+  }
+
+  if (activeTab === 'linkedin') {
+    if (keywordCount === 0) {
+      return "You don't have any keywords set up yet. Keywords are what Scout searches LinkedIn for — without them, your inbox will stay empty. Want me to explain how to choose effective terms for your industry?"
+    }
+    if (icpCount === 0) {
+      return `You have ${keywordCount} keyword${keywordCount !== 1 ? 's' : ''} tracking — solid start. Your ICP Pool is empty though. Adding specific LinkedIn profiles to watch often produces the highest-signal posts, because you're monitoring people you already know are your ideal clients. Want to know how it works?`
+    }
+    return `Looking good — ${keywordCount} keyword${keywordCount !== 1 ? 's' : ''} and ${icpCount} ICP profile${icpCount !== 1 ? 's' : ''} in your pool. If your inbox feels thin, try adding a few more keywords or ICP profiles. Anything you'd like me to explain?`
+  }
+
+  if (activeTab === 'ai') {
+    return "These scoring thresholds control what Scout keeps, what shows up in your digest, and what gets the green priority badge. They're calibrated well for most users out of the box. The biggest lever here is adding a Custom Scoring Prompt — it lets you tell Scout exactly what signals matter most for your specific business. Want to know what makes a good prompt?"
+  }
+
+  if (activeTab === 'system') {
+    if (!hasSlack) {
+      return "You haven't connected Slack yet. That's how you get your daily digest — every morning at 6 AM, Scout sends your top-scored posts directly to a channel of your choice. It takes about 2 minutes to set up. Want me to walk you through it?"
+    }
+    return "Slack is connected — you'll get your daily digest at 6 AM with posts that scored 6/10 or higher. Anything about the system integrations you'd like me to explain?"
+  }
+
+  if (activeTab === 'billing') {
+    return `You're on the ${plan} plan. I can explain what's included, what each upgrade unlocks, or answer any questions about how billing works. What would you like to know?`
+  }
+
+  return "Hey, I'm Scout Agent. I can walk you through any setting on this page, explain what it does, and help you get the most out of the platform. What can I help with?"
+}
+
+function SettingsAgentPanel({
+  open,
+  onClose,
+  plan,
+  activeTab,
+  keywordCount,
+}: {
+  open:         boolean
+  onClose:      () => void
+  plan:         string
+  activeTab:    string
+  keywordCount: number
+}) {
+  const [messages,    setMessages]    = useState<SettingsChatMessage[]>([])
+  const [input,       setInput]       = useState('')
+  const [loading,     setLoading]     = useState(false)
+  const [ctx,         setCtx]         = useState<SettingsAgentCtx | null>(null)
+  const [ctxLoading,  setCtxLoading]  = useState(false)
+  const bottomRef = useRef<HTMLDivElement>(null)
+  const inputRef  = useRef<HTMLTextAreaElement>(null)
+
+  // Scroll to bottom on new messages
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages, loading])
+
+  // Focus input when panel opens
+  useEffect(() => {
+    if (open) setTimeout(() => inputRef.current?.focus(), 150)
+  }, [open])
+
+  // Reset on close
+  useEffect(() => {
+    if (!open) {
+      setMessages([])
+      setInput('')
+      setCtx(null)
+    }
+  }, [open])
+
+  // Fetch context and generate proactive opening when panel first opens.
+  // Uses an `active` flag to guard state updates if the panel closes while
+  // the fetches are still in-flight (prevents stale state warnings).
+  useEffect(() => {
+    if (!open || ctx !== null || ctxLoading) return
+    let active = true
+    const fetchCtx = async () => {
+      setCtxLoading(true)
+      try {
+        const [bpRes, icpRes, slackRes] = await Promise.all([
+          fetch('/api/business-profile'),
+          fetch('/api/linkedin-icps'),
+          fetch('/api/slack-settings'),
+        ])
+        if (!active) return
+        const [bpData, icpData, slackData] = await Promise.all([
+          bpRes.json(), icpRes.json(), slackRes.json(),
+        ])
+        if (!active) return
+
+        const profile   = bpData.profile
+        const builtCtx: SettingsAgentCtx = {
+          plan,
+          activeTab,
+          businessProfileComplete: !!(profile?.['Industry'] && profile?.['Ideal Client']),
+          businessName:   profile?.['Business Name'] || '',
+          industry:       profile?.['Industry']      || '',
+          keywordCount,
+          icpCount:       icpData.profiles?.length   ?? 0,
+          hasCustomPrompt: !!(profile?.['Scoring Prompt']),
+          hasSlack:       !!(slackData.slackBotToken),
+          hasCrm:         false, // non-Agency plans always return 'None'
+        }
+        setCtx(builtCtx)
+        setMessages([{ role: 'assistant', content: buildSettingsOpening(builtCtx) }])
+      } catch {
+        if (!active) return
+        const fallback: SettingsAgentCtx = {
+          plan, activeTab,
+          businessProfileComplete: false, businessName: '', industry: '',
+          keywordCount, icpCount: 0,
+          hasCustomPrompt: false, hasSlack: false, hasCrm: false,
+        }
+        setCtx(fallback)
+        setMessages([{ role: 'assistant', content: "Hey, I'm Scout Agent. I can walk you through any setting on this page and help you get the most out of the platform. What can I help with?" }])
+      } finally {
+        if (active) setCtxLoading(false)
+      }
+    }
+    fetchCtx()
+    return () => { active = false }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open])
+
+  const sendMessage = async () => {
+    const text = input.trim()
+    if (!text || loading) return
+    if (text.length > 1000) return
+    setInput('')
+
+    const userMsg: SettingsChatMessage = { role: 'user', content: text }
+    const newMessages = [...messages, userMsg]
+    setMessages(newMessages)
+    setLoading(true)
+
+    const effectiveCtx = ctx ?? {
+      plan, activeTab,
+      businessProfileComplete: false, businessName: '', industry: '',
+      keywordCount, icpCount: 0,
+      hasCustomPrompt: false, hasSlack: false, hasCrm: false,
+    }
+
+    try {
+      const res = await fetch('/api/settings-agent', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({
+          message: text,
+          context: effectiveCtx,
+          history: messages.slice(-6),
+        }),
+      })
+      const data = await res.json()
+      setMessages(prev => [...prev, { role: 'assistant', content: data.reply ?? "Sorry, I didn't get a response. Try again?" }])
+    } catch {
+      setMessages(prev => [...prev, { role: 'assistant', content: "Sorry, I ran into an error. Try again?" }])
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  if (!open) return null
+
+  return (
+    <>
+      {/* Backdrop — clicking outside closes the panel */}
+      <div className="fixed inset-0 z-40" onClick={onClose} />
+
+      {/* Panel */}
+      <div
+        className="fixed bottom-20 right-5 z-50 w-80 sm:w-96 flex flex-col bg-[#0d1017] border border-slate-700/60 rounded-2xl shadow-2xl overflow-hidden"
+        style={{ height: '480px' }}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800">
+          <div className="flex items-center gap-2">
+            <div className="w-6 h-6 rounded-full bg-violet-600/20 border border-violet-500/30 flex items-center justify-center">
+              <svg className="w-3.5 h-3.5 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+            </div>
+            <span className="text-sm font-semibold text-white">Scout Agent</span>
+            <span className="text-xs text-slate-600">Settings guide</span>
+          </div>
+          <div className="flex items-center gap-2">
+            {messages.length > 1 && (
+              <button
+                onClick={() => {
+                  // Keep ctx so the proactive opener regenerates from existing state
+                  const freshOpening = ctx ? buildSettingsOpening({ ...ctx, activeTab }) : null
+                  setMessages(freshOpening ? [{ role: 'assistant', content: freshOpening }] : [])
+                }}
+                title="New conversation"
+                className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-300 transition-colors px-2 py-1 rounded-lg hover:bg-slate-800/60"
+              >
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                New
+              </button>
+            )}
+            <button onClick={onClose} className="text-slate-600 hover:text-slate-400 transition-colors">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        {/* Messages */}
+        <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
+          {ctxLoading && messages.length === 0 && (
+            <div className="flex items-center justify-center gap-2 py-8">
+              <svg className="animate-spin h-4 w-4 text-slate-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
+              <span className="text-sm text-slate-500">Checking your setup...</span>
+            </div>
+          )}
+
+          {messages.map((msg, i) => (
+            <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+              <div className={`max-w-[85%] text-sm rounded-xl px-3.5 py-2.5 leading-relaxed ${
+                msg.role === 'user'
+                  ? 'bg-violet-600/25 border border-violet-500/30 text-slate-200'
+                  : 'bg-slate-800/70 border border-slate-700/40 text-slate-300'
+              }`}>
+                {msg.content}
+              </div>
+            </div>
+          ))}
+
+          {loading && (
+            <div className="flex justify-start">
+              <div className="bg-slate-800/70 border border-slate-700/40 rounded-xl px-3.5 py-3">
+                <div className="flex gap-1 items-center">
+                  <span className="w-1.5 h-1.5 rounded-full bg-slate-500 animate-bounce" style={{ animationDelay: '0ms' }} />
+                  <span className="w-1.5 h-1.5 rounded-full bg-slate-500 animate-bounce" style={{ animationDelay: '150ms' }} />
+                  <span className="w-1.5 h-1.5 rounded-full bg-slate-500 animate-bounce" style={{ animationDelay: '300ms' }} />
+                </div>
+              </div>
+            </div>
+          )}
+          <div ref={bottomRef} />
+        </div>
+
+        {/* Input */}
+        <div className="border-t border-slate-800 px-3 py-3">
+          <div className="flex items-end gap-2">
+            <textarea
+              ref={inputRef}
+              value={input}
+              onChange={e => setInput(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage() }
+              }}
+              placeholder="Ask anything about settings..."
+              rows={1}
+              maxLength={1000}
+              className="flex-1 bg-slate-800/60 border border-slate-700/50 rounded-xl px-3 py-2.5 text-sm text-white placeholder-slate-600 resize-none focus:outline-none focus:border-violet-500/50 transition-colors"
+              style={{ maxHeight: '100px', overflowY: 'auto' }}
+            />
+            <button
+              onClick={sendMessage}
+              disabled={!input.trim() || loading}
+              className="shrink-0 w-8 h-8 rounded-xl bg-violet-600 border border-violet-500/60 flex items-center justify-center text-white hover:bg-violet-500 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
+    </>
+  )
+}
+
 // ---- Tab definitions ----
 const TABS = [
   { id: 'profile',  label: 'Profile'        },
@@ -3187,6 +3521,9 @@ export default function SettingsPage() {
   const [sources, setSources]     = useState<Source[]>([])
   const [loading, setLoading]     = useState(true)
   const [loadError, setLoadError] = useState('')
+
+  // Settings Agent
+  const [agentOpen, setAgentOpen] = useState(false)
 
   const fetchSources = useCallback(async () => {
     try {
@@ -3346,6 +3683,35 @@ export default function SettingsPage() {
         )}
 
       </main>
+
+      {/* ── Settings Agent: floating trigger button ── */}
+      <div className="fixed bottom-5 right-5 z-40">
+        <button
+          onClick={() => setAgentOpen(prev => !prev)}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl border font-semibold text-white transition-all duration-200 shadow-lg text-xs ${
+            agentOpen
+              ? 'bg-violet-700 border-violet-500/80 shadow-violet-700/50 scale-95'
+              : 'bg-violet-600 border-violet-500/60 shadow-violet-600/40 hover:bg-violet-500 hover:shadow-violet-500/60 hover:scale-105 active:scale-95'
+          }`}
+          title="Scout Agent — Settings guide"
+        >
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+          <span className="text-xs font-semibold tracking-wide">Scout Agent</span>
+        </button>
+      </div>
+
+      {/* ── Settings Agent panel ── */}
+      <SettingsAgentPanel
+        open={agentOpen}
+        onClose={() => setAgentOpen(false)}
+        plan={(session?.user as any)?.plan || 'Trial'}
+        activeTab={activeTab}
+        keywordCount={sources.length}
+      />
+
     </div>
   )
 }

@@ -1,7 +1,7 @@
 # Scout Agent — Architecture & Operations Guide
 
 > **Audience:** Engineers maintaining or extending the Scout codebase.
-> **Last updated:** April 2026 (Session 7 — Onboarding & first-scan UX overhaul; agent trained on onboarding flow)
+> **Last updated:** April 2026 (Session 8 — Settings Agent launched; ICP Pool UX rewrite; duplicate gating bug fixed)
 
 ---
 
@@ -60,7 +60,73 @@ For platform questions (plans, features, billing, settings), the agent returns a
 | `app/page.tsx` | `ScoutAgentPanel` component — chat UI, pending action confirmation, execResult display, plan prop |
 | `app/api/inbox-agent/route.ts` | AI endpoint — input validation, prompt construction, plan injection, output sanitization |
 | `app/api/posts/bulk/route.ts` | Bulk action executor — skip / archive / restore with Airtable formula safety |
+| `app/settings/page.tsx` | `SettingsAgentPanel` component — settings-focused chat UI, proactive opening per tab |
+| `app/api/settings-agent/route.ts` | Settings AI endpoint — advisory only, no action execution, context-aware proactive coaching |
 | `docs/api-reference.md` | External API contracts for both routes |
+
+---
+
+## Settings Agent
+
+The Settings Agent is a second Scout Agent instance, embedded in the Settings page. It is architecturally separate from the Inbox Agent because its purpose, context, and behavior are fundamentally different.
+
+### Key differences from Inbox Agent
+
+| Dimension | Inbox Agent | Settings Agent |
+|-----------|------------|---------------|
+| Purpose | Inbox management + platform Q&A | Platform guide + setup coaching |
+| Actions | `bulk_skip`, `bulk_archive`, `bulk_restore`, `set_min_score` | None — advisory only |
+| Context | Inbox counts, post data, score distribution | Plan, activeTab, profile completeness, keyword count, ICP count, Slack status |
+| Opening behavior | Static starter prompts | Proactive tab-aware coaching message generated on open |
+| Route | `/api/inbox-agent` | `/api/settings-agent` |
+| Component | `ScoutAgentPanel` in `app/page.tsx` | `SettingsAgentPanel` in `app/settings/page.tsx` |
+
+### Architecture
+
+```
+Browser (settings/page.tsx)
+  │
+  │  On panel open: parallel fetch
+  │  GET /api/business-profile
+  │  GET /api/linkedin-icps
+  │  GET /api/slack-settings
+  ▼
+SettingsAgentPanel — builds SettingsAgentCtx, generates proactive opening via buildSettingsOpening()
+  │
+  │  POST /api/settings-agent
+  │  { message, context: { plan, activeTab, businessProfileComplete, ... }, history }
+  ▼
+settings-agent/route.ts              ← Claude Haiku, maxDuration: 30, max 512 tokens
+  │
+  │  { reply: string }               ← no action field
+  ▼
+SettingsAgentPanel — appends reply to messages
+```
+
+### Proactive opening message logic (`buildSettingsOpening`)
+
+The panel generates a tab-specific opening message the moment it finishes fetching context — no extra API call required. Logic:
+
+| Active tab | Condition | Opening message direction |
+|------------|-----------|--------------------------|
+| `profile` | businessProfileComplete = false | Nudge to fill out Business Profile first |
+| `profile` | businessProfileComplete = true | Suggest Custom Scoring Prompt as next lever |
+| `linkedin` | keywordCount = 0 | Explain keywords are required for inbox to populate |
+| `linkedin` | icpCount = 0 (keywords > 0) | Explain ICP Pool for higher-signal posts |
+| `linkedin` | both > 0 | Affirm setup, offer to explain anything |
+| `ai` | any | Explain thresholds + suggest Custom Scoring Prompt |
+| `system` | hasSlack = false | Walk through Slack connection |
+| `system` | hasSlack = true | Affirm digest is active |
+| `billing` | any | Summarize plan, offer upgrade context |
+| `account` / `team` / other | any | Generic offer to help |
+
+### Stale-state protection
+
+The context fetch uses an `active` closure flag (same pattern as the feed's `?firstScan=1` polling banner). If the panel closes while fetches are in-flight, `if (!active) return` guards every post-`await` state setter, preventing stale updates after unmount.
+
+### "New conversation" behavior
+
+Clicking "New" in the panel header regenerates a fresh proactive opener using the cached `ctx` and the current `activeTab` — it does not reset context or re-fetch. This means the new conversation immediately starts with a relevant suggestion based on the user's setup state.
 
 ---
 
@@ -421,6 +487,34 @@ To add a new inbox action type (e.g., `bulk_engage`):
 ---
 
 ## Session Changelog
+
+### Session 8 — April 2026 (Settings Agent + ICP Pool UX + Duplicate Bug Fix)
+
+**Settings Agent launched**
+- New `SettingsAgentPanel` component added to `app/settings/page.tsx` — floating violet button (bottom-right), 480px panel, same visual language as inbox agent
+- New `/api/settings-agent/route.ts` — advisory-only AI endpoint (no action execution), Claude Haiku, maxDuration: 30
+- Proactive opening message generated client-side via `buildSettingsOpening()` — tab-aware, personalised to user's setup state
+- Context fetched on open via parallel `Promise.all`: `/api/business-profile`, `/api/linkedin-icps`, `/api/slack-settings`
+- Stale-state guard: `active` closure flag prevents state updates if panel closes while fetches are in-flight
+- "New conversation" reuses cached context + regenerates opening (no re-fetch)
+
+**ICP Pool info box rewritten (`app/settings/page.tsx`)**
+- New two-column card: left column explains Add Profile (all plans), right column explains Discover ICPs (Starter+)
+- Top section explicitly states "any public LinkedIn profile" — removes the implicit assumption that ICPs must be existing contacts
+- Trial tier footer shows pool/scan limits + upgrade tier comparison in a single line
+
+**Duplicate Discover ICPs bug fixed (`app/settings/page.tsx`)**
+- Root cause: partial refactor left a second 194-line copy of ICP interaction controls below the profile list, sharing the same `showAdd`/`showDiscover` state — clicking the locked Trial button in the first copy opened the ungated discovery panel in the second copy
+- Fix: entire duplicate block removed; the correct first implementation retained
+- "3 scanned per run" stale copy updated to "5 scanned per run" (matching `lib/tier.ts` scanSlots)
+
+**Adversarial issues resolved**
+- Stale-state after panel close (active closure flag)
+- "New" button regression: ctx reset caused loss of proactive opener logic — fixed to reuse cached ctx
+- Context fetch error path: silent fallback to generic opening message, panel remains fully functional
+- Message sent before context loads: `effectiveCtx` fallback used (never sends `null` context to server)
+
+---
 
 ### Session 6 — April 2026 (Bulk Selection Mode UX Overhaul + Documentation)
 
