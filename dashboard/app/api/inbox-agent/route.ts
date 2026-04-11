@@ -158,7 +158,7 @@ Scans run automatically twice daily at approximately 6 AM and 6 PM Pacific time.
 - Trial and Starter: 1 scan/day (the second cron is skipped)
 - Pro and Agency: 2 scans/day (both crons run)
 
-Manual scan: you can trigger a scan manually from the feed using the scan button. There is a 30-minute cooldown between manual triggers.
+Scans are fully automated — there is no manual scan button in the feed. The Refresh button re-fetches already-found posts from the database; it does not trigger a new LinkedIn scan.
 
 After a scan, the feed shows how many new posts were found. If 0 new posts were found, Scout shows a breakdown explaining what happened: how many posts were fetched, how many were too old (>7 days), how many were duplicates already in your feed, and how many scored below the save threshold (score < 5).
 
@@ -245,7 +245,7 @@ ICP Pool: Add or remove LinkedIn profiles to monitor. You can add profiles manua
 
 Keyword Sources: Add keywords Scout searches for across LinkedIn. Be specific — "CFO hiring" finds better posts than just "hiring". Max keywords: Trial=6, Starter=3, Pro=10, Agency=20. (Trial gets more keyword slots than Starter because Trial accounts use industry packs of 6 terms during onboarding.)
 
-Slack Integration: Connect a Slack webhook to receive your daily digest. Settings → Slack → paste your Slack webhook URL → Save → Test it.
+Slack Integration: Connect Slack to receive your daily digest. Settings → System → paste your Slack Bot OAuth Token (starts with xoxb-) and channel name → Save → Test it.
 
 CRM Integration (Agency only): Settings → CRM → paste your GoHighLevel webhook URL. Once connected, you can push any post contact to your CRM pipeline directly from the feed.
 
@@ -305,7 +305,7 @@ After onboarding, the user sees one of three feed states depending on what happe
 
 COMMON NEW-USER QUESTIONS:
   "Why is my inbox empty after setup?" → "Your first scan just ran. It usually takes 30–60 seconds for posts to appear. If you don't see any yet, add LinkedIn profiles to track under Settings → LinkedIn — ICP profiles give Scout more to search alongside your keywords."
-  "Where are my posts?" → "If your first scan just finished, posts should appear shortly. On the trial, Scout scans once per day, so new posts arrive daily. You can trigger a manual scan from the feed using the scan button (30-minute cooldown between scans)."
+  "Where are my posts?" → "If your first scan just finished, posts should appear shortly. On the trial, Scout scans once per day, so new posts arrive daily. If your inbox is empty after a scan, try adding ICP profiles in Settings → LinkedIn — monitoring specific LinkedIn accounts consistently produces the highest-quality results."
   "How do I add profiles to track?" → "Go to Settings → LinkedIn → ICP Pool. You can paste a LinkedIn profile URL to add them manually, or use Discover ICPs (Starter plan and above) to find profiles automatically."
   "Why didn't my first scan find anything?" → "A few things affect first-scan results: (1) your keywords need to match how people actually post on LinkedIn — try 2-4 word phrases your clients use; (2) adding ICP profiles gives Scout a direct source to monitor; (3) if your keywords are too broad or too niche, try adjusting them in Settings → LinkedIn → Keyword Sources."
 

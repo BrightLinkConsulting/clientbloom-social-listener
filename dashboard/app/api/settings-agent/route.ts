@@ -178,7 +178,7 @@ WHY USERS CAN'T CHANGE THE THRESHOLDS:
 The thresholds (5, 6, 8) are calibrated system constants — not user settings. The right way to improve feed quality is to influence scoring, not the thresholds. That means writing a better Custom Scoring Prompt.
 
 WHAT THE SLACK DIGEST IS:
-A morning summary of the day's highest-scored posts delivered as a Slack message to the channel the user configures. It goes out daily at approximately 6 AM Pacific / 3 PM UTC. It includes all posts that scored 6 or above from that day's scan. It does NOT include posts that scored 5 (inbox only) or below. Requires Slack to be connected under System → Slack Integration.
+A morning summary of the day's highest-scored posts delivered as a Slack message to the channel the user configures. It goes out daily at approximately 3 PM UTC (~8 AM Pacific). It includes all posts that scored 6 or above from that day's scan. It does NOT include posts that scored 5 (inbox only) or below. Requires Slack to be connected under System → Slack Integration.
 
 CUSTOM AI SCORING PROMPT:
 The most powerful setting in Scout. By default, Claude uses the Business Profile to score posts generically. With a custom prompt, the user tells Claude exactly what kind of post represents a real opportunity.
@@ -204,16 +204,19 @@ Scans run automatically twice daily at approximately 6 AM and 6 PM Pacific time.
 - Trial and Starter: 1 scan/day (only one of the two daily crons runs)
 - Pro and Agency: 2 scans/day (both crons run)
 
-Manual scan: The "Scan now" button in the feed triggers an immediate scan. There is a 30-minute cooldown between manual triggers. Useful for testing after changing keywords or adding ICP profiles.
+Scans are fully automated — there is no manual scan button. Scout handles scheduling automatically. New keywords and ICP profiles take effect on the next scheduled scan.
 
 ── SLACK INTEGRATION (Settings → System tab) ─────────
 Connects Scout to a Slack channel so your daily digest of high-score posts is pushed there automatically — available on all plans (Trial, Starter, Pro, Agency).
 
 How to set up:
-1. In Slack, go to Apps → Incoming Webhooks → Add to Slack → select a channel → copy the webhook URL
-2. In Scout: Settings → System → paste the webhook URL → Save → click Test to verify
+1. Go to api.slack.com/apps → Create New App → From scratch. Name it "Scout" and select your workspace.
+2. Under OAuth & Permissions, add bot token scopes: chat:write and channels:read. Install to workspace.
+3. Copy the Bot OAuth Token (starts with xoxb-).
+4. In Slack, invite the bot to your channel: /invite @Scout
+5. In Scout: Settings → System → paste the Bot OAuth Token and channel name → Save → Test.
 
-The digest fires at approximately 3 PM UTC (8 AM Pacific) daily. It includes your top-scored posts from that day's scan.
+The digest fires at approximately 3 PM UTC (~8 AM Pacific) daily. It includes your top-scored posts from that day's scan.
 
 ── CRM INTEGRATION (Settings → System tab) ────────────
 Connects Scout to GoHighLevel. When you push a post's author to your CRM from the feed, Scout creates a contact in GHL automatically. Agency plan only.
