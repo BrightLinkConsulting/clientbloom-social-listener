@@ -3221,7 +3221,7 @@ function buildSettingsOpening(ctx: SettingsAgentCtx): string {
 
   if (activeTab === 'system') {
     if (!hasSlack) {
-      return "You haven't connected Slack yet. That's how you get your daily digest — every morning at 6 AM, Scout sends your top-scored posts directly to a channel of your choice. It takes about 2 minutes to set up. Want me to walk you through it?"
+      return "You haven't connected Slack yet. That's how you get your daily digest — Scout sends your top-scored posts to a Slack channel every morning at around 8 AM Pacific (3 PM UTC). It takes about 2 minutes to set up. Want me to walk you through it?"
     }
     return "Slack is connected — you'll get your daily digest at 6 AM with posts that scored 6/10 or higher. Anything about the system integrations you'd like me to explain?"
   }

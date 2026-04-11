@@ -89,6 +89,9 @@ This folder is the developer knowledge base for Scout. Start here.
 | How does Scout Agent work (settings)? | [`scout-agent.md`](./scout-agent.md) → "Settings Agent" |
 | How do I add a new inbox action type? | [`scout-agent.md`](./scout-agent.md) → "Adding New Action Types" |
 | What does the settings agent know? When should I update its knowledge? | [`scout-agent.md`](./scout-agent.md) → "Settings Agent" + "Updating the knowledge base" |
+| How does Scout's scoring and filtering model work? | [`scout-agent.md`](./scout-agent.md) → "Scoring Model — Canonical Reference" |
+| What score does a post need to appear in the inbox? Slack digest? Get priority badge? | [`scout-agent.md`](./scout-agent.md) → "Scoring Model — The filtering model" |
+| A threshold or digest timing changed — what do I update? | [`scout-agent.md`](./scout-agent.md) → "Scoring Model — Keeping both agents in sync" |
 | How does the onboarding wizard work end to end? | [`onboarding-first-scan-ux.md`](./onboarding-first-scan-ux.md) |
 | What does `?firstScan=1` or `?firstScan=0` mean in the feed URL? | [`onboarding-first-scan-ux.md`](./onboarding-first-scan-ux.md) → "URL States" |
 

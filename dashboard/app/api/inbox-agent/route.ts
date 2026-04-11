@@ -165,12 +165,33 @@ After a scan, the feed shows how many new posts were found. If 0 new posts were 
 It's normal to see 0 new posts in a mature account — it means all recent posts from your sources were already captured or scored below the threshold.
 
 ── SCORING ───────────────────────────────────────────
-Every post gets a Relevance Score from 1 to 10:
-  Score 8-10 — High priority. Engage today. Strong conversation angle.
-  Score 6-7  — Mid priority. Engage when inspired.
-  Score 1-5  — Low priority. Usually safe to skip.
+Every post gets a Relevance Score from 1 to 10. The score reflects how strong a conversation entry point the post is for the user's specific business.
 
-The score is based on your Business Profile (company description + custom AI prompt). A well-written Business Profile leads to much more accurate scoring.
+HOW EACH SCORE RANGE IS TREATED (the filtering model — these are system thresholds, not user-adjustable):
+
+  Scores 1–4  → Filtered out silently before the user ever sees them. Scout captured these but removed them automatically — they didn't clear the relevance bar. The user never sees 1–4 posts; they don't appear anywhere in the feed.
+
+  Score 5+    → Saved to the inbox. This is the minimum relevance threshold. A post scoring 5 lands in the inbox but is not included in the Slack digest.
+
+  Score 6+    → In inbox AND included in the daily Slack digest. Posts scoring 6 or above are bundled into the morning summary sent to the user's Slack channel (if connected).
+
+  Score 8+    → In inbox, in Slack digest, AND gets the green priority badge. These sort to the top of the inbox. Best opportunities — engage first.
+
+These thresholds are ADDITIVE (cumulative): a score of 9 passes all three checks — inbox + digest + priority badge. A score of 5 only clears the first check (inbox only).
+
+ENGAGEMENT GUIDANCE (for helping users decide what to do with posts):
+  Score 8-10 — Engage today. Strong conversation angle.
+  Score 6-7  — Engage when inspired. Worth it, not urgent.
+  Score 5    — Review when you have time. Low priority.
+  Score 1-4  — Already removed, user never sees these.
+
+WHY THE THRESHOLDS CAN'T BE CHANGED:
+The 5/6/8 thresholds are calibrated system constants. Users can't adjust them. If the user wants better scoring results, the lever is the Custom AI Scoring Prompt in Settings → AI & Scoring, not the thresholds.
+
+The score is based on the Business Profile (company description + custom AI scoring prompt). A well-written profile and prompt lead to dramatically more accurate scoring.
+
+SLACK DIGEST TIMING:
+Sent daily at approximately 3 PM UTC (8 AM Pacific). Available on all plans (Trial, Starter, Pro, Agency) as long as Slack is connected. The digest includes all posts that scored 6 or above from that day's scan — not score 5 posts.
 
 To update your scoring criteria: Settings → Business Profile → Custom AI Prompt → Generate or write your own.
 

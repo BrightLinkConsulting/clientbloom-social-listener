@@ -418,6 +418,68 @@ When fewer posts are loaded than `inboxCount`, the context block includes a note
 
 ---
 
+## Scoring Model — Canonical Reference
+
+This section is the single source of truth for how Scout's scoring and filtering works. Both agents (inbox and settings) draw from this model. When thresholds or behavior change, update this section, then update Section 2 of both `inbox-agent/route.ts` and `settings-agent/route.ts`.
+
+### The 1–10 scale
+
+Every LinkedIn post Scout finds is scored 1–10 by Claude Haiku. The score reflects how strong a conversation entry point the post is for the user's specific business — based on their Business Profile and optional Custom Scoring Prompt.
+
+### The filtering model (system thresholds — not user-configurable)
+
+| Score range | What happens | Where it appears |
+|-------------|-------------|-----------------|
+| 1 – 4 | Filtered out silently | Nowhere — user never sees these |
+| 5 – 10 | Saved to inbox | User's main feed |
+| 6 – 10 | In inbox + Slack digest | Feed + morning Slack message |
+| 8 – 10 | In inbox + digest + priority badge | Feed (sorted to top, green badge) |
+
+**These thresholds are additive (cumulative):** a post scoring 9 passes all three checks simultaneously — it lands in the inbox, appears in the Slack digest, and gets the priority badge. A post scoring 5 only clears the first threshold (inbox only, no digest, no badge).
+
+The thresholds (5, 6, 8) are calibrated system constants. Users cannot change them. The correct way to improve feed quality is to write a better Custom Scoring Prompt, which shapes the scores themselves — not the thresholds.
+
+### Engagement guidance (distinct from filtering)
+
+These are advisory brackets the inbox agent uses to help users decide what to do with posts they see:
+
+| Score | Guidance |
+|-------|---------|
+| 8 – 10 | Engage today — strong conversation angle |
+| 6 – 7 | Engage when inspired — worth it, not urgent |
+| 5 | Review when you have time — lowest priority in feed |
+| 1 – 4 | Already removed — user never sees these |
+
+### Slack digest timing
+
+Sent daily at **3 PM UTC / ~8 AM Pacific** (adjusts slightly between PST/PDT). Includes all posts scoring 6 or above from that day's scan. Available on all plans (Trial, Starter, Pro, Agency) as long as Slack is connected. Score 5 posts are **not** included in the digest — they are inbox-only.
+
+### Common user questions both agents must answer consistently
+
+| Question | Correct answer |
+|----------|---------------|
+| "Why is my inbox empty?" | Keywords/ICPs may not be generating posts that score 5+. Fix: better keywords, more ICP profiles, or a custom scoring prompt that matches the intended signal. |
+| "A post I wanted to see got filtered out" | Scores 1–4 are removed automatically. The fix is a custom prompt that tells Scout to score that type of post higher. |
+| "Can I change the scoring thresholds?" | No — they're fixed system constants. The lever is the scoring prompt in Settings → AI & Scoring. |
+| "What's the difference between my inbox and the Slack digest?" | The inbox is everything scoring 5+. The digest is a filtered subset (6+) delivered to Slack each morning. They're complementary, not duplicates. |
+| "Does score 5 go in the digest?" | No. Digest starts at 6. Score 5 goes to the inbox only. |
+| "What time does the digest go out?" | ~3 PM UTC / ~8 AM Pacific daily. |
+| "Is the digest available on my Trial plan?" | Yes — on all plans, as long as Slack is connected. |
+
+### Keeping both agents in sync
+
+When the scoring model changes (threshold values, digest timing, etc.):
+
+1. Update this canonical table above
+2. Update the `── SCORING` section in `app/api/inbox-agent/route.ts` (Section 2)
+3. Update the `── AI & SCORING` section in `app/api/settings-agent/route.ts` (Section 2)
+4. Update the scoring threshold UI in `app/settings/page.tsx` (the three cards and cumulative note)
+5. Update the changelog in this document
+
+Never update only one agent's system prompt without updating the other — inconsistent answers about scoring from the two agents is a documentation debt that erodes user trust.
+
+---
+
 ## Conversation State
 
 Conversation history is stored in React state inside `ScoutAgentPanel` (`messages` array):
@@ -508,6 +570,16 @@ To add a new inbox action type (e.g., `bulk_engage`):
   - What the Slack digest is, when it goes out (6 AM PT / 3 PM UTC), what it includes/excludes
   - 6 common user Q&A pairs covering: empty inbox, unwanted posts, threshold floor, post scored too low, digest vs inbox difference
 - Settings Agent `buildSettingsOpening()` updated for `ai` tab: now branches on `hasCustomPrompt` — users without a prompt get coached toward creating one; users with one get affirming feedback and a prompt-tuning offer
+- Bug fixed: `buildSettingsOpening()` for System tab (no Slack) incorrectly stated "6 AM" for digest timing — corrected to "~8 AM Pacific (3 PM UTC)"
+
+**Inbox Agent scoring knowledge updated (`app/api/inbox-agent/route.ts`)**
+- Scoring section expanded to include the full 1–4/5/6/8 filtering model, matching the settings agent
+- Both agents now give identical, consistent answers about what happens at each score range
+- Slack digest timing clarified: 3 PM UTC / ~8 AM Pacific, score 5 posts excluded
+
+**Documentation (docs/scout-agent.md)**
+- Added "Scoring Model — Canonical Reference" section: the single source of truth for the scoring/filtering model, covering the threshold table, additive/cumulative logic, engagement guidance, digest timing, 7 pre-loaded user Q&A pairs, and a step-by-step guide for keeping both agents in sync when thresholds change
+- Updated README.md with 3 new scoring-specific "Where to look" entries
 
 **Adversarial issues resolved (pre-implementation)**
 - Users without Slack → digest card now always gives setup path
