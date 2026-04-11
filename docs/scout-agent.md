@@ -1,7 +1,7 @@
 # Scout Agent — Architecture & Operations Guide
 
 > **Audience:** Engineers maintaining or extending the Scout codebase.
-> **Last updated:** April 2026 (Session 12 — Agent JSON parsing hardened; markdown-fenced response bug fixed)
+> **Last updated:** April 2026 (Session 14 — Feed Control Bar: search, sort, score filter, Select, Refresh; Skipped density warnings)
 
 ---
 
@@ -671,6 +671,40 @@ To add a new inbox action type (e.g., `bulk_engage`):
 ---
 
 ## Session Changelog
+
+### Session 14 — April 2026 (Feed Control Bar)
+
+**Feature:** Feed Control Bar — sticky search, sort, score filter, Select, and Refresh controls positioned between the Engagement Momentum widget and the post list.
+
+**Design decisions:**
+- Controls are purely client-side view transforms on `displayedPosts`. They never affect `actionCounts`, `momentumHistory`, or server-side totals — all of those derive from the raw `posts[]` array or from separate server endpoints. Confirmed safe via 11-check adversarial data flow review before shipping.
+- Sticky at `top-[105px]` (61px nav + 44px tab strip), collapses during selection mode with the same `max-h-0 opacity-0` transition as the Momentum widget.
+- Select and Refresh buttons moved here from the tab strip header — the header now contains only the tab navigation in normal mode (the selection control bar replaces it in selection mode, unchanged).
+- `displayedPosts` is a `useMemo` derivation: filter by score tier → filter by search query → sort. All three states (`searchQuery`, `sortBy`, `scoreFilter`) reset on tab switch to prevent phantom filters carrying over between inbox tabs.
+- `toggleSelectAll` and all tri-state checkbox logic updated to reference `displayedPosts` instead of raw `posts[]` — ensures "Select all (N)" selects only what the user can see, not hidden posts.
+
+**Sort options:** Score: High → Low (default), Score: Low → High, Date: Newest first, Date: Oldest first.
+
+**Score filter options:** All scores, High (8–10), Medium (6–7), Low (5 and below).
+
+**Skipped tab improvements:**
+- Replaced old "Restore all / Archive all" toolbar with session-local density warnings: amber banner at 50+ posts (dismissible), stronger amber banner with inline Archive all CTA at 100+ posts (dismissible). Warning state is React-local — not written to Airtable.
+- "Archive N" was already present in the bottom selection pill for all tabs (including Skipped), so no pill change was required.
+
+**Changes (`app/page.tsx`):**
+- Added `useMemo` to React imports
+- Added `displayedPosts` useMemo, `searchQuery` / `sortBy` / `scoreFilter` state
+- Added `isFiltered` boolean and `clearFilters` callback
+- Added `skippedWarning50Dismissed` and `skippedWarning100Dismissed` state (session-local)
+- FeedControlBar JSX inserted between momentum widget and error/loading blocks
+- `posts.map` → `displayedPosts.map` in post list render
+- `toggleSelectAll` updated to use `displayedPosts`
+- Tri-state checkbox and "Select all (N)" label updated to use `displayedPosts.length`
+- Tab-switch `useEffect` now also resets `searchQuery`, `sortBy`, `scoreFilter`
+- Select + Refresh removed from tab strip `{/* Fixed right-side controls */}` div
+- Old Skipped toolbar (Restore all / Archive all) replaced by density warning IIFE block
+
+---
 
 ### Session 13 — April 2026 (Comment suggestion system rewrite)
 
