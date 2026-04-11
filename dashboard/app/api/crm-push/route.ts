@@ -1,12 +1,13 @@
 /**
  * /api/crm-push
  *
- * POST — push an engaged post's author as a contact into the configured CRM
+ * POST — push an engaged post's author as a contact into the configured CRM,
+ *        then optionally create an Opportunity in the configured pipeline.
  *
  * Body: {
  *   recordId:        string   — Airtable record ID of the post
  *   authorName:      string
- *   authorProfileUrl:string
+ *   authorProfileUrl:string   — LinkedIn profile URL (used as dedup identity)
  *   postText:        string
  *   postUrl:         string
  *   platform:        string
@@ -14,12 +15,27 @@
  *   engagedAt:       string   — ISO date
  * }
  *
- * Returns: { ok: true, contactId, contactUrl }
+ * Returns: { ok: true, contactId, contactUrl, opportunityId?, noteWarning? }
+ *
+ * GHL implementation notes:
+ * ─────────────────────────
+ * • Requires a Private Integration token (not the legacy Location API Key).
+ *   Private Integration tokens are scoped to a specific GHL sub-account.
+ * • locationId must be sent in the request body for contact and opportunity endpoints.
+ * • Deduplication strategy (no email available from LinkedIn posts):
+ *   1. Search GHL contacts by author full name in the given location.
+ *   2. If any result has website == authorProfileUrl, treat it as the same person → PATCH.
+ *   3. Otherwise POST a new contact via upsert with website = LinkedIn URL.
+ * • After contact upsert, creates a GHL Opportunity at stage[0] of the configured pipeline.
+ *   Pipeline stage is fetched live so this works with any customer's pipeline config.
+ * • Note creation failures are surfaced as warnings (non-fatal) — contact + opportunity still succeed.
  */
 
 import { NextResponse } from 'next/server'
 import { getTenantConfig, tenantError } from '@/lib/tenant'
 import { airtableList, airtableUpdate, verifyRecordTenant } from '@/lib/airtable'
+
+// ── Helpers ────────────────────────────────────────────────────────────────────
 
 function parseName(fullName: string): { firstName: string; lastName: string } {
   const parts = (fullName || '').trim().split(/\s+/)
@@ -37,90 +53,233 @@ function buildNoteBody(data: {
   engagedAt:        string
 }): string {
   const lines = [
-    `Source: ClientBloom Social Listener`,
+    `Source: Scout by ClientBloom`,
     `Platform: ${data.platform}`,
     `Engaged: ${data.engagedAt ? new Date(data.engagedAt).toLocaleDateString() : 'today'}`,
-    data.authorProfileUrl ? `Profile: ${data.authorProfileUrl}` : '',
-    data.postUrl          ? `Post: ${data.postUrl}`             : '',
+    data.authorProfileUrl ? `LinkedIn: ${data.authorProfileUrl}` : '',
+    data.postUrl          ? `Post URL: ${data.postUrl}`          : '',
     '',
     `Post snippet:`,
-    (data.postText || '').slice(0, 300) + ((data.postText || '').length > 300 ? '…' : ''),
-    data.notes ? `\nMy notes: ${data.notes}` : '',
+    (data.postText || '').slice(0, 400) + ((data.postText || '').length > 400 ? '…' : ''),
+    data.notes ? `\nMy engagement notes: ${data.notes}` : '',
   ]
   return lines.filter(l => l !== undefined).join('\n').trim()
 }
 
-async function pushToGHL(apiKey: string, body: any) {
-  const { firstName, lastName } = parseName(body.authorName)
+// ── GHL helpers ─────────────────────────────────────────────────────────────
 
-  const upsertResp = await fetch('https://services.leadconnectorhq.com/contacts/upsert', {
-    method: 'POST',
-    headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json', 'Version': '2021-07-28' },
-    body: JSON.stringify({
-      firstName,
-      lastName,
-      source: 'ClientBloom Listener',
-      tags: ['clientbloom-listener', 'linkedin-icp'],
-    }),
-  })
+const GHL_BASE    = 'https://services.leadconnectorhq.com'
+const GHL_VERSION = '2021-07-28'
 
-  if (!upsertResp.ok) throw new Error(`GHL upsert failed: ${await upsertResp.text()}`)
-
-  const upsertData = await upsertResp.json()
-  const contactId: string = upsertData?.contact?.id || upsertData?.id || ''
-  if (!contactId) throw new Error('GHL did not return a contact ID')
-
-  const noteBody = buildNoteBody(body)
-  await fetch(`https://services.leadconnectorhq.com/contacts/${contactId}/notes`, {
-    method: 'POST',
-    headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json', 'Version': '2021-07-28' },
-    body: JSON.stringify({ body: noteBody }),
-  }).catch(() => {})
-
-  return { contactId, contactUrl: `https://app.gohighlevel.com/contacts/${contactId}` }
+function ghlHeaders(apiKey: string) {
+  return {
+    'Authorization': `Bearer ${apiKey}`,
+    'Content-Type':  'application/json',
+    'Version':       GHL_VERSION,
+  }
 }
 
-async function pushToHubSpot(apiKey: string, body: any) {
-  const { firstName, lastName } = parseName(body.authorName)
-  const noteBody = buildNoteBody(body)
+/**
+ * Deduplicate: search GHL for a contact with the same LinkedIn profile URL.
+ * Returns the existing GHL contact ID if found, or null.
+ */
+async function findExistingGHLContact(
+  apiKey:      string,
+  locationId:  string,
+  fullName:    string,
+  linkedInUrl: string,
+): Promise<string | null> {
+  if (!linkedInUrl) return null
 
-  const createResp = await fetch('https://api.hubapi.com/crm/v3/objects/contacts', {
-    method: 'POST',
-    headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      properties: { firstname: firstName, lastname: lastName, hs_lead_status: 'NEW' },
-    }),
-  })
+  try {
+    const { firstName, lastName } = parseName(fullName)
+    const query = encodeURIComponent(`${firstName} ${lastName}`.trim())
+    const r = await fetch(
+      `${GHL_BASE}/contacts/?locationId=${encodeURIComponent(locationId)}&query=${query}&limit=10`,
+      { headers: ghlHeaders(apiKey) }
+    )
+    if (!r.ok) return null
 
-  if (!createResp.ok && createResp.status !== 409) {
-    throw new Error(`HubSpot create failed: ${await createResp.text()}`)
+    const data = await r.json()
+    const contacts: any[] = data?.contacts || []
+
+    // Match on website field (LinkedIn URL stored there) — exact string match
+    const match = contacts.find(
+      c => (c.website || '').trim().toLowerCase() === linkedInUrl.trim().toLowerCase()
+    )
+    return match?.id || null
+  } catch {
+    return null
   }
+}
 
-  const createData = await createResp.json()
-  const contactId: string = createData?.id || ''
+/**
+ * Fetch the first pipeline stage ID for the given pipeline.
+ * Returns null if pipeline not found or stages are empty.
+ */
+async function getFirstPipelineStageId(
+  apiKey:     string,
+  locationId: string,
+  pipelineId: string,
+): Promise<string | null> {
+  try {
+    const r = await fetch(
+      `${GHL_BASE}/opportunities/pipelines?locationId=${encodeURIComponent(locationId)}`,
+      { headers: ghlHeaders(apiKey) }
+    )
+    if (!r.ok) return null
+    const data = await r.json()
+    const pipelines: any[] = data?.pipelines || []
+    const pipeline = pipelines.find(p => p.id === pipelineId)
+    if (!pipeline) return null
+    const sorted = [...(pipeline.stages || [])].sort((a, b) => a.position - b.position)
+    return sorted[0]?.id || null
+  } catch {
+    return null
+  }
+}
 
-  if (contactId) {
-    await fetch('https://api.hubapi.com/crm/v3/objects/notes', {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        properties: { hs_note_body: noteBody, hs_timestamp: new Date().toISOString() },
-        associations: [{ to: { id: contactId }, types: [{ associationCategory: 'HUBSPOT_DEFINED', associationTypeId: 202 }] }],
+// ── Main GHL push ────────────────────────────────────────────────────────────
+
+async function pushToGHL(
+  apiKey:     string,
+  locationId: string,
+  pipelineId: string,
+  body:       {
+    authorName:       string
+    authorProfileUrl: string
+    postText:         string
+    postUrl:          string
+    platform:         string
+    notes:            string
+    engagedAt:        string
+  }
+): Promise<{
+  contactId:     string
+  contactUrl:    string
+  opportunityId: string
+  noteWarning:   string
+}> {
+  const { firstName, lastName } = parseName(body.authorName)
+  const linkedInUrl = (body.authorProfileUrl || '').trim()
+
+  // ── Step 1: Deduplicate — find existing contact by LinkedIn URL ──────────
+  const existingId = await findExistingGHLContact(apiKey, locationId, body.authorName, linkedInUrl)
+
+  let contactId = existingId
+
+  if (existingId) {
+    // PATCH existing contact — update tags and website to keep data fresh
+    await fetch(`${GHL_BASE}/contacts/${existingId}`, {
+      method:  'PUT',
+      headers: ghlHeaders(apiKey),
+      body:    JSON.stringify({
+        firstName,
+        lastName,
+        locationId,
+        website: linkedInUrl || undefined,
+        tags:    ['scout-listener', 'linkedin-engaged'],
+        source:  'Scout by ClientBloom',
       }),
-    }).catch(() => null)
+    }).catch(() => {}) // non-fatal — contact was found, update is best-effort
+  } else {
+    // POST new contact via upsert endpoint
+    const upsertResp = await fetch(`${GHL_BASE}/contacts/upsert`, {
+      method:  'POST',
+      headers: ghlHeaders(apiKey),
+      body:    JSON.stringify({
+        firstName,
+        lastName,
+        locationId,
+        website: linkedInUrl || undefined,
+        source:  'Scout by ClientBloom',
+        tags:    ['scout-listener', 'linkedin-engaged'],
+      }),
+    })
+
+    if (!upsertResp.ok) {
+      const errText = await upsertResp.text().catch(() => upsertResp.status.toString())
+      if (upsertResp.status === 401) {
+        throw new Error(`GHL upsert failed: Invalid token (401). Make sure you're using a Private Integration token with contacts.write scope, not the legacy API Key.`)
+      }
+      throw new Error(`GHL upsert failed: ${errText}`)
+    }
+
+    const upsertData = await upsertResp.json()
+    contactId = upsertData?.contact?.id || upsertData?.id || ''
+    if (!contactId) throw new Error('GHL did not return a contact ID. Check your Private Integration token scopes.')
   }
 
-  return { contactId, contactUrl: contactId ? `https://app.hubspot.com/contacts/contact/${contactId}` : '' }
+  // ── Step 2: Add a note to the contact ────────────────────────────────────
+  let noteWarning = ''
+  const noteBody = buildNoteBody(body)
+  const noteResp = await fetch(`${GHL_BASE}/contacts/${contactId}/notes`, {
+    method:  'POST',
+    headers: ghlHeaders(apiKey),
+    body:    JSON.stringify({ body: noteBody, userId: '' }),
+  }).catch(e => ({ ok: false, status: 0, text: () => Promise.resolve(e.message) }))
+
+  if (!noteResp.ok) {
+    const noteErr = await (noteResp as any).text?.().catch(() => '') || ''
+    noteWarning = `Contact created but note attachment failed (${noteErr.slice(0, 80)}). Check opportunities.write scope.`
+    console.warn('[crm-push] GHL note creation failed:', noteErr)
+  }
+
+  // ── Step 3: Create Opportunity in the configured pipeline ─────────────────
+  let opportunityId = ''
+  if (pipelineId) {
+    const stageId = await getFirstPipelineStageId(apiKey, locationId, pipelineId)
+    if (stageId) {
+      const oppResp = await fetch(`${GHL_BASE}/opportunities/`, {
+        method:  'POST',
+        headers: ghlHeaders(apiKey),
+        body:    JSON.stringify({
+          pipelineId,
+          locationId,
+          name:            `${body.authorName} — LinkedIn`,
+          pipelineStageId: stageId,
+          status:          'open',
+          contactId,
+          monetaryValue:   0,
+          source:          'Scout by ClientBloom',
+        }),
+      }).catch(() => null)
+
+      if (oppResp?.ok) {
+        const oppData = await oppResp.json().catch(() => ({}))
+        opportunityId = oppData?.opportunity?.id || oppData?.id || ''
+      } else if (oppResp) {
+        const oppErr = await oppResp.text().catch(() => '')
+        console.warn('[crm-push] GHL opportunity creation failed:', oppResp.status, oppErr)
+        if (!noteWarning) {
+          noteWarning = `Contact created but pipeline assignment failed (${oppResp.status}). Check opportunities.write scope.`
+        }
+      }
+    } else {
+      console.warn('[crm-push] Could not resolve pipeline stage for pipelineId:', pipelineId)
+      if (!noteWarning) {
+        noteWarning = `Contact created but pipeline not found. Double-check the Pipeline ID in CRM settings.`
+      }
+    }
+  }
+
+  // ── Step 4: Build correct GHL deep link ──────────────────────────────────
+  const contactUrl = `https://app.gohighlevel.com/v2/location/${locationId}/contacts/detail/${contactId}`
+
+  return { contactId, contactUrl, opportunityId, noteWarning }
 }
+
+// ── Plan gate ────────────────────────────────────────────────────────────────
 
 const CRM_ALLOWED_PLANS = new Set(['Scout Agency', 'Owner'])
+
+// ── Route handler ─────────────────────────────────────────────────────────────
 
 export async function POST(req: Request) {
   const tenant = await getTenantConfig()
   if (!tenant) return tenantError()
   const { tenantId, plan } = tenant
 
-  // CRM push is an Agency-only feature — enforce server-side regardless of UI state
   if (!CRM_ALLOWED_PLANS.has(plan)) {
     return NextResponse.json(
       { error: 'CRM push requires the Scout Agency plan.' },
@@ -132,8 +291,7 @@ export async function POST(req: Request) {
     const body = await req.json()
     const { recordId } = body
 
-    // Ownership check — verify the post record belongs to this tenant before
-    // writing CRM metadata back to it (prevents cross-tenant IDOR)
+    // Ownership check — prevent cross-tenant IDOR
     if (recordId) {
       const owned = await verifyRecordTenant('Captured Posts', recordId, tenantId)
       if (!owned) {
@@ -141,26 +299,40 @@ export async function POST(req: Request) {
       }
     }
 
-    // Fetch CRM settings from this tenant's Business Profile
+    // Load CRM settings from Business Profile
     const bpResp = await airtableList('Business Profile', tenantId, { pageSize: '1' })
-    if (!bpResp.ok) throw new Error('Could not load CRM settings')
+    if (!bpResp.ok) throw new Error('Could not load CRM settings from your account.')
     const bpData   = await bpResp.json()
     const bpRecord = bpData.records?.[0]?.fields || {}
 
-    const crmType = bpRecord['CRM Type']    || 'None'
-    const crmKey  = bpRecord['CRM API Key'] || ''
+    const crmType       = bpRecord['CRM Type']        || 'None'
+    const crmKey        = bpRecord['CRM API Key']     || ''
+    const crmLocationId = bpRecord['CRM Location ID'] || ''
+    const crmPipelineId = bpRecord['CRM Pipeline ID'] || ''
 
     if (!crmKey || crmType === 'None') {
-      return NextResponse.json({ error: 'No CRM configured. Set up your CRM in Settings → System.' }, { status: 400 })
+      return NextResponse.json(
+        { error: 'No CRM configured. Set up your CRM in Settings → System → CRM Integration.' },
+        { status: 400 }
+      )
     }
 
-    let result: { contactId: string; contactUrl: string }
+    if (crmType === 'GoHighLevel' && !crmLocationId) {
+      return NextResponse.json(
+        { error: 'GoHighLevel Location ID is missing. Add it in Settings → System → CRM Integration.' },
+        { status: 400 }
+      )
+    }
 
-    if      (crmType === 'GoHighLevel') result = await pushToGHL(crmKey, body)
-    else if (crmType === 'HubSpot')     result = await pushToHubSpot(crmKey, body)
-    else return NextResponse.json({ error: `Unknown CRM type: ${crmType}` }, { status: 400 })
+    let result: { contactId: string; contactUrl: string; opportunityId: string; noteWarning: string }
 
-    // Write CRM contact ID back to the post record and move it to the "In CRM" tab
+    if (crmType === 'GoHighLevel') {
+      result = await pushToGHL(crmKey, crmLocationId, crmPipelineId, body)
+    } else {
+      return NextResponse.json({ error: `CRM type "${crmType}" is not yet supported.` }, { status: 400 })
+    }
+
+    // Write CRM metadata back to the Airtable post record
     if (recordId && result.contactId) {
       await airtableUpdate('Captured Posts', recordId, {
         'CRM Contact ID':    result.contactId,
@@ -170,8 +342,17 @@ export async function POST(req: Request) {
       }).catch(() => {})
     }
 
-    return NextResponse.json({ ok: true, ...result, crmType })
+    return NextResponse.json({
+      ok:            true,
+      contactId:     result.contactId,
+      contactUrl:    result.contactUrl,
+      opportunityId: result.opportunityId,
+      noteWarning:   result.noteWarning || undefined,
+      crmType,
+    })
+
   } catch (e: any) {
+    console.error('[crm-push] Error:', e.message)
     return NextResponse.json({ error: e.message }, { status: 500 })
   }
 }

@@ -2075,7 +2075,7 @@ function SystemIntegrationCards() {
             </div>
             <div>
               <p className="text-sm font-semibold text-white">CRM Integration</p>
-              <p className="text-xs text-slate-500">Push contacts to GHL or HubSpot</p>
+              <p className="text-xs text-slate-500">Push contacts to GoHighLevel · HubSpot coming soon</p>
             </div>
           </div>
           {!crmUnlocked ? lockBadge('Agency') : statusDot(crmConnected)}
@@ -2098,7 +2098,7 @@ function SystemIntegrationCards() {
         ) : (
           <>
             <p className="text-sm font-medium text-amber-400">Not connected</p>
-            <p className="text-xs text-slate-500">Choose GoHighLevel or HubSpot and add your API key below</p>
+            <p className="text-xs text-slate-500">Add your GoHighLevel credentials below to activate</p>
           </>
         )}
       </div>
@@ -2348,51 +2348,31 @@ function SlackIntegrationSection() {
 }
 
 // ---- CRM Integration Section ----
-const CRM_INSTRUCTIONS: Record<string, { title: string; steps: string[] }> = {
-  GoHighLevel: {
-    title: 'How to get your GoHighLevel API key',
-    steps: [
-      'Log into GoHighLevel and go to your sub-account (not the agency account).',
-      'Click Settings (gear icon) → Integrations → API Key.',
-      'Copy the Location API Key — this is what you paste below.',
-      'The key should start with "eyJ..." or be a long alphanumeric string.',
-      'Each sub-account has its own key. Make sure you copy from the right one.',
-    ],
-  },
-  HubSpot: {
-    title: 'How to get your HubSpot Private App token',
-    steps: [
-      'Log into HubSpot and go to Settings (gear icon) → Integrations → Private Apps.',
-      'Click "Create a private app" and give it a name (e.g. "ClientBloom").',
-      'Under Scopes, enable: crm.objects.contacts.write, crm.objects.notes.write.',
-      'Click "Create app" and copy the access token shown.',
-      'Paste that token below — it starts with "pat-na1-..." or similar.',
-    ],
-  },
-}
 
 function CRMIntegrationSection() {
   const { data: crmSession } = useSession()
-  const crmPlan = (crmSession?.user as any)?.plan || 'Trial'
+  const crmPlan     = (crmSession?.user as any)?.plan || 'Trial'
   const crmUnlocked = crmPlan === 'Scout Agency' || crmPlan === 'Owner'
 
-  const [crmType,       setCrmType]       = useState('None')
-  const [crmApiKey,     setCrmApiKey]     = useState('')
-  const [crmPipelineId, setCrmPipelineId] = useState('')
-  const [showKey,       setShowKey]       = useState(false)
-  const [loading,       setLoading]       = useState(true)
-  const [saving,        setSaving]        = useState(false)
-  const [testing,       setTesting]       = useState(false)
-  const [testResult,    setTestResult]    = useState<{ ok: boolean; msg: string } | null>(null)
-  const [saved,         setSaved]         = useState(false)
-  const [error,         setError]         = useState('')
+  const [crmType,        setCrmType]        = useState('None')
+  const [crmApiKey,      setCrmApiKey]      = useState('')
+  const [crmLocationId,  setCrmLocationId]  = useState('')
+  const [crmPipelineId,  setCrmPipelineId]  = useState('')
+  const [showKey,        setShowKey]        = useState(false)
+  const [loading,        setLoading]        = useState(true)
+  const [saving,         setSaving]         = useState(false)
+  const [testing,        setTesting]        = useState(false)
+  const [testResult,     setTestResult]     = useState<{ ok: boolean; msg: string } | null>(null)
+  const [saved,          setSaved]          = useState(false)
+  const [error,          setError]          = useState('')
 
   useEffect(() => {
     fetch('/api/crm-settings')
       .then(r => r.json())
       .then(d => {
-        setCrmType(d.crmType       || 'None')
-        setCrmApiKey(d.crmApiKey   || '')
+        setCrmType(d.crmType         || 'None')
+        setCrmApiKey(d.crmApiKey     || '')
+        setCrmLocationId(d.crmLocationId || '')
         setCrmPipelineId(d.crmPipelineId || '')
       })
       .catch(() => {})
@@ -2405,9 +2385,9 @@ function CRMIntegrationSection() {
     setSaved(false)
     try {
       const resp = await fetch('/api/crm-settings', {
-        method: 'POST',
+        method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ crmType, crmApiKey, crmPipelineId }),
+        body:    JSON.stringify({ crmType, crmApiKey, crmLocationId, crmPipelineId }),
       })
       if (!resp.ok) throw new Error(await resp.text())
       setSaved(true)
@@ -2419,47 +2399,36 @@ function CRMIntegrationSection() {
     }
   }
 
+  // Test connection routes through /api/crm-test (server-side proxy) to avoid CORS
   const handleTest = async () => {
-    if (!crmApiKey.trim()) { setTestResult({ ok: false, msg: 'Paste your API key first.' }); return }
+    if (!crmApiKey.trim())     { setTestResult({ ok: false, msg: 'Paste your Private Integration token first.' }); return }
+    if (!crmLocationId.trim()) { setTestResult({ ok: false, msg: 'Enter your Location ID first.' }); return }
     setTesting(true)
     setTestResult(null)
     try {
-      // Test by calling a lightweight endpoint on the CRM
-      if (crmType === 'GoHighLevel') {
-        const r = await fetch('https://services.leadconnectorhq.com/locations/lookup', {
-          headers: { 'Authorization': `Bearer ${crmApiKey}`, 'Version': '2021-07-28' },
-        })
-        setTestResult(r.ok || r.status === 404
-          ? { ok: true,  msg: 'Connected — API key is valid.' }
-          : { ok: false, msg: `GHL returned ${r.status}. Double-check the key.` }
-        )
-      } else if (crmType === 'HubSpot') {
-        const r = await fetch('https://api.hubapi.com/crm/v3/objects/contacts?limit=1', {
-          headers: { 'Authorization': `Bearer ${crmApiKey}` },
-        })
-        setTestResult(r.ok
-          ? { ok: true,  msg: 'Connected — HubSpot access confirmed.' }
-          : { ok: false, msg: `HubSpot returned ${r.status}. Check scopes and token.` }
-        )
-      }
+      const r = await fetch('/api/crm-test', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ crmType, crmApiKey, crmLocationId }),
+      })
+      const data = await r.json()
+      setTestResult({ ok: data.ok, msg: data.message || (data.ok ? 'Connected.' : 'Connection failed.') })
     } catch {
-      setTestResult({ ok: false, msg: 'Request failed — could be a CORS issue. Try saving and using the Push button on the feed to verify.' })
+      setTestResult({ ok: false, msg: 'Could not reach the test endpoint. Check your network connection.' })
     } finally {
       setTesting(false)
     }
   }
 
-  const instructions = crmType !== 'None' ? CRM_INSTRUCTIONS[crmType] : null
-
   if (loading) return null
-
-  // Locked plans: overview card (SystemIntegrationCards) handles the upgrade prompt
   if (!crmUnlocked) return null
+
+  const isGHL = crmType === 'GoHighLevel'
 
   return (
     <Section
       title="CRM Integration"
-      description="Push engaged contacts directly into your CRM with one click from the feed."
+      description="Push engaged contacts directly into GoHighLevel with one click from your feed."
     >
       {error && (
         <div className="mb-4 px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/20 text-xs text-red-400 flex justify-between">
@@ -2469,55 +2438,128 @@ function CRMIntegrationSection() {
       )}
 
       {/* CRM selector */}
-      <div className="mb-4">
+      <div className="mb-5">
         <p className="text-sm text-slate-400 font-medium mb-2">CRM Platform</p>
-        <div className="flex gap-2">
-          {['None', 'GoHighLevel', 'HubSpot'].map(opt => (
-            <button
-              key={opt}
-              onClick={() => { setCrmType(opt); setTestResult(null) }}
-              className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${
-                crmType === opt
-                  ? 'bg-blue-600/20 border-blue-500/40 text-blue-400'
-                  : 'border-slate-700/50 bg-slate-800/60 text-slate-400 hover:text-white'
-              }`}
-            >
-              {opt}
-            </button>
-          ))}
+        <div className="flex gap-2 flex-wrap">
+          {/* None */}
+          <button
+            onClick={() => { setCrmType('None'); setTestResult(null) }}
+            className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${
+              crmType === 'None'
+                ? 'bg-blue-600/20 border-blue-500/40 text-blue-400'
+                : 'border-slate-700/50 bg-slate-800/60 text-slate-400 hover:text-white'
+            }`}
+          >
+            None
+          </button>
+
+          {/* GoHighLevel */}
+          <button
+            onClick={() => { setCrmType('GoHighLevel'); setTestResult(null) }}
+            className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${
+              crmType === 'GoHighLevel'
+                ? 'bg-blue-600/20 border-blue-500/40 text-blue-400'
+                : 'border-slate-700/50 bg-slate-800/60 text-slate-400 hover:text-white'
+            }`}
+          >
+            GoHighLevel
+          </button>
+
+          {/* HubSpot — Coming Soon */}
+          <button
+            disabled
+            title="HubSpot integration coming soon"
+            className="text-xs px-3 py-1.5 rounded-lg border border-slate-700/30 bg-slate-800/30 text-slate-600 cursor-not-allowed flex items-center gap-1.5"
+          >
+            HubSpot
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-700/50 text-slate-500 font-medium">Soon</span>
+          </button>
         </div>
       </div>
 
-      {crmType !== 'None' && (
-        <div className="space-y-4">
-          {/* Instructions */}
-          {instructions && (
-            <div className="rounded-xl bg-slate-900/60 border border-slate-700/40 p-4">
-              <p className="text-xs font-semibold text-slate-300 mb-2">{instructions.title}</p>
-              <ol className="space-y-1.5">
-                {instructions.steps.map((step, i) => (
-                  <li key={i} className="flex gap-2 text-sm text-slate-500 leading-relaxed">
-                    <span className="shrink-0 w-4 h-4 rounded-full bg-slate-800 border border-slate-700/50 flex items-center justify-center text-[11px] text-slate-600 mt-0.5">
-                      {i + 1}
-                    </span>
-                    {step}
-                  </li>
-                ))}
-              </ol>
-            </div>
-          )}
+      {/* GoHighLevel setup */}
+      {isGHL && (
+        <div className="space-y-5">
 
-          {/* API Key field */}
+          {/* Step-by-step instructions */}
+          <div className="rounded-xl bg-[#0d1018] border border-slate-700/40 p-4">
+            <p className="text-xs font-semibold text-slate-300 mb-3">Setup — 3 things you need from GoHighLevel</p>
+            <ol className="space-y-3">
+              <li className="flex gap-3">
+                <span className="shrink-0 w-5 h-5 rounded-full bg-blue-600/20 border border-blue-500/30 flex items-center justify-center text-[11px] text-blue-400 font-bold mt-0.5">1</span>
+                <div>
+                  <p className="text-sm text-slate-300 font-medium">Your Location ID</p>
+                  <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">
+                    Log into GHL and open your sub-account. Look at the URL — it looks like{' '}
+                    <span className="font-mono text-slate-400">app.gohighlevel.com/v2/location/<strong className="text-blue-400">XXXXXXXX</strong>/dashboard</span>
+                    . Copy the ID between <span className="font-mono text-slate-400">/location/</span> and the next slash.
+                  </p>
+                </div>
+              </li>
+              <li className="flex gap-3">
+                <span className="shrink-0 w-5 h-5 rounded-full bg-blue-600/20 border border-blue-500/30 flex items-center justify-center text-[11px] text-blue-400 font-bold mt-0.5">2</span>
+                <div>
+                  <p className="text-sm text-slate-300 font-medium">A Private Integration token</p>
+                  <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">
+                    In GHL, go to <span className="text-slate-400">Settings → Integrations → Private Integrations</span> → Create new integration.
+                    Name it <span className="text-slate-400">"Scout"</span>. Under Scopes, enable{' '}
+                    <span className="font-mono text-slate-400">contacts.write</span>,{' '}
+                    <span className="font-mono text-slate-400">contacts.readonly</span>, and{' '}
+                    <span className="font-mono text-slate-400">opportunities.write</span>.
+                    Click Create and copy the Access Token — it starts with <span className="font-mono text-slate-400">eyJ…</span>
+                  </p>
+                  <p className="text-xs text-amber-500/80 mt-1.5 flex items-start gap-1">
+                    <span className="shrink-0 mt-px">⚠</span>
+                    <span>Use Private Integrations — not the legacy API Key. The legacy key will not work with Scout.</span>
+                  </p>
+                </div>
+              </li>
+              <li className="flex gap-3">
+                <span className="shrink-0 w-5 h-5 rounded-full bg-slate-700/60 border border-slate-600/30 flex items-center justify-center text-[11px] text-slate-500 font-bold mt-0.5">3</span>
+                <div>
+                  <p className="text-sm text-slate-400 font-medium">Your Pipeline ID <span className="font-normal text-slate-600">(optional)</span></p>
+                  <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">
+                    In GHL, go to Opportunities → Pipelines. Click the pipeline you want Scout leads added to.
+                    Copy the ID from the URL — it looks like{' '}
+                    <span className="font-mono text-slate-400">OJuoy9LGTq9r6m5YxeH9</span>.
+                    When set, Scout automatically creates an Opportunity at the first stage of this pipeline every time you push a contact.
+                  </p>
+                </div>
+              </li>
+            </ol>
+          </div>
+
+          {/* Location ID field */}
           <div>
-            <p className="text-sm text-slate-400 font-medium mb-1.5">
-              {crmType === 'GoHighLevel' ? 'Location API Key' : 'Private App Token'}
+            <p className="text-sm text-slate-300 font-medium mb-1">
+              Location ID <span className="text-red-400 text-xs">required</span>
+            </p>
+            <p className="text-xs text-slate-600 mb-1.5">
+              The sub-account ID from your GHL URL — not the agency ID.
+            </p>
+            <input
+              type="text"
+              value={crmLocationId}
+              onChange={e => { setCrmLocationId(e.target.value); setTestResult(null) }}
+              placeholder="e.g. G43COt3uGbAzymts6uXB"
+              className="w-full bg-slate-800/80 border border-slate-700/50 rounded-xl px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50 font-mono"
+            />
+          </div>
+
+          {/* Private Integration Token field */}
+          <div>
+            <p className="text-sm text-slate-300 font-medium mb-1">
+              Private Integration Token <span className="text-red-400 text-xs">required</span>
+            </p>
+            <p className="text-xs text-slate-600 mb-1.5">
+              From GHL Settings → Integrations → Private Integrations. Starts with <span className="font-mono">eyJ…</span>
             </p>
             <div className="relative">
               <input
                 type={showKey ? 'text' : 'password'}
                 value={crmApiKey}
                 onChange={e => { setCrmApiKey(e.target.value); setTestResult(null) }}
-                placeholder={crmType === 'GoHighLevel' ? 'eyJ...' : 'pat-na1-...'}
+                placeholder="eyJ…"
                 className="w-full bg-slate-800/80 border border-slate-700/50 rounded-xl px-3 py-2 pr-10 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50 font-mono"
               />
               <button
@@ -2529,24 +2571,27 @@ function CRMIntegrationSection() {
             </div>
           </div>
 
-          {/* Pipeline ID — GHL only */}
-          {crmType === 'GoHighLevel' && (
-            <div>
-              <p className="text-sm text-slate-400 font-medium mb-1">Pipeline ID <span className="text-slate-600 font-normal">(optional)</span></p>
-              <p className="text-sm text-slate-600 mb-1.5">Found in GHL → Pipelines → click a pipeline → copy the ID from the URL.</p>
-              <input
-                type="text"
-                value={crmPipelineId}
-                onChange={e => setCrmPipelineId(e.target.value)}
-                placeholder="pipeline_xxxxxxxx"
-                className="w-full bg-slate-800/80 border border-slate-700/50 rounded-xl px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50 font-mono"
-              />
-            </div>
-          )}
+          {/* Pipeline ID field */}
+          <div>
+            <p className="text-sm text-slate-400 font-medium mb-1">
+              Pipeline ID <span className="text-slate-600 font-normal text-xs">optional</span>
+            </p>
+            <p className="text-xs text-slate-600 mb-1.5">
+              GHL → Opportunities → Pipelines → click your pipeline → copy the ID from the URL.
+              When set, Scout creates an Opportunity at the first stage of this pipeline on every push.
+            </p>
+            <input
+              type="text"
+              value={crmPipelineId}
+              onChange={e => setCrmPipelineId(e.target.value)}
+              placeholder="e.g. OJuoy9LGTq9r6m5YxeH9"
+              className="w-full bg-slate-800/80 border border-slate-700/50 rounded-xl px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50 font-mono"
+            />
+          </div>
 
           {/* Test result */}
           {testResult && (
-            <div className={`px-3 py-2 rounded-lg text-xs ${
+            <div className={`px-3 py-2.5 rounded-lg text-xs leading-relaxed ${
               testResult.ok
                 ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-400'
                 : 'bg-amber-500/10 border border-amber-500/20 text-amber-400'
@@ -2555,8 +2600,8 @@ function CRMIntegrationSection() {
             </div>
           )}
 
-          {/* Actions */}
-          <div className="flex gap-2">
+          {/* Save + Test buttons */}
+          <div className="flex gap-2 flex-wrap">
             <button
               onClick={handleSave}
               disabled={saving}
@@ -2566,26 +2611,32 @@ function CRMIntegrationSection() {
             </button>
             <button
               onClick={handleTest}
-              disabled={testing || !crmApiKey.trim()}
-              className="text-xs px-3 py-2 rounded-lg border border-slate-700/50 text-slate-400 hover:text-white hover:border-slate-600 disabled:opacity-50 transition-colors"
+              disabled={testing || !crmApiKey.trim() || !crmLocationId.trim()}
+              className="text-xs px-3 py-2 rounded-lg border border-slate-700/50 text-slate-400 hover:text-white hover:border-slate-600 disabled:opacity-40 transition-colors"
             >
               {testing ? 'Testing…' : 'Test Connection'}
             </button>
           </div>
 
-          {/* What happens when you push */}
+          {/* What gets pushed */}
           <div className="rounded-xl bg-slate-900/40 border border-slate-700/30 px-4 py-3">
-            <p className="text-sm font-medium text-slate-400 mb-1">What gets pushed</p>
-            <p className="text-sm text-slate-600 leading-relaxed">
-              Clicking "Push to {crmType}" on an engaged post creates a contact with the author's name, adds a note with their post snippet, your engagement notes, and a link back to the post. Duplicate contacts are handled gracefully — GHL upserts by identity, HubSpot creates a new record.
-            </p>
+            <p className="text-sm font-medium text-slate-400 mb-1.5">What happens when you push a contact</p>
+            <ul className="space-y-1 text-xs text-slate-500 leading-relaxed">
+              <li className="flex gap-2"><span className="text-slate-600 shrink-0">→</span> Scout searches GHL for an existing contact with the same LinkedIn URL to avoid duplicates.</li>
+              <li className="flex gap-2"><span className="text-slate-600 shrink-0">→</span> Creates (or updates) a GHL contact with the author's name and LinkedIn profile URL.</li>
+              <li className="flex gap-2"><span className="text-slate-600 shrink-0">→</span> Adds a note to the contact with the post snippet, your engagement notes, and a link back to the LinkedIn post.</li>
+              <li className="flex gap-2"><span className="text-slate-600 shrink-0">→</span> If a Pipeline ID is set, creates an Opportunity at the first stage of that pipeline automatically.</li>
+              <li className="flex gap-2"><span className="text-slate-600 shrink-0">→</span> The post moves to the "In CRM" tab in Scout so you always know who's been pushed.</li>
+            </ul>
           </div>
+
         </div>
       )}
 
       {crmType === 'None' && (
         <p className="text-sm text-slate-600">
           Select a CRM above to connect your account and enable one-click contact creation from the feed.
+          GoHighLevel is fully supported. HubSpot integration is coming soon.
         </p>
       )}
     </Section>
