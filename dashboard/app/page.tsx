@@ -241,6 +241,8 @@ function PostCard({
   const [crmPushing,       setCrmPushing]        = useState(false)
   const [crmPushed,        setCrmPushed]         = useState(!!post.fields['CRM Pushed At'])
   const [crmError,         setCrmError]          = useState('')
+  const [crmWarning,       setCrmWarning]        = useState('')
+  const [crmContactUrl,    setCrmContactUrl]     = useState('')
   const [suggestApproach,  setSuggestApproach]   = useState('')
   const [suggestLoading,   setSuggestLoading]    = useState(false)
 
@@ -308,6 +310,8 @@ function PostCard({
   const handleCrmPush = async () => {
     setCrmPushing(true)
     setCrmError('')
+    setCrmWarning('')
+    setCrmContactUrl('')
     try {
       const resp = await fetch('/api/crm-push', {
         method: 'POST',
@@ -326,6 +330,8 @@ function PostCard({
       const data = await resp.json()
       if (!resp.ok) throw new Error(data.error || 'CRM push failed')
       setCrmPushed(true)
+      if (data.noteWarning) setCrmWarning(data.noteWarning)
+      if (data.contactUrl)  setCrmContactUrl(data.contactUrl)
     } catch (e: any) {
       setCrmError(e.message)
     } finally {
@@ -632,12 +638,25 @@ function PostCard({
                     <p className="text-sm text-slate-600">
                       No CRM connected —{' '}
                       <a href="/settings" className="text-blue-400/70 hover:text-blue-400 underline transition-colors">
-                        Connect GHL or HubSpot in Settings → System.
+                        Connect GoHighLevel in Settings → System.
                       </a>
                     </p>
                   )}
                   {crmError && (
                     <p className="text-xs text-red-400 mt-2">{crmError} — <a href="/settings" className="underline">check CRM settings</a></p>
+                  )}
+                  {crmWarning && (
+                    <p className="text-xs text-amber-400/80 mt-2">⚠ {crmWarning}</p>
+                  )}
+                  {crmPushed && crmContactUrl && (
+                    <a
+                      href={crmContactUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs text-slate-500 hover:text-slate-300 transition-colors mt-1.5 inline-flex items-center gap-1"
+                    >
+                      View in GoHighLevel ↗
+                    </a>
                   )}
                 </div>
               </div>

@@ -216,12 +216,12 @@ async function pushToGHL(
   const noteResp = await fetch(`${GHL_BASE}/contacts/${contactId}/notes`, {
     method:  'POST',
     headers: ghlHeaders(apiKey),
-    body:    JSON.stringify({ body: noteBody, userId: '' }),
+    body:    JSON.stringify({ body: noteBody }),  // omit userId — empty string causes GHL validation errors
   }).catch(e => ({ ok: false, status: 0, text: () => Promise.resolve(e.message) }))
 
   if (!noteResp.ok) {
     const noteErr = await (noteResp as any).text?.().catch(() => '') || ''
-    noteWarning = `Contact created but note attachment failed (${noteErr.slice(0, 80)}). Check opportunities.write scope.`
+    noteWarning = `Contact created but note failed to attach (${noteErr.slice(0, 80)}). Verify contacts.write scope is enabled on your Private Integration.`
     console.warn('[crm-push] GHL note creation failed:', noteErr)
   }
 
