@@ -29,6 +29,7 @@ This folder is the developer knowledge base for Scout. Start here.
 ### Features and subsystems
 | Document | What it covers |
 |----------|----------------|
+| [`scout-agent.md`](./scout-agent.md) | Scout Agent architecture — dual-agent pattern (inbox + settings), system prompts, security model, action types, conversation state, proactive coaching logic |
 | [`admin-panel.md`](./admin-panel.md) | Super admin panel — tenant management, trial grants, action semantics |
 | [`email-system.md`](./email-system.md) | Centralized email architecture, all templates, brand constants, CAN-SPAM |
 | [`stripe-billing.md`](./stripe-billing.md) | Checkout flow, webhook handler, cancellation, billing portal |
@@ -39,6 +40,8 @@ This folder is the developer knowledge base for Scout. Start here.
 | [`apify-integration.md`](./apify-integration.md) | Actor IDs, run tagging, per-tenant cost attribution, rate limits, debugging |
 | [`service-manager.md`](./service-manager.md) | Automated health checks, all flag codes and severity, Airtable schema, cron details |
 | [`usage-service-manager.md`](./usage-service-manager.md) | Admin Usage tab — columns, post count cache vs live, cost attribution, service banner, all bugs fixed April 2026 |
+| [`onboarding-first-scan-ux.md`](./onboarding-first-scan-ux.md) | 4-step onboarding wizard, fire-and-redirect scan, `?firstScan` URL states, polling banner, empty-state UX |
+| [`engagement-momentum.md`](./engagement-momentum.md) | Engagement Momentum widget — streak logic, score aggregation, visual states |
 
 ### Roadmap
 | Document | What it covers |
@@ -82,6 +85,12 @@ This folder is the developer knowledge base for Scout. Start here.
 | What font size should this text be? | [`ux-design-system.md`](./ux-design-system.md) → "Typography Scale" |
 | What color should this score/status use? | [`ux-design-system.md`](./ux-design-system.md) → "Color System" |
 | How do I build a callout/info box? | [`ux-design-system.md`](./ux-design-system.md) → "Callout / Info Box Patterns" |
+| How does Scout Agent work (inbox)? | [`scout-agent.md`](./scout-agent.md) → "Architecture Overview" |
+| How does Scout Agent work (settings)? | [`scout-agent.md`](./scout-agent.md) → "Settings Agent" |
+| How do I add a new inbox action type? | [`scout-agent.md`](./scout-agent.md) → "Adding New Action Types" |
+| What does the settings agent know? When should I update its knowledge? | [`scout-agent.md`](./scout-agent.md) → "Settings Agent" + "Updating the knowledge base" |
+| How does the onboarding wizard work end to end? | [`onboarding-first-scan-ux.md`](./onboarding-first-scan-ux.md) |
+| What does `?firstScan=1` or `?firstScan=0` mean in the feed URL? | [`onboarding-first-scan-ux.md`](./onboarding-first-scan-ux.md) → "URL States" |
 
 ---
 
@@ -99,4 +108,4 @@ Created At fields    → new Date().toISOString() — never date-only split('T')
 
 ---
 
-*Last updated: April 2026 — Scout Phase 2*
+*Last updated: April 2026 — Scout Phase 2 (Session 8: Settings Agent, dual-agent pattern documented)*

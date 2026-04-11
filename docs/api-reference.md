@@ -91,7 +91,8 @@ All require `isAdmin === true`.
 | `/api/posts/[id]` | PATCH | Session | Update post fields (e.g. `status`). Verifies tenant ownership. |
 | `/api/posts/[id]/suggest` | POST | Session | Generate or regenerate a comment approach for a post via Claude. Checks `commentCredits` limit. |
 | `/api/posts/bulk` | POST | Session | Bulk skip / archive / restore multiple posts in one call. See full spec below. |
-| `/api/inbox-agent` | POST | Session | Conversational AI inbox assistant (Scout Agent). Interprets natural language into inbox management actions. See full spec below. |
+| `/api/inbox-agent` | POST | Session | Conversational AI inbox assistant (Scout Agent — inbox). Interprets natural language into inbox management actions. See full spec below. |
+| `/api/settings-agent` | POST | Session | Conversational AI settings guide (Scout Agent — settings). Advisory only; no action execution. See full spec below. |
 | `/api/engagement-history` | GET | Session | List engagement history records for the tenant. |
 | `/api/stats` | GET | Session | Scan stats (post count, last scan time, next scan window). |
 | `/api/generate-prompt` | POST | Session | Generate a custom AI scoring prompt from business profile. |
@@ -186,6 +187,75 @@ Conversational AI inbox assistant. Interprets a natural-language message into a 
 | `none` | Conversational reply only |
 
 `confirm: true` means the frontend should show a confirmation dialog before executing. `confirm: false` is safe to auto-execute.
+
+---
+
+---
+
+### POST /api/settings-agent
+
+Conversational AI settings guide. Advisory only — returns a plain text reply. Never executes actions or modifies data.
+
+**Request body:**
+```json
+{
+  "message": "How do I connect Slack?",
+  "context": {
+    "plan": "Trial",
+    "activeTab": "system",
+    "businessProfileComplete": false,
+    "businessName": "Acme Corp",
+    "industry": "B2B SaaS",
+    "keywordCount": 3,
+    "icpCount": 0,
+    "hasCustomPrompt": false,
+    "hasSlack": false,
+    "hasCrm": false
+  },
+  "history": [
+    { "role": "assistant", "content": "You haven't connected Slack yet..." },
+    { "role": "user", "content": "How do I connect Slack?" }
+  ]
+}
+```
+
+`context` is required. `history` is optional; capped at last 6 turns internally.
+
+**Context fields:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `plan` | string | User's current plan (`'Trial'`, `'Starter'`, `'Scout Pro'`, `'Scout Agency'`) |
+| `activeTab` | string | The settings tab currently visible (`'profile'`, `'linkedin'`, `'ai'`, `'system'`, `'billing'`, `'account'`, `'team'`) |
+| `businessProfileComplete` | boolean | Whether Business Name + Industry + Ideal Client are all filled in |
+| `businessName` | string | From Business Profile table |
+| `industry` | string | From Business Profile table |
+| `keywordCount` | number | Number of active keyword sources |
+| `icpCount` | number | Number of profiles in the ICP pool |
+| `hasCustomPrompt` | boolean | Whether the tenant has a non-empty Scoring Prompt |
+| `hasSlack` | boolean | Whether a Slack Bot Token is saved |
+| `hasCrm` | boolean | Whether a GHL CRM API key is saved (Agency plan only) |
+
+**Response:**
+```json
+{
+  "reply": "To connect Slack, go to System in your settings. You'll need a Slack Bot Token — here's how to create one..."
+}
+```
+
+The `reply` field is the only output. No `action` field is returned. The frontend appends the reply directly to the conversation thread.
+
+**Constraints:**
+- `message` max 1000 characters (server returns `400` if exceeded)
+- `history` entries with invalid roles are dropped silently
+- Max 512 output tokens (Haiku) — answers are concise by design
+- `maxDuration: 30` (Vercel Fluid Compute)
+
+**What the agent knows:**
+The agent's system prompt contains the complete settings knowledge base: every field in every settings tab, plan limits, what each feature does, how to set up Slack and CRM, how scoring works, what ICP Pool and Discover ICPs do, trial vs paid plan differences, upgrade paths, and support contact. Full details: [`scout-agent.md`](./scout-agent.md) → "Settings Agent" section.
+
+**Proactive coaching:**
+The UI generates a tab-aware opening message client-side (`buildSettingsOpening()` in `settings/page.tsx`) — no extra API call. The agent is called only when the user types a message.
 
 ---
 

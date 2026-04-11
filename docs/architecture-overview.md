@@ -1,6 +1,6 @@
 # Scout — Architecture Overview
 
-## Last updated: April 2026
+## Last updated: April 2026 (Session 8 — dual-agent pattern added)
 
 ---
 
@@ -35,6 +35,8 @@ Scout monitors LinkedIn for high-value conversations — posts from saved ICP pr
 │  /upgrade          ◄──    /api/trigger-scan           /api/cron/archive-pos │
 │  /welcome          ◄──    /api/webhooks/stripe                              │
 │  /admin            ◄──    /api/trial/start                                  │
+│                           /api/inbox-agent   ◄── AI (Scout Agent inbox)     │
+│                           /api/settings-agent ◄── AI (Scout Agent settings) │
 │                           /api/health                                        │
 └──────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -258,6 +260,84 @@ All env vars are documented with descriptions in `dashboard/.env.example`.
 - **No build step needed** for content-only changes (docs, CLAUDE.md)
 
 The production URL is `https://scout.clientbloom.ai`. The `NEXTAUTH_URL` env var must match this exactly.
+
+---
+
+---
+
+## 12. AI Agents — Dual-Agent Pattern
+
+Scout has two embedded AI agents, both powered by Claude Haiku. They are architecturally separate because their context, purpose, and behaviors are fundamentally different.
+
+### Inbox Agent (`/api/inbox-agent` + `ScoutAgentPanel` in `app/page.tsx`)
+
+The inbox agent does two things: it answers platform Q&A and it can execute bulk actions on the user's posts.
+
+```
+User types: "Skip everything below score 5"
+  │
+  ▼
+POST /api/inbox-agent
+  { message, context: { plan, inboxCount, skippedCount, topPosts, scoreDistribution }, history }
+  │
+  ▼
+Claude Haiku → JSON { reply, action: { type, filter, confirm, summary } }
+  │
+  ├── action.type = 'none'           → display reply only
+  ├── action.confirm = true          → show confirmation dialog in UI
+  └── action.confirm = false         → auto-execute immediately
+        │
+        ▼
+  POST /api/posts/bulk               → Airtable PATCH
+```
+
+Action types: `bulk_skip`, `bulk_archive`, `bulk_restore`, `set_min_score`, `none`.
+
+### Settings Agent (`/api/settings-agent` + `SettingsAgentPanel` in `app/settings/page.tsx`)
+
+The settings agent is advisory only — it never executes actions or writes data. Its sole job is to coach the user on how to use the platform and explain what every setting does.
+
+```
+Panel opens on /settings
+  │
+  ├── Parallel fetch (client):
+  │     GET /api/business-profile
+  │     GET /api/linkedin-icps
+  │     GET /api/slack-settings
+  │
+  ├── buildSettingsOpening(ctx)   → tab-aware proactive message (no API call)
+  │
+  └── User types a question
+        │
+        ▼
+  POST /api/settings-agent
+    { message, context: { plan, activeTab, businessProfileComplete, keywordCount, icpCount, ... }, history }
+        │
+        ▼
+  Claude Haiku → { reply: string }   → display reply only (no action field)
+```
+
+### Key differences
+
+| Dimension | Inbox Agent | Settings Agent |
+|-----------|------------|---------------|
+| Actions | Executes bulk post operations | Advisory only — no data writes |
+| Context | Live inbox state (counts, posts, scores) | User setup state (profile, keywords, ICPs, integrations) |
+| Opening | Static starter prompts | Proactive tab-aware coaching generated client-side |
+| Model output | `{ reply, action }` | `{ reply }` |
+| Route | `/api/inbox-agent` | `/api/settings-agent` |
+| Component | `ScoutAgentPanel` in `app/page.tsx` | `SettingsAgentPanel` in `app/settings/page.tsx` |
+| Security concern | Prompt injection from post content | N/A (no user-generated content in context) |
+
+### Shared characteristics
+
+- Both use Claude Haiku (`claude-haiku-4-5-20251001`) — fast, low cost, sufficient for structured Q&A
+- Both validate input: message ≤ 1000 chars, history capped at 6 turns
+- Both are plan-aware: `plan` is always the first field in the context block
+- Both use `maxDuration: 30` (Vercel Fluid Compute)
+- Neither stores conversation history server-side — history lives in React state only
+
+Full documentation: [`scout-agent.md`](./scout-agent.md)
 
 ---
 
