@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useSession, signOut } from 'next-auth/react'
 import { isPaidPlan } from '@/lib/tier'
 import LandingPage from './page-landing'
@@ -1873,6 +1873,79 @@ function FeedPage() {
   const syncTimerRef        = useRef<ReturnType<typeof setTimeout> | null>(null)
   const refreshTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
+  // ── First-scan state ───────────────────────────────────────────────────────
+  // ?firstScan=1  → scan still running server-side when user was redirected
+  // ?firstScan=0  → scan completed but found 0 posts
+  // (no param)    → normal feed load
+  //
+  // FIX #3 (CRITICAL — hydration mismatch): Initialize both flags to false and
+  // read the URL param inside a client-only useEffect. Initializing useState()
+  // directly from useSearchParams() causes a server/client mismatch because
+  // useSearchParams() returns null during SSR and the real object on the client.
+  const searchParams = useSearchParams()
+  const [firstScanBanner, setFirstScanBanner]   = useState(false)
+  const [firstScanZero,   setFirstScanZero]     = useState(false)
+  const firstScanPollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const firstScanMaxMs   = 120_000  // auto-dismiss banner after 2 minutes
+
+  // FIX #3 + FIX #5: Read the firstScan URL param client-side (avoids hydration
+  // mismatch) and immediately clean the URL so back-navigation or a hard reload
+  // doesn't re-trigger the banner/zero state.
+  useEffect(() => {
+    const param = searchParams?.get('firstScan')
+    if (param === '1') {
+      setFirstScanBanner(true)
+      router.replace('/', { scroll: false })
+    } else if (param === '0') {
+      setFirstScanZero(true)
+      router.replace('/', { scroll: false })
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])   // run once on mount — searchParams is stable at this point
+
+  // Poll for posts while the first-scan banner is active.
+  // Stops when posts appear OR after 2 minutes — whichever comes first.
+  //
+  // FIX #6 (HIGH): Use an `active` closure flag to guard every post-await state
+  // update. Without it, an in-flight fetch that resolves after the user dismisses
+  // the banner (which sets firstScanBanner→false, triggering effect cleanup)
+  // would still call setFirstScanBanner / fetchPosts on the now-stale closure.
+  useEffect(() => {
+    if (!firstScanBanner) return
+    let active = true
+    const started = Date.now()
+    firstScanPollRef.current = setInterval(async () => {
+      if (!active) return
+      if (Date.now() - started > firstScanMaxMs) {
+        // Timed out — dismiss banner silently (scan may have completed or errored)
+        if (!active) return
+        setFirstScanBanner(false)
+        if (firstScanPollRef.current) clearInterval(firstScanPollRef.current)
+        return
+      }
+      // Silent poll — posts will appear when the scan finishes
+      try {
+        const res = await fetch('/api/posts?action=New&limit=5')
+        if (!active) return  // guard: effect may have cleaned up while awaiting
+        if (res.ok) {
+          const data = await res.json()
+          if (!active) return  // guard: check again after second await
+          if ((data.records || []).length > 0) {
+            // Posts arrived — dismiss banner and reload the full list
+            setFirstScanBanner(false)
+            if (firstScanPollRef.current) clearInterval(firstScanPollRef.current)
+            fetchPosts(true)
+          }
+        }
+      } catch { /* non-fatal — keep polling */ }
+    }, 5_000)
+    return () => {
+      active = false
+      if (firstScanPollRef.current) clearInterval(firstScanPollRef.current)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [firstScanBanner])
+
   // Bulk selection state
   const [selectionMode, setSelectionMode] = useState(false)
   const [selectedIds, setSelectedIds]     = useState<Set<string>>(new Set())
@@ -1902,13 +1975,21 @@ function FeedPage() {
   // Uses the JWT `onboarded` field (set from Airtable at sign-in and updated
   // mid-session via NextAuth update() after onboarding completes — no API call,
   // no timeout race, no localStorage dependency).
+  //
+  // FIX #1 (CRITICAL — onboarding loop): If the URL has ?firstScan=* the user
+  // just finished onboarding and markOnboardingComplete() fired, but the JWT
+  // update() may not have propagated yet. Skip the redirect in that case — the
+  // user is legitimately on the feed. Without this, a slow JWT refresh sends
+  // them back to /onboarding immediately after the scan redirect lands.
   useEffect(() => {
     if (status !== 'authenticated') return
+    const firstScanParam = searchParams?.get('firstScan')
+    if (firstScanParam !== null) return  // came from onboarding — JWT update in flight
     const sessionOnboarded = (session?.user as any)?.onboarded ?? false
     if (!sessionOnboarded) {
       router.push('/onboarding')
     }
-  }, [status, session, router])
+  }, [status, session, router, searchParams])
 
   const fetchPosts = useCallback(async (silent = false) => {
     if (!silent) setLoading(true)
@@ -2304,6 +2385,32 @@ function FeedPage() {
 
       <Nav lastScannedAt={lastScannedAt} scanHealth={scanHealth} />
 
+      {/* ── First-scan in-progress banner ────────────────────────────────────
+          Shown when the user is redirected from onboarding with ?firstScan=1.
+          The scan is running server-side; this polls every 5s until posts appear.
+      ── */}
+      {firstScanBanner && (
+        <div className="bg-blue-600/10 border-b border-blue-500/20">
+          <div className="max-w-3xl mx-auto px-5 py-3 flex items-center gap-3">
+            <div className="w-4 h-4 border-2 border-blue-400/40 border-t-blue-400 rounded-full animate-spin shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm text-blue-300 font-medium">First scan in progress</p>
+              <p className="text-xs text-blue-400/70">Searching LinkedIn for conversations worth joining — posts will appear here automatically in 30–60 seconds.</p>
+            </div>
+            <button
+              onClick={() => {
+                setFirstScanBanner(false)
+                if (firstScanPollRef.current) clearInterval(firstScanPollRef.current)
+              }}
+              className="text-blue-400/50 hover:text-blue-300 transition-colors shrink-0 text-xs"
+              aria-label="Dismiss banner"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Tab bar — transforms in-place into selection control bar when selectionMode is active */}
       <div className="sticky top-[61px] z-10 bg-[#0a0c10]/95 backdrop-blur-md border-b border-slate-800/60">
         <div className="max-w-3xl mx-auto px-5">
@@ -2491,30 +2598,94 @@ function FeedPage() {
             </Link>
           </div>
         ) : posts.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-24 text-center gap-3">
-            <div className="text-4xl">
-              {filter === 'New' ? '🎉' : filter === 'Engaged' ? '📋' : filter === 'Replied' ? '💬' : filter === 'CRM' ? '🔗' : '🗃️'}
-            </div>
-            <p className="text-slate-300 text-sm font-medium">
-              {filter === 'New' ? 'Inbox zero — all caught up' : filter === 'Engaged' ? 'No engaged posts yet' : filter === 'Replied' ? 'No replies yet' : filter === 'Skipped' ? 'Nothing skipped' : filter === 'CRM' ? 'No contacts pushed to CRM yet' : 'No posts found'}
-            </p>
-            <p className="text-slate-600 text-xs max-w-xs">
-              {filter === 'New'
-                ? scanHealth?.lastScanStatus === 'pending_fb'
-                  ? 'LinkedIn scan is running — results will appear shortly.'
-                  : scanHealth?.lastScanStatus === 'scanning'
-                    ? 'Scan is running now — results will appear shortly.'
-                    : (plan === 'Trial' || plan === 'Starter')
-                      ? 'Scout scans once per day on your plan. Your first scan will surface new posts.'
-                      : 'Scout scans at 6 AM and 6 PM daily.'
-                : 'Posts you mark will appear here.'}
-            </p>
-            {(scanHealth?.lastScanAt || lastScannedAt) && (
-              <p className="text-slate-700 text-xs">
-                Last scan: {timeAgo(scanHealth?.lastScanAt || lastScannedAt || '')}
-                {scanHealth?.lastScanStatus === 'failed' && ' · ⚠️ issue detected, retry scheduled'}
-              </p>
-            )}
+          <div className="flex flex-col items-center justify-center py-20 text-center gap-3 px-4">
+            {filter !== 'New' ? (
+              // Non-inbox tabs: simple empty state
+              <>
+                <div className="text-4xl">
+                  {filter === 'Engaged' ? '📋' : filter === 'Replied' ? '💬' : filter === 'CRM' ? '🔗' : '🗃️'}
+                </div>
+                <p className="text-slate-300 text-sm font-medium">
+                  {filter === 'Engaged' ? 'No engaged posts yet' : filter === 'Replied' ? 'No replies yet' : filter === 'Skipped' ? 'Nothing skipped' : 'No contacts pushed to CRM yet'}
+                </p>
+                <p className="text-slate-600 text-xs max-w-xs">Posts you mark will appear here.</p>
+              </>
+            ) : (() => {
+              // Inbox tab empty — detect brand-new vs established user with inbox zero
+              const isNewUser = !scanHealth?.lastScanAt && !lastScannedAt
+              const scanRunning = scanHealth?.lastScanStatus === 'scanning' || scanHealth?.lastScanStatus === 'pending_fb' || firstScanBanner
+
+              if (scanRunning) {
+                return (
+                  <>
+                    <div className="w-12 h-12 border-2 border-slate-700 border-t-blue-400 rounded-full animate-spin" />
+                    <p className="text-slate-300 text-sm font-medium">Scan in progress…</p>
+                    <p className="text-slate-600 text-xs max-w-xs">Posts will appear here as soon as the scan finishes.</p>
+                  </>
+                )
+              }
+
+              if (isNewUser || firstScanZero) {
+                // Brand-new user: never had a successful scan yet
+                return (
+                  <div className="w-full max-w-sm">
+                    <div className="text-3xl mb-4">🔍</div>
+                    <p className="text-slate-200 text-base font-semibold mb-2">Scout is getting started</p>
+                    <p className="text-slate-500 text-sm leading-relaxed mb-6">
+                      Your first scan searched LinkedIn for relevant conversations. Posts matching your keywords will appear here as Scout continues scanning — usually by end of day.
+                    </p>
+                    <div className="text-left space-y-3 mb-6">
+                      <div className="bg-slate-800/50 border border-slate-700/40 rounded-xl p-4 space-y-3">
+                        <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Speed up your results</p>
+                        <div className="flex items-start gap-3">
+                          <span className="w-5 h-5 rounded-full bg-blue-600/20 border border-blue-500/30 text-blue-400 text-xs flex items-center justify-center shrink-0 mt-0.5 font-semibold">1</span>
+                          <div>
+                            <p className="text-sm text-slate-200 font-medium">Add LinkedIn profiles to track</p>
+                            <p className="text-xs text-slate-500 mt-0.5">Scout pulls posts directly from specific accounts — this is the fastest way to see results.</p>
+                            <Link href="/settings?tab=linkedin" className="text-xs text-blue-400 hover:text-blue-300 mt-1 inline-block transition-colors">
+                              Go to ICP Profiles →
+                            </Link>
+                          </div>
+                        </div>
+                        <div className="flex items-start gap-3">
+                          <span className="w-5 h-5 rounded-full bg-blue-600/20 border border-blue-500/30 text-blue-400 text-xs flex items-center justify-center shrink-0 mt-0.5 font-semibold">2</span>
+                          <div>
+                            <p className="text-sm text-slate-200 font-medium">Trigger another scan now</p>
+                            <p className="text-xs text-slate-500 mt-0.5">Run a manual scan to check for new posts on your keywords right now.</p>
+                            <button
+                              onClick={() => fetchPosts()}
+                              className="text-xs text-blue-400 hover:text-blue-300 mt-1 inline-block transition-colors"
+                            >
+                              Refresh feed →
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <p className="text-slate-700 text-xs">Next automatic scan at 6 AM or 6 PM PST.</p>
+                  </div>
+                )
+              }
+
+              // Established user with inbox zero
+              return (
+                <>
+                  <div className="text-4xl">🎉</div>
+                  <p className="text-slate-300 text-sm font-medium">Inbox zero — all caught up</p>
+                  <p className="text-slate-600 text-xs max-w-xs">
+                    {(plan === 'Trial' || plan === 'Scout Starter')
+                      ? 'Scout scans once per day on your plan.'
+                      : 'Scout scans at 6 AM and 6 PM daily.'}
+                  </p>
+                  {(scanHealth?.lastScanAt || lastScannedAt) && (
+                    <p className="text-slate-700 text-xs">
+                      Last scan: {timeAgo(scanHealth?.lastScanAt || lastScannedAt || '')}
+                      {scanHealth?.lastScanStatus === 'failed' && ' · ⚠️ issue detected, retry scheduled'}
+                    </p>
+                  )}
+                </>
+              )
+            })()}
           </div>
         ) : (
           <>
