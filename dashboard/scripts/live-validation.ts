@@ -13,10 +13,10 @@
  *
  * Covers three validation gates from docs/apify-resilience-plan.md:
  *
- * Gate 1A — Run bebity/linkedin-profile-posts-scraper with a real LinkedIn profile.
+ * Gate 1A — Run data-slayer/linkedin-profile-posts-scraper with a real LinkedIn profile.
  *            Capture actual output, compare field names against FALLBACK_ACTORS fieldMap.
  *
- * Gate 1B — Run anchor/linkedin-post-url-search with a real keyword.
+ * Gate 1B — Run powerai/linkedin-posts-search-scraper with a real keyword.
  *            Capture actual output, compare field names against FALLBACK_ACTORS fieldMap.
  *
  * Gate 2  — Run harvestapi/linkedin-profile-posts at 256MB vs 1024MB with the same
@@ -156,14 +156,14 @@ async function runGate1A(): Promise<GateResult> {
   const findings: string[] = []
   let passed     = true
 
-  const actorId  = 'bebity/linkedin-profile-posts-scraper'
+  const actorId  = 'data-slayer/linkedin-profile-posts-scraper'
   const fallbackConfig = Object.values(FALLBACK_ACTORS).find(f => f.actorId === actorId)
 
   if (!fallbackConfig) {
     return {
       gate: 'Gate 1A',
       passed: false,
-      findings: ['FAIL: bebity actor not registered in FALLBACK_ACTORS'],
+      findings: ['FAIL: data-slayer actor not registered in FALLBACK_ACTORS'],
       rawSample: null,
       elapsedMs: Date.now() - start,
     }
@@ -175,7 +175,7 @@ async function runGate1A(): Promise<GateResult> {
   const { items, errorType, durationMs } = await runApifySync(
     actorId,
     // bebity actor input format — may need adjustment based on actual actor docs
-    { profileUrl: TEST_PROFILE_URL, maxPosts: 3 },
+    { profileUrls: [TEST_PROFILE_URL], maxPosts: 3 },
     fallbackConfig.waitSecs,
     256,
   )
@@ -220,14 +220,14 @@ async function runGate1B(): Promise<GateResult> {
   const findings: string[] = []
   let passed     = true
 
-  const actorId  = 'anchor/linkedin-post-url-search'
+  const actorId  = 'powerai/linkedin-posts-search-scraper'
   const fallbackConfig = Object.values(FALLBACK_ACTORS).find(f => f.actorId === actorId)
 
   if (!fallbackConfig) {
     return {
       gate: 'Gate 1B',
       passed: false,
-      findings: ['FAIL: anchor actor not registered in FALLBACK_ACTORS'],
+      findings: ['FAIL: powerai actor not registered in FALLBACK_ACTORS'],
       rawSample: null,
       elapsedMs: Date.now() - start,
     }
@@ -239,7 +239,7 @@ async function runGate1B(): Promise<GateResult> {
   const { items, errorType, durationMs } = await runApifySync(
     actorId,
     // anchor actor input format — may need adjustment
-    { query: TEST_KEYWORD, maxResults: 5 },
+    { searchQuery: TEST_KEYWORD, limit: 5 },
     fallbackConfig.waitSecs,
     256,
   )

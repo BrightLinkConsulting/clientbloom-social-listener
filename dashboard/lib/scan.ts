@@ -91,38 +91,45 @@ export const ACTOR_SCHEMAS: Record<string, ActorSchema> = {
 }
 
 // Fallback actor registry: primary actor ID → fallback config
-// CRITICAL: fallback actors must use a different scraping strategy than primaries.
-// Both primaries use cookie-less proxy rotation. Fallbacks must use session/cookie-based
-// or browser-based approaches so a LinkedIn proxy block doesn't take out both simultaneously.
+// CRITICAL: fallback actors must use a different vendor than primaries.
+// Both primaries (harvestapi, apimaestro) use cookie-less proxy rotation.
+// Fallbacks are from different vendors so a LinkedIn proxy block doesn't take out both.
+//
+// LIVE-VERIFIED April 2026: both fallback actors confirmed to exist on Apify Store,
+// return data, and produce the field schemas defined below. See docs/live-validation-results.md.
 export const FALLBACK_ACTORS: Record<string, FallbackConfig> = {
-  // Primary: harvestapi (cookie-less proxy) → Fallback: bebity (session-based)
+  // Primary: harvestapi (cookie-less proxy) → Fallback: data-slayer (different vendor)
+  // Live-verified fields: text, author.title, author.url, share_url, urn
+  // Input format: { profileUrls: [...], maxPosts: N } — same key as primary ✓
   'harvestapi/linkedin-profile-posts': {
-    actorId:  'bebity/linkedin-profile-posts-scraper',
-    waitSecs: 90,
-    schema: {
-      required: ['postText'],
-      fieldMap: {
-        'postText':      'text',
-        'ownerName':     'authorName',
-        'ownerUrl':      'authorUrl',
-        'url':           'postUrl',
-        'urn':           'postId',
-      },
-    },
-  },
-
-  // Primary: apimaestro (cookie-less proxy) → Fallback: anchor (browser-based)
-  'apimaestro/linkedin-posts-search-scraper-no-cookies': {
-    actorId:  'anchor/linkedin-post-url-search',
+    actorId:  'data-slayer/linkedin-profile-posts-scraper',
     waitSecs: 90,
     schema: {
       required: ['text'],
       fieldMap: {
-        'text':        'text',
-        'authorName':  'authorName',
-        'authorUrl':   'authorUrl',
-        'postUrl':     'postUrl',
-        'id':          'postId',
+        'text':         'text',        // data-slayer uses 'text' (not 'content' like harvestapi)
+        'author.title': 'authorName',  // data-slayer uses author.title (not author.name)
+        'author.url':   'authorUrl',   // data-slayer uses author.url (not author.linkedinUrl)
+        'share_url':    'postUrl',     // data-slayer uses share_url (not socialContent.shareUrl)
+        'urn':          'postId',      // data-slayer uses urn (not id)
+      },
+    },
+  },
+
+  // Primary: apimaestro (cookie-less proxy) → Fallback: powerai (different vendor)
+  // Live-verified fields: title (=post text), author.name, author.url, url, id
+  // Input format: { searchQuery: "...", limit: N } — same keys as primary ✓
+  'apimaestro/linkedin-posts-search-scraper-no-cookies': {
+    actorId:  'powerai/linkedin-posts-search-scraper',
+    waitSecs: 90,
+    schema: {
+      required: ['title'],
+      fieldMap: {
+        'title':       'text',        // powerai uses 'title' for post content (not 'text')
+        'author.name': 'authorName',  // powerai uses author.name ✓
+        'author.url':  'authorUrl',   // powerai uses author.url (not authorProfileUrl)
+        'url':         'postUrl',     // powerai uses 'url' (not 'postUrl')
+        'id':          'postId',      // powerai uses 'id' ✓
       },
     },
   },

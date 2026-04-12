@@ -47,27 +47,42 @@ function validApimaestroItem(index: number): object {
   }
 }
 
-function validBebityItem(index: number): object {
-  // bebity/linkedin-profile-posts-scraper uses different field names
+function validDataSlayerItem(index: number): object {
+  // data-slayer/linkedin-profile-posts-scraper — live-verified field names April 2026
   return {
-    urn:       `urn:li:activity:${3000 + index}`,
-    postText:  `Fallback actor post about leadership and growth #${index}`,
-    ownerName: `Bebity Author ${index}`,
-    ownerUrl:  `https://linkedin.com/in/bebity-author-${index}`,
-    url:       `https://linkedin.com/feed/update/urn:li:activity:${3000 + index}`,
-    publishedAt: new Date(Date.now() - index * 3600000).toISOString(),
+    urn:          `urn:li:activity:${3000 + index}`,
+    text:         `Fallback actor post about leadership and growth #${index}`,
+    share_url:    `https://linkedin.com/posts/datslayer-author-${index}-activity-${3000 + index}`,
+    author: {
+      title:      `DataSlayer Author ${index}`,
+      url:        `https://linkedin.com/in/datslayer-author-${index}`,
+      image_url:  `https://media.licdn.com/dms/image/example`,
+    },
+    created_at:   new Date(Date.now() - index * 3600000).toISOString(),
+    is_repost:    false,
+    likes:        10 + index,
+    comments:     2 + index,
   }
 }
 
-function validAnchorItem(index: number): object {
-  // anchor/linkedin-post-url-search uses similar flat schema to apimaestro
+function validPoweraiItem(index: number): object {
+  // powerai/linkedin-posts-search-scraper — live-verified field names April 2026
   return {
-    id:         `anchor_post_${index}`,
-    text:       `Anchor actor post about sales strategy #${index}`,
-    authorName: `Anchor Author ${index}`,
-    authorUrl:  `https://linkedin.com/in/anchor-author-${index}`,
-    postUrl:    `https://linkedin.com/feed/update/urn:li:activity:${4000 + index}`,
-    publishedAt: new Date(Date.now() - index * 3600000).toISOString(),
+    id:         `${7449154379678498000 + index}`,
+    url:        `https://www.linkedin.com/feed/update/urn:li:activity:${7449154379678498000 + index}`,
+    title:      `Powerai actor post about B2B SaaS strategy #${index}`,
+    activity: {
+      num_likes:    5 + index,
+      num_comments: 1 + index,
+      num_shares:   0,
+    },
+    created_at:   new Date(Date.now() - index * 3600000).toISOString(),
+    author: {
+      name:        `Powerai Author ${index}`,
+      description: `CEO at Company ${index}`,
+      url:         `https://www.linkedin.com/in/powerai-author-${index}`,
+    },
+    scrapedAt:    new Date().toISOString(),
   }
 }
 
@@ -132,7 +147,7 @@ export const SCENARIOS: MockScenario[] = [
     calls: [
       { actorId: 'harvestapi/linkedin-profile-posts', attempt: 1, result: { type: 'error', errorType: 'RUN_FAILED', status: 400 } },
       { actorId: 'harvestapi/linkedin-profile-posts', attempt: 2, result: { type: 'error', errorType: 'RUN_FAILED', status: 400 } },
-      { actorId: 'bebity/linkedin-profile-posts-scraper', attempt: 3, result: { type: 'success', items: [validBebityItem(1), validBebityItem(2), validBebityItem(3)] } },
+      { actorId: 'data-slayer/linkedin-profile-posts-scraper', attempt: 3, result: { type: 'success', items: [validDataSlayerItem(1), validDataSlayerItem(2), validDataSlayerItem(3)] } },
     ],
   },
   {
@@ -141,7 +156,7 @@ export const SCENARIOS: MockScenario[] = [
     calls: [
       { actorId: 'harvestapi/linkedin-profile-posts', attempt: 1, result: { type: 'error', errorType: 'RUN_FAILED', status: 400 } },
       { actorId: 'harvestapi/linkedin-profile-posts', attempt: 2, result: { type: 'error', errorType: 'NETWORK', status: 0 } },
-      { actorId: 'bebity/linkedin-profile-posts-scraper', attempt: 3, result: { type: 'success', items: [validBebityItem(1), validBebityItem(2)] } },
+      { actorId: 'data-slayer/linkedin-profile-posts-scraper', attempt: 3, result: { type: 'success', items: [validDataSlayerItem(1), validDataSlayerItem(2)] } },
     ],
   },
   {
@@ -150,7 +165,7 @@ export const SCENARIOS: MockScenario[] = [
     calls: [
       { actorId: 'harvestapi/linkedin-profile-posts', attempt: 1, result: { type: 'error', errorType: 'RUN_FAILED', status: 400 } },
       { actorId: 'harvestapi/linkedin-profile-posts', attempt: 2, result: { type: 'error', errorType: 'TIMEOUT', status: 400 } },
-      { actorId: 'bebity/linkedin-profile-posts-scraper', attempt: 3, result: { type: 'error', errorType: 'RUN_FAILED', status: 400 } },
+      { actorId: 'data-slayer/linkedin-profile-posts-scraper', attempt: 3, result: { type: 'error', errorType: 'RUN_FAILED', status: 400 } },
     ],
   },
   {
@@ -159,7 +174,7 @@ export const SCENARIOS: MockScenario[] = [
     calls: [
       { actorId: 'harvestapi/linkedin-profile-posts', attempt: 1, result: { type: 'empty' } },
       { actorId: 'harvestapi/linkedin-profile-posts', attempt: 2, result: { type: 'empty' } },
-      { actorId: 'bebity/linkedin-profile-posts-scraper', attempt: 3, result: { type: 'success', items: [validBebityItem(1)] } },
+      { actorId: 'data-slayer/linkedin-profile-posts-scraper', attempt: 3, result: { type: 'success', items: [validDataSlayerItem(1)] } },
     ],
   },
   {
@@ -176,7 +191,7 @@ export const SCENARIOS: MockScenario[] = [
         attempt: 2,
         result: { type: 'schema_broken', items: [schemaBreakingHarvestapiItem(1)] }
       },
-      { actorId: 'bebity/linkedin-profile-posts-scraper', attempt: 3, result: { type: 'success', items: [validBebityItem(1)] } },
+      { actorId: 'data-slayer/linkedin-profile-posts-scraper', attempt: 3, result: { type: 'success', items: [validDataSlayerItem(1)] } },
     ],
   },
   {
@@ -255,7 +270,7 @@ export const SCENARIOS: MockScenario[] = [
     calls: [
       { actorId: 'harvestapi/linkedin-profile-posts', attempt: 1, result: { type: 'error', errorType: 'TIMEOUT', status: 400 } },
       { actorId: 'harvestapi/linkedin-profile-posts', attempt: 2, result: { type: 'error', errorType: 'TIMEOUT', status: 400 } },
-      { actorId: 'bebity/linkedin-profile-posts-scraper', attempt: 3, result: { type: 'success', items: [validBebityItem(1), validBebityItem(2)] } },
+      { actorId: 'data-slayer/linkedin-profile-posts-scraper', attempt: 3, result: { type: 'success', items: [validDataSlayerItem(1), validDataSlayerItem(2)] } },
     ],
   },
   {
@@ -264,7 +279,7 @@ export const SCENARIOS: MockScenario[] = [
     calls: [
       { actorId: 'apimaestro/linkedin-posts-search-scraper-no-cookies', attempt: 1, result: { type: 'error', errorType: 'RUN_FAILED', status: 400 } },
       { actorId: 'apimaestro/linkedin-posts-search-scraper-no-cookies', attempt: 2, result: { type: 'error', errorType: 'RUN_FAILED', status: 400 } },
-      { actorId: 'anchor/linkedin-post-url-search', attempt: 3, result: { type: 'error', errorType: 'RUN_FAILED', status: 400 } },
+      { actorId: 'powerai/linkedin-posts-search-scraper', attempt: 3, result: { type: 'error', errorType: 'RUN_FAILED', status: 400 } },
     ],
   },
   {
@@ -273,7 +288,7 @@ export const SCENARIOS: MockScenario[] = [
     calls: [
       { actorId: 'harvestapi/linkedin-profile-posts', attempt: 1, result: { type: 'error', errorType: 'RUN_FAILED', status: 400 } },
       { actorId: 'harvestapi/linkedin-profile-posts', attempt: 2, result: { type: 'error', errorType: 'RUN_FAILED', status: 400 } },
-      { actorId: 'bebity/linkedin-profile-posts-scraper', attempt: 3, result: { type: 'error', errorType: 'TIMEOUT', status: 400 } },
+      { actorId: 'data-slayer/linkedin-profile-posts-scraper', attempt: 3, result: { type: 'error', errorType: 'TIMEOUT', status: 400 } },
     ],
   },
 ]

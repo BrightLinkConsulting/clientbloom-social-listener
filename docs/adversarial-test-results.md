@@ -1,7 +1,7 @@
 # Adversarial Test Results
 ## Scout — Apify Resilience Branch
 
-**Run date:** 2026-04-12T00:11:22.960Z  
+**Run date:** 2026-04-12T19:58:01.961Z  
 **Branch:** feature/apify-resilience  
 **Result:** ✅ ALL PASS (16/16)  
 
@@ -16,20 +16,20 @@
   ✅ PASS: harvestapi/linkedin-profile-posts has 5 fieldMap entries
   ✅ PASS: apimaestro/linkedin-posts-search-scraper-no-cookies has 1 required field(s): text
   ✅ PASS: apimaestro/linkedin-posts-search-scraper-no-cookies has 5 fieldMap entries
-  ✅ PASS: Fallback bebity/linkedin-profile-posts-scraper has 1 required field(s)
-  ✅ PASS: Fallback bebity/linkedin-profile-posts-scraper waitSecs=90 (>60 as required)
-  ✅ PASS: Fallback anchor/linkedin-post-url-search has 1 required field(s)
-  ✅ PASS: Fallback anchor/linkedin-post-url-search waitSecs=90 (>60 as required)
+  ✅ PASS: Fallback data-slayer/linkedin-profile-posts-scraper has 1 required field(s)
+  ✅ PASS: Fallback data-slayer/linkedin-profile-posts-scraper waitSecs=90 (>60 as required)
+  ✅ PASS: Fallback powerai/linkedin-posts-search-scraper has 1 required field(s)
+  ✅ PASS: Fallback powerai/linkedin-posts-search-scraper waitSecs=90 (>60 as required)
   ℹ️ INFO: Total actor coverage: 4 actors (2 primary, 2 fallback)
 
 ---
 
 ## ✅ A1 — PASS
 **Scenario:** Primary actor returns actor_error, fallback succeeds with valid output  
-**Duration:** 0ms  
+**Duration:** 1ms  
 
 **Findings:**
-  ✅ PASS: Fallback actor registered: bebity/linkedin-profile-posts-scraper
+  ✅ PASS: Fallback actor registered: data-slayer/linkedin-profile-posts-scraper
   ✅ PASS: Attempt 1 failed with RUN_FAILED as expected
   ✅ PASS: Attempt 2 failed with RUN_FAILED as expected
   ✅ PASS: Fallback returned 3 items
@@ -38,7 +38,7 @@
 **Actor call log:**
   - Attempt 1 | harvestapi/linkedin-profile-posts → ERROR:RUN_FAILED
   - Attempt 2 | harvestapi/linkedin-profile-posts → ERROR:RUN_FAILED
-  - Attempt 3 | bebity/linkedin-profile-posts-scraper → SUCCESS:3 items
+  - Attempt 3 | data-slayer/linkedin-profile-posts-scraper → SUCCESS:3 items
 
 ---
 
@@ -47,15 +47,15 @@
 **Duration:** 0ms  
 
 **Findings:**
-  ✅ PASS: Vendors are different (primary: harvestapi, fallback: bebity)
-  ✅ PASS: Fallback schema defined with 1 required field(s): postText
+  ✅ PASS: Vendors are different (primary: harvestapi, fallback: data-slayer)
+  ✅ PASS: Fallback schema defined with 1 required field(s): text
   ✅ PASS: Field normalization produced all canonical fields: text, authorName, authorUrl, postUrl, postId
-  ✅       Sample: text="Fallback actor post about leadership and...", authorName="Bebity Author 1"
+  ✅       Sample: text="Fallback actor post about leadership and...", authorName="DataSlayer Author 1"
 
 **Actor call log:**
   - Attempt 1 | harvestapi/linkedin-profile-posts → ERROR:RUN_FAILED
   - Attempt 2 | harvestapi/linkedin-profile-posts → ERROR:NETWORK
-  - Attempt 3 | bebity/linkedin-profile-posts-scraper → SUCCESS:2 items
+  - Attempt 3 | data-slayer/linkedin-profile-posts-scraper → SUCCESS:2 items
 
 ---
 
@@ -72,7 +72,7 @@
 **Actor call log:**
   - Attempt 1 | harvestapi/linkedin-profile-posts → ERROR:RUN_FAILED
   - Attempt 2 | harvestapi/linkedin-profile-posts → ERROR:TIMEOUT
-  - Attempt 3 | bebity/linkedin-profile-posts-scraper → ERROR:RUN_FAILED
+  - Attempt 3 | data-slayer/linkedin-profile-posts-scraper → ERROR:RUN_FAILED
 
 ---
 
@@ -88,7 +88,7 @@
 **Actor call log:**
   - Attempt 1 | harvestapi/linkedin-profile-posts → SUCCESS:0 items
   - Attempt 2 | harvestapi/linkedin-profile-posts → SUCCESS:0 items
-  - Attempt 3 | bebity/linkedin-profile-posts-scraper → SUCCESS:1 items
+  - Attempt 3 | data-slayer/linkedin-profile-posts-scraper → SUCCESS:1 items
 
 ---
 
@@ -104,13 +104,13 @@
 **Actor call log:**
   - Attempt 1 | harvestapi/linkedin-profile-posts → SUCCESS:2 items
   - Attempt 2 | harvestapi/linkedin-profile-posts → SUCCESS:1 items
-  - Attempt 3 | bebity/linkedin-profile-posts-scraper → SUCCESS:1 items
+  - Attempt 3 | data-slayer/linkedin-profile-posts-scraper → SUCCESS:1 items
 
 ---
 
 ## ✅ A6 — PASS
 **Scenario:** Primary succeeds, first/last items valid, middle item malformed — sampling must catch it  
-**Duration:** 1ms  
+**Duration:** 0ms  
 
 **Findings:**
   ✅ PASS: item[0] is valid (has content field)
@@ -141,7 +141,7 @@
 
 ## ✅ A8 — PASS
 **Scenario:** Two scan requests fire for same tenant — concurrency lock prevents duplicate  
-**Duration:** 1ms  
+**Duration:** 0ms  
 
 **Findings:**
   ✅ PASS: First lock acquisition succeeded
@@ -214,7 +214,7 @@
 **Actor call log:**
   - Attempt 1 | harvestapi/linkedin-profile-posts → ERROR:TIMEOUT
   - Attempt 2 | harvestapi/linkedin-profile-posts → ERROR:TIMEOUT
-  - Attempt 3 | bebity/linkedin-profile-posts-scraper → SUCCESS:2 items
+  - Attempt 3 | data-slayer/linkedin-profile-posts-scraper → SUCCESS:2 items
 
 ---
 
@@ -223,15 +223,15 @@
 **Duration:** 0ms  
 
 **Findings:**
-  ✅ PASS: Fallback actor registered for keyword actor: anchor/linkedin-post-url-search
-  ✅ PASS: Keyword actor vendors are diverse (apimaestro → anchor)
+  ✅ PASS: Fallback actor registered for keyword actor: powerai/linkedin-posts-search-scraper
+  ✅ PASS: Keyword actor vendors are diverse (apimaestro → powerai)
   ✅ PASS: All 3 attempts returned 0 items — total result is 0 posts, no exception
   ✅ PASS: All 3 attempts returned structured responses (no undefined errorType)
 
 **Actor call log:**
   - Attempt 1 | apimaestro/linkedin-posts-search-scraper-no-cookies → ERROR:RUN_FAILED
   - Attempt 2 | apimaestro/linkedin-posts-search-scraper-no-cookies → ERROR:RUN_FAILED
-  - Attempt 3 | anchor/linkedin-post-url-search → ERROR:RUN_FAILED
+  - Attempt 3 | powerai/linkedin-posts-search-scraper → ERROR:RUN_FAILED
 
 ---
 
@@ -247,7 +247,7 @@
 **Actor call log:**
   - Attempt 1 | harvestapi/linkedin-profile-posts → ERROR:RUN_FAILED
   - Attempt 2 | harvestapi/linkedin-profile-posts → ERROR:RUN_FAILED
-  - Attempt 3 | bebity/linkedin-profile-posts-scraper → ERROR:TIMEOUT
+  - Attempt 3 | data-slayer/linkedin-profile-posts-scraper → ERROR:TIMEOUT
 
 ---
 
