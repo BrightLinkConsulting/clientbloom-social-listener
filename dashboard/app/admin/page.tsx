@@ -1128,7 +1128,7 @@ export default function AdminPage() {
       const resp = await fetch('/api/admin/tenants', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: archiveTarget.id, action: 'archive' }),
+        body: JSON.stringify({ id: archiveTarget.id, action: 'archive', email: archiveTarget.email, tenantId: archiveTarget.tenantId }),
       })
       const data = await resp.json()
       if (resp.ok) {
@@ -1150,7 +1150,7 @@ export default function AdminPage() {
       const resp = await fetch('/api/admin/tenants', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: t.id, action: 'unarchive' }),
+        body: JSON.stringify({ id: t.id, action: 'unarchive', email: t.email, tenantId: t.tenantId }),
       })
       if (resp.ok) {
         setTenants(ts => ts.map(x => x.id === t.id ? { ...x, status: 'Active', archivedAt: null } : x))

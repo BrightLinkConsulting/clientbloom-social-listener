@@ -251,6 +251,8 @@ export async function PATCH(req: Request) {
     const {
       id, action, status, companyName, airtableBaseId, airtableToken,
       password, plan, isAdmin, isFeedOnly, apifyKey, apifyPool, reactivationSentAt,
+      // Optional context fields for audit log enrichment
+      email: targetEmail, tenantId: targetTenantId,
     } = body
 
     if (!id) return NextResponse.json({ error: 'id is required.' }, { status: 400 })
@@ -276,6 +278,8 @@ export async function PATCH(req: Request) {
       await writeAuditLog({
         eventType:       'archive_tenant',
         adminEmail:      caller.email || 'admin',
+        targetEmail:     targetEmail  || undefined,
+        targetTenantId:  targetTenantId || undefined,
         targetRecordId:  id,
         notes:           { archivedAt: now },
       })
@@ -301,6 +305,8 @@ export async function PATCH(req: Request) {
       await writeAuditLog({
         eventType:      'unarchive_tenant',
         adminEmail:     caller.email || 'admin',
+        targetEmail:    targetEmail    || undefined,
+        targetTenantId: targetTenantId || undefined,
         targetRecordId: id,
       })
 

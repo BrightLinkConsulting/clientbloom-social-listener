@@ -28,7 +28,6 @@
  * - Change tenant plan (action: update_plan)
  * - Send password reset email (action: send_password_reset)
  * - Send reactivation email to expired trial (action: send_reactivation)
- * - Grant 7-day trial access (action: grant_trial)
  *
  * ── Request body ─────────────────────────────────────────────────────────────
  * {
@@ -62,6 +61,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getTenantConfig, tenantError } from '@/lib/tenant'
 import { writeAuditLog } from '@/lib/audit-log'
+import { buildTrialReactivationEmail } from '@/lib/emails'
 
 const ANTHROPIC_KEY  = process.env.ANTHROPIC_API_KEY        || ''
 const PLATFORM_TOKEN = process.env.PLATFORM_AIRTABLE_TOKEN  || ''
@@ -101,7 +101,6 @@ Your job: help Mike manage his customer base efficiently. You have full read acc
 4. **update_plan** — change a tenant's plan (e.g., upgrade, downgrade, grant Complimentary).
 5. **send_password_reset** — send a new temporary password to a tenant's email.
 6. **send_reactivation** — send a reactivation email to an expired trial tenant.
-7. **grant_trial** — create a new 7-day trial account for a new contact.
 
 ## What you CANNOT do
 
@@ -246,14 +245,34 @@ async function executeAction(
       if (!action.tenantRecordId || !action.tenantEmail) {
         return { ok: false, message: 'tenantRecordId and tenantEmail required.' }
       }
-      // Delegate to the existing send-reactivation route
-      const r = await fetch(`${BASE_URL_SITE}/api/admin/send-reactivation`, {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json', 'x-internal-agent': 'csm' },
-        body:    JSON.stringify({ id: action.tenantRecordId, email: action.tenantEmail, companyName: action.payload?.companyName }),
+      if (!RESEND_KEY) return { ok: false, message: 'RESEND_API_KEY not configured.' }
+
+      // Build and send reactivation email directly (cannot delegate via HTTP — no session cookie in server-to-server calls)
+      const upgradeUrl = `${BASE_URL_SITE}/upgrade`
+      const unsubUrl   = `${BASE_URL_SITE}/api/unsubscribe?email=${encodeURIComponent(action.tenantEmail)}`
+      const { subject, html } = buildTrialReactivationEmail({
+        companyName: action.payload?.companyName || action.tenantEmail,
+        email:       action.tenantEmail,
+        upgradeUrl,
+        unsubUrl,
       })
-      if (!r.ok) return { ok: false, message: `Reactivation send failed.` }
-      await writeAuditLog({ eventType: 'csm_agent_action', adminEmail, targetEmail: action.tenantEmail, targetRecordId: action.tenantRecordId, notes: { source: 'csm_agent', action: 'send_reactivation' } })
+
+      const emailResp = await fetch('https://api.resend.com/emails', {
+        method:  'POST',
+        headers: { Authorization: `Bearer ${RESEND_KEY}`, 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ from: 'Mike at Scout <info@clientbloom.ai>', to: [action.tenantEmail], subject, html }),
+      })
+      if (!emailResp.ok) return { ok: false, message: `Reactivation email send failed.` }
+
+      // Record send timestamp in Airtable
+      const sentAt = new Date().toISOString()
+      await fetch(`https://api.airtable.com/v0/${PLATFORM_BASE}/Tenants/${action.tenantRecordId}`, {
+        method:  'PATCH',
+        headers: { Authorization: `Bearer ${PLATFORM_TOKEN}`, 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ fields: { 'Reactivation Sent At': sentAt } }),
+      })
+
+      await writeAuditLog({ eventType: 'csm_agent_action', adminEmail, targetEmail: action.tenantEmail, targetRecordId: action.tenantRecordId, notes: { source: 'csm_agent', action: 'send_reactivation', sentAt } })
       return { ok: true, message: `Reactivation email sent to ${action.tenantEmail}.` }
     }
 
