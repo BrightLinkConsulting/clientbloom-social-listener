@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, Fragment } from 'react'
+import React, { useState, useEffect, Fragment } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import {
@@ -39,8 +39,11 @@ interface Tenant {
   isFeedOnly:     boolean
   plan:                 string
   createdAt:            string
+  archivedAt:           string | null
   trialEndsAt:          string | null
   reactivationSentAt:   string | null
+  stripeCustomerId:     string | null
+  stripeSubscriptionId: string | null
 }
 
 function PlanBadge({ plan }: { plan: string }) {
@@ -486,19 +489,21 @@ function ApifyPanel({
 // ── Delete confirmation modal ──────────────────────────────────────────────────
 function DeleteModal({
   tenant,
+  subAccountCount,
   onConfirm,
   onCancel,
   loading,
 }: {
-  tenant: Tenant
-  onConfirm: () => void
-  onCancel:  () => void
-  loading:   boolean
+  tenant:          Tenant
+  subAccountCount: number
+  onConfirm:       () => void
+  onCancel:        () => void
+  loading:         boolean
 }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onCancel} />
-      <div className="relative bg-[#0f1117] border border-slate-700 rounded-2xl shadow-2xl w-full max-w-md p-6">
+      <div className="relative bg-[#0f1117] border border-red-900/50 rounded-2xl shadow-2xl w-full max-w-md p-6">
         <div className="flex items-center gap-3 mb-4">
           <div className="w-10 h-10 rounded-xl bg-red-900/30 flex items-center justify-center">
             <svg className="w-5 h-5 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -506,19 +511,45 @@ function DeleteModal({
             </svg>
           </div>
           <div>
-            <h3 className="text-white font-semibold">Delete tenant</h3>
-            <p className="text-xs text-slate-400">This action cannot be undone</p>
+            <h3 className="text-white font-semibold">Hard delete — permanent</h3>
+            <p className="text-xs text-red-400/80">All data will be wiped. This cannot be undone.</p>
           </div>
         </div>
         <p className="text-sm text-slate-300 mb-2">
-          You are about to permanently delete the tenant account for:
+          You are about to permanently delete:
         </p>
-        <div className="bg-[#0a0c10] border border-slate-800 rounded-lg px-4 py-3 mb-5">
+        <div className="bg-[#0a0c10] border border-slate-800 rounded-lg px-4 py-3 mb-3">
           <p className="text-white font-medium text-sm">{tenant.companyName || tenant.email}</p>
           <p className="text-slate-500 text-xs">{tenant.email}</p>
         </div>
+
+        {/* Sub-account warning */}
+        {subAccountCount > 0 && (
+          <div className="bg-amber-900/20 border border-amber-700/40 rounded-lg px-4 py-3 mb-3 flex items-start gap-2">
+            <svg className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+            </svg>
+            <p className="text-xs text-amber-300">
+              This account has <strong>{subAccountCount}</strong> linked sub-account{subAccountCount > 1 ? 's' : ''}. Deleting it will also permanently delete {subAccountCount > 1 ? 'those accounts' : 'that account'} and all their data.
+            </p>
+          </div>
+        )}
+
+        {/* Stripe warning */}
+        {tenant.stripeSubscriptionId && (
+          <div className="bg-blue-900/20 border border-blue-700/30 rounded-lg px-4 py-3 mb-3 flex items-start gap-2">
+            <svg className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <p className="text-xs text-blue-300">
+              Active Stripe subscription will be cancelled before deletion.
+            </p>
+          </div>
+        )}
+
         <p className="text-xs text-slate-500 mb-5">
-          Their Airtable base and captured posts are <strong className="text-slate-300">not</strong> deleted — only the Scout login record is removed.
+          This deletes all posts, sources, ICPs, keywords, scan history, and the tenant record itself across all Airtable bases.
+          Consider <strong className="text-slate-400">Archive</strong> if you may need to reference this data later.
         </p>
         <div className="flex gap-3 justify-end">
           <button
@@ -526,18 +557,256 @@ function DeleteModal({
             disabled={loading}
             className="px-4 py-2 text-sm text-slate-400 hover:text-slate-200 transition-colors"
           >
-            Cancel
+            Cancel — Archive instead
           </button>
           <button
             onClick={onConfirm}
             disabled={loading}
-            className="bg-red-600 hover:bg-red-500 disabled:opacity-60 text-white font-medium px-5 py-2 rounded-lg text-sm transition-colors"
+            className="bg-red-700 hover:bg-red-600 disabled:opacity-60 text-white font-medium px-5 py-2 rounded-lg text-sm transition-colors"
           >
-            {loading ? 'Deleting…' : 'Yes, delete tenant'}
+            {loading ? 'Deleting…' : 'Yes, permanently delete'}
           </button>
         </div>
       </div>
     </div>
+  )
+}
+
+// ── Archive confirmation modal ─────────────────────────────────────────────────
+function ArchiveModal({
+  tenant,
+  onConfirm,
+  onCancel,
+  loading,
+}: {
+  tenant:    Tenant
+  onConfirm: () => void
+  onCancel:  () => void
+  loading:   boolean
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onCancel} />
+      <div className="relative bg-[#0f1117] border border-amber-900/40 rounded-2xl shadow-2xl w-full max-w-md p-6">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-10 h-10 rounded-xl bg-amber-900/30 flex items-center justify-center">
+            <svg className="w-5 h-5 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+            </svg>
+          </div>
+          <div>
+            <h3 className="text-white font-semibold">Archive account</h3>
+            <p className="text-xs text-slate-400">Data preserved — account frozen</p>
+          </div>
+        </div>
+        <div className="bg-[#0a0c10] border border-slate-800 rounded-lg px-4 py-3 mb-4">
+          <p className="text-white font-medium text-sm">{tenant.companyName || tenant.email}</p>
+          <p className="text-slate-500 text-xs">{tenant.email}</p>
+        </div>
+        <div className="space-y-2 mb-5 text-xs text-slate-400">
+          <p>• Account login will be blocked immediately</p>
+          <p>• All data (posts, ICPs, keywords) is preserved — nothing is deleted</p>
+          <p>• Excluded from all automated cron jobs and emails</p>
+          <p>• Stripe subscription is <strong className="text-slate-300">not</strong> cancelled — do that manually if needed</p>
+          <p>• Can be unarchived at any time from the admin panel</p>
+        </div>
+        <div className="flex gap-3 justify-end">
+          <button onClick={onCancel} disabled={loading}
+            className="px-4 py-2 text-sm text-slate-400 hover:text-slate-200 transition-colors">
+            Cancel
+          </button>
+          <button onClick={onConfirm} disabled={loading}
+            className="bg-amber-700 hover:bg-amber-600 disabled:opacity-60 text-white font-medium px-5 py-2 rounded-lg text-sm transition-colors">
+            {loading ? 'Archiving…' : 'Archive account'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── CSM Agent panel ────────────────────────────────────────────────────────────
+interface CsmMessage { role: 'user' | 'assistant'; content: string }
+interface CsmAction {
+  type:                 string
+  requiresConfirmation: boolean
+  tenantRecordId?:      string
+  tenantEmail?:         string
+  payload?:             Record<string, any>
+  summary:              string
+}
+
+function CsmAgentPanel({
+  tenants,
+  onActionExecuted,
+}: {
+  tenants:          any[]
+  onActionExecuted: () => void
+}) {
+  const [open,           setOpen]           = useState(false)
+  const [input,          setInput]          = useState('')
+  const [messages,       setMessages]       = useState<CsmMessage[]>([])
+  const [loading,        setLoading]        = useState(false)
+  const [pendingAction,  setPendingAction]  = useState<CsmAction | null>(null)
+  const [confirmLoading, setConfirmLoading] = useState(false)
+  const [error,          setError]          = useState('')
+  const bottomRef = React.useRef<HTMLDivElement>(null)
+
+  React.useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages])
+
+  async function sendMessage() {
+    if (!input.trim() || loading) return
+    const userMsg = input.trim()
+    setInput('')
+    setError('')
+    setMessages(m => [...m, { role: 'user', content: userMsg }])
+    setLoading(true)
+
+    try {
+      const resp = await fetch('/api/admin/csm-agent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: userMsg,
+          history: messages.slice(-8),
+          tenants: tenants.slice(0, 50), // cap context size
+        }),
+      })
+      const data = await resp.json()
+      if (!resp.ok) { setError(data.error || 'Agent error'); return }
+
+      setMessages(m => [...m, { role: 'assistant', content: data.reply }])
+      if (data.action) setPendingAction(data.action)
+    } catch { setError('Network error') }
+    finally { setLoading(false) }
+  }
+
+  async function confirmAction() {
+    if (!pendingAction) return
+    setConfirmLoading(true)
+    try {
+      const resp = await fetch('/api/admin/csm-agent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: '', confirm: true, pendingAction }),
+      })
+      const data = await resp.json()
+      setMessages(m => [...m, { role: 'assistant', content: data.message || (data.ok ? '✓ Done.' : '✗ Action failed.') }])
+      setPendingAction(null)
+      if (data.ok) onActionExecuted()
+    } catch { setError('Network error') }
+    finally { setConfirmLoading(false) }
+  }
+
+  return (
+    <>
+      {/* Floating trigger button */}
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="fixed bottom-6 right-6 z-40 w-14 h-14 rounded-full bg-amber-600 hover:bg-amber-500 text-white shadow-2xl flex items-center justify-center transition-all"
+        title="Open CSM Agent"
+      >
+        {open ? (
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        ) : (
+          <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.129.166 2.27.293 3.423.379.35.026.67.21.865.501L12 21l2.755-4.133a1.14 1.14 0 01.865-.501 48.172 48.172 0 003.423-.379c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018z" />
+          </svg>
+        )}
+      </button>
+
+      {/* Panel */}
+      {open && (
+        <div className="fixed bottom-24 right-6 z-40 w-[420px] max-h-[600px] bg-[#0d1017] border border-amber-900/40 rounded-2xl shadow-2xl flex flex-col overflow-hidden">
+
+          {/* Header */}
+          <div className="px-4 py-3 border-b border-slate-800 flex items-center gap-2.5 bg-[#0f1117]">
+            <div className="w-2 h-2 rounded-full bg-amber-400" />
+            <span className="text-sm font-semibold text-white">CSM Agent</span>
+            <span className="text-xs text-slate-500 ml-1">AI-powered admin assistant</span>
+            <button onClick={() => setOpen(false)} className="ml-auto text-slate-500 hover:text-slate-300">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+
+          {/* Messages */}
+          <div className="flex-1 overflow-y-auto p-4 space-y-3 min-h-0">
+            {messages.length === 0 && (
+              <div className="text-center py-8">
+                <p className="text-slate-500 text-sm">Ask me about your customer portfolio.</p>
+                <p className="text-slate-600 text-xs mt-1">
+                  "Who's at risk of churning?" · "Archive all expired trials" · "Send reset to jane@example.com"
+                </p>
+              </div>
+            )}
+            {messages.map((m, i) => (
+              <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                <div className={`max-w-[85%] rounded-xl px-3.5 py-2.5 text-sm leading-relaxed whitespace-pre-wrap ${
+                  m.role === 'user'
+                    ? 'bg-[#4F6BFF]/20 text-slate-200 border border-[#4F6BFF]/30'
+                    : 'bg-[#1a1d27] text-slate-300 border border-slate-800'
+                }`}>
+                  {m.content}
+                </div>
+              </div>
+            ))}
+            {loading && (
+              <div className="flex justify-start">
+                <div className="bg-[#1a1d27] border border-slate-800 rounded-xl px-3.5 py-2.5">
+                  <div className="flex gap-1">
+                    <div className="w-1.5 h-1.5 rounded-full bg-slate-500 animate-bounce" style={{ animationDelay: '0ms' }} />
+                    <div className="w-1.5 h-1.5 rounded-full bg-slate-500 animate-bounce" style={{ animationDelay: '150ms' }} />
+                    <div className="w-1.5 h-1.5 rounded-full bg-slate-500 animate-bounce" style={{ animationDelay: '300ms' }} />
+                  </div>
+                </div>
+              </div>
+            )}
+            {error && <p className="text-xs text-red-400 text-center">{error}</p>}
+            <div ref={bottomRef} />
+          </div>
+
+          {/* Pending action confirmation */}
+          {pendingAction && (
+            <div className="border-t border-amber-900/30 bg-amber-900/10 px-4 py-3">
+              <p className="text-xs text-amber-300 font-medium mb-1">Confirm action</p>
+              <p className="text-xs text-slate-300 mb-3">{pendingAction.summary}</p>
+              <div className="flex gap-2">
+                <button onClick={() => setPendingAction(null)} className="flex-1 py-1.5 text-xs border border-slate-700 rounded-lg text-slate-400 hover:text-slate-200 transition-colors">
+                  Cancel
+                </button>
+                <button onClick={confirmAction} disabled={confirmLoading}
+                  className="flex-1 py-1.5 text-xs bg-amber-700 hover:bg-amber-600 disabled:opacity-60 rounded-lg text-white font-medium transition-colors">
+                  {confirmLoading ? 'Executing…' : 'Confirm'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Input */}
+          <div className="border-t border-slate-800 p-3 flex gap-2">
+            <input
+              value={input}
+              onChange={e => setInput(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && !e.shiftKey && sendMessage()}
+              placeholder="Ask the CSM Agent…"
+              className="flex-1 bg-[#1a1d27] border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-amber-700/60"
+            />
+            <button onClick={sendMessage} disabled={loading || !input.trim()}
+              className="px-3 py-2 bg-amber-700 hover:bg-amber-600 disabled:opacity-40 rounded-lg text-white transition-colors">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.269 20.876L5.999 12zm0 0h7.5" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      )}
+    </>
   )
 }
 
@@ -693,9 +962,12 @@ export default function AdminPage() {
   const [editingCompanyVal, setEditingCompanyVal] = useState('')
   const [savingCompany,     setSavingCompany]     = useState(false)
 
-  // Task 2: Delete confirmation
+  // Task 2: Delete + Archive confirmation
   const [deleteTarget,   setDeleteTarget]   = useState<Tenant | null>(null)
   const [deletingId,     setDeletingId]     = useState<string | null>(null)
+  const [archiveTarget,  setArchiveTarget]  = useState<Tenant | null>(null)
+  const [archivingId,    setArchivingId]    = useState<string | null>(null)
+  const [showArchived,   setShowArchived]   = useState(false)
 
   // Task 3: Password reset
   const [resetingId,     setResetingId]     = useState<string | null>(null)
@@ -822,7 +1094,7 @@ export default function AdminPage() {
     finally { setSavingCompany(false); setEditingCompanyId(null) }
   }
 
-  // Task 2: Delete tenant
+  // Task 2a: Hard-delete tenant (cascade)
   async function handleDelete() {
     if (!deleteTarget) return
     setDeletingId(deleteTarget.id)
@@ -831,16 +1103,63 @@ export default function AdminPage() {
         method: 'DELETE', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: deleteTarget.id }),
       })
+      const data = await resp.json()
       if (resp.ok) {
         setTenants(ts => ts.filter(t => t.id !== deleteTarget.id))
         fetchStats()
-        setSuccess(`Tenant "${deleteTarget.companyName || deleteTarget.email}" deleted.`)
+        const name = deleteTarget.companyName || deleteTarget.email
+        const errCount = data.cascade?.errors?.length || 0
+        setSuccess(errCount > 0
+          ? `"${name}" deleted (${errCount} partial error${errCount > 1 ? 's' : ''} — check audit log).`
+          : `"${name}" and all associated data permanently deleted.`
+        )
       } else {
-        const d = await resp.json()
-        setError(d.error || 'Delete failed')
+        setError(data.error || 'Delete failed')
       }
     } catch { setError('Network error') }
     finally { setDeletingId(null); setDeleteTarget(null) }
+  }
+
+  // Task 2b: Archive tenant
+  async function handleArchive() {
+    if (!archiveTarget) return
+    setArchivingId(archiveTarget.id)
+    try {
+      const resp = await fetch('/api/admin/tenants', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: archiveTarget.id, action: 'archive', email: archiveTarget.email, tenantId: archiveTarget.tenantId }),
+      })
+      const data = await resp.json()
+      if (resp.ok) {
+        setTenants(ts => ts.map(t => t.id === archiveTarget.id
+          ? { ...t, status: 'Archived', archivedAt: data.archivedAt }
+          : t
+        ))
+        setSuccess(`"${archiveTarget.companyName || archiveTarget.email}" archived.`)
+      } else {
+        setError(data.error || 'Archive failed')
+      }
+    } catch { setError('Network error') }
+    finally { setArchivingId(null); setArchiveTarget(null) }
+  }
+
+  // Unarchive tenant
+  async function handleUnarchive(t: Tenant) {
+    try {
+      const resp = await fetch('/api/admin/tenants', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: t.id, action: 'unarchive', email: t.email, tenantId: t.tenantId }),
+      })
+      if (resp.ok) {
+        setTenants(ts => ts.map(x => x.id === t.id ? { ...x, status: 'Active', archivedAt: null } : x))
+        setSuccess(`"${t.companyName || t.email}" unarchived and set to Active.`)
+      } else {
+        const d = await resp.json()
+        setError(d.error || 'Unarchive failed')
+      }
+    } catch { setError('Network error') }
   }
 
   // Task 3: Send password reset email
@@ -910,11 +1229,33 @@ export default function AdminPage() {
       {deleteTarget && (
         <DeleteModal
           tenant={deleteTarget}
+          subAccountCount={
+            // Guard: only count sub-accounts if the primary has a provisioned tenantId
+            deleteTarget.tenantId
+              ? tenants.filter(t => t.isFeedOnly && t.tenantId === deleteTarget.tenantId && t.id !== deleteTarget.id).length
+              : 0
+          }
           onConfirm={handleDelete}
           onCancel={() => setDeleteTarget(null)}
           loading={!!deletingId}
         />
       )}
+
+      {/* Archive confirmation modal */}
+      {archiveTarget && (
+        <ArchiveModal
+          tenant={archiveTarget}
+          onConfirm={handleArchive}
+          onCancel={() => setArchiveTarget(null)}
+          loading={!!archivingId}
+        />
+      )}
+
+      {/* CSM Agent floating panel */}
+      <CsmAgentPanel
+        tenants={tenants}
+        onActionExecuted={() => { fetchTenants(); fetchStats() }}
+      />
 
       {/* Grant free access modal */}
       {showFreeAccess && (
@@ -924,8 +1265,8 @@ export default function AdminPage() {
         />
       )}
 
-      {/* Header */}
-      <header className="border-b border-slate-800 px-6 py-4 flex items-center justify-between sticky top-0 z-30 bg-[#0a0c10]/95 backdrop-blur">
+      {/* Header — amber accent for admin identity */}
+      <header className="border-b border-amber-900/30 px-6 py-4 flex items-center justify-between sticky top-0 z-30 bg-[#0a0c10]/95 backdrop-blur">
         <div className="flex items-center gap-3">
           <button
             onClick={() => router.push('/')}
@@ -940,6 +1281,11 @@ export default function AdminPage() {
           <div className="flex items-center gap-2">
             <ClientBloomMark size={24} />
             <span className="font-semibold text-sm">Scout Admin</span>
+            {/* Amber ADMIN badge — visual distinction for admin context */}
+            <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-900/40 text-amber-400 border border-amber-700/50 tracking-widest uppercase">
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+              Admin
+            </span>
           </div>
         </div>
         <div className="flex items-center gap-4">
@@ -952,7 +1298,7 @@ export default function AdminPage() {
               {stats.source === 'stripe' ? 'Live Stripe data' : 'Stripe not connected'}
             </span>
           )}
-          <span className="text-slate-500 text-xs">{user?.email}</span>
+          <span className="text-amber-600/70 text-xs font-medium">{user?.email}</span>
         </div>
       </header>
 
@@ -1591,6 +1937,26 @@ export default function AdminPage() {
                   <option value="status-asc">Sort: Status</option>
                 </select>
 
+                {/* Show archived toggle */}
+                <button
+                  onClick={() => setShowArchived(v => !v)}
+                  className={`flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border transition-colors ${
+                    showArchived
+                      ? 'bg-amber-900/30 border-amber-700/50 text-amber-300'
+                      : 'bg-slate-800/60 border-slate-700 text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                  </svg>
+                  {showArchived ? 'Hiding archived' : 'Show archived'}
+                  {!showArchived && tenants.filter(t => t.status === 'Archived').length > 0 && (
+                    <span className="bg-amber-900/40 text-amber-400 text-[10px] px-1 rounded">
+                      {tenants.filter(t => t.status === 'Archived').length}
+                    </span>
+                  )}
+                </button>
+
                 {/* Clear filters */}
                 {(searchQuery || filterPlan !== 'all' || filterStatus !== 'all' || filterTrial !== 'all') && (
                   <button
@@ -1625,6 +1991,9 @@ export default function AdminPage() {
 
               // ── Filter pass ──────────────────────────────────────────────────
               const filtered = tenants.filter(t => {
+                // Archive visibility toggle — hide archived by default unless showArchived is on
+                if (!showArchived && t.status === 'Archived') return false
+
                 const matchesSearch = !q
                   || t.companyName?.toLowerCase().includes(q)
                   || t.email?.toLowerCase().includes(q)
@@ -1902,14 +2271,31 @@ export default function AdminPage() {
 
                           {/* Status */}
                           <td className="px-4 py-4">
-                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${
-                              t.status === 'Active'
-                                ? 'bg-emerald-900/30 text-emerald-300 border border-emerald-800/40'
-                                : 'bg-red-900/20 text-red-400 border border-red-800/30'
-                            }`}>
-                              <span className={`w-1.5 h-1.5 rounded-full ${t.status === 'Active' ? 'bg-emerald-400' : 'bg-red-400'}`} />
-                              {t.status === 'Active' ? 'Active' : 'Suspended'}
-                            </span>
+                            {t.status === 'Active' ? (
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-900/30 text-emerald-300 border border-emerald-800/40">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                                Active
+                              </span>
+                            ) : t.status === 'Archived' ? (
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-900/20 text-amber-400 border border-amber-800/30">
+                                <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                                Archived
+                                {/* Stale flag: archived > 12 months */}
+                                {t.archivedAt && (Date.now() - new Date(t.archivedAt).getTime() > 365 * 24 * 60 * 60 * 1000) && (
+                                  <span className="ml-1 text-[10px] bg-amber-900/40 text-amber-300 px-1.5 py-0.5 rounded border border-amber-700/40">12mo+</span>
+                                )}
+                              </span>
+                            ) : t.status === 'trial_expired' ? (
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-800/60 text-slate-400 border border-slate-700">
+                                <span className="w-1.5 h-1.5 rounded-full bg-slate-500" />
+                                Trial expired
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-red-900/20 text-red-400 border border-red-800/30">
+                                <span className="w-1.5 h-1.5 rounded-full bg-red-400" />
+                                Suspended
+                              </span>
+                            )}
                           </td>
 
                           {/* Trial countdown — shown for Trial plan only */}
@@ -2038,16 +2424,41 @@ export default function AdminPage() {
                                         {resetingId === t.id ? 'Sending…' : 'Reset password'}
                                       </button>
 
-                                      {/* Separator + Delete */}
+                                      {/* Separator + Archive / Unarchive / Delete */}
                                       <div className="border-t border-slate-800 mx-2 my-1" />
+
+                                      {t.status === 'Archived' ? (
+                                        <button
+                                          onClick={() => { setOpenMenuId(null); handleUnarchive(t) }}
+                                          className="w-full flex items-center gap-3 px-3.5 py-2.5 text-xs text-amber-400 hover:bg-amber-900/20 hover:text-amber-300 transition-colors"
+                                        >
+                                          <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                                          </svg>
+                                          Unarchive account
+                                        </button>
+                                      ) : (
+                                        <button
+                                          onClick={() => { setOpenMenuId(null); setArchiveTarget(t) }}
+                                          disabled={t.isAdmin}
+                                          className="w-full flex items-center gap-3 px-3.5 py-2.5 text-xs text-amber-400 hover:bg-amber-900/20 hover:text-amber-300 transition-colors disabled:opacity-30"
+                                        >
+                                          <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                                          </svg>
+                                          Archive account
+                                        </button>
+                                      )}
+
                                       <button
                                         onClick={() => { setOpenMenuId(null); setDeleteTarget(t) }}
-                                        className="w-full flex items-center gap-3 px-3.5 py-2.5 text-xs text-red-400 hover:bg-red-900/20 hover:text-red-300 transition-colors"
+                                        disabled={t.isAdmin}
+                                        className="w-full flex items-center gap-3 px-3.5 py-2.5 text-xs text-red-400 hover:bg-red-900/20 hover:text-red-300 transition-colors disabled:opacity-30"
                                       >
                                         <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                           <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                                         </svg>
-                                        Delete account
+                                        Hard delete (permanent)
                                       </button>
                                     </div>
                                   </>

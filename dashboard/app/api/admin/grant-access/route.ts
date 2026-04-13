@@ -70,6 +70,24 @@ export async function POST(req: Request) {
     const trialEndsAt   = trialEndDate()
     const trialEndLabel = formatDate(trialEndsAt)
 
+    // ── Duplicate email guard ─────────────────────────────────────────────────
+    const dupeCheckUrl =
+      `https://api.airtable.com/v0/${PLATFORM_BASE}/Tenants` +
+      `?filterByFormula=${encodeURIComponent(`{Email}='${cleanEmail.replace(/'/g, "\\'")}'`)}&maxRecords=1&fields[]=Email`
+
+    const dupeResp = await fetch(dupeCheckUrl, {
+      headers: { Authorization: `Bearer ${PLATFORM_TOKEN}` },
+    })
+    if (dupeResp.ok) {
+      const dupeData = await dupeResp.json()
+      if ((dupeData.records || []).length > 0) {
+        return NextResponse.json(
+          { error: `An account with email "${cleanEmail}" already exists.` },
+          { status: 409 }
+        )
+      }
+    }
+
     // ── Step 1: Create Tenants record ────────────────────────────────────────
     const createResp = await fetch(
       `https://api.airtable.com/v0/${PLATFORM_BASE}/Tenants`,

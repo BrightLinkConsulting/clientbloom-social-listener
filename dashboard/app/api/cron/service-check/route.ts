@@ -512,13 +512,19 @@ export async function GET(req: NextRequest) {
   const criticalAlerts: CriticalFlagAlert[] = []
 
   try {
-    // Fetch all tenants — no fields[] restriction so notification state fields are included
+    // Fetch active tenants only — skip Archived and deleted accounts.
+    // Archived tenants should not generate service flags, Slack alerts, or customer emails.
     const allTenants: any[] = []
     let offset: string | undefined
 
     do {
       const url = new URL(`${AIRTABLE_API}/${PLATFORM_BASE}/Tenants`)
       url.searchParams.set('pageSize', '100')
+      // Filter: exclude Archived, trial_expired, and deleted statuses
+      url.searchParams.set(
+        'filterByFormula',
+        `AND({Status}!='Archived', {Status}!='deleted', NOT({Status}='trial_expired'))`,
+      )
       if (offset) url.searchParams.set('offset', offset)
 
       const resp = await fetch(url.toString(), {
