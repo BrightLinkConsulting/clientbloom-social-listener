@@ -164,7 +164,7 @@ export default function LandingPage() {
           <div className="flex items-center gap-2 sm:gap-4">
             <a href="#how-it-works" className="text-slate-400 hover:text-slate-200 text-sm transition-colors hidden md:block">How it works</a>
             <a href="#pricing" className="text-slate-400 hover:text-slate-200 text-sm transition-colors hidden md:block">Pricing</a>
-            <Link href="/sign-in" className="text-slate-400 hover:text-slate-200 text-sm transition-colors">Sign in</Link>
+            <Link href="/sign-in" className="hidden sm:inline text-slate-400 hover:text-slate-200 text-sm transition-colors">Sign in</Link>
             <NeonButton href={CHECKOUT_URL} variant="solid" size="sm" className="shrink-0 whitespace-nowrap">
               Start Free Trial
             </NeonButton>
