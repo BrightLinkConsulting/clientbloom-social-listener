@@ -124,7 +124,9 @@ export const authOptions: NextAuthOptions = {
           const passwordHash = fields['Password Hash'] || ''
           const status       = fields['Status']        || 'Active'
 
-          if (status === 'Suspended') { recordFailure(ip, email); return null }
+          // Block all non-active statuses: Suspended, Archived, trial_expired, deleted
+          const BLOCKED_STATUSES = new Set(['Suspended', 'Archived', 'trial_expired', 'deleted'])
+          if (BLOCKED_STATUSES.has(status)) { recordFailure(ip, email); return null }
 
           const valid = await bcrypt.compare(credentials.password, passwordHash)
           if (!valid) { recordFailure(ip, email); return null }

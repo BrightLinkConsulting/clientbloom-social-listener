@@ -120,13 +120,21 @@ export async function GET(req: NextRequest) {
   const results: { id: string; tenantId: string; email: string; postCount: number | null; error?: string }[] = []
 
   try {
-    // 1. Fetch all tenants from the shared Tenants table
+    // 1. Fetch active tenants only — skip Archived and deleted accounts.
+    // Usage sync on archived tenants wastes Airtable API calls and inflates cost estimates.
     const allTenants: any[] = []
     let offset: string | undefined
 
     do {
       const url = new URL(`${AIRTABLE_API}/${PLATFORM_BASE}/Tenants`)
       url.searchParams.set('pageSize', '100')
+      // Filter: exclude Archived, deleted, and trial_expired statuses
+      // trial_expired accounts have no active subscription — syncing their post counts
+      // wastes Airtable API calls and inflates shared-pool cost estimates.
+      url.searchParams.set(
+        'filterByFormula',
+        `AND({Status}!='Archived', {Status}!='deleted', {Status}!='trial_expired')`,
+      )
       // append() required — set() replaces the previous value for the same key
       url.searchParams.append('fields[]', 'Tenant ID')
       url.searchParams.append('fields[]', 'Email')
@@ -151,7 +159,7 @@ export async function GET(req: NextRequest) {
         const email    = r.fields['Email'] as string || r.id
         const status   = r.fields['Status'] as string
 
-        // Skip inactive or misconfigured tenants
+        // Skip misconfigured tenants (no Tenant ID means never provisioned)
         if (!tenantId) {
           results.push({ id: r.id, tenantId: '', email, postCount: null, error: 'No Tenant ID' })
           return

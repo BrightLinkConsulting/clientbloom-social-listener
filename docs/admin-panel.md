@@ -1,16 +1,18 @@
 # Scout — Super Admin Panel
 
-## Last updated: April 2026
+## Last updated: April 2026 (admin-hardening sprint)
 
 ---
 
 ## 1. Overview
 
-The super admin panel lives at `/admin` and is gated by `session.user.isAdmin === true`. It is intended for ClientBloom internal use only — it grants full visibility into all tenant accounts, billing data, and scan activity, and allows destructive account operations.
+The super admin panel lives at `/admin` and is gated by `session.user.isAdmin === true`. It is intended for ClientBloom internal use only — it grants full visibility into all tenant accounts, billing data, and scan activity, and allows all account lifecycle operations.
 
 **Access:** Log in as any account whose Airtable `Is Admin` field is `true`. The panel is not linked from any public navigation — navigate directly to `https://scout.clientbloom.ai/admin`.
 
-**Scope:** `isAdmin` is not an account-level settings flag. It grants full super admin access to the `/admin` panel and all `/api/admin/*` routes. Do not grant this to customers.
+**Scope:** `isAdmin` grants full super admin access to the `/admin` panel and all `/api/admin/*` routes. Do not grant this to customers.
+
+**Visual distinction:** The admin panel renders with an amber header border and an `ADMIN` badge in the top navigation bar. This is intentional — it makes the admin context visually distinct from customer views.
 
 ---
 
@@ -26,7 +28,7 @@ Three-column status strip at the top of the panel:
 | Airtable | Total tenant count queried from Airtable in real time |
 | Auth & Access | Reminder that `isAdmin` is super admin access, not account settings access |
 
-### Trial pipeline (below system health)
+### Trial pipeline (Overview tab)
 
 Shows all accounts currently on `plan='Trial'`, sorted by urgency. Color-coded by days remaining:
 
@@ -49,9 +51,13 @@ Queries all three active Stripe price IDs in parallel and computes:
 
 Source of truth: `GET /api/admin/stripe-stats`
 
-### Tenant list
+### Tenant list (Tenants tab)
 
 The main data table. See section 4 for full details.
+
+### CSM Agent (floating panel)
+
+An AI-powered Customer Success Manager assistant accessible from the floating amber button in the bottom-right corner of any admin page. See section 7 and `docs/csm-agent-readme.md` for full details.
 
 ---
 
@@ -59,196 +65,177 @@ The main data table. See section 4 for full details.
 
 The "Add Tenant" form creates a record in the Airtable `Tenants` table. It does **not** send any email. It does **not** create a Stripe customer. It is for internal account provisioning only.
 
-### Plan dropdown — canonical values
-
-```
-Non-billed (recommended for manual add):
-  Complimentary — gifted Pro-level access (no Stripe, no expiry)
-  Trial         — 7-day access (use Grant Trial button for automated email)
-  Owner         — full internal access
-
-Paid plans (no billing created automatically):
-  Scout Starter — $49/mo  (Airtable record only — no Stripe customer)
-  Scout Pro     — $99/mo  (Airtable record only — no Stripe customer)
-  Scout Agency  — $249/mo (Airtable record only — no Stripe customer)
-```
-
-**Do not use the paid plan options unless you are manually matching a Stripe customer that already exists.** Setting a record to `Scout Pro` in Airtable does not create a Stripe subscription — it only changes what tier limits the user sees. Billing is driven by Stripe webhook events, not Airtable records.
-
-### Grant admin access checkbox
-
-The "Grant super admin access" checkbox sets `Is Admin = true` on the new account. This gives the account access to `/admin` and all `POST /api/admin/*` routes — the same level of access as the ClientBloom team. It is not a settings-level admin toggle.
-
-The checkbox renders red and displays a live warning when enabled.
+**Duplicate email guard:** Creating a tenant with an email that already exists returns a `409 Conflict` error. This applies to both the Add Tenant form and the Grant Trial Access modal.
 
 ---
 
-## 4. Grant 7-Day Trial button
+## 4. Tenant list
 
-`POST /api/admin/grant-access`
+### Filters
 
-This is the correct way to manually provision a trial account. Unlike "Add Tenant," it:
+| Filter | Options |
+|--------|---------|
+| Search | Company name or email |
+| Plan | All / Trial / Starter / Pro / Agency / Complimentary |
+| Status | All / Active / Suspended / Archived / trial_expired |
+| Trial urgency | All / Urgent (0–3d) / Check-in (4–5d) / New (6–7d) / Expired |
+| Show archived | Toggle — archived accounts are hidden by default |
 
-1. Creates the Airtable Tenants record with `plan='Trial'` and `trialEndsAt` set to 7 days from now
-2. Generates a secure temporary password (12-char alphanumeric, bcrypt-hashed)
-3. Calls `provisionNewTenant()` to assign a `Tenant ID` (same path as self-signup)
-4. Sets `Created At` to full ISO datetime (`new Date().toISOString()`)
-5. Sends a welcome email via Resend with:
-   - Login credentials (email + temp password)
-   - Link to the app
-   - Trial expiration date
-   - "What happens next" onboarding checklist
+**Archive visibility:** Archived accounts are hidden from the tenant list by default to keep the view clean. Click "Show archived" to reveal them. When shown, archived accounts display an amber status badge and a `12mo+` stale flag if they've been archived for over 12 months.
 
-**Email branding:** header, CTA button, and info box all use `BRAND_PURPLE (#7C3AED)`. The Scout logo SVG is included in the email header.
+### Sort
 
-**When the trial expires:** the user is redirected to `/upgrade`. Their data (ICPs, captured posts) is preserved and unlocked on payment.
+Sortable by: Company name, Plan, Role, Status, Trial time remaining, Created date.
 
----
+### Per-tenant actions (overflow menu)
 
-## 5. Tenant list — filters and sorting
+| Action | What it does |
+|--------|-------------|
+| Apify — manage | Opens the inline Apify key/pool management panel |
+| Reset password | Generates a new temporary password and emails it to the tenant |
+| Archive account | Freezes the account (see section 5) |
+| Unarchive account | Restores an archived account to Active |
+| Hard delete (permanent) | Cascade-deletes all data (see section 6) |
 
-### Filter controls
-
-| Filter | Options | Notes |
-|--------|---------|-------|
-| Plan | All / Trial / Starter / Pro / Agency / Complimentary / Owner | Matches Airtable plan value exactly |
-| Status | All / Active / Suspended (manually disabled) / trial_expired | Suspended = account manually disabled by admin |
-| Trial stage | All / Urgent (0–3d) / Check in (4–5d) / Just started (6–7d) / Trial expired | Only affects accounts with a `trialEndsAt` value |
-| Search | Free text | Matches company name or email, case-insensitive |
-
-Filters are combinable — e.g. Plan=Trial + Stage=Urgent shows all trials expiring within 3 days.
-
-A result count badge shows how many accounts match the active filters.
-
-### Sort controls
-
-Clickable column headers act as sort controls. The active sort column shows ↑ (ascending) or ↓ (descending). Inactive columns show ⇅.
-
-| Column | Sort behavior |
-|--------|--------------|
-| Account | A–Z or Z–A by company name (falls back to email) |
-| Plan | Alphabetical by plan name |
-| Role | Super Admin → Primary → Feed Only |
-| Status | Alphabetical |
-| Trial | Soonest expiry first |
-| Created | Newest first (default) |
-
-A sort selector dropdown above the table provides the same controls for quick access.
+**Admin protection:** Accounts with `isAdmin=true` cannot be archived or hard-deleted from the UI. Revoke admin access first.
 
 ---
 
-## 6. Tenant list — columns
+## 5. Archive
 
-### Account column
+Archive is the preferred way to deactivate an account. It is reversible and preserves all data.
 
-Shows company name (or email if no company name). Owner-type accounts show a workspace membership indicator with nested feed-only members.
+**What archive does:**
+- Sets `Status = 'Archived'` on the Tenants record
+- Sets `Archived At` timestamp
+- Blocks login immediately (JWT blocks on `status === 'Archived'`)
+- Excludes the account from all cron jobs: trial-check, service-check, usage-sync
+- No emails are sent to an archived tenant by any automated system
+- Stripe subscription is **not** cancelled — do this manually if needed
 
-### Plan column
+**What archive does NOT do:**
+- Delete any data
+- Cancel Stripe
+- Remove the Tenants row
 
-Color-coded plan badge:
+**When to archive:**
+- Customer goes inactive for an extended period
+- You want to freeze an account while preserving data for reference
 
-| Plan | Badge color |
-|------|------------|
-| Scout Agency | Purple |
-| Scout Pro | Blue |
-| Scout Starter | Indigo |
-| Trial | Amber |
-| Complimentary | Teal |
-| Owner | Red |
+**12-month stale flag:** If an account has been archived for over 12 months, its status badge shows a `12mo+` label. This surfaces cleanup candidates in the admin view.
 
-### Role column
-
-| Role badge | Condition |
-|-----------|-----------|
-| Super Admin (red) | `isAdmin === true` |
-| Primary (green) | Full access, not admin, not feed-only |
-| Feed Only (amber) | `isFeedOnly === true`, standalone account |
-| Member (slate) | `isFeedOnly === true`, shares tenantId with an owner account |
-
-### Trial column
-
-Shows days + hours remaining for accounts with an active trial. Color-coded:
-
-- Green: 6–7 days
-- Amber: 4–5 days
-- Red: 0–3 days
-- "Expired" badge: past expiry date
-
-Dash (`—`) for non-trial accounts.
-
-### Status column
-
-| Value | Meaning |
-|-------|---------|
-| Active | Account can log in and use the product |
-| Suspended | Manually disabled by admin — login blocked at auth |
-| trial_expired | Trial ended — account sees upgrade wall |
-
-### Actions column
-
-All action icons have hover tooltips that show the current state and what clicking will do.
-
-| Icon | Current state | Click action |
-|------|--------------|-------------|
-| Feed toggle (monitor) | Feed Only / Full Access | Toggle `Is Feed Only` |
-| Suspend toggle (lock/unlock) | Active / Suspended | Toggle account status |
-| Delete (trash) | — | Permanently delete account (danger — red tooltip) |
+**Unarchive:** Available from the overflow menu on any archived account. Instantly restores `Status = 'Active'` and clears `Archived At`.
 
 ---
 
-## 7. Workspace grouping
+## 6. Hard delete (cascade)
 
-Accounts are nested under an "owner" account when two or more Airtable records share the same `Tenant ID`. This only happens via the team-invite flow.
+Hard delete permanently removes a tenant and all associated data. This is irreversible.
 
-**Standalone accounts** — even if `isFeedOnly=true` — render flat in their sort position. Toggling feed-only on a standalone account does not move it.
+**When to use:** Pre-launch cleanup, GDPR/data deletion requests, or permanent removal of an account that has no business reason to be preserved.
 
-### Row kinds
+**For normal deactivation, use Archive instead.**
 
-| Kind | Condition |
-|------|-----------|
-| `standalone` | Account's tenantId appears only once in the dataset |
-| `owner` | Account's tenantId appears on 2+ records AND `isFeedOnly=false` |
-| `member` | Account's tenantId appears on 2+ records AND `isFeedOnly=true` |
+### Cascade delete architecture
 
-The `sharedTenantIds` Set is computed from the current filtered+sorted data. Only tenantIds with count > 1 trigger owner/member nesting.
+Hard delete uses two Airtable tokens because tenant data spans two bases:
 
----
+| Token | Base | Tables deleted |
+|-------|------|----------------|
+| `PLATFORM_AIRTABLE_TOKEN` | Platform base | Scan Health, sub-accounts, Tenants row |
+| `AIRTABLE_PROVISIONING_TOKEN` | Shared data base (`appZWp7QdPptIOUYB`) | Captured Posts, Sources, LinkedIn ICPs, Business Profile, Facebook Keywords, Target Groups |
 
-## 8. Admin API routes
+**Delete order:**
+1. Shared data tables (all 6) — provisioning token
+2. Scan Health — platform token
+3. Sub-accounts (linked `Is Feed Only = true` accounts) — platform token
+4. Tenants row — platform token (last, so retry is possible if step 1–3 fail)
 
-All admin routes require `session.user.isAdmin === true`. They return `403` for authenticated non-admin sessions and `401` for unauthenticated sessions.
+**Stripe cancellation:** If the tenant has `Stripe Subscription ID` set, the subscription is cancelled via Stripe API before the Airtable delete. Non-fatal — a Stripe failure is logged but does not block the delete.
 
-| Route | Method | Purpose |
-|-------|--------|---------|
-| `/api/admin/tenants` | GET | List all tenant records |
-| `/api/admin/tenants` | POST | Create a tenant record |
-| `/api/admin/tenants` | PATCH | Update a tenant record |
-| `/api/admin/tenants` | DELETE | Delete a tenant record |
-| `/api/admin/grant-access` | POST | Provision trial + send welcome email |
-| `/api/admin/send-reactivation` | POST | Send reactivation email to expired trial |
-| `/api/admin/stripe-stats` | GET | Revenue stats from Stripe |
-| `/api/admin/usage` | GET | Per-tenant usage data |
-| `/api/admin/send-reset` | POST | Send password reset to any email |
+**Sub-account handling:** If the tenant being deleted is a primary account with linked sub-accounts, the confirmation modal shows a warning ("This account has N linked sub-accounts..."). All linked sub-accounts are automatically deleted as part of the cascade.
 
----
+**Partial failures:** If any table delete fails (Airtable error, rate limit, etc.), the success message shows "X partial error(s) — check audit log." The cascade result is written to the Admin Audit Log for forensic review.
 
-## 9. Service Flag Monitoring and Admin Response
+**Admin protection:** Admin accounts (`isAdmin = true`) cannot be hard-deleted from the UI. Revoke admin access first.
 
-The Usage tab (see [usage-service-manager.md](./usage-service-manager.md)) shows inline service flag badges for every tenant. Flags are evaluated by the `service-check` cron every 4 hours.
+### Sub-account independent delete
 
-**What's automated:** customer alert emails and admin Slack pings to `#clientbloom-support` fire without any admin action when new flags appear. See [usage-service-manager.md — Admin Response Protocol](./usage-service-manager.md#admin-response-protocol) for the full escalation playbook.
-
-**Quick rule:** automated email handles first contact for all account types. Admin escalation is needed for paid accounts with critical flags (respond within 4 hours) and trial accounts still flagged after 48–72 hours.
+You can also delete a sub-account independently without affecting the primary tenant. The cascade will delete only the sub-account's data rows (which share the primary's `Tenant ID`) and the sub-account's Tenants row. The primary tenant and their data are unaffected.
 
 ---
 
-## 10. What never changes without approval
+## 7. Admin Audit Log
 
-- The `isAdmin` semantic — always super admin, never account-level
-- The `isFeedOnly` semantic — always restricts to feed tab only; never changes tenantId
-- The `tenantId` field on a live account — changing this orphans all customer data
-- The `Created At` field format — always full ISO datetime (`new Date().toISOString()`). Date-only strings (`2024-04-10`) break trial countdown math and audit logs
+An `Admin Audit Log` table in the Platform Airtable base records all significant admin actions.
+
+**Events logged:**
+- `archive_tenant` — tenant archived
+- `unarchive_tenant` — tenant unarchived
+- `hard_delete_tenant` — tenant hard-deleted (includes full cascade result)
+- `status_change` — status updated via PATCH
+- `plan_change` — plan updated (via CSM Agent)
+- `password_reset` — password reset sent (via CSM Agent)
+- `csm_agent_action` — generic CSM Agent write action
+
+**Failure behavior:** Audit log writes are non-fatal. A failure to write the log does not roll back or block the primary action.
+
+**Airtable table setup:** Create a table named `Admin Audit Log` in the Platform base with these fields:
+- `Event Type` (Single line text)
+- `Admin Email` (Email)
+- `Target Email` (Single line text)
+- `Target Tenant ID` (Single line text)
+- `Target Record ID` (Single line text)
+- `Notes` (Long text)
+- `Timestamp` (Date/time)
 
 ---
 
-*See [`docs/README.md`](./README.md) for the full documentation index.*
+## 8. Session security
+
+- **Blocked statuses:** Login is blocked for accounts with `Status` in: `Suspended`, `Archived`, `trial_expired`, `deleted`.
+- **Session lifetime:** JWT tokens have a 24-hour maxAge. Archiving or suspending an account blocks new logins immediately, but does not invalidate live sessions. Existing sessions expire naturally within their TTL.
+- **Rate limiting:** 5 failed attempts per email per 15-minute window; 20 per IP. Successful login clears the email bucket.
+
+---
+
+## 9. Cron job behavior for archived/deleted accounts
+
+| Cron | Behavior |
+|------|----------|
+| `trial-check` | Only processes `Plan='Trial' AND Status='Active'` — archived accounts are naturally excluded |
+| `service-check` | Filters: `Status != 'Archived' AND Status != 'deleted' AND Status != 'trial_expired'` |
+| `usage-sync` | Filters: `Status != 'Archived' AND Status != 'deleted'` |
+| `scan` | Uses tenant's own API token/pool — archived accounts cannot log in and won't trigger scans |
+
+---
+
+## 10. API reference
+
+| Method | Endpoint | Action |
+|--------|---------|--------|
+| `GET` | `/api/admin/tenants` | List all tenants |
+| `POST` | `/api/admin/tenants` | Create tenant (duplicate email guard) |
+| `PATCH` | `/api/admin/tenants` | Update tenant fields; `action='archive'` / `action='unarchive'` |
+| `DELETE` | `/api/admin/tenants` | Cascade hard delete |
+| `POST` | `/api/admin/grant-access` | Create 7-day trial + send welcome email (duplicate guard) |
+| `POST` | `/api/admin/send-reset` | Send temporary password to tenant |
+| `POST` | `/api/admin/send-reactivation` | Send reactivation email to expired trial |
+| `POST` | `/api/admin/csm-agent` | CSM Agent query + confirmed action execution |
+
+---
+
+## 11. Environment variables required
+
+| Variable | Purpose |
+|---------|---------|
+| `PLATFORM_AIRTABLE_TOKEN` | Platform base auth (Tenants, Scan Health) |
+| `PLATFORM_AIRTABLE_BASE_ID` | Platform base ID |
+| `AIRTABLE_PROVISIONING_TOKEN` | Shared data base auth (Posts, Sources, ICPs, Keywords, etc.) |
+| `AIRTABLE_PROVISIONING_BASE_ID` | Shared data base ID (default: `appZWp7QdPptIOUYB`) |
+| `AIRTABLE_TARGET_GROUPS_TABLE_ID` | Target Groups table ID (optional — skipped if not set) |
+| `STRIPE_SECRET_KEY` | Stripe API key for subscription cancellation on hard delete |
+| `ANTHROPIC_API_KEY` | Required for CSM Agent |
+| `RESEND_API_KEY` | Required for all email sends |
+| `CRON_SECRET` | Shared secret for cron job authorization |
+| `NEXTAUTH_SECRET` | JWT signing secret |
