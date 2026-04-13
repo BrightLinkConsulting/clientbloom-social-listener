@@ -37,6 +37,6 @@ export { default } from 'next-auth/middleware'
 
 export const config = {
   matcher: [
-    '/((?!$|welcome|sign-in|sign-up|about|blog|compare|terms|privacy-policy|forgot-password|reset-password|api/auth|api/checkout|api/trial|api/webhooks|api/cron|api/debug|api/health|_next/static|_next/image|favicon\\.ico|robots\\.txt|sitemap\\.xml).*)',
+    '/((?!$|welcome|sign-in|sign-up|about|blog|compare|terms|privacy-policy|forgot-password|reset-password|api/auth|api/checkout|api/trial|api/webhooks|api/cron|api/debug|api/health|_next/static|_next/image|favicon\\.ico|robots\\.txt|sitemap\\.xml|.*\\.png|.*\\.jpg|.*\\.jpeg|.*\\.gif|.*\\.svg|.*\\.ico|.*\\.webp).*)',
   ],
 }
