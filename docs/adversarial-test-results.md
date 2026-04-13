@@ -1,7 +1,7 @@
 # Adversarial Test Results
 ## Scout — Apify Resilience Branch
 
-**Run date:** 2026-04-12T19:58:01.961Z  
+**Run date:** 2026-04-13T05:01:51.255Z  
 **Branch:** feature/apify-resilience  
 **Result:** ✅ ALL PASS (16/16)  
 
@@ -26,7 +26,7 @@
 
 ## ✅ A1 — PASS
 **Scenario:** Primary actor returns actor_error, fallback succeeds with valid output  
-**Duration:** 1ms  
+**Duration:** 0ms  
 
 **Findings:**
   ✅ PASS: Fallback actor registered: data-slayer/linkedin-profile-posts-scraper
@@ -78,7 +78,7 @@
 
 ## ✅ A4 — PASS
 **Scenario:** Primary returns 0 items with NO error code (silent empty) — should trigger fallback  
-**Duration:** 0ms  
+**Duration:** 1ms  
 
 **Findings:**
   ✅ PASS: Attempt 1 returns empty with no error (silent empty correctly represented)
@@ -202,7 +202,7 @@
 
 ## ✅ A13 — PASS
 **Scenario:** Primary TIMEOUT, fallback succeeds — timeout is retriable  
-**Duration:** 0ms  
+**Duration:** 1ms  
 
 **Findings:**
   ✅ PASS: Attempt 1 returned TIMEOUT

@@ -596,7 +596,9 @@ export async function saveScoredPosts(tenantId: string, scored: any[]): Promise<
   // If more than 30% of records have blank Post Text, the actor output was degraded
   // (schema mismatch that slipped past sampling, or field normalization gap).
   const blankTextCount = recordsToSave.filter(r => !r.fields['Post Text']).length
-  const blankPct = saved > 0 ? blankTextCount / saved : 0
+  // Divide by recordsToSave.length (not `saved`) so partial-save fallback doesn't
+  // inflate the blank rate and trigger a false degraded=true.
+  const blankPct = recordsToSave.length > 0 ? blankTextCount / recordsToSave.length : 0
   const degraded = blankPct > 0.3
 
   if (degraded) {
@@ -791,7 +793,9 @@ export async function runScanForTenant(
 
     // A2: Deduplicate
     const existingUrls = await getExistingPostUrls(tenantId)
-    const newPosts = allPosts.filter(post => !existingUrls.has(post.postUrl || ''))
+    // Require a non-empty postUrl: posts without one cannot be deduped and would
+    // accumulate as duplicates on every scan cycle (B2 fix).
+    const newPosts = allPosts.filter(post => post.postUrl && !existingUrls.has(post.postUrl))
     const dedupedCount = allPosts.length - newPosts.length
     console.log(`[scan] After deduplication: ${newPosts.length} new posts (removed ${dedupedCount} already seen)`)
 
