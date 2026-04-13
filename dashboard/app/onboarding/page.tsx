@@ -5,20 +5,20 @@ import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import { getTierLimits } from '@/lib/tier'
 
-// ---- Industry starter packs (mirrored from settings/page.tsx) ----
+// ---- Industry starter packs (keep in sync with settings/page.tsx — 7 terms per pack) ----
 const INDUSTRY_PACKS: { label: string; value: string; terms: string[] }[] = [
-  { label: 'Agency / Marketing Agency',      value: 'agency',          terms: ['client retention', 'agency growth', 'losing a client', 'client churn', 'retainer model', 'agency operations'] },
-  { label: 'B2B SaaS',                       value: 'saas',            terms: ['product led growth', 'reducing churn', 'customer onboarding', 'time to value', 'SaaS pricing', 'expansion revenue'] },
-  { label: 'Customer Success',               value: 'customer-success', terms: ['customer health score', 'churn prevention', 'renewal strategy', 'expansion playbook', 'QBR prep', 'CS team scaling'] },
-  { label: 'Sales / Revenue',                value: 'sales',           terms: ['pipeline review', 'cold outreach', 'deal closing', 'quota attainment', 'discovery call', 'objection handling'] },
-  { label: 'HR / Talent / Recruiting',       value: 'hr',              terms: ['talent acquisition', 'employee retention', 'reducing turnover', 'hiring mistakes', 'candidate experience', 'employer brand'] },
-  { label: 'Consulting / Professional Svcs', value: 'consulting',      terms: ['scope creep', 'client management', 'retainer clients', 'proposal writing', 'consulting fees', 'client results'] },
-  { label: 'Coaching / Solopreneurs',        value: 'coaching',        terms: ['coaching business', 'high ticket offer', 'client transformation', 'scaling services', 'lead generation coaching', 'online coaching'] },
-  { label: 'Finance / CFO / Accounting',     value: 'finance',         terms: ['cash flow management', 'financial planning', 'runway extension', 'unit economics', 'cost cutting', 'budgeting process'] },
-  { label: 'E-commerce / DTC',               value: 'ecommerce',       terms: ['customer acquisition cost', 'repeat purchase rate', 'abandoned cart', 'DTC growth', 'conversion rate', 'email revenue'] },
-  { label: 'Real Estate',                    value: 'real-estate',     terms: ['real estate investing', 'deal flow', 'property management', 'multifamily investing', 'passive income real estate', 'real estate portfolio'] },
-  { label: 'Legal / Law Firms',              value: 'legal',           terms: ['law firm growth', 'client acquisition lawyer', 'legal operations', 'billing rates', 'in-house counsel', 'law practice management'] },
-  { label: 'Healthcare / Wellness',          value: 'healthcare',      terms: ['patient retention', 'practice growth', 'patient experience', 'healthcare marketing', 'referral marketing', 'telehealth'] },
+  { label: 'Agency / Marketing Agency',      value: 'agency',          terms: ['client retention', 'agency growth', 'losing a client', 'client churn', 'retainer model', 'agency operations', 'client onboarding'] },
+  { label: 'B2B SaaS',                       value: 'saas',            terms: ['product led growth', 'reducing churn', 'customer onboarding', 'time to value', 'SaaS pricing', 'expansion revenue', 'churn rate'] },
+  { label: 'Customer Success',               value: 'customer-success', terms: ['customer health score', 'churn prevention', 'renewal strategy', 'expansion playbook', 'QBR prep', 'CS team scaling', 'customer onboarding'] },
+  { label: 'Sales / Revenue',                value: 'sales',           terms: ['pipeline review', 'cold outreach', 'deal closing', 'quota attainment', 'discovery call', 'objection handling', 'sales process'] },
+  { label: 'HR / Talent / Recruiting',       value: 'hr',              terms: ['talent acquisition', 'employee retention', 'reducing turnover', 'hiring mistakes', 'candidate experience', 'employer brand', 'performance review'] },
+  { label: 'Consulting / Professional Svcs', value: 'consulting',      terms: ['scope creep', 'client management', 'retainer clients', 'proposal writing', 'consulting fees', 'client results', 'consulting business'] },
+  { label: 'Coaching / Solopreneurs',        value: 'coaching',        terms: ['coaching business', 'high ticket offer', 'client transformation', 'scaling services', 'lead generation coaching', 'online coaching', 'group program'] },
+  { label: 'Finance / CFO / Accounting',     value: 'finance',         terms: ['cash flow management', 'financial planning', 'runway extension', 'unit economics', 'cost cutting', 'budgeting process', 'fundraising round'] },
+  { label: 'E-commerce / DTC',               value: 'ecommerce',       terms: ['customer acquisition cost', 'repeat purchase rate', 'abandoned cart', 'DTC growth', 'conversion rate', 'email revenue', 'DTC margins'] },
+  { label: 'Real Estate',                    value: 'real-estate',     terms: ['real estate investing', 'deal flow', 'property management', 'multifamily investing', 'passive income real estate', 'real estate portfolio', 'cap rate'] },
+  { label: 'Legal / Law Firms',              value: 'legal',           terms: ['law firm growth', 'client acquisition lawyer', 'legal operations', 'billing rates', 'in-house counsel', 'law practice management', 'legal tech'] },
+  { label: 'Healthcare / Wellness',          value: 'healthcare',      terms: ['patient retention', 'practice growth', 'patient experience', 'healthcare marketing', 'referral marketing', 'telehealth', 'wellness business'] },
 ]
 
 /**
@@ -340,6 +340,8 @@ function StepKeywords({
     const available = pack.terms.filter(t => !terms.some(x => x.value.toLowerCase() === t.toLowerCase()))
     const slots     = planLimit - terms.length
     const toAdd     = available.slice(0, slots)
+    // Terms in the pack that won't be loaded due to plan limit
+    const dropped   = available.slice(slots)
 
     if (toAdd.length === 0) {
       const reason = available.length === 0
@@ -370,7 +372,18 @@ function StepKeywords({
     setLoadingPack(false)
     setSel('')
     if (added.length > 0) {
-      setPackInfo(`Added ${added.length} keyword${added.length !== 1 ? 's' : ''} from the ${pack.label} pack.`)
+      const wasTruncated = dropped.length > 0
+      if (wasTruncated) {
+        setPackInfo(
+          `Added ${added.length} of ${pack.terms.length} terms from the ${pack.label} pack (plan limit: ${planLimit}). ` +
+          `Not loaded: ${dropped.join(', ')}. Upgrade to add all ${pack.terms.length} terms.`
+        )
+      } else {
+        setPackInfo(`Added ${added.length} keyword${added.length !== 1 ? 's' : ''} from the ${pack.label} pack.`)
+      }
+    } else if (toAdd.length > 0) {
+      // All terms were within the limit but every API call failed
+      setError('Could not save keywords — please try again or add them one at a time.')
     }
   }
 
@@ -427,11 +440,24 @@ function StepKeywords({
             {atCap ? 'At limit' : 'Load pack'}
           </button>
         </div>
-        {selectedIndustry && !atCap && (
-          <p className="text-xs text-slate-600">
-            Will add up to {Math.min(INDUSTRY_PACKS.find(p => p.value === selectedIndustry)?.terms.length ?? 0, planLimit - terms.length)} keywords for your feed.
-          </p>
-        )}
+        {selectedIndustry && !atCap && (() => {
+          const pack = INDUSTRY_PACKS.find(p => p.value === selectedIndustry)
+          const packTermCount = pack?.terms.length ?? 0
+          // Filter against already-existing terms so the count is accurate
+          const available = pack ? pack.terms.filter(t => !terms.some(x => x.value.toLowerCase() === t.toLowerCase())) : []
+          const willAdd = Math.min(available.length, planLimit - terms.length)
+          const planIsBottleneck = (planLimit - terms.length) < available.length
+          return (
+            <p className="text-xs text-slate-600">
+              {planIsBottleneck
+                ? <>Will add <span className="text-slate-400">{willAdd} of {packTermCount}</span> terms — plan allows {planLimit} keywords. <a href="/upgrade" className="text-blue-500 hover:text-blue-400 underline">Upgrade</a> to load all {packTermCount}.</>
+                : willAdd > 0
+                  ? <>Will add <span className="text-slate-400">{willAdd}</span> keyword{willAdd !== 1 ? 's' : ''} to your feed.</>
+                  : <span className="text-amber-500/70">All terms from this pack are already in your list.</span>
+              }
+            </p>
+          )
+        })()}
         {atCap && (
           <p className="text-xs text-amber-500/70">Remove a keyword above to free up a slot.</p>
         )}

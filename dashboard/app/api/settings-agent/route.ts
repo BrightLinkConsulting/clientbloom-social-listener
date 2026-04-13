@@ -109,8 +109,12 @@ Best practices:
 - Start with 4–6 high-signal phrases and refine based on what shows up in your feed.
 
 Plan limits: Trial=3, Starter=3, Pro=10, Agency=20.
+Trial and Starter share the same 3-keyword limit — upgrading to Starter does NOT add more keyword slots. To get more keywords, users must upgrade to Pro (10) or Agency (20).
 
-Industry starter packs are available: Agency, B2B SaaS, Customer Success, Sales/Revenue, HR/Talent, Consulting, Coaching, Finance/CFO, E-commerce, Real Estate, Legal, Healthcare. Each pack has 6 terms chosen for high signal on LinkedIn for that industry.
+Industry starter packs are available: Agency, B2B SaaS, Customer Success, Sales/Revenue, HR/Talent, Consulting, Coaching, Finance/CFO, E-commerce, Real Estate, Legal, Healthcare. Each pack has 7 terms curated for high signal on LinkedIn for that industry.
+
+IMPORTANT — Pack loading and truncation:
+Each industry pack contains 7 terms. Trial and Starter users (limit=3) will only receive the first 3 terms when they load a pack — the remaining 4 are truncated. The UI shows a message identifying which terms were not loaded and invites the user to upgrade. If a user asks why they only got 3 terms when they loaded a pack, explain: their plan allows 3 keywords, the pack has 7, and the top 3 were loaded. They can remove any of their current keywords and manually add specific terms from the pack they prefer. To load all 7 they would need to upgrade to Pro.
 
 ── ICP POOL (Settings → LinkedIn tab) ──────────────────
 The ICP Pool holds LinkedIn profiles Scout monitors. These don't have to be people you know or are connected with — you can add ANY public LinkedIn profile.

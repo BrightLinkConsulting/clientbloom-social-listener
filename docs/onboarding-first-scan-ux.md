@@ -63,7 +63,9 @@ The most important step for first-scan quality.
 
 **Keyword gate:** Continue button is disabled (`disabled={terms.length === 0}`) until at least one keyword is active. No "Skip for now" option. Button label changes: `"Load a keyword pack to continue"` (0 keywords) → `"Continue with N keyword(s) →"` (≥1 keyword).
 
-**Trial tier limits:** Trial = 3 keyword slots (matches Starter). Industry packs contain 6 terms — users loading a full pack will be capped at 3; they can choose the 3 most relevant terms for their industry.
+**Trial tier limits:** Trial = 3 keyword slots (matches Starter). Industry packs contain 7 terms — Trial/Starter users loading a pack receive the first 3; the remaining 4 are displayed in the success message as "not loaded" with an upgrade prompt. The preview text above the "Load pack" button shows "Will add X of Y terms from this pack (plan allows Z)" so users know before they click.
+
+**Pack data:** 12 industries, 7 terms per pack. Both onboarding and settings use the same 7-term packs (synced in April 2026 — onboarding previously had 6-term packs).
 
 **Keyword count propagated:** `onNext(terms.length)` passes the count to the parent `OnboardingPage`, which passes it to Step 4 for the summary card.
 
@@ -202,3 +204,4 @@ All 18 issues were identified and resolved before production push:
 | April 2026 | Trial tier: keywords 6→3 (aligned to Starter to eliminate upgrade confusion) |
 | April 2026 | 18 adversarial issues identified and resolved; build confirmed clean |
 | April 11, 2026 | v2.0: Discover ICPs panel embedded in Step 3; ClientBloom violet brand colors; helper text on Steps 0 and 2; textarea sizing fix; dead "Refresh feed" button removed from feed empty state; race condition fix (scan locked during discovery). Production confirmed: 14 posts in inbox on first run. |
+| April 13, 2026 | Adversarial keyword audit (9 bugs): pack truncation now explained with dropped-term list + upgrade link; preview text shows "X of Y from this pack"; packs synced to 7 terms in both onboarding and settings; settings empty state copy made plan-aware; settings pack loader now shows feedback; Browse suggestions/Starter packs buttons hidden when at cap; upgrade nudge clarifies Starter = same 3-keyword limit; default planLimit fixed to 3. |

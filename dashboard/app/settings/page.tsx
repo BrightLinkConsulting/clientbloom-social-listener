@@ -350,7 +350,7 @@ const INDUSTRY_PACKS: { label: string; value: string; terms: string[] }[] = [
 const WARN_ACTIVE_TERMS = 8
 
 // ---- LinkedIn Terms Section ----
-function LinkedInTermsSection({ sources, onUpdate, planLimit = 10, plan = 'Trial' }: {
+function LinkedInTermsSection({ sources, onUpdate, planLimit = 3, plan = 'Trial' }: {
   sources: Source[]
   onUpdate: () => void
   planLimit?: number
@@ -367,6 +367,8 @@ function LinkedInTermsSection({ sources, onUpdate, planLimit = 10, plan = 'Trial
   const [deleting, setDeleting] = useState<string | null>(null)
   const [toggling, setToggling] = useState<string | null>(null)
   const [error, setError] = useState('')
+  const [packInfo, setPackInfo] = useState('')
+  const [packDropped, setPackDropped] = useState<string[]>([])
 
   const terms = sources.filter(s => s.type === 'linkedin_term')
   const activeCount = terms.filter(t => t.active).length
@@ -453,11 +455,17 @@ function LinkedInTermsSection({ sources, onUpdate, planLimit = 10, plan = 'Trial
     if (!pack) return
     setLoadingPack(true)
     setError('')
+    setPackInfo('')
+    setPackDropped([])
     const termsToAdd = pack.terms.filter(t => !existingValues.has(t.toLowerCase()))
+    const dropped: string[] = []
     let added = 0
     for (const t of termsToAdd) {
-      // Bug #2 fix: use terms.length (total) to match API enforcement
-      if (terms.length + added >= planLimit) break
+      // use terms.length (total) to match API enforcement — not activeCount
+      if (terms.length + added >= planLimit) {
+        dropped.push(t)
+        continue
+      }
       try {
         const resp = await fetch('/api/sources', {
           method: 'POST',
@@ -465,11 +473,32 @@ function LinkedInTermsSection({ sources, onUpdate, planLimit = 10, plan = 'Trial
           body: JSON.stringify({ name: t, type: 'linkedin_term', value: t, priority: 'high' }),
         })
         if (resp.ok) added++
-      } catch { /* skip failed terms */ }
+        else dropped.push(t)
+      } catch { dropped.push(t) }
     }
     setLoadingPack(false)
     setShowPackPicker(false)
     setSelectedIndustry('')
+    // Separate plan-limit drops from API failures for accurate attribution
+    const capDropped = dropped.filter(t => {
+      // A term is cap-limited if it was available and we were at cap when we reached it
+      // (We pushed to dropped before attempting the API call when cap was hit)
+      return !termsToAdd.slice(0, planLimit - terms.length).includes(t)
+    })
+    if (added > 0) {
+      const hasTruncation = capDropped.length > 0
+      setPackInfo(
+        hasTruncation
+          ? `Added ${added} of ${pack.terms.length} terms from the ${pack.label} pack (plan limit: ${planLimit}).`
+          : `Added ${added} keyword${added !== 1 ? 's' : ''} from the ${pack.label} pack.`
+      )
+      if (dropped.length > 0) setPackDropped(dropped)
+    } else if (termsToAdd.length === 0) {
+      setPackInfo('All terms from this pack are already in your list.')
+    } else {
+      // All terms were within the limit but every save attempt failed
+      setError('Could not save keywords — please try again.')
+    }
     onUpdate()
   }
 
@@ -533,6 +562,33 @@ function LinkedInTermsSection({ sources, onUpdate, planLimit = 10, plan = 'Trial
         </div>
       )}
 
+      {/* Pack load feedback — shown after loading a pack */}
+      {packInfo && (
+        <div className="mb-4 rounded-xl border border-blue-500/20 bg-blue-500/5 px-3.5 py-3 space-y-2">
+          <p className="text-xs text-blue-300 flex items-center gap-1.5">
+            <span>✓</span> {packInfo}
+          </p>
+          {packDropped.length > 0 && (
+            <div>
+              <p className="text-xs text-slate-500 mb-1.5">
+                {packDropped.length} term{packDropped.length !== 1 ? 's' : ''} not added:
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {packDropped.map(t => (
+                  <span key={t} className="text-xs px-2 py-0.5 rounded-full bg-slate-800/60 border border-slate-700/40 text-slate-500 line-through">{t}</span>
+                ))}
+              </div>
+              {(plan === 'Trial' || plan === 'Scout Starter') && (
+                <p className="text-xs text-slate-600 mt-2">
+                  <a href="/upgrade" className="text-blue-400 hover:text-blue-300 underline transition-colors">Upgrade to Pro</a> to add up to 10 keyword searches.
+                </p>
+              )}
+            </div>
+          )}
+          <button onClick={() => { setPackInfo(''); setPackDropped([]) }} className="text-xs text-slate-600 hover:text-slate-400 transition-colors">Dismiss</button>
+        </div>
+      )}
+
       {/* Empty state — prompt to use a starter pack */}
       {terms.length === 0 && (
         <div className="mb-5 rounded-xl border border-slate-700/40 bg-slate-900/60 p-4 space-y-3">
@@ -541,7 +597,10 @@ function LinkedInTermsSection({ sources, onUpdate, planLimit = 10, plan = 'Trial
             <div>
               <p className="text-xs font-semibold text-slate-200 mb-1">Start with a starter pack</p>
               <p className="text-sm text-slate-500 leading-relaxed">
-                Pick your industry and Scout will add 6–7 high-signal terms that match how your buyers actually post on LinkedIn. You can edit or remove any of them after.
+                {planLimit <= 3
+                  ? `Pick your industry and Scout will add up to ${planLimit} high-signal terms that match how your buyers post on LinkedIn. You can edit or remove any of them after.`
+                  : 'Pick your industry and Scout will add 6–7 high-signal terms that match how your buyers actually post on LinkedIn. You can edit or remove any of them after.'
+                }
               </p>
             </div>
           </div>
@@ -646,8 +705,8 @@ function LinkedInTermsSection({ sources, onUpdate, planLimit = 10, plan = 'Trial
             <p className="text-xs text-red-400/80 mt-0.5 leading-relaxed">
               Pause or remove a term to swap in a different one.
               {(plan === 'Trial' || plan === 'Scout Starter') && (
-                <> Pro includes 10 searches · Agency includes 20.{' '}
-                  <a href="/upgrade" className="underline text-red-300 hover:text-white transition-colors">Upgrade →</a>
+                <> Starter also has 3 · Pro includes 10 · Agency includes 20.{' '}
+                  <a href="/upgrade" className="underline text-red-300 hover:text-white transition-colors">Upgrade to Pro →</a>
                 </>
               )}
               {plan === 'Scout Pro' && (
@@ -704,18 +763,20 @@ function LinkedInTermsSection({ sources, onUpdate, planLimit = 10, plan = 'Trial
 
       {/* Action buttons */}
       <div className="flex items-center gap-3 flex-wrap">
-        {/* Browse suggestions — always openable; addTerm blocks the add if at cap */}
-        <button
-          onClick={() => { setShowSuggestions(v => !v); setShowAdd(false); setShowPackPicker(false) }}
-          className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-slate-700/50 text-slate-400 hover:text-white hover:border-slate-600 transition-colors"
-        >
-          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.347.346A3.51 3.51 0 0114.5 18H9.5a3.51 3.51 0 01-2.471-1.024l-.347-.346z" />
-          </svg>
-          Browse suggestions
-        </button>
-        {/* Starter packs — always openable; loadIndustryPack respects planLimit */}
-        {terms.length > 0 && (
+        {/* Browse suggestions — hidden when at cap; adding is blocked anyway but no need to confuse */}
+        {!atCap && (
+          <button
+            onClick={() => { setShowSuggestions(v => !v); setShowAdd(false); setShowPackPicker(false) }}
+            className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-slate-700/50 text-slate-400 hover:text-white hover:border-slate-600 transition-colors"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.347.346A3.51 3.51 0 0114.5 18H9.5a3.51 3.51 0 01-2.471-1.024l-.347-.346z" />
+            </svg>
+            Browse suggestions
+          </button>
+        )}
+        {/* Starter packs — hidden when at cap; the pack loader would be disabled anyway */}
+        {terms.length > 0 && !atCap && (
           <button
             onClick={() => { setShowPackPicker(v => !v); setShowAdd(false); setShowSuggestions(false) }}
             className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-slate-700/50 text-slate-400 hover:text-white hover:border-slate-600 transition-colors"

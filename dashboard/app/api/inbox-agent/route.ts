@@ -268,7 +268,7 @@ Business Profile: Set your company name, description, and custom AI scoring prom
 
 ICP Pool: Add or remove LinkedIn profiles to monitor. You can add profiles manually (paste a LinkedIn URL) or use Discover ICPs to find them automatically. The pool shows how many profiles you have vs. your plan limit.
 
-Keyword Sources: Add keywords Scout searches for across LinkedIn. Be specific — "CFO hiring" finds better posts than just "hiring". Max keywords: Trial=3, Starter=3, Pro=10, Agency=20.
+Keyword Sources: Add keywords Scout searches for across LinkedIn. Be specific — "CFO hiring" finds better posts than just "hiring". Max keywords: Trial=3, Starter=3, Pro=10, Agency=20. Trial and Starter share the same 3-keyword limit — upgrading to Starter does not increase keyword slots. Industry starter packs contain 7 terms; Trial/Starter users receive the first 3 when loading a pack. Users can swap individual terms by removing existing ones and adding specific ones they want from the pack. To access all 7 pack terms, users need Pro (10 slots) or Agency (20 slots).
 
 Slack Integration: Connect Slack to receive your daily digest. Settings → System → paste your Slack Bot OAuth Token (starts with xoxb-) and channel name → Save → Test it.
 

@@ -138,6 +138,32 @@ Every public page must have:
 
 ---
 
+## In-App Keyword UX Copy Rules
+
+These rules apply to onboarding/page.tsx and settings/page.tsx. Do not change these without updating both files.
+
+**Pack copy (Trial / Starter, planLimit=3):**
+- Empty state: "Scout will add up to 3 high-signal terms that match how your buyers post on LinkedIn."
+- Pack preview: "Will add 3 of 7 terms from this pack — your plan allows 3 keywords. [Upgrade] to load all 7."
+- Post-load success (truncated): "Added 3 of 7 terms from the Agency pack (plan limit: 3). Not loaded: [term], [term], [term], [term]. Upgrade to add all 7 terms."
+- Post-load success (no truncation): "Added 3 keywords from the Agency pack."
+
+**Pack copy (Pro / Agency, planLimit≥10):**
+- Empty state: "Scout will add 6–7 high-signal terms that match how your buyers actually post on LinkedIn."
+- Pack preview: "Will add 7 keywords to your feed."
+- Post-load success: "Added 7 keywords from the Agency pack."
+
+**At-cap state (all plans):**
+- Cap banner title: "{planLimit}-keyword limit reached"
+- Trial/Starter cap message: "Pause or remove a term to swap in a different one. Starter also has 3 · Pro includes 10 · Agency includes 20. Upgrade to Pro →"
+- Browse suggestions and Starter packs buttons are hidden when atCap (not just disabled)
+
+**Keyword plan limits (canonical — source of truth: lib/tier.ts):**
+- Trial: 3 · Starter: 3 · Pro: 10 · Agency: 20
+- Trial → Starter does NOT increase keywords. That upgrade adds scan slots (5→10), pool size (10→50), comment credits (10 total→30/mo), and Discover ICPs access.
+
+---
+
 ## Future Blog Articles — Rules
 
 1. Use `/blog/warm-up-linkedin-prospects/page.tsx` as the template (nav, heading scale, OG metadata are all correct)
