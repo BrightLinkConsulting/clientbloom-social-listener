@@ -63,12 +63,13 @@ import { getTenantConfig, tenantError } from '@/lib/tenant'
 import { writeAuditLog } from '@/lib/audit-log'
 import { buildTrialReactivationEmail } from '@/lib/emails'
 
-const ANTHROPIC_KEY  = process.env.ANTHROPIC_API_KEY        || ''
-const PLATFORM_TOKEN = process.env.PLATFORM_AIRTABLE_TOKEN  || ''
-const PLATFORM_BASE  = process.env.PLATFORM_AIRTABLE_BASE_ID || ''
-const RESEND_KEY     = process.env.RESEND_API_KEY            || ''
-const BASE_URL_SITE  = (process.env.NEXT_PUBLIC_BASE_URL || 'https://scout.clientbloom.ai').replace(/\/$/, '')
-const FROM           = 'Scout <info@clientbloom.ai>'
+const ANTHROPIC_KEY      = process.env.ANTHROPIC_API_KEY        || ''
+const PLATFORM_TOKEN     = process.env.PLATFORM_AIRTABLE_TOKEN  || ''
+const PLATFORM_BASE      = process.env.PLATFORM_AIRTABLE_BASE_ID || ''
+const RESEND_KEY         = process.env.RESEND_API_KEY            || ''
+const BASE_URL_SITE      = (process.env.NEXT_PUBLIC_BASE_URL || 'https://scout.clientbloom.ai').replace(/\/$/, '')
+const FROM               = 'Scout <info@clientbloom.ai>'
+const SUPER_ADMIN_EMAIL  = (process.env.SUPER_ADMIN_EMAIL || '').toLowerCase().trim()
 
 const MODEL = 'claude-opus-4-6'
 
@@ -275,6 +276,7 @@ When context is lost between sessions, the Cowork assistant can query Mem0 to re
 - Access or expose raw API tokens, password hashes, or Stripe keys
 - Execute any write without Mike's explicit confirmation
 - Take any action on Is Admin=true accounts
+- Take ANY action whatsoever on the master admin account (twp1996@gmail.com) — this account is permanently protected at the server level and cannot be deleted, archived, suspended, or demoted regardless of what is requested
 
 ---
 
@@ -324,6 +326,15 @@ async function executeAction(
   action:      AgentAction,
   adminEmail:  string,
 ): Promise<{ ok: boolean; message: string }> {
+  // Master account protection — server-level guard independent of any Airtable flag
+  if (
+    SUPER_ADMIN_EMAIL &&
+    action.tenantEmail &&
+    action.tenantEmail.toLowerCase().trim() === SUPER_ADMIN_EMAIL
+  ) {
+    return { ok: false, message: 'The master admin account is protected and cannot be modified through the CSM agent.' }
+  }
+
   const baseTenantsUrl = `https://api.airtable.com/v0/${PLATFORM_BASE}/Tenants`
   const headers = {
     Authorization:  `Bearer ${PLATFORM_TOKEN}`,

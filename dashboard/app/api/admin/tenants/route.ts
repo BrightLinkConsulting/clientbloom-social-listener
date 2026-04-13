@@ -23,10 +23,23 @@ import { cascadeDeleteTenant }          from '@/lib/cascade-delete'
 import { writeAuditLog }                from '@/lib/audit-log'
 import bcrypt from 'bcryptjs'
 
-const PLATFORM_TOKEN = process.env.PLATFORM_AIRTABLE_TOKEN  || ''
-const PLATFORM_BASE  = process.env.PLATFORM_AIRTABLE_BASE_ID || ''
-const STRIPE_KEY     = process.env.STRIPE_SECRET_KEY         || ''
-const TENANTS_TABLE  = 'Tenants'
+const PLATFORM_TOKEN    = process.env.PLATFORM_AIRTABLE_TOKEN  || ''
+const PLATFORM_BASE     = process.env.PLATFORM_AIRTABLE_BASE_ID || ''
+const STRIPE_KEY        = process.env.STRIPE_SECRET_KEY         || ''
+const TENANTS_TABLE     = 'Tenants'
+
+// ── Master account protection ─────────────────────────────────────────────────
+// SUPER_ADMIN_EMAIL is a code-level lock on the master account.
+// It is independent of the Is Admin Airtable flag — even if that flag is
+// accidentally changed, this guard still fires. The protected email can never
+// be deleted, archived, suspended, demoted, or have its admin status revoked
+// through the API. It can only be modified by directly editing Airtable or
+// changing the env var.
+const SUPER_ADMIN_EMAIL = (process.env.SUPER_ADMIN_EMAIL || '').toLowerCase().trim()
+
+function isSuperAdmin(email: string): boolean {
+  return !!(SUPER_ADMIN_EMAIL && email && email.toLowerCase().trim() === SUPER_ADMIN_EMAIL)
+}
 
 const BASE_URL = () =>
   `https://api.airtable.com/v0/${PLATFORM_BASE}/${encodeURIComponent(TENANTS_TABLE)}`
@@ -126,28 +139,32 @@ export async function GET() {
       offset = data.offset
     } while (offset)
 
-    const tenants = all.map((r: any) => ({
-      id:             r.id,
-      email:          r.fields['Email']               || '',
-      companyName:    r.fields['Company Name']         || '',
-      airtableBaseId: r.fields['Airtable Base ID']    || '',
-      tenantId:       r.fields['Tenant ID']           || '',
-      // Never expose raw tokens or password hash — only existence flags
-      hasToken:       !!(r.fields['Airtable API Token']),
-      hasApifyKey:    !!(r.fields['Apify API Key']),
-      // apifyPool: 0 = default shared, 1 = Pool 1, 2 = Pool 2
-      apifyPool:      typeof r.fields['Apify Pool'] === 'number' ? r.fields['Apify Pool'] : 0,
-      status:         r.fields['Status']              || 'Active',
-      isAdmin:        r.fields['Is Admin']            ?? false,
-      isFeedOnly:     r.fields['Is Feed Only']        ?? false,
-      plan:           r.fields['Plan']                || '',
-      createdAt:      r.fields['Created At']          || '',
-      archivedAt:           r.fields['Archived At']           || null,
-      trialEndsAt:          r.fields['Trial Ends At']          || null,
-      reactivationSentAt:   r.fields['Reactivation Sent At']   || null,
-      stripeCustomerId:     r.fields['Stripe Customer ID']     || null,
-      stripeSubscriptionId: r.fields['Stripe Subscription ID'] || null,
-    }))
+    const tenants = all.map((r: any) => {
+      const email = r.fields['Email'] || ''
+      return {
+        id:             r.id,
+        email,
+        companyName:    r.fields['Company Name']         || '',
+        airtableBaseId: r.fields['Airtable Base ID']    || '',
+        tenantId:       r.fields['Tenant ID']           || '',
+        // Never expose raw tokens or password hash — only existence flags
+        hasToken:       !!(r.fields['Airtable API Token']),
+        hasApifyKey:    !!(r.fields['Apify API Key']),
+        // apifyPool: 0 = default shared, 1 = Pool 1, 2 = Pool 2
+        apifyPool:      typeof r.fields['Apify Pool'] === 'number' ? r.fields['Apify Pool'] : 0,
+        status:         r.fields['Status']              || 'Active',
+        isAdmin:        r.fields['Is Admin']            ?? false,
+        isSuperAdmin:   isSuperAdmin(email),  // server-computed, independent of Airtable flag
+        isFeedOnly:     r.fields['Is Feed Only']        ?? false,
+        plan:           r.fields['Plan']                || '',
+        createdAt:      r.fields['Created At']          || '',
+        archivedAt:           r.fields['Archived At']           || null,
+        trialEndsAt:          r.fields['Trial Ends At']          || null,
+        reactivationSentAt:   r.fields['Reactivation Sent At']   || null,
+        stripeCustomerId:     r.fields['Stripe Customer ID']     || null,
+        stripeSubscriptionId: r.fields['Stripe Subscription ID'] || null,
+      }
+    })
 
     return NextResponse.json({ tenants })
   } catch (e: any) {
@@ -256,6 +273,26 @@ export async function PATCH(req: Request) {
     } = body
 
     if (!id) return NextResponse.json({ error: 'id is required.' }, { status: 400 })
+
+    // ── Master account protection — block any action that would lock out or demote ──
+    if (targetEmail && isSuperAdmin(targetEmail)) {
+      // Allow safe read-only-style updates (company name, plan upgrades, etc.)
+      // Block anything that would remove access or revoke admin status
+      const isDangerous = (
+        action === 'archive' ||
+        status === 'Suspended' ||
+        status === 'Archived' ||
+        status === 'trial_expired' ||
+        status === 'deleted' ||
+        isAdmin === false
+      )
+      if (isDangerous) {
+        return NextResponse.json(
+          { error: 'The master admin account cannot be archived, suspended, or have admin access revoked. This protection is enforced at the server level.' },
+          { status: 403 }
+        )
+      }
+    }
 
     // ── Special actions: archive / unarchive ──────────────────────────────
     if (action === 'archive') {
@@ -418,6 +455,14 @@ export async function DELETE(req: Request) {
     const plan     = fields['Plan']                || ''
     const subId    = fields['Stripe Subscription ID'] || ''
     const isOwner  = fields['Is Admin']            === true
+
+    // Master account protection — absolute lock regardless of Is Admin flag
+    if (isSuperAdmin(email)) {
+      return NextResponse.json(
+        { error: 'The master admin account cannot be deleted. This protection is enforced at the server level.' },
+        { status: 403 }
+      )
+    }
 
     // Self-delete guard — compare against caller's email (getTenantConfig has no .id field)
     if (email && caller.email && email.toLowerCase() === caller.email.toLowerCase()) {
