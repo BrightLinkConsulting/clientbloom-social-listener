@@ -72,7 +72,7 @@ function TrialBannerInner({ trialEndsAt }: { trialEndsAt: string | null }) {
     <div
       aria-label="Free trial countdown"
       style={{
-        boxShadow: '0 0 12px 2px rgba(139, 92, 246, 0.35), inset 0 -1px 0 rgba(139, 92, 246, 0.2)',
+        boxShadow: '0 0 10px 1px rgba(139, 92, 246, 0.2), inset 0 -1px 0 rgba(139, 92, 246, 0.15)',
       }}
       className="
         sticky top-0 z-30 w-full
@@ -84,10 +84,10 @@ function TrialBannerInner({ trialEndsAt }: { trialEndsAt: string | null }) {
         text-xs tracking-wide
       "
     >
-      {/* Pulsing dot */}
+      {/* Pulsing dot — slowed to 2.5s for a subtle, easy-on-the-eyes rhythm */}
       <span className="relative flex h-1.5 w-1.5 shrink-0">
-        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-violet-400 opacity-60" />
-        <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-violet-400" />
+        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-violet-400 opacity-40 [animation-duration:2.5s]" />
+        <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-violet-400/80" />
       </span>
 
       <span className="text-violet-200 font-medium">
