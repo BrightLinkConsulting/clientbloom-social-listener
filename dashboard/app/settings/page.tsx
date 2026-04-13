@@ -178,6 +178,48 @@ function Spinner() {
   )
 }
 
+// ---- Zero-streak diagnostic banner ----
+// Self-contained: fetches scan-status internally and renders when streak >= 3.
+// Gated on lastScanAt != null (won't fire for brand-new accounts that haven't run a scan).
+function ZeroStreakBanner() {
+  const [streakCount, setStreakCount] = useState(0)
+  const [hasScanned,  setHasScanned]  = useState(false)
+
+  useEffect(() => {
+    fetch('/api/scan-status')
+      .then(r => r.json())
+      .then(data => {
+        setStreakCount(data.consecutiveZeroScans ?? 0)
+        setHasScanned(!!data.lastScanAt)
+      })
+      .catch(() => { /* fail silently — this banner is informational only */ })
+  }, [])
+
+  if (!hasScanned || streakCount < 3) return null
+
+  return (
+    <div className="mb-5 flex gap-3 px-4 py-3.5 rounded-xl bg-amber-500/10 border border-amber-500/20">
+      <span className="text-amber-400 text-base shrink-0 mt-0.5">🔍</span>
+      <div>
+        <p className="text-sm font-semibold text-amber-300 mb-1">
+          Scout hasn't found new posts in {streakCount} recent scan{streakCount !== 1 ? 's' : ''}
+        </p>
+        <p className="text-xs text-amber-400/80 leading-relaxed mb-2">
+          The most common reasons:
+        </p>
+        <ul className="text-xs text-amber-400/70 leading-relaxed space-y-1 list-disc list-inside mb-2">
+          <li>Your ICP profiles haven't posted in the last 7 days — check their LinkedIn directly</li>
+          <li>Your keyword terms may be too broad or too narrow for recent LinkedIn activity</li>
+          <li>All recent posts were already captured in previous scans (this is actually a good sign)</li>
+        </ul>
+        <p className="text-xs text-amber-300/90">
+          Try adding 2–3 new ICP profiles or refreshing your keyword terms below.
+        </p>
+      </div>
+    </div>
+  )
+}
+
 // ---- LinkedIn Terms: preset suggestion bank ----
 const TERM_SUGGESTIONS = [
   {
@@ -3660,12 +3702,15 @@ export default function SettingsPage() {
               </div>
             )}
             {!loading && !loadError && (
-              <LinkedInTermsSection
-                sources={sources}
-                onUpdate={fetchSources}
-                planLimit={getTierLimits((session?.user as any)?.plan || 'Trial').keywords}
-                plan={(session?.user as any)?.plan || 'Trial'}
-              />
+              <>
+                <ZeroStreakBanner />
+                <LinkedInTermsSection
+                  sources={sources}
+                  onUpdate={fetchSources}
+                  planLimit={getTierLimits((session?.user as any)?.plan || 'Trial').keywords}
+                  plan={(session?.user as any)?.plan || 'Trial'}
+                />
+              </>
             )}
             <LinkedInICPSection />
           </>

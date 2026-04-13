@@ -32,6 +32,8 @@ interface Tenant {
   tenantId:       string
   hasToken:       boolean
   hasApifyKey:    boolean
+  // 0 = default shared pool, 1 = Pool 1 (APIFY_TOKEN_POOL_1), 2 = Pool 2 (APIFY_TOKEN_POOL_2)
+  apifyPool:      number
   status:         string
   isAdmin:        boolean
   isFeedOnly:     boolean
@@ -231,13 +233,24 @@ function ActionTooltip({
 }
 
 // ── Apify pool badge ───────────────────────────────────────────────────────────
-function ApifyPoolBadge({ hasKey }: { hasKey: boolean }) {
-  return hasKey ? (
-    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-900/30 text-emerald-400 border border-emerald-800/40">
-      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-      Custom key
-    </span>
-  ) : (
+function ApifyPoolBadge({ hasKey, pool }: { hasKey: boolean; pool: number }) {
+  if (hasKey) {
+    return (
+      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-900/30 text-emerald-400 border border-emerald-800/40">
+        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+        Custom key
+      </span>
+    )
+  }
+  if (pool > 0) {
+    return (
+      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-blue-900/30 text-blue-400 border border-blue-800/40">
+        <span className="w-1.5 h-1.5 rounded-full bg-blue-400" />
+        Pool {pool}
+      </span>
+    )
+  }
+  return (
     <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-slate-800/60 text-slate-400 border border-slate-700">
       <span className="w-1.5 h-1.5 rounded-full bg-slate-500" />
       Shared pool
@@ -255,11 +268,13 @@ function ApifyPanel({
   onClose: () => void
   onSaved: () => void
 }) {
-  const [keyInput,   setKeyInput]   = useState('')
-  const [saving,     setSaving]     = useState(false)
-  const [clearing,   setClearing]   = useState(false)
-  const [msg,        setMsg]        = useState('')
-  const [error,      setError]      = useState('')
+  const [keyInput,    setKeyInput]    = useState('')
+  const [poolInput,   setPoolInput]   = useState<number>(tenant.apifyPool ?? 0)
+  const [saving,      setSaving]      = useState(false)
+  const [savingPool,  setSavingPool]  = useState(false)
+  const [clearing,    setClearing]    = useState(false)
+  const [msg,         setMsg]         = useState('')
+  const [error,       setError]       = useState('')
 
   async function handleSave() {
     if (!keyInput.trim()) return
@@ -288,6 +303,30 @@ function ApifyPanel({
       else { const d = await resp.json(); setError(d.error || 'Clear failed') }
     } catch { setError('Network error') }
     finally { setClearing(false) }
+  }
+
+  async function handleSavePool() {
+    setSavingPool(true); setMsg(''); setError('')
+    try {
+      const resp = await fetch('/api/admin/tenants', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: tenant.id, apifyPool: poolInput }),
+      })
+      if (resp.ok) {
+        setMsg(poolInput === 0 ? 'Reverted to default pool.' : `Assigned to Pool ${poolInput}.`)
+        onSaved()
+      } else {
+        const d = await resp.json()
+        setError(d.error || 'Save failed')
+      }
+    } catch { setError('Network error') }
+    finally { setSavingPool(false) }
+  }
+
+  const poolLabel = (p: number) => {
+    if (p === 0) return 'Default (APIFY_API_TOKEN)'
+    return `Pool ${p} (APIFY_TOKEN_POOL_${p})`
   }
 
   return (
@@ -319,10 +358,12 @@ function ApifyPanel({
 
           <div className="px-5 py-4 grid grid-cols-2 gap-6">
 
-            {/* Left: current status + key form */}
-            <div className="space-y-4">
+            {/* Left: current status + key form + pool selector */}
+            <div className="space-y-5">
+
+              {/* Section: Custom key (Agency clients with their own Apify account) */}
               <div>
-                <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-2">Scanning Pool</p>
+                <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-2">Custom Apify Key (Agency)</p>
 
                 {/* Status card */}
                 <div className={`rounded-lg border px-4 py-3 mb-3 ${
@@ -333,19 +374,19 @@ function ApifyPanel({
                   <div className="flex items-center gap-2 mb-1">
                     <span className={`w-2 h-2 rounded-full ${tenant.hasApifyKey ? 'bg-emerald-400' : 'bg-slate-500'}`} />
                     <p className={`text-sm font-medium ${tenant.hasApifyKey ? 'text-emerald-300' : 'text-slate-300'}`}>
-                      {tenant.hasApifyKey ? 'Custom Apify account active' : 'Using Scout shared pool'}
+                      {tenant.hasApifyKey ? 'Custom Apify account active' : 'Using Scout pool'}
                     </p>
                   </div>
                   <p className="text-xs text-slate-500 ml-4">
                     {tenant.hasApifyKey
-                      ? 'This tenant\'s scans run on their own Apify account, isolated from other tenants.'
-                      : 'Scans run on Scout\'s shared Apify account. Included in subscription.'}
+                      ? "Tenant's scans run on their own Apify account, fully isolated from other tenants."
+                      : `Scans run on Scout's Apify pool. Current pool: ${poolLabel(tenant.apifyPool ?? 0)}.`}
                   </p>
                 </div>
 
                 {/* Key input */}
                 <p className="text-xs text-slate-400 mb-1.5">
-                  {tenant.hasApifyKey ? 'Update Apify key' : 'Assign custom Apify key'}
+                  {tenant.hasApifyKey ? 'Update Apify key' : 'Assign custom Apify key (overrides pool)'}
                 </p>
                 <div className="flex gap-2">
                   <input
@@ -371,14 +412,42 @@ function ApifyPanel({
                     disabled={clearing}
                     className="mt-2 text-xs text-slate-500 hover:text-red-400 transition-colors underline underline-offset-2"
                   >
-                    {clearing ? 'Reverting…' : 'Remove key — revert to shared pool'}
+                    {clearing ? 'Reverting…' : 'Remove key — revert to pool'}
                   </button>
                 )}
-
-                {/* Feedback */}
-                {msg && <p className="text-xs text-emerald-400 mt-2">{msg}</p>}
-                {error && <p className="text-xs text-red-400 mt-2">{error}</p>}
               </div>
+
+              {/* Section: Scout Pool Assignment (multi-account load balancing) */}
+              {!tenant.hasApifyKey && (
+                <div>
+                  <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-2">Scout Pool Assignment</p>
+                  <p className="text-xs text-slate-500 mb-2.5 leading-relaxed">
+                    Assign this tenant to one of Scout's Apify accounts. Use Pool 1 or 2 when the default pool is nearing its concurrent-run ceiling.
+                  </p>
+                  <div className="flex gap-2">
+                    <select
+                      value={poolInput}
+                      onChange={e => setPoolInput(Number(e.target.value))}
+                      className="flex-1 bg-[#161b27] border border-slate-700 rounded-lg px-3 py-2 text-slate-100 text-sm focus:outline-none focus:border-[#4F6BFF]"
+                    >
+                      <option value={0}>Default pool (APIFY_API_TOKEN)</option>
+                      <option value={1}>Pool 1 (APIFY_TOKEN_POOL_1)</option>
+                      <option value={2}>Pool 2 (APIFY_TOKEN_POOL_2)</option>
+                    </select>
+                    <button
+                      onClick={handleSavePool}
+                      disabled={savingPool || poolInput === (tenant.apifyPool ?? 0)}
+                      className="bg-slate-700 hover:bg-slate-600 disabled:opacity-50 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors whitespace-nowrap"
+                    >
+                      {savingPool ? 'Saving…' : 'Assign'}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Feedback */}
+              {msg && <p className="text-xs text-emerald-400">{msg}</p>}
+              {error && <p className="text-xs text-red-400">{error}</p>}
             </div>
 
             {/* Right: affiliate link section */}
@@ -1953,8 +2022,8 @@ export default function AdminPage() {
                                         onClick={() => { setOpenMenuId(null); setExpandedApify(expandedApify === t.id ? null : t.id) }}
                                         className="w-full flex items-center gap-3 px-3.5 py-2.5 text-xs text-slate-300 hover:bg-slate-800/60 hover:text-white transition-colors"
                                       >
-                                        <span className={`w-2 h-2 rounded-full shrink-0 ${t.hasApifyKey ? 'bg-emerald-400' : 'bg-slate-600'}`} />
-                                        <span>{t.hasApifyKey ? 'Apify key — manage' : 'Apify — use shared pool'}</span>
+                                        <span className={`w-2 h-2 rounded-full shrink-0 ${t.hasApifyKey ? 'bg-emerald-400' : (t.apifyPool ?? 0) > 0 ? 'bg-blue-400' : 'bg-slate-600'}`} />
+                                        <span>{t.hasApifyKey ? 'Apify key — manage' : (t.apifyPool ?? 0) > 0 ? `Apify — Pool ${t.apifyPool}` : 'Apify — shared pool'}</span>
                                       </button>
 
                                       {/* Reset PW */}

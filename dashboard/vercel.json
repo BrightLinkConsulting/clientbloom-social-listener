@@ -13,6 +13,7 @@
     { "path": "/api/cron/scan-watchdog",     "schedule": "30 * * * *"  },
     { "path": "/api/cron/archive-posts",     "schedule": "0 3 * * 0"   },
     { "path": "/api/cron/service-check",    "schedule": "0 */4 * * *" },
-    { "path": "/api/cron/admin-digest",     "schedule": "0 17 * * *"  }
+    { "path": "/api/cron/admin-digest",     "schedule": "0 17 * * *"  },
+    { "path": "/api/cron/zero-streak-check", "schedule": "0 10 * * *" }
   ]
 }
