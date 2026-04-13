@@ -214,13 +214,21 @@ export async function GET() {
       getAllScanHealth(),
     ])
 
-    // ── Fetch all tenant records ────────────────────────────────────────────
+    // ── Fetch active tenant records (exclude archived / suspended) ─────────
+    // Archived and Suspended tenants are intentionally deactivated.
+    // Their historical data is preserved in their Airtable row and the
+    // Admin Audit Log — they just don't need to appear on the live usage view.
+    // Hard-deleted tenants have no row at all so they are naturally absent.
+    const USAGE_EXCLUDED_STATUSES = ['Archived', 'Suspended']
+    const usageFormula = `NOT(OR(${USAGE_EXCLUDED_STATUSES.map(s => `{Status}='${s}'`).join(',')}))`
+
     const all: any[] = []
     let offset: string | undefined
 
     do {
       const url = new URL(`${AIRTABLE_API}/${PLATFORM_BASE}/Tenants`)
       url.searchParams.set('pageSize', '100')
+      url.searchParams.set('filterByFormula', usageFormula)
       url.searchParams.set('sort[0][field]', 'Company Name')
       url.searchParams.set('sort[0][direction]', 'asc')
       if (offset) url.searchParams.set('offset', offset)
