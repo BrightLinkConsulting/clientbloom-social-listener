@@ -1,7 +1,7 @@
 # Scout Mobile UX — Standards, Known Issues, and Patterns
 
 **Status:** Live in production  
-**Last updated:** April 2026  
+**Last updated:** April 13, 2026  
 **Scope:** All public-facing pages and authenticated app pages
 
 ---
@@ -87,6 +87,17 @@ For nav buttons (small, inline):
 1. **Nav** — same fix as landing page (shrink-0, hidden sm:inline for "by ClientBloom")
 2. **CTA button on about page** — changed `px-10 py-5` to `px-8 py-4`, added `w-full sm:w-auto whitespace-nowrap`
 
+### Blog article page (`/blog/warm-up-linkedin-prospects`)
+
+**Fixed:**
+1. **Nav** — same `shrink-0 whitespace-nowrap`, `px-4 sm:px-6`, `hidden sm:inline` fixes as all other public pages
+2. **H1 `text-5xl md:text-6xl`** — had no mobile size, rendering at 3rem on a 375px phone. Changed to `text-3xl sm:text-5xl md:text-6xl`
+3. **Subheadline `text-xl`** — changed to `text-base sm:text-xl`
+4. **Article CTA button** — added `w-full sm:w-auto whitespace-nowrap justify-center` so it doesn't clip on narrow screens
+5. **OG metadata and canonical** — added full `openGraph`, `twitter`, and `alternates.canonical` metadata
+
+**Rule for future blog articles:** any new article page must follow the same nav pattern and font-size scale as the existing article. Copy the nav block and heading classes from `/blog/warm-up-linkedin-prospects/page.tsx` as the starting template.
+
 ### Privacy Policy (`/privacy-policy`) and Terms (`/terms`)
 
 These pages use simple navs with just "Scout by ClientBloom" text and a "Sign in" link — no buttons, no overflow issues. No mobile fixes required.
@@ -147,19 +158,52 @@ When making changes to any public or authenticated page, verify:
 
 ## OG Image / Social Sharing (April 2026)
 
-### What was fixed
+### Status
 
-All public pages now include a consistent OG image (`/og-image.png`, 1200×630px) for clean social sharing previews. When you send the Scout link via Slack, iMessage, LinkedIn, or Twitter, it will show the Scout ClientBloom logo and branding.
+✅ **Complete.** `dashboard/public/og-image.png` (1200×630px) has been generated and committed. When someone shares any Scout URL on Slack, iMessage, LinkedIn, or Twitter/X, the social preview will show the ClientBloom mark, "Scout by ClientBloom" wordmark, and tagline on the Scout dark background.
 
-**File required:** `/public/og-image.png` — must be 1200×630px. The Scout brand team should create this as a clean brand card with the ClientBloom mark, "Scout by ClientBloom" wordmark, and tagline.
+### About the OG image format
+
+The ClientBloom logo is square. A raw square logo does not work for OG images — social platforms expect 1200×630 (1.91:1 landscape). Pasting a square logo directly would produce pillarboxing on most platforms and cropping on others.
+
+The correct approach (implemented here) is to compose a 1200×630 canvas:
+- **Background:** Scout brand dark (`#080a0f`) with subtle centre glow
+- **Left-centre group:** ClientBloom mark (160×160px) + "Scout" wordmark + "by ClientBloom" subtitle
+- **Below the mark:** tagline in slate-400
+- **Bottom edge:** 4px `#4F6BFF` accent line
+
+Source: generated via Python/Pillow + cairosvg from the `ClientBloomMark` SVG already in the codebase. If you need to regenerate (e.g. to update the tagline or add `.ai` to the wordmark), the script is in the session history.
 
 ### Pages with OG images
 - `/` — inherited from `layout.tsx`
 - `/compare` — explicit `openGraph.images`
 - `/about` — explicit `openGraph.images`
 - `/blog` — explicit `openGraph.images`
+- `/blog/warm-up-linkedin-prospects` — explicit `openGraph.images`
 - `/privacy-policy` — explicit `openGraph.images`
 - `/terms` — explicit `openGraph.images`
+
+### Adding OG to future pages
+
+Every new public page should include:
+```ts
+export const metadata: Metadata = {
+  // ... title, description
+  openGraph: {
+    title: "...",
+    description: "...",
+    url: 'https://scout.clientbloom.ai/YOUR-PATH',
+    images: [{ url: 'https://scout.clientbloom.ai/og-image.png', width: 1200, height: 630, alt: 'Scout by ClientBloom' }],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: "...",
+    description: "...",
+    images: ['https://scout.clientbloom.ai/og-image.png'],
+  },
+  alternates: { canonical: 'https://scout.clientbloom.ai/YOUR-PATH' },
+}
+```
 
 ---
 
@@ -193,6 +237,8 @@ The following scenarios are verified to work on 375×667px viewport (iPhone SE 3
 | ICP profile detail drawer on settings | Full-screen slide-in | ✅ Fixed |
 | Engagement Momentum 4 stats | 2×2 grid, readable | ✅ Fixed |
 | Compare page table | Horizontally scrollable, min-w-[480px] | ✅ Fixed |
+| Blog article nav at 375px | Logo + CTA button both visible, not clipped | ✅ Fixed |
+| Blog article h1 | 3 lines max, readable at `text-3xl` | ✅ Fixed |
 | Settings tab bar (7 tabs) | Horizontally scrollable without cutoff | ✅ Already good |
 | Sign-in page form | Full-width card, animated panel hidden | ✅ Already good |
 | Pricing section (3-tier grid) | Stacked single-column | ✅ Already good |
@@ -214,8 +260,8 @@ The following scenarios are verified to work on 375×667px viewport (iPhone SE 3
 
 1. **Admin panel** — the admin panel (`/admin`) is currently desktop-only and not optimized for mobile. Given that it's an operator tool, this is acceptable for now. If mobile access becomes needed, the main panels (tenants list, health strip, ApifyPanel) will need responsive layout work.
 
-2. **Blog article pages** — when individual blog article pages are built, ensure they use `prose` max-width and `text-base` body text (not `text-lg`) on mobile.
+2. **Onboarding step indicators** — step dots at the top of onboarding may benefit from a horizontal progress bar on very small screens.
 
-3. **Onboarding step indicators** — step dots at the top of onboarding may benefit from a horizontal progress bar on very small screens.
+3. **CRM push modal** — the CRM push confirmation modal inside the feed uses fixed-width positioning that could be reviewed for very narrow screens.
 
-4. **CRM push modal** — the CRM push confirmation modal inside the feed uses fixed-width positioning that could be reviewed for very narrow screens.
+4. **Future blog articles** — use `/blog/warm-up-linkedin-prospects/page.tsx` as the template. Nav block, heading scale, and OG metadata pattern are all correct there. Do not start from scratch.
