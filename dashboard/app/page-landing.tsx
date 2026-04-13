@@ -201,7 +201,7 @@ export default function LandingPage() {
                   animation: 'gradientShift 5s ease-in-out infinite alternate',
                   display: 'inline',
                 }}
-              >Your next client</span>
+              >Your Next Client</span>
               <span className="text-white"> is on</span>
               <style>{`@keyframes gradientShift{0%{background-position:0% center}100%{background-position:100% center}}`}</style>
             </span>
