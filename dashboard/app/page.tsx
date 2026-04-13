@@ -1494,7 +1494,7 @@ function MomentumWidget({
         <span className={`text-xs font-medium ${momentumTier.color}`}>{momentumTier.label}</span>
       </div>
 
-      <div className="grid grid-cols-4 gap-2 mb-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
         {([
           { label: 'Surfaced',  value: String(totalSurfaced), color: 'text-white'         },
           { label: 'Engaged',   value: String(totalEngaged),  color: 'text-blue-400'      },

@@ -7,7 +7,9 @@ export const metadata: Metadata = {
   openGraph: {
     title: 'Terms of Service — Scout by ClientBloom',
     url: 'https://scout.clientbloom.ai/terms',
+    images: [{ url: 'https://scout.clientbloom.ai/og-image.png', width: 1200, height: 630, alt: 'Scout by ClientBloom' }],
   },
+  alternates: { canonical: 'https://scout.clientbloom.ai/terms' },
 }
 
 export default function TermsOfService() {
