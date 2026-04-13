@@ -9,6 +9,19 @@ import Link from 'next/link'
 export const metadata: Metadata = {
   title: "How to Warm Up LinkedIn Prospects Before You Pitch",
   description: "The relationship-first outreach method that gets 2-3x higher reply rates than cold LinkedIn messages — and how to scale it with AI monitoring.",
+  openGraph: {
+    title: "How to Warm Up LinkedIn Prospects Before You Pitch",
+    description: "The relationship-first outreach method that gets 2-3x higher reply rates than cold LinkedIn messages — and how to scale it with AI monitoring.",
+    url: 'https://scout.clientbloom.ai/blog/warm-up-linkedin-prospects',
+    images: [{ url: 'https://scout.clientbloom.ai/og-image.png', width: 1200, height: 630, alt: 'Scout by ClientBloom' }],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: "How to Warm Up LinkedIn Prospects Before You Pitch",
+    description: "The relationship-first outreach method that gets 2-3x higher reply rates than cold LinkedIn messages — and how to scale it with AI monitoring.",
+    images: ['https://scout.clientbloom.ai/og-image.png'],
+  },
+  alternates: { canonical: 'https://scout.clientbloom.ai/blog/warm-up-linkedin-prospects' },
 }
 
 function ClientBloomMark({ size = 28 }: { size?: number }) {
@@ -30,16 +43,14 @@ export default function ArticlePage() {
     <div className="min-h-screen bg-[#080a0f] text-slate-200 font-sans">
       {/* NAV */}
       <nav className="fixed top-0 left-0 right-0 z-50 border-b border-white/5 bg-[#080a0f]/90 backdrop-blur-md">
-        <div className="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2.5">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between gap-2 sm:gap-4">
+          <Link href="/" className="flex items-center gap-2.5 min-w-0 shrink-0">
             <ClientBloomMark size={28} />
-            <span className="text-white font-bold tracking-tight">Scout <span className="text-slate-400 font-normal text-sm">by ClientBloom</span></span>
+            <span className="text-white font-bold tracking-tight">Scout <span className="text-slate-400 font-normal text-sm hidden sm:inline">by ClientBloom</span></span>
           </Link>
-          <div className="flex items-center gap-4">
-            <a href={CHECKOUT_URL} className="bg-[#4F6BFF] hover:bg-[#3D57F5] text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors">
-              Start Free Trial
-            </a>
-          </div>
+          <a href={CHECKOUT_URL} className="shrink-0 whitespace-nowrap bg-[#4F6BFF] hover:bg-[#3D57F5] text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors">
+            Start Free Trial
+          </a>
         </div>
       </nav>
 
@@ -52,10 +63,10 @@ export default function ArticlePage() {
               <span>•</span>
               <span>8 min read</span>
             </div>
-            <h1 className="text-5xl md:text-6xl font-bold text-white mb-6 leading-tight">
+            <h1 className="text-3xl sm:text-5xl md:text-6xl font-bold text-white mb-6 leading-tight">
               How to Warm Up LinkedIn Prospects Before You Pitch
             </h1>
-            <p className="text-xl text-slate-400">
+            <p className="text-base sm:text-xl text-slate-400">
               The relationship-first outreach method that gets 2–3x higher reply rates than cold LinkedIn messages.
             </p>
           </div>
@@ -205,7 +216,7 @@ export default function ArticlePage() {
             <p className="text-slate-400 mb-6">Scout automates the monitoring and scoring layer. See exactly which posts matter, every day.</p>
             <a
               href={CHECKOUT_URL}
-              className="inline-flex items-center gap-2 bg-[#4F6BFF] hover:bg-[#3D57F5] text-white font-semibold px-8 py-4 rounded-xl transition-all hover:scale-[1.02] shadow-lg shadow-[#4F6BFF]/25"
+              className="inline-flex items-center justify-center gap-2 w-full sm:w-auto whitespace-nowrap bg-[#4F6BFF] hover:bg-[#3D57F5] text-white font-semibold px-8 py-4 rounded-xl transition-all hover:scale-[1.02] shadow-lg shadow-[#4F6BFF]/25"
             >
               Start 14-Day Free Trial
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
