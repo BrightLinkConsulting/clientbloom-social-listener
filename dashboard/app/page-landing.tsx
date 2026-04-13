@@ -147,7 +147,7 @@ export default function LandingPage() {
   ]
 
   return (
-    <div className="min-h-screen bg-[#080a0f] text-slate-200 font-sans">
+    <div className="min-h-screen bg-[#080a0f] text-slate-200 font-sans overflow-x-hidden">
       {/* FAQ structured data for search engines and LLMs */}
       <script
         type="application/ld+json"

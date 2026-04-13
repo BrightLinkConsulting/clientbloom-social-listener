@@ -117,7 +117,7 @@ export default function ComparePage() {
   ]
 
   return (
-    <div className="min-h-screen bg-[#080a0f] text-slate-200 font-sans">
+    <div className="min-h-screen bg-[#080a0f] text-slate-200 font-sans overflow-x-hidden">
 
       {/* NAV */}
       <nav className="fixed top-0 left-0 right-0 z-50 border-b border-white/5 bg-[#080a0f]/90 backdrop-blur-md">
