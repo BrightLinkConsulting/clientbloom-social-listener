@@ -814,7 +814,7 @@ function ProfileDrawer({
       />
 
       {/* Drawer */}
-      <div className="fixed top-0 right-0 h-full w-[340px] bg-[#0d1017] border-l border-slate-700/50 z-50 flex flex-col shadow-2xl overflow-y-auto">
+      <div className="fixed top-0 right-0 h-full w-full sm:w-[340px] bg-[#0d1017] border-l border-slate-700/50 z-50 flex flex-col shadow-2xl overflow-y-auto">
 
         {/* Header */}
         <div className="px-5 pt-5 pb-4 border-b border-slate-800/60 flex items-start gap-3">

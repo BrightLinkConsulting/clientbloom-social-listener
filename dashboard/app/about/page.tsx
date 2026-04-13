@@ -9,6 +9,20 @@ import Link from 'next/link'
 export const metadata: Metadata = {
   title: "About Scout by ClientBloom — LinkedIn Relationship Intelligence",
   description: "Scout is a LinkedIn relationship intelligence platform built by ClientBloom to help consultants and GTM teams build warm pipeline through consistent, AI-guided engagement.",
+  openGraph: {
+    title: "About Scout by ClientBloom",
+    description: "Scout is a LinkedIn relationship intelligence platform built by ClientBloom to help consultants build warm pipeline before ever making their pitch.",
+    url: "https://scout.clientbloom.ai/about",
+    type: "website",
+    images: [{ url: "https://scout.clientbloom.ai/og-image.png", width: 1200, height: 630, alt: "Scout by ClientBloom" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "About Scout by ClientBloom",
+    description: "LinkedIn relationship intelligence for consultants and GTM teams.",
+    images: ["https://scout.clientbloom.ai/og-image.png"],
+  },
+  alternates: { canonical: "https://scout.clientbloom.ai/about" },
 }
 
 function ClientBloomMark({ size = 28 }: { size?: number }) {
@@ -30,16 +44,14 @@ export default function AboutPage() {
     <div className="min-h-screen bg-[#080a0f] text-slate-200 font-sans">
       {/* NAV */}
       <nav className="fixed top-0 left-0 right-0 z-50 border-b border-white/5 bg-[#080a0f]/90 backdrop-blur-md">
-        <div className="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2.5">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
+          <Link href="/" className="flex items-center gap-2.5 min-w-0 shrink-0">
             <ClientBloomMark size={28} />
-            <span className="text-white font-bold tracking-tight">Scout <span className="text-slate-400 font-normal text-sm">by ClientBloom</span></span>
+            <span className="text-white font-bold tracking-tight">Scout <span className="text-slate-400 font-normal text-sm hidden sm:inline">by ClientBloom</span></span>
           </Link>
-          <div className="flex items-center gap-4">
-            <a href={CHECKOUT_URL} className="bg-[#4F6BFF] hover:bg-[#3D57F5] text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors">
-              Start Free Trial
-            </a>
-          </div>
+          <a href={CHECKOUT_URL} className="shrink-0 whitespace-nowrap bg-[#4F6BFF] hover:bg-[#3D57F5] text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors">
+            Start Free Trial
+          </a>
         </div>
       </nav>
 
@@ -100,7 +112,7 @@ export default function AboutPage() {
           <div className="mt-16 text-center">
             <a
               href={CHECKOUT_URL}
-              className="inline-flex items-center gap-2 bg-[#4F6BFF] hover:bg-[#3D57F5] text-white font-semibold px-10 py-5 rounded-xl text-lg transition-all hover:scale-[1.02] shadow-xl shadow-[#4F6BFF]/25 mb-4"
+              className="inline-flex items-center justify-center gap-2 bg-[#4F6BFF] hover:bg-[#3D57F5] text-white font-semibold px-8 py-4 rounded-xl text-base sm:text-lg transition-all hover:scale-[1.02] shadow-xl shadow-[#4F6BFF]/25 mb-4 w-full sm:w-auto whitespace-nowrap"
             >
               Start 14-Day Free Trial
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>

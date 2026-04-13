@@ -9,6 +9,20 @@ import Link from 'next/link'
 export const metadata: Metadata = {
   title: "Scout Blog — LinkedIn Relationship Intelligence Insights",
   description: "Tactical guides on LinkedIn relationship building, warm outreach, and AI-powered prospect engagement from the Scout team.",
+  openGraph: {
+    title: "Scout Blog — LinkedIn Relationship Intelligence Insights",
+    description: "Tactical guides on LinkedIn relationship building, warm outreach, and AI-powered prospect engagement.",
+    url: "https://scout.clientbloom.ai/blog",
+    type: "website",
+    images: [{ url: "https://scout.clientbloom.ai/og-image.png", width: 1200, height: 630, alt: "Scout Blog by ClientBloom" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Scout Blog — LinkedIn Relationship Intelligence Insights",
+    description: "Tactical guides on LinkedIn relationship building and AI-powered prospect engagement.",
+    images: ["https://scout.clientbloom.ai/og-image.png"],
+  },
+  alternates: { canonical: "https://scout.clientbloom.ai/blog" },
 }
 
 function ClientBloomMark({ size = 28 }: { size?: number }) {
@@ -40,16 +54,14 @@ export default function BlogPage() {
     <div className="min-h-screen bg-[#080a0f] text-slate-200 font-sans">
       {/* NAV */}
       <nav className="fixed top-0 left-0 right-0 z-50 border-b border-white/5 bg-[#080a0f]/90 backdrop-blur-md">
-        <div className="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2.5">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
+          <Link href="/" className="flex items-center gap-2.5 min-w-0 shrink-0">
             <ClientBloomMark size={28} />
-            <span className="text-white font-bold tracking-tight">Scout <span className="text-slate-400 font-normal text-sm">by ClientBloom</span></span>
+            <span className="text-white font-bold tracking-tight">Scout <span className="text-slate-400 font-normal text-sm hidden sm:inline">by ClientBloom</span></span>
           </Link>
-          <div className="flex items-center gap-4">
-            <a href={CHECKOUT_URL} className="bg-[#4F6BFF] hover:bg-[#3D57F5] text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors">
-              Start Free Trial
-            </a>
-          </div>
+          <a href={CHECKOUT_URL} className="shrink-0 whitespace-nowrap bg-[#4F6BFF] hover:bg-[#3D57F5] text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors">
+            Start Free Trial
+          </a>
         </div>
       </nav>
 

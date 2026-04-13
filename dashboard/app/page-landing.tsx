@@ -59,6 +59,53 @@ function ClientBloomMark({ size = 28 }: { size?: number }) {
   )
 }
 
+const faqSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'FAQPage',
+  mainEntity: [
+    {
+      '@type': 'Question',
+      name: 'Do I need to set up Airtable, Railway, or any technical infrastructure?',
+      acceptedAnswer: {
+        '@type': 'Answer',
+        text: 'No. Scout is fully managed — we handle every piece of infrastructure on our end. You log in, configure your sources and ICP, and start receiving intelligence. No accounts to create, no APIs to configure, no engineers needed.',
+      },
+    },
+    {
+      '@type': 'Question',
+      name: 'How does Scout actually find the posts?',
+      acceptedAnswer: {
+        '@type': 'Answer',
+        text: "Scout runs twice daily, scanning your configured LinkedIn search terms and ICP profiles. Results are AI-scored for engagement opportunity and delivered to your Scout feed. The whole process is automated — no LinkedIn login, no manual searching.",
+      },
+    },
+    {
+      '@type': 'Question',
+      name: 'What does the AI scoring actually mean?',
+      acceptedAnswer: {
+        '@type': 'Answer',
+        text: 'Every post gets a 1–10 conversation score based on how strong of a natural entry point it creates for you. A 9–10 means someone is asking a question, sharing a milestone, or starting a discussion you can genuinely add to. Anything below 5 does not surface. The score is never about whether someone is in pain — it\'s about whether you can say something worth saying.',
+      },
+    },
+    {
+      '@type': 'Question',
+      name: 'How is this different from just searching LinkedIn manually?',
+      acceptedAnswer: {
+        '@type': 'Answer',
+        text: 'Manual scrolling catches maybe 5–10% of relevant conversations. Scout watches your ICP profiles and keyword topics continuously and surfaces everything, sorted by conversation quality. More importantly: it\'s consistent. You also keep a full history of every post you\'ve engaged with.',
+      },
+    },
+    {
+      '@type': 'Question',
+      name: 'Can I connect my CRM?',
+      acceptedAnswer: {
+        '@type': 'Answer',
+        text: 'Yes — on the Agency plan. Scout integrates with GoHighLevel and HubSpot. When you find a prospect worth pursuing, one click creates a contact in your CRM and attaches your notes. CRM integration is included in the Agency plan at $249/mo.',
+      },
+    },
+  ],
+}
+
 export default function LandingPage() {
   const faqItems = [
     {
@@ -101,19 +148,24 @@ export default function LandingPage() {
 
   return (
     <div className="min-h-screen bg-[#080a0f] text-slate-200 font-sans">
+      {/* FAQ structured data for search engines and LLMs */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }}
+      />
 
       {/* ─── NAV ─── */}
       <nav className="fixed top-0 left-0 right-0 z-50 border-b border-white/5 bg-[#080a0f]/90 backdrop-blur-md">
-        <div className="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-2.5 min-w-0 shrink-0">
             <ClientBloomMark size={28} />
-            <span className="text-white font-bold tracking-tight">Scout <span className="text-slate-400 font-normal text-sm">by ClientBloom</span></span>
+            <span className="text-white font-bold tracking-tight">Scout <span className="text-slate-400 font-normal text-sm hidden sm:inline">by ClientBloom</span></span>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 sm:gap-4">
             <a href="#how-it-works" className="text-slate-400 hover:text-slate-200 text-sm transition-colors hidden md:block">How it works</a>
             <a href="#pricing" className="text-slate-400 hover:text-slate-200 text-sm transition-colors hidden md:block">Pricing</a>
             <Link href="/sign-in" className="text-slate-400 hover:text-slate-200 text-sm transition-colors">Sign in</Link>
-            <NeonButton href={CHECKOUT_URL} variant="solid" size="sm">
+            <NeonButton href={CHECKOUT_URL} variant="solid" size="sm" className="shrink-0 whitespace-nowrap">
               Start Free Trial
             </NeonButton>
           </div>
@@ -168,12 +220,12 @@ export default function LandingPage() {
             </span>
           </h1>
 
-          <p className="text-xl text-slate-400 max-w-2xl mx-auto leading-relaxed mb-10">
+          <p className="text-base sm:text-xl text-slate-400 max-w-2xl mx-auto leading-relaxed mb-10">
             Scout helps you show up in the conversations your buyers are already having when it matters most and hands you the perfect thing to say to build real relationships before ever making your pitch.
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-            <NeonButton href={CHECKOUT_URL} variant="solid" size="lg">
+            <NeonButton href={CHECKOUT_URL} variant="solid" size="lg" className="w-full sm:w-auto whitespace-nowrap">
               Start Your Free 7-Day Trial
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
             </NeonButton>
@@ -194,7 +246,7 @@ export default function LandingPage() {
       <section className="py-24 px-6 border-t border-slate-800/50">
         <div className="max-w-4xl mx-auto">
           <div className="text-center mb-16">
-            <h2 className="text-4xl font-bold text-white mb-4">The conversation is happening.<br />You're just not in it.</h2>
+            <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-white mb-4">The conversation is happening.<br />You're just not in it.</h2>
             <p className="text-slate-400 text-lg max-w-2xl mx-auto">Your ICP is on LinkedIn every day — posting, discussing, asking questions, sharing opinions. The people who build the deepest relationships show up in those moments consistently. You can't do that manually.</p>
           </div>
 
@@ -229,7 +281,7 @@ export default function LandingPage() {
       {/* ─── HOW IT WORKS ─── */}
       <section id="how-it-works" className="py-24 px-6 border-t border-slate-800/50">
         <div className="max-w-4xl mx-auto">
-          <h2 className="text-4xl font-bold text-white text-center mb-16">Three-part system.<br />Just works.</h2>
+          <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-white text-center mb-16">Three-part system.<br />Just works.</h2>
 
           <div className="grid md:grid-cols-3 gap-8">
             {[
@@ -268,7 +320,7 @@ export default function LandingPage() {
             <div className="inline-flex items-center gap-2 bg-[#4F6BFF]/10 border border-[#4F6BFF]/20 rounded-full px-3 py-1 mb-6">
               <span className="text-[#4F6BFF] text-xs font-medium tracking-wide uppercase">How Scout compares</span>
             </div>
-            <h2 className="text-4xl font-bold text-white mb-4">
+            <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-white mb-4">
               "Isn't this just Sales Navigator?"
             </h2>
             <p className="text-slate-400 text-lg max-w-2xl mx-auto">
@@ -278,15 +330,22 @@ export default function LandingPage() {
 
           {/* Comparison table — with ambient glow */}
           <div className="relative">
-            {/* Glow layer behind the table */}
+            {/* Glow layer behind the table — desktop only */}
             <div
-              className="absolute inset-0 rounded-2xl pointer-events-none"
+              className="hidden md:block absolute inset-0 rounded-2xl pointer-events-none"
               style={{
                 boxShadow: '0 0 70px 14px rgba(79,107,255,0.11), 0 0 140px 28px rgba(124,58,237,0.06)',
                 zIndex: 0,
               }}
             />
-          <div className="relative grid grid-cols-4 gap-0 rounded-2xl overflow-hidden border border-slate-800" style={{ zIndex: 1 }}>
+            {/* Mobile scroll hint */}
+            <p className="md:hidden text-center text-xs text-slate-600 mb-3 flex items-center justify-center gap-1">
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16l-4-4m0 0l4-4m-4 4h18" /></svg>
+              Swipe to compare
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
+            </p>
+          <div className="overflow-x-auto rounded-2xl">
+          <div className="relative grid grid-cols-4 min-w-[560px] gap-0 rounded-2xl overflow-hidden border border-slate-800" style={{ zIndex: 1 }}>
 
             {/* Column headers */}
             <div className="bg-[#0a0c10] px-5 py-5 border-b border-slate-800 border-r border-slate-800">
@@ -443,6 +502,7 @@ export default function LandingPage() {
               <p className="text-[#4F6BFF] text-xs mt-0.5">7-day free trial</p>
             </div>
           </div>
+          </div>{/* close overflow-x-auto */}
 
           </div>{/* close glow wrapper */}
 
@@ -452,7 +512,7 @@ export default function LandingPage() {
 
           {/* Post-comparison CTA — high-intent moment */}
           <div className="mt-12 flex flex-col items-center gap-4">
-            <NeonButton href={CHECKOUT_URL} variant="solid" size="lg">
+            <NeonButton href={CHECKOUT_URL} variant="solid" size="lg" className="w-full sm:w-auto whitespace-nowrap">
               Start Your Free 7-Day Trial
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
@@ -491,7 +551,7 @@ export default function LandingPage() {
       {/* ─── PRICING ─── */}
       <section id="pricing" className="py-24 px-6 border-t border-slate-800/50">
         <div className="max-w-5xl mx-auto text-center">
-          <h2 className="text-4xl font-bold text-white mb-4">Simple, transparent pricing.</h2>
+          <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-white mb-4">Simple, transparent pricing.</h2>
           <p className="text-slate-400 text-lg mb-12">Start free for 7 days — no credit card required. Pick the plan that fits when you're ready.</p>
 
           {/* 3-tier grid */}
@@ -569,7 +629,7 @@ export default function LandingPage() {
       {/* ─── FAQ ─── */}
       <section className="py-24 px-6 border-t border-slate-800/50">
         <div className="max-w-2xl mx-auto">
-          <h2 className="text-4xl font-bold text-white text-center mb-12">Straight answers.</h2>
+          <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-white text-center mb-12">Straight answers.</h2>
           <FaqAccordion items={faqItems} />
         </div>
       </section>
@@ -577,17 +637,17 @@ export default function LandingPage() {
       {/* ─── FINAL CTA ─── */}
       <section className="py-24 px-6 border-t border-slate-800/50 bg-gradient-to-b from-[#0a0c10] to-[#0d1020]">
         <div className="max-w-3xl mx-auto text-center">
-          <h2 className="text-5xl font-bold text-white mb-6 leading-tight">
+          <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold text-white mb-6 leading-tight">
             The conversations are<br />already happening.
           </h2>
-          <p className="text-slate-400 text-xl mb-4">
+          <p className="text-slate-400 text-base sm:text-xl mb-4">
             Your ideal clients are on LinkedIn every day — posting, discussing, asking, sharing. The ones who win their business aren't the ones who cold pitch the loudest. They're the ones who showed up consistently in the right places.
           </p>
-          <p className="text-slate-300 text-xl mb-10">
+          <p className="text-slate-300 text-base sm:text-xl mb-10">
             Scout automates that presence. Plans start at $49/month — it pays for itself the first time a prospect reaches out because they already know who you are.
           </p>
 
-          <NeonButton href={CHECKOUT_URL} variant="solid" size="lg" className="text-lg px-10 py-5">
+          <NeonButton href={CHECKOUT_URL} variant="solid" size="lg" className="text-lg px-10 py-5 w-full sm:w-auto whitespace-nowrap">
             Start Your Free 7-Day Trial
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
           </NeonButton>

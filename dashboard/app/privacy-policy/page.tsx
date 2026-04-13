@@ -7,7 +7,9 @@ export const metadata: Metadata = {
   openGraph: {
     title: 'Privacy Policy — Scout by ClientBloom',
     url: 'https://scout.clientbloom.ai/privacy-policy',
+    images: [{ url: 'https://scout.clientbloom.ai/og-image.png', width: 1200, height: 630, alt: 'Scout by ClientBloom' }],
   },
+  alternates: { canonical: 'https://scout.clientbloom.ai/privacy-policy' },
 }
 
 export default function PrivacyPolicy() {
