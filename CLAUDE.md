@@ -144,6 +144,20 @@ Completed:
   (i) ActionTooltip component: replaces browser title attr — shows current state + action on hover,
       supports danger (red) variant for suspend toggle.
 
+Completed (April 2026):
+- ✅ Apify resilience hardening — feature/apify-resilience branch, merged after all 4 gates passed:
+  (a) Fallback actor chain: 2 primary + 2 fallback actors, different vendor families, per-actor fieldMap
+      normalization to canonical fields (text, authorName, authorUrl, postUrl, postId)
+  (b) Concurrency lock: UUID token + expiry timestamp in Scan Health table; stale lock auto-recovery
+  (c) Schema validator: 3-point sampling (first/middle/last); per-actor required fields; post-write
+      sanity check flags scan as degraded if >30% blank text after normalization
+  (d) Global inflight counter: soft ceiling at 24 (80% of Apify Starter plan limit); watchdog resets
+      stuck counter after 10 minutes of inactivity
+  (e) getTenantRow() bug fix: .set() → .append() for fields[] URL params in trigger-scan/route.ts
+      (second .set() was silently overwriting first, so Apify API Key field was never fetched)
+  (f) 16/16 adversarial test scenarios passed; 4/4 live integration gates passed
+  See: docs/apify-resilience-plan.md, docs/adversarial-test-results.md, docs/live-validation-results.md
+
 Still open:
 - Security headers in next.config.js (X-Frame-Options, CSP, etc.)
 - Monthly reset cron for scan/post counters

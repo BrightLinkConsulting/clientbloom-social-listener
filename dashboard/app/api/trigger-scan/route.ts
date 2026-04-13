@@ -37,8 +37,8 @@ async function getTenantRow(tenantId: string): Promise<TenantRow | null> {
 
     const url = new URL(`https://api.airtable.com/v0/${PLATFORM_BASE}/${encodeURIComponent('Tenants')}`)
     url.searchParams.set('filterByFormula', filter)
-    url.searchParams.set('fields[]', 'Apify API Key')
-    url.searchParams.set('fields[]', 'Last Manual Scan At')
+    url.searchParams.append('fields[]', 'Apify API Key')
+    url.searchParams.append('fields[]', 'Last Manual Scan At')
     url.searchParams.set('maxRecords', '1')
 
     const resp = await airtableFetch(url.toString(), {
