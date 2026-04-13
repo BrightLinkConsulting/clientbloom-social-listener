@@ -580,6 +580,42 @@ export function buildAdminTrialExpiredEmail(opts: {
   return { subject, html }
 }
 
+// ── Zero-streak reengagement email ───────────────────────────────────────────
+// Fires once per 14-day cooldown when consecutiveZeroScans >= 5.
+// One email only — not a sequence. Intentionally non-alarming copy.
+
+export function buildZeroStreakEmail(
+  email:                string,
+  consecutiveZeroScans: number,
+  plan:                 string,
+  opts: { appUrl: string; settingsUrl: string; unsubUrl: string },
+): EmailTemplate {
+  const subject = `Scout hasn't found new posts for you recently`
+
+  // Friendly name derived from email prefix — e.g. "jane" from jane@example.com
+  // The server doesn't store first names so we fall back gracefully.
+  const safePlan = (plan || 'your plan').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  const scanFreq = (plan === 'Scout Pro' || plan === 'Scout Agency' || plan === 'Owner') ? '2×/day' : '1×/day'
+
+  const body = `
+    ${h2("Scout has been scanning, but hasn't found new posts recently.")}
+    ${p(`Your account has run <strong>${consecutiveZeroScans} scans</strong> without surfacing relevant new LinkedIn posts. This usually means one of a few things:`)}
+    <ol style="color:#444;line-height:1.8;font-size:14px;margin:12px 0 12px 20px;padding:0">
+      <li style="margin-bottom:6px"><strong>Your ICP profiles are quiet</strong> — check if they've posted on LinkedIn recently. If not, they may need rotating out.</li>
+      <li style="margin-bottom:6px"><strong>Your keywords need a refresh</strong> — LinkedIn trends shift; terms that fired last month may return fewer results now.</li>
+      <li style="margin-bottom:6px"><strong>You're fully caught up</strong> — all recent content may have already been captured in previous scans. That's a good sign.</li>
+    </ol>
+    ${infoBox(`
+      <p style="margin:0 0 4px;font-weight:700;font-size:13px;color:#1a1a1a">Fastest fix</p>
+      <p style="margin:0;font-size:13px;color:#555;line-height:1.6">Add 2–3 new ICP profiles of people your ideal clients follow or engage with. New profiles almost always surface fresh activity.</p>
+    `, BRAND_PURPLE)}
+    <p style="margin:16px 0 8px">${cta('Review my ICP settings →', opts.settingsUrl, BRAND_PURPLE)}</p>
+    ${p(`Scout scans your LinkedIn feed <strong>${scanFreq}</strong> automatically on <strong>${safePlan}</strong>. Your next scan will run on schedule.`, 'color:#666;font-size:13px')}
+    ${footer(opts.unsubUrl)}`
+
+  return { subject, html: wrap(logoHeader(), body, '') }
+}
+
 // ── Resend sender helper ──────────────────────────────────────────────────────
 // Centralizes the actual send call so all routes share identical error handling.
 

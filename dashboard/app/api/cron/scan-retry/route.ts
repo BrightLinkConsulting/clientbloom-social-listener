@@ -20,9 +20,18 @@ export const maxDuration = 300
 const PLATFORM_TOKEN = process.env.PLATFORM_AIRTABLE_TOKEN   || ''
 const PLATFORM_BASE  = process.env.PLATFORM_AIRTABLE_BASE_ID || ''
 
+// Resolve the effective Apify token using the same priority order as the main scan orchestrator.
+// Custom key (Agency) > Pool key (multi-account load balancing) > Default (env fallback)
+function resolveApifyToken(pool: number | undefined, customKey: string | undefined): string | undefined {
+  if (customKey) return customKey
+  if (pool === 1) return process.env.APIFY_TOKEN_POOL_1 || process.env.APIFY_API_TOKEN
+  if (pool === 2) return process.env.APIFY_TOKEN_POOL_2 || process.env.APIFY_API_TOKEN
+  return undefined
+}
+
 async function getFailedTenants(): Promise<{
-  tenantId: string
-  email:    string
+  tenantId:  string
+  email:     string
   apifyKey?: string
 }[]> {
   // Read Scan Health records with status failed or no_results (set within last 30 min)
@@ -67,6 +76,7 @@ async function getFailedTenants(): Promise<{
     tUrl.searchParams.set('fields[]', 'Tenant ID')
     tUrl.searchParams.append('fields[]', 'Email')
     tUrl.searchParams.append('fields[]', 'Apify API Key')
+    tUrl.searchParams.append('fields[]', 'Apify Pool')
     tUrl.searchParams.set('pageSize', '50')
 
     const tRes = await fetch(tUrl.toString(), {
@@ -75,11 +85,15 @@ async function getFailedTenants(): Promise<{
     if (!tRes.ok) return []
 
     const tData = await tRes.json()
-    return (tData.records || []).map((r: any) => ({
-      tenantId: r.fields['Tenant ID']     || '',
-      email:    r.fields['Email']         || '',
-      apifyKey: r.fields['Apify API Key'] || undefined,
-    })).filter((t: any) => t.tenantId)
+    return (tData.records || []).map((r: any) => {
+      const pool = typeof r.fields['Apify Pool'] === 'number' ? r.fields['Apify Pool'] : undefined
+      return {
+        tenantId: r.fields['Tenant ID'] || '',
+        email:    r.fields['Email']     || '',
+        // Resolve token: custom key > pool key > default (undefined = runScanForTenant uses env)
+        apifyKey: resolveApifyToken(pool, r.fields['Apify API Key'] || undefined),
+      }
+    }).filter((t: any) => t.tenantId)
   } catch (e: any) {
     console.error('[scan-retry] Error fetching failed tenants:', e.message)
     return []

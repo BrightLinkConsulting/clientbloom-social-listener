@@ -56,12 +56,36 @@ const DISPATCH_JITTER_MAX_MS = 5_000  // 5 s spread — safe for 300 s orchestra
 const PLATFORM_TOKEN = process.env.PLATFORM_AIRTABLE_TOKEN   || ''
 const PLATFORM_BASE  = process.env.PLATFORM_AIRTABLE_BASE_ID || ''
 
+// ── Pool token resolver ───────────────────────────────────────────────────────
+// Priority order:
+//   1. Custom `apifyKey` (Agency customer's own account) — highest priority
+//   2. Scout-owned pool key, looked up by pool number (multi-account load balancing)
+//   3. Default shared APIFY_API_TOKEN — fallback for pool 0 / unassigned tenants
+//
+// Pool numbers:
+//   0 = default shared pool (APIFY_API_TOKEN)
+//   1 = Scout's second Apify account (APIFY_TOKEN_POOL_1)
+//   2 = Scout's third Apify account  (APIFY_TOKEN_POOL_2)
+//   …additional pools follow the same naming convention
+function resolveApifyToken(pool: number | undefined, customKey: string | undefined): string | undefined {
+  // Custom key wins always — Agency customer with their own Apify account
+  if (customKey) return customKey
+
+  // Pool routing — maps pool number to env var
+  if (pool === 1) return process.env.APIFY_TOKEN_POOL_1 || process.env.APIFY_API_TOKEN
+  if (pool === 2) return process.env.APIFY_TOKEN_POOL_2 || process.env.APIFY_API_TOKEN
+
+  // Default shared pool or unassigned (pool === 0 or undefined)
+  return undefined  // scan-tenant will fall back to its own APIFY_API_TOKEN env var
+}
+
 // ── Fetch active tenant list ───────────────────────────────────────────────────
 async function getActiveTenants(): Promise<{
-  tenantId: string
-  email:    string
-  plan:     string
+  tenantId:  string
+  email:     string
+  plan:      string
   apifyKey?: string
+  apifyPool?: number
 }[]> {
   if (!PLATFORM_TOKEN || !PLATFORM_BASE) {
     console.error('[cron/scan] PLATFORM_AIRTABLE_TOKEN or PLATFORM_AIRTABLE_BASE_ID not set')
@@ -76,6 +100,7 @@ async function getActiveTenants(): Promise<{
   url.searchParams.append('fields[]', 'Email')
   url.searchParams.append('fields[]', 'Plan')
   url.searchParams.append('fields[]', 'Apify API Key')
+  url.searchParams.append('fields[]', 'Apify Pool')
   url.searchParams.set('pageSize', '100')
 
   const resp = await airtableFetch(url.toString(), {
@@ -87,10 +112,11 @@ async function getActiveTenants(): Promise<{
   }
   const data = await resp.json()
   return (data.records || []).map((r: any) => ({
-    tenantId: r.fields['Tenant ID']     || 'owner',
-    email:    r.fields['Email']         || '',
-    plan:     r.fields['Plan']          || '',
-    apifyKey: r.fields['Apify API Key'] || undefined,
+    tenantId:  r.fields['Tenant ID']     || 'owner',
+    email:     r.fields['Email']         || '',
+    plan:      r.fields['Plan']          || '',
+    apifyKey:  r.fields['Apify API Key'] || undefined,
+    apifyPool: typeof r.fields['Apify Pool'] === 'number' ? r.fields['Apify Pool'] : undefined,
   }))
 }
 
@@ -101,7 +127,7 @@ async function getActiveTenants(): Promise<{
 async function dispatchTenantScan(
   workerUrl: string,
   cronSecret: string,
-  tenant: { tenantId: string; email: string; plan: string; apifyKey?: string },
+  tenant: { tenantId: string; email: string; plan: string; apifyKey?: string; apifyPool?: number },
   staggerMs = 0,
 ): Promise<{ tenantId: string; dispatched: boolean; status: number; error?: string }> {
   // Apply stagger BEFORE opening the network connection. This is the mechanism
@@ -120,7 +146,8 @@ async function dispatchTenantScan(
         tenantId: tenant.tenantId,
         email:    tenant.email,
         plan:     tenant.plan,
-        apifyKey: tenant.apifyKey,
+        // Resolve the effective Apify token: custom key > pool key > default (undefined = worker uses env)
+        apifyKey: resolveApifyToken(tenant.apifyPool, tenant.apifyKey),
       }),
       // Signal.timeout not available in all environments — use a generous absolute timeout
       // The worker will keep running on Vercel even if this connection drops

@@ -69,6 +69,8 @@ export async function GET() {
       // Never expose raw tokens or password hash — only existence flags
       hasToken:       !!(r.fields['Airtable API Token']),
       hasApifyKey:    !!(r.fields['Apify API Key']),
+      // apifyPool: 0 = default shared, 1 = Pool 1, 2 = Pool 2
+      apifyPool:      typeof r.fields['Apify Pool'] === 'number' ? r.fields['Apify Pool'] : 0,
       status:         r.fields['Status']              || 'Active',
       isAdmin:        r.fields['Is Admin']            ?? false,
       isFeedOnly:     r.fields['Is Feed Only']        ?? false,
@@ -159,7 +161,7 @@ export async function PATCH(req: Request) {
   try {
     const {
       id, status, companyName, airtableBaseId, airtableToken,
-      password, plan, isAdmin, isFeedOnly, apifyKey, reactivationSentAt,
+      password, plan, isAdmin, isFeedOnly, apifyKey, apifyPool, reactivationSentAt,
     } = await req.json()
 
     if (!id) return NextResponse.json({ error: 'id is required.' }, { status: 400 })
@@ -174,6 +176,8 @@ export async function PATCH(req: Request) {
     if (isFeedOnly     !== undefined) fields['Is Feed Only']        = isFeedOnly
     // apifyKey: empty string = clear (revert to shared pool), truthy string = set custom key
     if (apifyKey             !== undefined) fields['Apify API Key']          = apifyKey || null
+    // apifyPool: 0 = default shared pool, 1 = Pool 1, 2 = Pool 2
+    if (apifyPool            !== undefined) fields['Apify Pool']             = typeof apifyPool === 'number' ? apifyPool : 0
     if (reactivationSentAt   !== undefined) fields['Reactivation Sent At']   = reactivationSentAt || null
 
     // Reset password if provided
