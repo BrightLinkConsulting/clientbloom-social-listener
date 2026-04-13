@@ -617,7 +617,7 @@ function LinkedInTermsSection({ sources, onUpdate, planLimit = 10, plan = 'Trial
               onKeyDown={e => e.key === 'Enter' && addTerm(newTerm)}
               autoFocus
               maxLength={60}
-              className="flex-1 text-sm bg-slate-800/80 border border-slate-700/50 rounded-lg px-3 py-2 text-slate-200 placeholder-slate-600 focus:outline-none focus:border-blue-500/50"
+              className="flex-1 min-w-0 text-sm bg-slate-800/80 border border-slate-700/50 rounded-lg px-3 py-2 text-slate-200 placeholder-slate-600 focus:outline-none focus:border-blue-500/50"
             />
             <button
               onClick={() => { setShowAdd(false); setNewTerm(''); setError('') }}
@@ -1416,9 +1416,9 @@ function LinkedInICPSection() {
                     value={discTitleInput}
                     onChange={e => setDiscTitleInput(e.target.value)}
                     onKeyDown={e => e.key === 'Enter' && addDiscTitle()}
-                    className="flex-1 bg-slate-800/80 border border-slate-700/50 rounded-lg px-3 py-1.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50"
+                    className="flex-1 min-w-0 bg-slate-800/80 border border-slate-700/50 rounded-lg px-3 py-1.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50"
                   />
-                  <button onClick={addDiscTitle} className="text-xs px-3 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-300 transition-colors">Add</button>
+                  <button onClick={addDiscTitle} className="shrink-0 text-xs px-3 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-300 transition-colors">Add</button>
                 </div>
               </div>
 
@@ -1441,9 +1441,9 @@ function LinkedInICPSection() {
                     value={discKwInput}
                     onChange={e => setDiscKwInput(e.target.value)}
                     onKeyDown={e => e.key === 'Enter' && addDiscKw()}
-                    className="flex-1 bg-slate-800/80 border border-slate-700/50 rounded-lg px-3 py-1.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50"
+                    className="flex-1 min-w-0 bg-slate-800/80 border border-slate-700/50 rounded-lg px-3 py-1.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50"
                   />
-                  <button onClick={addDiscKw} className="text-xs px-3 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-300 transition-colors">Add</button>
+                  <button onClick={addDiscKw} className="shrink-0 text-xs px-3 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-300 transition-colors">Add</button>
                 </div>
               </div>
 
@@ -3015,12 +3015,12 @@ function TeamSection() {
                 value={inviteEmail}
                 onChange={e => setInviteEmail(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter') handleInvite() }}
-                className="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500 transition-colors"
+                className="flex-1 min-w-0 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500 transition-colors"
               />
               <button
                 onClick={handleInvite}
                 disabled={inviting || !inviteEmail.trim()}
-                className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-500 transition-colors disabled:opacity-40"
+                className="shrink-0 px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-500 transition-colors disabled:opacity-40"
               >
                 {inviting ? 'Sending...' : 'Send invite'}
               </button>
