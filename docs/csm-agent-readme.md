@@ -172,13 +172,13 @@ Defined in `dashboard/lib/tier.ts`.
 
 ## 5. Tenant statuses
 
-| Status | Login | Cron jobs | Description |
-|--------|-------|-----------|-------------|
-| Active | ✓ | ✓ | Fully operational |
-| Suspended | ✗ | ✓ | Manually disabled by admin |
-| Archived | ✗ | ✗ | Soft-deleted. Data preserved. archivedAt set. Excluded from ALL crons. Reversible. |
-| trial_expired | ✓ (upgrade page only) | ✗ for usage-sync | Trial ended, auto-set by trial-check cron |
-| deleted | ✗ | ✗ | Hard-deleted. Cascade wipe complete. Should not appear in tenant list. |
+| Status | Login | Cron jobs | Usage page | Description |
+|--------|-------|-----------|------------|-------------|
+| Active | ✓ | ✓ | ✓ | Fully operational |
+| Suspended | ✗ | ✓ | ✗ | Manually disabled by admin |
+| Archived | ✗ | ✗ | ✗ | Soft-deleted. Data preserved. archivedAt set. Excluded from ALL crons. Reversible. |
+| trial_expired | ✓ (upgrade page only) | ✗ for usage-sync | ✓ | Trial ended, auto-set by trial-check cron |
+| deleted | ✗ | ✗ | ✗ | Hard-deleted. Cascade wipe complete. No row remains in Tenants table. |
 
 Auth blocks login for: Suspended, Archived, trial_expired, deleted (BLOCKED_STATUSES set in `lib/auth.ts`).
 
@@ -428,7 +428,7 @@ All set in Vercel project `cb-dashboard` (prj_ST1V7wsPjRbwhnRwIwJ6hJ5z2blK).
 | POST | `/api/admin/grant-access` | Create provisioned trial account (Tenant ID + welcome email) |
 | POST | `/api/admin/send-reactivation` | Send reactivation email + record timestamp |
 | POST | `/api/admin/send-reset` | Send password reset email |
-| GET | `/api/admin/usage` | Tenant usage data with Scan Health |
+| GET | `/api/admin/usage` | Tenant usage data with Scan Health — **active tenants only** (excludes Archived + Suspended; hard-deleted have no row) |
 | GET | `/api/admin/stripe-stats` | MRR, ARR, revenue chart from Stripe |
 | POST | `/api/admin/csm-agent` | CSM Agent (see section 10) |
 
