@@ -8,10 +8,10 @@ import Link from 'next/link'
 
 export const metadata: Metadata = {
   title: "About Scout by ClientBloom — LinkedIn Relationship Intelligence",
-  description: "Scout is a LinkedIn relationship intelligence platform built by ClientBloom to help consultants and GTM teams build warm pipeline through consistent, AI-guided engagement.",
+  description: "Scout is a LinkedIn relationship intelligence platform built by ClientBloom to help business owners and professionals build warm pipeline through genuine relationships.",
   openGraph: {
     title: "About Scout by ClientBloom",
-    description: "Scout is a LinkedIn relationship intelligence platform built by ClientBloom to help consultants build warm pipeline before ever making their pitch.",
+    description: "Scout is a LinkedIn relationship intelligence platform built by ClientBloom for anyone who uses LinkedIn to grow their business and the relationships that drive it.",
     url: "https://scout.clientbloom.ai/about",
     type: "website",
     images: [{ url: "https://scout.clientbloom.ai/og-image.png", width: 1200, height: 630, alt: "Scout by ClientBloom" }],
@@ -19,7 +19,7 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
     title: "About Scout by ClientBloom",
-    description: "LinkedIn relationship intelligence for consultants and GTM teams.",
+    description: "LinkedIn relationship intelligence for anyone building business on LinkedIn.",
     images: ["https://scout.clientbloom.ai/og-image.png"],
   },
   alternates: { canonical: "https://scout.clientbloom.ai/about" },
@@ -73,7 +73,7 @@ export default function AboutPage() {
             </p>
 
             <p>
-              Every day, Scout monitors the LinkedIn profiles and keyword searches you care about. It reads every post through the lens of your ICP, scores it 1–10 for relevance, and tells you exactly which ones are worth your time and what to say. You engage with context, with consistency, and with the kind of presence that makes the eventual pitch feel like a natural next step.
+              Every day, Scout monitors the LinkedIn profiles and keyword searches you care about. It reads every post through the lens of what matters to your business, scores it 1–10 for relevance, and tells you exactly which ones are worth your time and what to say. You engage with context, with consistency, and with the kind of presence that makes the eventual pitch feel like a natural next step.
             </p>
 
             <p>
@@ -94,15 +94,27 @@ export default function AboutPage() {
                 </li>
                 <li className="flex gap-4">
                   <span className="text-[#4F6BFF] flex-shrink-0 font-bold">•</span>
-                  <span>B2B agency owners managing relationship programs for multiple clients</span>
+                  <span>Founders and entrepreneurs who close deals through relationships, not cold outreach</span>
                 </li>
                 <li className="flex gap-4">
                   <span className="text-[#4F6BFF] flex-shrink-0 font-bold">•</span>
-                  <span>Small GTM teams that need to stay visible with prospects without a full SDR function</span>
+                  <span>Agency owners managing relationship programs for multiple clients</span>
                 </li>
                 <li className="flex gap-4">
                   <span className="text-[#4F6BFF] flex-shrink-0 font-bold">•</span>
-                  <span>Founders who close deals through relationships, not cold email blasts</span>
+                  <span>Sales professionals who want prospects to already recognize their name before the first message</span>
+                </li>
+                <li className="flex gap-4">
+                  <span className="text-[#4F6BFF] flex-shrink-0 font-bold">•</span>
+                  <span>Coaches and advisors who build client relationships through consistent, visible thought leadership</span>
+                </li>
+                <li className="flex gap-4">
+                  <span className="text-[#4F6BFF] flex-shrink-0 font-bold">•</span>
+                  <span>Service professionals in relationship-driven industries — real estate, financial services, recruiting — where trust is the product</span>
+                </li>
+                <li className="flex gap-4">
+                  <span className="text-[#4F6BFF] flex-shrink-0 font-bold">•</span>
+                  <span>Small teams that need to stay visible with prospects without the overhead of a full outbound function</span>
                 </li>
               </ul>
             </div>
@@ -114,7 +126,7 @@ export default function AboutPage() {
               href={CHECKOUT_URL}
               className="inline-flex items-center justify-center gap-2 bg-[#4F6BFF] hover:bg-[#3D57F5] text-white font-semibold px-8 py-4 rounded-xl text-base sm:text-lg transition-all hover:scale-[1.02] shadow-xl shadow-[#4F6BFF]/25 mb-4 w-full sm:w-auto whitespace-nowrap"
             >
-              Start 14-Day Free Trial
+              Start Your Free 7-Day Trial
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
             </a>
             <p className="text-slate-500 text-sm">No credit card required. See results in your first week.</p>

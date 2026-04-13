@@ -19,7 +19,7 @@ export const metadata: Metadata = {
   twitter: {
     card: 'summary_large_image',
     title: "Scout vs. LinkedIn Sales Navigator (2026)",
-    description: "Sales Navigator finds prospects. Scout turns them into warm pipeline. See why serious LinkedIn sellers use both.",
+    description: "Sales Navigator finds prospects. Scout turns them into warm pipeline. See why anyone building business on LinkedIn uses both.",
     images: ['/og-image.png'],
   },
 }
@@ -53,14 +53,14 @@ export default function ComparePage() {
 
   const features = [
     {
-      feature: 'Monitors ICP posts automatically — twice daily',
+      feature: 'Monitors target prospect posts automatically — twice daily',
       scout: true, salesnav: false,
       note: 'Scout runs morning and evening scans across every profile and keyword you configure. Sales Navigator requires you to log in and manually check your feed.',
     },
     {
-      feature: 'AI post scoring (1–10 by ICP relevance)',
+      feature: 'AI post scoring (1–10 by engagement opportunity)',
       scout: true, salesnav: false,
-      note: 'Every post is scored against your ICP and a reason is written. You see your top 3 opportunities each morning — not 50 raw posts.',
+      note: 'Every post is scored for engagement quality and a reason is written. You see your top 3 opportunities each morning — not 50 raw posts.',
     },
     {
       feature: 'Keyword monitoring (organic LinkedIn posts)',
@@ -70,7 +70,7 @@ export default function ComparePage() {
     {
       feature: 'AI-generated comment starters',
       scout: true, salesnav: false,
-      note: 'One-click personalized comment angles written against the post, your ICP, and your scoring rationale. Sales Navigator has no equivalent.',
+      note: 'One-click personalized comment angles written against the post, your context, and your scoring rationale. Sales Navigator has no equivalent.',
     },
     {
       feature: 'Searchable post history archive',
@@ -80,7 +80,7 @@ export default function ComparePage() {
     {
       feature: 'Custom AI scoring prompt per account',
       scout: true, salesnav: false,
-      note: 'Tune exactly what "a high-value post" means for your ICP. Sales Navigator has no scoring — you see everything.',
+      note: 'Tune exactly what "a high-value post" means for your specific context. Sales Navigator has no scoring — you see everything.',
     },
     {
       feature: 'Prospect profile monitoring',
@@ -194,7 +194,7 @@ export default function ComparePage() {
               <p className="text-sm text-slate-400 leading-relaxed">
                 Runs twice daily to catch your prospects posting about the exact problems you solve. Scores each post 1–10 for engagement opportunity, writes the comment for you, and keeps a searchable archive — all automatically.
               </p>
-              <p className="text-xs text-[#4F6BFF] mt-3 font-medium uppercase tracking-wide border-t border-[#4F6BFF]/20 pt-3">Best for: LinkedIn engagement + warm pipeline • from $49/mo</p>
+              <p className="text-xs text-[#4F6BFF] mt-3 font-medium uppercase tracking-wide border-t border-[#4F6BFF]/20 pt-3">Best for: LinkedIn engagement + building relationships before the ask • from $49/mo</p>
             </div>
           </div>
 
@@ -274,7 +274,7 @@ export default function ComparePage() {
                 The problem is what happens after you've built your prospect list. Sales Navigator saves the lead and goes quiet. There's no monitoring system, no signal detection, no way to know that your best prospect just posted "we're evaluating vendors for Q3 and our current solution isn't cutting it." You have to discover that yourself — manually scrolling a chaotic LinkedIn feed — or you miss it entirely.
               </p>
               <p>
-                That moment? That's the window. A prospect publicly stating their problem is a warm conversation waiting to happen. Scout catches it within hours of the post going live, scores it against your ICP, tells you exactly why it matters, and generates a comment that sounds like you — not like a template from a sales tool.
+                That moment? That's the window. A prospect publicly stating their problem is a warm conversation waiting to happen. Scout catches it within hours of the post going live, scores it for your specific context, tells you exactly why it matters, and generates a comment that sounds like you — not like a template from a sales tool.
               </p>
               <p>
                 The sellers who build warm pipeline on LinkedIn aren't better at cold outreach. They show up consistently in the right conversations. Scout makes that consistent presence automatic.
@@ -294,7 +294,7 @@ export default function ComparePage() {
                     </svg>
                   ),
                   title: 'AI scoring that filters the noise',
-                  body: 'Every post your prospects publish gets a 1–10 ICP relevance score with a reason. Your best 3 opportunities surface at the top. You never wade through 50 irrelevant posts again.',
+                  body: 'Every post your prospects publish gets a 1–10 engagement quality score with a reason. Your best 3 opportunities surface at the top. You never wade through 50 irrelevant posts again.',
                 },
                 {
                   icon: (
@@ -303,7 +303,7 @@ export default function ComparePage() {
                     </svg>
                   ),
                   title: 'Comment starters in your voice',
-                  body: 'AI-written, personalized to the post, your ICP, and the score rationale. Short, natural, nothing like a template. Paste and post in under 10 seconds.',
+                  body: 'AI-written, personalized to the post, your context, and the score rationale. Short, natural, nothing like a template. Paste and post in under 10 seconds.',
                 },
                 {
                   icon: (

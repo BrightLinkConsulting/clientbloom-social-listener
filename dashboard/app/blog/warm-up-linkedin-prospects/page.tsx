@@ -100,7 +100,7 @@ export default function ArticlePage() {
               Getting this right requires a system with three distinct phases:
             </p>
             <p className="text-slate-400 italic">
-              1. Monitor — Find where your ICP is having conversations. 2. Engage — Show up consistently in those conversations with real value. 3. Warm — By the time you pitch, they already know you exist.
+              1. Monitor — Find where the people you want to reach are having conversations. 2. Engage — Show up consistently in those conversations with real value. 3. Warm — By the time you pitch, they already know you exist.
             </p>
             <p>
               Let's break each one down.
@@ -131,7 +131,7 @@ export default function ArticlePage() {
               <li>Open the door for a real conversation without being needy</li>
             </ul>
             <p>
-              Consistency matters more than perfection. Showing up in your ICP's feed once a month won't build familiarity. Showing up 2–3 times per week will.
+              Consistency matters more than perfection. Showing up in their feeds once a month won't build familiarity. Showing up 2–3 times per week will.
             </p>
 
             <h3 className="text-2xl font-bold text-white mt-10 mb-4">Phase 3: Warm</h3>
@@ -178,7 +178,7 @@ export default function ArticlePage() {
               You don't need to build a complex system. You need:
             </p>
             <ol className="list-decimal list-inside space-y-2 text-slate-300">
-              <li>A clear definition of your ICP</li>
+              <li>A clear picture of who you're trying to reach</li>
               <li>2–5 keyword topics that signal buying intent (not just industry keywords)</li>
               <li>10–20 prospect profiles you're willing to monitor</li>
               <li>A daily check-in: scroll through the feed, find 2–3 opportunities, comment</li>
@@ -200,7 +200,7 @@ export default function ArticlePage() {
 
             <h2 className="text-3xl font-bold text-white mt-12 mb-6">Next steps</h2>
             <p>
-              Start small. Pick your top 5 ICP profiles. Choose 2 keyword topics. Commit to scanning LinkedIn daily for 5 minutes. Comment on 2–3 relevant posts per week.
+              Start small. Pick your top 5 target profiles. Choose 2 keyword topics. Commit to scanning LinkedIn daily for 5 minutes. Comment on 2–3 relevant posts per week.
             </p>
             <p>
               Track it. Note who you're engaging with, what posts you commented on, and when. By week 3, you'll start seeing the patterns that work for your specific market.
@@ -218,7 +218,7 @@ export default function ArticlePage() {
               href={CHECKOUT_URL}
               className="inline-flex items-center justify-center gap-2 w-full sm:w-auto whitespace-nowrap bg-[#4F6BFF] hover:bg-[#3D57F5] text-white font-semibold px-8 py-4 rounded-xl transition-all hover:scale-[1.02] shadow-lg shadow-[#4F6BFF]/25"
             >
-              Start 14-Day Free Trial
+              Start Your Free 7-Day Trial
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
             </a>
           </div>

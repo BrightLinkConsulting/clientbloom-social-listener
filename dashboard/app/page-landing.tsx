@@ -65,18 +65,18 @@ const faqSchema = {
   mainEntity: [
     {
       '@type': 'Question',
-      name: 'Do I need to set up Airtable, Railway, or any technical infrastructure?',
+      name: 'Does Scout need access to my LinkedIn account?',
       acceptedAnswer: {
         '@type': 'Answer',
-        text: 'No. Scout is fully managed — we handle every piece of infrastructure on our end. You log in, configure your sources and ICP, and start receiving intelligence. No accounts to create, no APIs to configure, no engineers needed.',
+        text: 'No. Scout never touches your LinkedIn login or password. We search LinkedIn on your behalf using our own infrastructure — your account is never involved, never at risk, and LinkedIn never sees Scout activity associated with your profile.',
       },
     },
     {
       '@type': 'Question',
-      name: 'How does Scout actually find the posts?',
+      name: 'How does Scout find the right conversations?',
       acceptedAnswer: {
         '@type': 'Answer',
-        text: "Scout runs twice daily, scanning your configured LinkedIn search terms and ICP profiles. Results are AI-scored for engagement opportunity and delivered to your Scout feed. The whole process is automated — no LinkedIn login, no manual searching.",
+        text: 'You tell Scout two things: which people you want to watch, and which topics or keywords matter to your work. Twice a day, Scout scans all of that activity, pulls every post worth seeing, and ranks them by how strong an opening each one creates for you.',
       },
     },
     {
@@ -84,7 +84,23 @@ const faqSchema = {
       name: 'What does the AI scoring actually mean?',
       acceptedAnswer: {
         '@type': 'Answer',
-        text: 'Every post gets a 1–10 conversation score based on how strong of a natural entry point it creates for you. A 9–10 means someone is asking a question, sharing a milestone, or starting a discussion you can genuinely add to. Anything below 5 does not surface. The score is never about whether someone is in pain — it\'s about whether you can say something worth saying.',
+        text: 'Every post gets a 1–10 conversation score based on how natural an entry point it creates for you. A 9–10 means someone is asking a question, announcing something, kicking off a debate, or sharing a perspective you can genuinely add to. Anything below a 5 does not surface. The score is never about whether someone is struggling — it\'s about whether you can say something worth saying.',
+      },
+    },
+    {
+      '@type': 'Question',
+      name: 'What if I\'m not totally sure who I want to target yet?',
+      acceptedAnswer: {
+        '@type': 'Answer',
+        text: 'You don\'t need a polished list to get started. Most users begin with a few people they already know matter to them, a couple of industry keywords, and a topic or two they talk about in their own work. Scout gets sharper the more specific you are, but you don\'t need to have it figured out on day one.',
+      },
+    },
+    {
+      '@type': 'Question',
+      name: 'Will Scout make me look spammy or robotic on LinkedIn?',
+      acceptedAnswer: {
+        '@type': 'Answer',
+        text: 'That\'s exactly what it\'s designed to prevent. Every suggestion starts from a real post by a specific person you\'ve chosen to follow. Comment suggestions are short, specific, and written in first person from your business angle. We\'ve built hard rules against everything that makes AI writing obvious. The goal is a comment you could paste, post, and no one would guess it didn\'t come directly from you.',
       },
     },
     {
@@ -92,7 +108,15 @@ const faqSchema = {
       name: 'How is this different from just searching LinkedIn manually?',
       acceptedAnswer: {
         '@type': 'Answer',
-        text: 'Manual scrolling catches maybe 5–10% of relevant conversations. Scout watches your ICP profiles and keyword topics continuously and surfaces everything, sorted by conversation quality. More importantly: it\'s consistent. You also keep a full history of every post you\'ve engaged with.',
+        text: 'Manual scrolling catches maybe 5–10% of relevant conversations. Scout watches the people and topics you care about continuously and surfaces everything, sorted by how strong an opportunity each one is. More importantly: it\'s consistent. You also keep a full history of every post you\'ve engaged with — something a disappearing feed can never give you.',
+      },
+    },
+    {
+      '@type': 'Question',
+      name: 'What\'s actually included in the free trial?',
+      acceptedAnswer: {
+        '@type': 'Answer',
+        text: 'The full product — no feature gates, no watered-down trial tier. You get 7 days to set up Scout, watch your first batch of conversations come in, use the AI comment suggestions, and decide for yourself. No credit card required to start.',
       },
     },
     {
@@ -103,46 +127,74 @@ const faqSchema = {
         text: 'Yes — on the Agency plan. Scout integrates with GoHighLevel and HubSpot. When you find a prospect worth pursuing, one click creates a contact in your CRM and attaches your notes. CRM integration is included in the Agency plan at $249/mo.',
       },
     },
+    {
+      '@type': 'Question',
+      name: 'Who built this? Is ClientBloom a real company?',
+      acceptedAnswer: {
+        '@type': 'Answer',
+        text: 'ClientBloom is built by Mike Walker — two-time Amazon #1 bestselling author, 25+ years in client-facing service businesses. Scout grew out of what he built for himself to find and engage with the right people on LinkedIn. This isn\'t a side project — it\'s infrastructure we run ourselves every day.',
+      },
+    },
+    {
+      '@type': 'Question',
+      name: 'What if I want to cancel?',
+      acceptedAnswer: {
+        '@type': 'Answer',
+        text: 'Cancel from your account settings anytime. No notice period, no cancellation fees, no "please call us to cancel." Monthly subscription. Simple.',
+      },
+    },
   ],
 }
 
 export default function LandingPage() {
   const faqItems = [
     {
-      q: 'Do I need to set up Airtable, Railway, or any technical infrastructure?',
-      a: 'No. Scout is fully managed — we handle every piece of infrastructure on our end. You log in, configure your sources and ICP, and start receiving intelligence. No accounts to create, no APIs to configure, no engineers needed.'
+      q: 'Does Scout need access to my LinkedIn account?',
+      a: 'No. Scout never touches your LinkedIn login or password. We search LinkedIn on your behalf using our own infrastructure — your account is never involved, never at risk, and LinkedIn never sees Scout activity associated with your profile. You set up Scout with the people and topics you care about, and we do the rest.'
     },
     {
-      q: 'How does Scout actually find the posts?',
-      a: 'Scout runs twice daily, scanning your configured LinkedIn search terms and ICP profiles using LinkedIn\'s API. Results are AI-scored for engagement opportunity and delivered to your Scout feed. The whole process is automated — no LinkedIn login, no manual searching.'
+      q: 'How does Scout find the right conversations?',
+      a: 'You tell Scout two things: which people you want to watch (up to a few dozen LinkedIn profiles depending on your plan), and which topics or keywords matter to your work. Twice a day, Scout scans all of that activity, pulls every post worth seeing, and ranks them by how strong an opening each one creates for you. No manual scrolling. No missed moments.'
     },
     {
       q: 'What does the AI scoring actually mean?',
-      a: 'Every post gets a 1–10 conversation score based on how strong of a natural entry point it creates for you. A 9–10 means someone is asking a question, starting a discussion, announcing a milestone, or sharing an opinion you can genuinely add to — and showing up there will be remembered. A 5–6 is tangentially relevant but not compelling. Anything below 5 doesn\'t surface. The score is never about whether someone is in pain — it\'s about whether you can say something worth saying.'
+      a: 'Every post gets a 1–10 conversation score based on how natural an entry point it creates for you. A 9–10 means someone is asking a question, announcing something, kicking off a debate, or sharing a perspective you can genuinely add to — and showing up in that moment builds real recognition. Anything below a 5 doesn\'t surface. The score is never about whether someone is struggling — it\'s about whether you can say something worth saying.'
+    },
+    {
+      q: 'What if I\'m not totally sure who I want to target yet?',
+      a: 'You don\'t need a polished list to get started. Most users begin with 3–5 people they already know matter to them, a couple of industry keywords, and a topic or two they talk about in their own work. Your feed shows you what\'s actually resonating within the first few days — and you refine as you go. Scout gets sharper the more specific you are, but you don\'t need to have it figured out on day one.'
+    },
+    {
+      q: 'Will Scout make me look spammy or robotic on LinkedIn?',
+      a: 'That\'s exactly what it\'s designed to prevent. Every suggestion starts from a real post by a specific person you\'ve chosen to follow — not a mass-blast template. Comment suggestions are short, specific, and written in first person from your business angle. We\'ve built hard rules against everything that makes AI writing obvious: no hollow openers, no filler phrases, nothing that reads like a template. The goal is a comment you could paste, post, and no one would guess it didn\'t come directly from you.'
+    },
+    {
+      q: 'How is this different from just searching LinkedIn manually?',
+      a: 'Manual scrolling catches maybe 5–10% of relevant conversations — the ones that happen to surface when you happen to be online. Scout watches the people and topics you care about continuously and surfaces everything, sorted by how strong an opportunity each one is. More importantly: it\'s consistent. The people who build real presence on LinkedIn show up repeatedly, not occasionally. Scout makes that consistency automatic. You also keep a full history of every post you\'ve engaged with — something a disappearing feed can never give you.'
+    },
+    {
+      q: 'What\'s actually included in the free trial?',
+      a: 'The full product — no feature gates, no watered-down trial tier. You get 7 days to set up Scout, watch your first batch of conversations come in, use the AI comment suggestions, and decide for yourself whether this belongs in your weekly routine. No credit card required to start. If you want to continue, pick a plan. If not, nothing happens.'
+    },
+    {
+      q: 'Can I customize how Scout scores posts?',
+      a: 'Yes. Scout uses a default AI scoring approach, but you can write a custom prompt that describes exactly what a high-value post looks like for your specific work. The more specific you are — the type of person, the kind of conversation, the topics you actually know well — the sharper Scout\'s judgment becomes over time.'
+    },
+    {
+      q: 'How does the suggested comment actually work — does it sound like AI?',
+      a: 'We spent a lot of time on this. Scout generates comments in first person from your specific business angle, and we\'ve built in hard rules against everything that makes AI writing obvious: no em-dashes, no "at the end of the day," no hollow phrases like "I completely understand your situation." Comments are kept short, casual, and a little imperfect on purpose — because that\'s what reads as human in a LinkedIn comment thread. The goal is something you could paste, post, and nobody would guess it didn\'t come directly from you.'
     },
     {
       q: 'Can I connect my CRM?',
       a: 'Yes — on the Agency plan. Scout integrates with GoHighLevel and HubSpot. When you find a prospect worth pursuing, one click creates a contact in your CRM and attaches your notes. No copy-paste, no context lost. CRM integration is included in the Agency plan ($249/mo).'
     },
     {
-      q: 'How is this different from just searching LinkedIn manually?',
-      a: 'Manual scrolling catches maybe 5–10% of relevant conversations — the ones that happen to surface when you happen to be online. Scout watches your ICP profiles and keyword topics continuously and surfaces everything, sorted by conversation quality. More importantly: it\'s consistent. The people who win on LinkedIn show up repeatedly, not occasionally. Scout makes that consistency automatic. You also keep a full history of every post you\'ve engaged with — something a disappearing feed can\'t give you.'
-    },
-    {
       q: 'Who built this? Is ClientBloom a real company?',
-      a: 'ClientBloom is built by Mike Walker — two-time Amazon #1 bestselling author, 25+ years in client-facing service businesses. Scout grew out of what he built for himself to find and engage with prospects, and it\'s now available as a product. This isn\'t a side project or an experiment — it\'s infrastructure we\'re using ourselves.'
+      a: 'ClientBloom is built by Mike Walker — two-time Amazon #1 bestselling author, 25+ years in client-facing service businesses. Scout grew out of what he built for himself to find and engage with the right people on LinkedIn. It\'s now available as a product. This isn\'t a side project — it\'s infrastructure we run ourselves every day.'
     },
     {
       q: 'What if I want to cancel?',
-      a: 'Cancel from your account settings anytime. No notice period, no cancellation fees, no "please call us to cancel." It\'s a monthly subscription — the math is simple.'
-    },
-    {
-      q: 'Can I customize how Scout scores posts?',
-      a: 'Yes. Scout uses a default AI scoring prompt, but you can write a custom one that describes exactly what a high-value post looks like for your business. The more specific you are, the sharper the scoring becomes over time.'
-    },
-    {
-      q: 'How does the suggested comment actually work — does it sound like AI?',
-      a: 'We spent a lot of time on this. Scout generates comments in first person from your specific business angle, and we\'ve built in hard rules against everything that makes AI writing obvious: no em-dashes, no "at the end of the day," no hollow phrases like "I completely understand your situation." Comments are kept short, casual, and a little imperfect on purpose — because that\'s what reads as human in a LinkedIn comment thread. The goal is something you could paste, post, and nobody would guess it didn\'t come directly from you.'
+      a: 'Cancel from your account settings anytime. No notice period, no cancellation fees, no "please call us to cancel." Monthly subscription. Simple.'
     }
   ]
 
@@ -180,7 +232,7 @@ export default function LandingPage() {
           <div className="inline-flex items-center gap-2 bg-[#4F6BFF]/10 border border-[#4F6BFF]/20 rounded-full px-4 py-1.5 mb-8">
             <span className="w-1.5 h-1.5 rounded-full bg-[#4F6BFF] animate-pulse" />
             <AnimatedTextCycle
-              words={['Post Scoring', 'Profile Monitoring', 'Comment Generation', 'ICP Intelligence']}
+              words={['Post Scoring', 'Profile Monitoring', 'Comment Generation', 'Prospect Intelligence']}
               interval={3000}
               className="text-[#4F6BFF] text-xs font-medium tracking-wide uppercase"
             />
@@ -248,7 +300,7 @@ export default function LandingPage() {
         <div className="max-w-4xl mx-auto">
           <div className="text-center mb-16">
             <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-white mb-4">The conversation is happening.<br />You're just not in it.</h2>
-            <p className="text-slate-400 text-lg max-w-2xl mx-auto">Your ICP is on LinkedIn every day — posting, discussing, asking questions, sharing opinions. The people who build the deepest relationships show up in those moments consistently. You can't do that manually.</p>
+            <p className="text-slate-400 text-lg max-w-2xl mx-auto">Your ideal clients are on LinkedIn every day — posting, discussing, asking questions, sharing opinions. The people who build the deepest relationships show up in those moments consistently. You can't do that manually.</p>
           </div>
 
           <div className="grid md:grid-cols-3 gap-6">
@@ -256,7 +308,7 @@ export default function LandingPage() {
               {
                 icon: '🔎',
                 title: 'You\'re missing daily entry points',
-                body: 'When an ICP posts a question, shares a milestone, or kicks off an industry debate — that\'s a natural opening. It expires in 24 hours. Manual scrolling catches maybe 5% of them.'
+                body: 'When someone you want to reach posts a question, shares a milestone, or kicks off an industry debate — that\'s a natural opening. It expires in 24 hours. Manual scrolling catches maybe 5% of them.'
               },
               {
                 icon: '⏰',
@@ -289,7 +341,7 @@ export default function LandingPage() {
               {
                 icon: '1',
                 title: 'Monitor',
-                body: 'Tell Scout which LinkedIn profiles, keywords, and topics matter to your ICP. Scout runs twice daily, scanning for all activity matching your criteria.'
+                body: 'Tell Scout which LinkedIn profiles, keywords, and topics matter to your business. Scout runs twice daily, scanning for all activity matching your criteria.'
               },
               {
                 icon: '2',
@@ -307,6 +359,56 @@ export default function LandingPage() {
                   {item.icon}
                 </div>
                 <h3 className="text-white font-semibold text-lg mb-3">{item.title}</h3>
+                <p className="text-slate-400 text-sm leading-relaxed">{item.body}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ─── WHO THIS IS FOR ─── */}
+      <section className="py-24 px-6 border-t border-slate-800/50">
+        <div className="max-w-5xl mx-auto">
+          <div className="text-center mb-14">
+            <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-white mb-4">Scout is for anyone building on LinkedIn.</h2>
+            <p className="text-slate-400 text-lg max-w-2xl mx-auto">If your next client, customer, or partner is on LinkedIn — Scout is how you reach them.</p>
+          </div>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
+            {[
+              {
+                icon: '🎯',
+                title: 'Coaches & advisors',
+                body: 'Your reputation is built before the conversation starts. Scout keeps you visible in the spaces your future clients are already watching — so when you do reach out, they already feel like they know you.',
+              },
+              {
+                icon: '🚀',
+                title: 'Founders & entrepreneurs',
+                body: "You're great at what you do. Selling yourself on LinkedIn is a different skill. Scout puts you in the right conversations consistently so your expertise speaks before you ever pitch.",
+              },
+              {
+                icon: '📈',
+                title: 'Sales professionals',
+                body: "Cold outreach reply rates are at a 10-year low. Scout builds the familiarity that makes your eventual message feel like a warm introduction instead of one more pitch nobody asked for.",
+              },
+              {
+                icon: '🏢',
+                title: 'Agency owners',
+                body: "You're running client work and doing BD at the same time. Scout gives you a daily brief of the highest-value conversations to engage with so business development doesn't get deprioritized when delivery gets busy.",
+              },
+              {
+                icon: '🤝',
+                title: 'Service & relationship-driven professionals',
+                body: 'Real estate, financial services, recruiting, legal — trust is your product. Scout helps you build it at scale, one relevant and genuine conversation at a time.',
+              },
+              {
+                icon: '💼',
+                title: 'Solo consultants & fractional executives',
+                body: "You're building pipeline from your personal brand. Scout turns your LinkedIn presence into a consistent system so you're always in the right conversations, not just the ones you stumble across.",
+              },
+            ].map((item, i) => (
+              <div key={i} className="bg-[#0f1117] border border-slate-800 rounded-xl p-6">
+                <div className="text-2xl mb-3">{item.icon}</div>
+                <h3 className="text-white font-semibold text-base mb-2">{item.title}</h3>
                 <p className="text-slate-400 text-sm leading-relaxed">{item.body}</p>
               </div>
             ))}
@@ -376,7 +478,7 @@ export default function LandingPage() {
             {(() => {
               const rows = [
                 {
-                  feature: 'Monitors ICP posts automatically',
+                  feature: 'Monitors target prospect posts automatically',
                   manual: false,
                   salenav: 'partial',
                   scout: true,
@@ -528,9 +630,9 @@ export default function LandingPage() {
       {/* ─── SOCIAL PROOF ─── */}
       <div className="border-t border-slate-800/50 bg-gradient-to-b from-[#0a0c10] to-[#0f1117]/50">
         <AnimatedTestimonials
-          title="Trusted by consultants and GTM teams"
-          subtitle="Real results from scouts who show up consistently in the right conversations."
-          badgeText="Trusted by consultants & agencies"
+          title="Trusted by business owners and teams"
+          subtitle="Real results from people who show up consistently in the right conversations."
+          badgeText="Trusted by business owners & agencies"
           testimonials={TESTIMONIALS}
         />
         <div className="max-w-4xl mx-auto px-6 pb-24">
@@ -565,10 +667,10 @@ export default function LandingPage() {
                   <span className="text-3xl font-bold text-white">$49</span>
                   <span className="text-slate-500 text-sm">/mo</span>
                 </div>
-                <p className="text-slate-500 text-xs mt-2 leading-relaxed">For solo consultants getting started with LinkedIn intelligence.</p>
+                <p className="text-slate-500 text-xs mt-2 leading-relaxed">For individuals getting started with LinkedIn presence and relationship building.</p>
               </div>
               <ul className="space-y-2 flex-1 mb-6">
-                {['3 LinkedIn keyword searches','10 ICP profiles scanned · 50-profile pool','1 scan per day','30 AI comment suggestions/mo','30-day post history','1 user seat'].map(f => (
+                {['3 LinkedIn keyword searches','10 target profiles monitored · 50-profile pool','1 scan per day','30 AI comment suggestions/mo','30-day post history','1 user seat'].map(f => (
                   <li key={f} className="flex items-start gap-2.5 text-sm text-slate-300">
                     <svg className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
                     {f}
@@ -590,7 +692,7 @@ export default function LandingPage() {
                 <p className="text-slate-500 text-xs mt-2 leading-relaxed">The full product. Everything you need to build pipeline from LinkedIn.</p>
               </div>
               <ul className="space-y-2 flex-1 mb-6">
-                {['10 LinkedIn keyword searches','25 ICP profiles scanned · 150-profile pool','2 scans per day (morning + evening)','Unlimited AI comment suggestions','Unlimited post history','Slack daily digest','1 user seat'].map(f => (
+                {['10 LinkedIn keyword searches','25 target profiles monitored · 150-profile pool','2 scans per day (morning + evening)','Unlimited AI comment suggestions','Unlimited post history','Slack daily digest','1 user seat'].map(f => (
                   <li key={f} className="flex items-start gap-2.5 text-sm text-slate-300">
                     <svg className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
                     {f}
@@ -609,10 +711,10 @@ export default function LandingPage() {
                   <span className="text-3xl font-bold text-white">$249</span>
                   <span className="text-slate-500 text-sm">/mo</span>
                 </div>
-                <p className="text-slate-500 text-xs mt-2 leading-relaxed">For consultants managing LinkedIn intelligence for multiple clients.</p>
+                <p className="text-slate-500 text-xs mt-2 leading-relaxed">For teams and agencies managing LinkedIn intelligence for multiple clients or seats.</p>
               </div>
               <ul className="space-y-2 flex-1 mb-6">
-                {['20 LinkedIn keyword searches','50 ICP profiles scanned · 500-profile pool','2 scans per day','Unlimited AI comment suggestions','Unlimited post history','CRM integration (GHL + HubSpot)','Slack daily digest','Up to 5 user seats'].map(f => (
+                {['20 LinkedIn keyword searches','50 target profiles monitored · 500-profile pool','2 scans per day','Unlimited AI comment suggestions','Unlimited post history','CRM integration (GHL + HubSpot)','Slack daily digest','Up to 5 user seats'].map(f => (
                   <li key={f} className="flex items-start gap-2.5 text-sm text-slate-300">
                     <svg className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
                     {f}
