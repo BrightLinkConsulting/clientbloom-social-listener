@@ -122,11 +122,13 @@ export function AnimatedTestimonials({
           </motion.div>
 
           {/* Right — testimonial card */}
-          <motion.div variants={itemVariants} className="relative min-h-[280px]">
+          {/* CSS grid stacking: all cards share the same grid cell so the
+              container grows to the tallest card — no fixed min-h needed.
+              Fixes mobile overflow where author/avatar fell outside the card. */}
+          <motion.div variants={itemVariants} className="relative" style={{ display: 'grid' }}>
             {testimonials.map((testimonial, index) => (
               <motion.div
                 key={testimonial.id}
-                className="absolute inset-0"
                 initial={{ opacity: 0, x: 80 }}
                 animate={{
                   opacity: activeIndex === index ? 1 : 0,
@@ -134,9 +136,9 @@ export function AnimatedTestimonials({
                   scale: activeIndex === index ? 1 : 0.96,
                 }}
                 transition={{ duration: 0.45, ease: 'easeInOut' }}
-                style={{ zIndex: activeIndex === index ? 10 : 0 }}
+                style={{ gridArea: '1/1', zIndex: activeIndex === index ? 10 : 0 }}
               >
-                <div className="bg-[#0f1117] border border-slate-800 rounded-2xl p-8 h-full flex flex-col shadow-xl shadow-black/40">
+                <div className="bg-[#0f1117] border border-slate-800 rounded-2xl p-8 flex flex-col shadow-xl shadow-black/40">
                   {/* Stars */}
                   <div className="flex gap-1 mb-5">
                     {Array(testimonial.rating).fill(0).map((_, i) => (
