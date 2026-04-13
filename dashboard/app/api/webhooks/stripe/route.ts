@@ -29,6 +29,7 @@ import {
   buildPurchaseWelcomeEmail,
   buildAdminNewPurchaseEmail,
   buildAdminPaymentFailedEmail,
+  buildCancellationEmail,
 } from '@/lib/emails'
 
 // Tier → plan name mapping (duplicated from lib/tier for use without process.env at module scope)
@@ -329,9 +330,32 @@ export async function POST(req: NextRequest) {
         }
 
         await updateTenantRecord(tenant.id, { 'Status': 'Suspended' })
+
+        // Cancellation email to the user — confirms access period, includes resubscribe CTA
+        const cancelEmail  = tenant.fields['Email'] as string || ''
+        const cancelName   = tenant.fields['Company Name'] as string || cancelEmail
+        const periodEndMs  = (sub.current_period_end || 0) * 1000
+        const periodEndDate = periodEndMs
+          ? new Date(periodEndMs).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'America/Los_Angeles' })
+          : 'end of billing period'
+        const resendKeyCancel = process.env.RESEND_API_KEY
+        if (resendKeyCancel && cancelEmail) {
+          const { subject: cancelSubject, html: cancelHtml } = buildCancellationEmail({
+            name:           cancelName,
+            email:          cancelEmail,
+            periodEndDate,
+            resubscribeUrl: `${BASE_URL}/upgrade`,
+          })
+          await fetch('https://api.resend.com/emails', {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${resendKeyCancel}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ from: 'Scout by ClientBloom <info@clientbloom.ai>', to: [cancelEmail], subject: cancelSubject, html: cancelHtml }),
+          })
+        }
+
         await sendAdminNotification(
           'Subscription canceled — tenant suspended',
-          tenant.fields['Email'] || customerId,
+          cancelEmail || customerId,
           `Subscription: ${sub.id}`
         )
         console.log(`[webhook] Suspended tenant due to cancellation: ${customerId}`)

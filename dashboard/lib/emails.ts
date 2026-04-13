@@ -30,7 +30,7 @@ const BRAND_PURPLE  = '#7C3AED'
 const BRAND_PINK    = '#E91E8C'
 const BRAND_DARK    = '#0a0c10'
 // Physical mailing address for CAN-SPAM compliance
-const PHYSICAL_ADDR = 'ClientBloom · 1234 Innovation Way · San Bernardino, CA 92401'
+const PHYSICAL_ADDR = 'ClientBloom · 30 N Gould St. Ste R · Sheridan, WY 82801'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -55,23 +55,15 @@ function header(text: string, color: string = BRAND_BLUE): string {
  * nav bar: ClientBloom mark (3 ellipses) + "Scout / by ClientBloom" text.
  * Uses a table layout for maximum email-client compatibility.
  */
+/**
+ * Logo header — SVG is intentionally omitted. Gmail, Outlook, and most mobile
+ * clients strip inline SVG entirely, leaving a broken gap. Text-only headers
+ * render identically across every email client.
+ */
 function logoHeader(color: string = BRAND_PURPLE): string {
-  return `<div style="background:${color};padding:18px 28px;border-radius:12px 12px 0 0">
-    <table cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse">
-      <tr>
-        <td style="vertical-align:middle;padding-right:10px">
-          <svg width="28" height="28" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <ellipse cx="50" cy="21" rx="24" ry="13" fill="#F7B731"/>
-            <ellipse cx="20" cy="52" rx="13" ry="25" fill="#E91E8C"/>
-            <ellipse cx="80" cy="52" rx="13" ry="25" fill="#00B96B"/>
-          </svg>
-        </td>
-        <td style="vertical-align:middle">
-          <p style="color:#fff;font-size:16px;font-weight:700;margin:0;line-height:1.2">Scout</p>
-          <p style="color:rgba(255,255,255,0.65);font-size:11px;font-weight:500;margin:0;line-height:1.2;letter-spacing:0.03em">by ClientBloom</p>
-        </td>
-      </tr>
-    </table>
+  return `<div style="background:${color};padding:20px 28px;border-radius:12px 12px 0 0">
+    <p style="color:#fff;font-size:16px;font-weight:700;margin:0;line-height:1.2">Scout</p>
+    <p style="color:rgba(255,255,255,0.65);font-size:11px;font-weight:500;margin:2px 0 0;line-height:1.2;letter-spacing:0.04em">by ClientBloom</p>
   </div>`
 }
 
