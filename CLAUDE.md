@@ -157,6 +157,13 @@ Completed (April 2026):
       (second .set() was silently overwriting first, so Apify API Key field was never fetched)
   (f) 16/16 adversarial test scenarios passed; 4/4 live integration gates passed
   See: docs/apify-resilience-plan.md, docs/adversarial-test-results.md, docs/live-validation-results.md
+- ✅ Post-merge adversarial code review (April 2026) — deep review of all 3 changed files; 4 bugs found:
+  (B1) False-positive degraded=true on partial saves — blankPct divisor fixed to recordsToSave.length
+  (B2) Empty postUrl bypassed dedup — posts without a URL accumulated as duplicates every scan;
+       fixed: require post.postUrl to be truthy before admitting to the dedup+scoring pipeline
+  (B3) Double Airtable read per lock acquire — logged as backlog (performance, not correctness)
+  (B4) Silent keyword skip when ICP profiles exist — logged as backlog (UX/logging only)
+  16/16 adversarial suite still PASS post-fix. See: docs/adversarial-test-findings.md
 
 Still open:
 - Security headers in next.config.js (X-Frame-Options, CSP, etc.)
