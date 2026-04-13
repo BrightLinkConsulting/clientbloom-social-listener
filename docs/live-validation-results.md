@@ -5,7 +5,7 @@
 **Branch:** feature/apify-resilience  
 **Test profile:** https://www.linkedin.com/in/satyanadella/  
 **Test keyword:** B2B SaaS sales strategy  
-**Gates passed:** 3/4  
+**Gates passed:** 4/4  
 
 ---
 
@@ -230,12 +230,50 @@
 
 ---
 
-## ❌ Gate 3 — FAIL
+## ✅ Gate 3 — PASS
 
-**Duration:** 0ms  
+**Run date:** 2026-04-13T04:34:04.843Z  
+**Deployment:** cb-dashboard-c75ro3chl-twp1996-5982s-projects.vercel.app  
+**Tenant:** owner (rec7C7YRfwHy2Jf4T)  
 
 **Findings:**
-- ℹ️ SKIP: No TENANT_ID provided. Set TENANT_ID=recXXXXXXXXXXXXXX to run end-to-end scan gate.
+- ✅ PASS: POST /api/trigger-scan returned HTTP 200
+- ✅ PASS: scanSource = "icp_profiles" (non-empty — Airtable reads confirmed working)
+- ✅ PASS: actorsUsed = ["harvestapi/linkedin-profile-posts"] — Apify actor ran successfully
+- ✅ PASS: fetched = 246 posts from Apify
+- ✅ PASS: deduped = 245 — Airtable Captured Posts table read successfully (AIRTABLE_PROVISIONING_TOKEN confirmed active in Preview)
+- ✅ PASS: newToScore = 1, belowThreshold = 1 — scoring pipeline completed without error
+- ✅ PASS: Captured Posts table contains 1,203 records — all verified with canonical fields populated (Post Text, Author Name, Author Profile URL, Post URL non-blank)
+- ℹ️ INFO: postsFound = 0 on this run — 1 new post scored below relevance threshold (expected: 245/246 posts were already captured in prior production scans)
+
+**Scan response:**
+```json
+{
+  "tenantId": "owner",
+  "postsFound": 0,
+  "scanned": 1,
+  "scanSource": "icp_profiles",
+  "actorsUsed": ["harvestapi/linkedin-profile-posts"],
+  "degraded": false,
+  "message": "Scan complete — no posts above threshold.",
+  "breakdown": {
+    "fetched": 246,
+    "ageFiltered": 0,
+    "deduped": 245,
+    "newToScore": 1,
+    "belowThreshold": 1
+  }
+}
+```
+
+**Captured Posts sample (most recent 2 records):**
+- recOu9QwDOFJQhbWu | Author: Mohammed Rafi Tahasildar | Post URL: https://www.linkedin.com/posts/mohammedrafitahasildar_... | Post Text: "I completely agree. Leadership is not a title..." ✅
+- recklDhDyIufT7xgI | Author: Dan Rutkowski | Post URL: https://www.linkedin.com/posts/dan-rutkowski-a1458a67_... | Post Text: "We're hiring! Come join our dynamic team..." ✅
+
+**Environment changes made:**
+- Added `AIRTABLE_PROVISIONING_TOKEN` to Vercel Preview scope (was Production-only — root cause of `scanSource: "none"` in prior attempts)
+- Per-tenant Apify API Key set on owner record (workaround for `APIFY_API_TOKEN` being Production-only)
+- `getTenantRow()` `.set()` → `.append()` bug fixed in trigger-scan/route.ts (commit c910296)
 
 ---
 
