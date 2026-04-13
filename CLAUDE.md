@@ -164,6 +164,15 @@ Completed (April 2026):
   (B3) Double Airtable read per lock acquire — logged as backlog (performance, not correctness)
   (B4) Silent keyword skip when ICP profiles exist — logged as backlog (UX/logging only)
   16/16 adversarial suite still PASS post-fix. See: docs/adversarial-test-findings.md
+- ✅ Degraded scan UX gap (April 2026) — surfaces scan quality signals to users:
+  Two new Airtable fields on Scan Health: `Last Scan Degraded` (checkbox) + `Consecutive Zero Scans` (number).
+  Written by both cron (scan-tenant) and manual (trigger-scan) paths.
+  Counter logic: increments only when scanned>0 && postsFound===0 && no error; resets on postsFound>0;
+  preserved on error path so actor failures don't penalize user's settings.
+  Frontend: amber ScanStatusPill for degraded scans; amber inline notice when degraded+zero posts;
+  "No new posts in a few scans" nudge with link to ICP settings when consecutiveZeroScans >= 3.
+  14 adversarial edge cases identified and addressed. TypeScript clean. 16/16 suite PASS.
+  See: docs/degraded-scan-ux.md
 
 Still open:
 - Security headers in next.config.js (X-Frame-Options, CSP, etc.)

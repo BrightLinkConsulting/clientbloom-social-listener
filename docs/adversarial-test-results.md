@@ -1,7 +1,7 @@
 # Adversarial Test Results
 ## Scout — Apify Resilience Branch
 
-**Run date:** 2026-04-13T05:31:17.653Z  
+**Run date:** 2026-04-13T05:32:02.786Z  
 **Branch:** feature/apify-resilience  
 **Result:** ✅ ALL PASS (16/16)  
 
@@ -94,7 +94,7 @@
 
 ## ✅ A5 — PASS
 **Scenario:** Primary succeeds but returns schema-broken output — validation must block Airtable write  
-**Duration:** 0ms  
+**Duration:** 1ms  
 
 **Findings:**
   ✅ PASS: Schema validation correctly rejected schema-broken items from attempt 1
