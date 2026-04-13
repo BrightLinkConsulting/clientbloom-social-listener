@@ -14,6 +14,7 @@ import { getTenantConfig, tenantError } from '@/lib/tenant'
 import { isPaidPlan }                   from '@/lib/tier'
 import { runScanForTenant }             from '@/lib/scan'
 import { airtableFetch }               from '@/lib/airtable'
+import { upsertScanHealth, getScanHealth } from '@/lib/scan-health'
 
 // 90s: LinkedIn scraping + Claude scoring + Airtable saves
 export const maxDuration = 90
@@ -125,6 +126,42 @@ export async function POST() {
 
   if (result.error) {
     return NextResponse.json({ error: result.error }, { status: 500 })
+  }
+
+  // ── Write Scan Health after manual scan ───────────────────────────────
+  // Cron scans write health in scan-tenant/route.ts. Manual scans must also
+  // write health so the consecutive-zero counter and degraded flag stay accurate.
+  // Specifically: if a manual scan finds posts, the zero streak must reset (E6 fix).
+  try {
+    const healthBefore = await getScanHealth(tenant.tenantId)
+    const prevZeroCount = healthBefore?.consecutiveZeroScans ?? 0
+
+    // Same counter logic as scan-tenant/route.ts (E3 + E4)
+    let consecutiveZeroScans: number
+    if (result.postsFound > 0) {
+      consecutiveZeroScans = 0
+    } else if (result.scanned > 0) {
+      consecutiveZeroScans = prevZeroCount + 1
+    } else {
+      consecutiveZeroScans = prevZeroCount
+    }
+
+    const lastErrorField = result.postsFound === 0 && result.breakdown
+      ? JSON.stringify(result.breakdown)
+      : ''
+
+    await upsertScanHealth(tenant.tenantId, {
+      lastScanAt:           new Date().toISOString(),
+      lastScanStatus:       result.scanned === 0 ? 'no_results' : 'success',
+      lastPostsFound:       result.postsFound,
+      lastScanSource:       result.scanSource,
+      lastError:            lastErrorField,
+      lastScanDegraded:     result.degraded === true,
+      consecutiveZeroScans,
+    })
+  } catch (e) {
+    // Non-fatal — manual scan result is still returned to the user
+    console.warn('[trigger-scan] Failed to write scan health:', e)
   }
 
   // Record timestamp for cooldown enforcement on next call (non-fatal)

@@ -26,8 +26,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { runScanForTenant } from '@/lib/scan'
 import { sendScanAlert }    from '@/lib/notify'
-import { upsertScanHealth } from '@/lib/scan-health'
+import { upsertScanHealth, getScanHealth } from '@/lib/scan-health'
 import { getTierLimits }    from '@/lib/tier'
+
+// Thin wrapper: reads only the consecutiveZeroScans field, fail-open.
+async function getScanHealthForCounter(tenantId: string) {
+  try { return await getScanHealth(tenantId) } catch { return null }
+}
 
 // LinkedIn API-based actors complete in ~30-60s. 300s maxDuration gives
 // generous headroom for Airtable reads, scoring, and writes.
@@ -102,6 +107,11 @@ export async function POST(req: NextRequest) {
   const poolLabel  = apifyKey ? 'custom key' : 'shared pool'
   console.log(`[scan-tenant] Starting scan for ${tenantId} (${email}) — ${poolLabel} — plan=${plan || 'unknown'}`)
 
+  // ── Read current health snapshot (for consecutive-zero counter) ─────────────
+  // We need the current consecutiveZeroScans value BEFORE the scan so we can
+  // increment or reset it. Fail-open: if we can't read health, counter starts at 0.
+  const healthBefore = await getScanHealthForCounter(tenantId)
+
   // ── Run the scan ────────────────────────────────────────────────────────────
   const result  = await runScanForTenant(tenantId, apifyKey, plan || 'Trial')
   const elapsed = `${((Date.now() - started) / 1000).toFixed(1)}s`
@@ -115,6 +125,35 @@ export async function POST(req: NextRequest) {
       ? 'no_results'
       : 'success'
 
+  // ── Consecutive-zero counter (E3 + E4 from adversarial review) ─────────────
+  // Only counts as a "zero" when:
+  //   - no error (actor failure is tracked separately as 'failed')
+  //   - scanned > 0 (actor returned results, but all were deduped/filtered/below threshold)
+  //   - postsFound === 0 (genuinely no new posts saved)
+  // Reset to 0 the moment postsFound > 0.
+  // Does NOT fire when scanSource === 'none' with scanned=0 (that is an actor failure, not a zero-scan).
+  const prevZeroCount = healthBefore?.consecutiveZeroScans ?? 0
+  let consecutiveZeroScans: number
+  if (result.error) {
+    // Error path: preserve existing count — don't punish the user for actor failures
+    consecutiveZeroScans = prevZeroCount
+  } else if (result.postsFound > 0) {
+    consecutiveZeroScans = 0
+  } else if (result.scanned > 0) {
+    // scanned>0 means actor fetched posts but all were deduped/below threshold
+    consecutiveZeroScans = prevZeroCount + 1
+    console.log(`[scan-tenant] ${tenantId}: consecutiveZeroScans → ${consecutiveZeroScans}`)
+  } else {
+    // scanned=0: actor returned nothing — preserve count (actor issue, not user data issue)
+    consecutiveZeroScans = prevZeroCount
+  }
+
+  // ── Degraded flag (R4 sanity check result from scan.ts) ─────────────────────
+  // lastScanDegraded = true when >30% of saved records had blank Post Text.
+  // Separate from status — a scan can be 'success' (posts saved) AND degraded
+  // (some fields missing due to actor schema shift).
+  const lastScanDegraded = result.degraded === true
+
   // When scan succeeds but finds 0 new posts, store the breakdown JSON in lastError
   // so the frontend can explain WHY (too old / already seen / below threshold).
   // The breakdown is a plain JSON object starting with '{', which scan-health.ts
@@ -125,11 +164,13 @@ export async function POST(req: NextRequest) {
         : '')
 
   await upsertScanHealth(tenantId, {
-    lastScanAt:     new Date().toISOString(),
-    lastScanStatus: status,
-    lastPostsFound: result.postsFound,
-    lastScanSource: result.scanSource,
-    lastError:      lastErrorField,
+    lastScanAt:            new Date().toISOString(),
+    lastScanStatus:        status,
+    lastPostsFound:        result.postsFound,
+    lastScanSource:        result.scanSource,
+    lastError:             lastErrorField,
+    lastScanDegraded,
+    consecutiveZeroScans,
   })
 
   // ── Alert on failure ────────────────────────────────────────────────────────

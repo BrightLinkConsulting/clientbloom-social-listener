@@ -60,15 +60,18 @@ function headers() {
 
 // ── Read health record for a tenant ──────────────────────────────────────────
 export interface ScanHealthRecord {
-  recordId:           string
-  lastScanAt:         string | null
-  lastScanStatus:     string | null
-  lastPostsFound:     number
-  lastScanSource:     string | null
-  lastError:          string | null
-  lockToken:          string | null
-  lockExpiresAt:      string | null
-  lastScanBreakdown:  Record<string, number> | null
+  recordId:              string
+  lastScanAt:            string | null
+  lastScanStatus:        string | null
+  lastPostsFound:        number
+  lastScanSource:        string | null
+  lastError:             string | null
+  lockToken:             string | null
+  lockExpiresAt:         string | null
+  lastScanBreakdown:     Record<string, number> | null
+  // Degraded UX signals (added April 2026)
+  lastScanDegraded:      boolean   // true when R4 sanity check fired (>30% blank Post Text)
+  consecutiveZeroScans:  number    // increments when scanned>0 && postsFound===0 && no error; reset to 0 on postsFound>0
 }
 
 export async function getScanHealth(tenantId: string): Promise<ScanHealthRecord | null> {
@@ -97,15 +100,17 @@ export async function getScanHealth(tenantId: string): Promise<ScanHealthRecord 
     }
 
     return {
-      recordId:           record.id,
-      lastScanAt:         f['Last Scan At']        || null,
-      lastScanStatus:     f['Last Scan Status']    || null,
-      lastPostsFound:     f['Last Posts Found']    || 0,
-      lastScanSource:     f['Last Scan Source']    || null,
+      recordId:              record.id,
+      lastScanAt:            f['Last Scan At']              || null,
+      lastScanStatus:        f['Last Scan Status']          || null,
+      lastPostsFound:        f['Last Posts Found']          || 0,
+      lastScanSource:        f['Last Scan Source']          || null,
       lastError,
-      lockToken:          f['Scan Lock Token']     || null,
-      lockExpiresAt:      f['Scan Lock Expires At'] || null,
+      lockToken:             f['Scan Lock Token']           || null,
+      lockExpiresAt:         f['Scan Lock Expires At']      || null,
       lastScanBreakdown,
+      lastScanDegraded:      f['Last Scan Degraded']        === true,
+      consecutiveZeroScans:  f['Consecutive Zero Scans']   || 0,
     }
   } catch {
     return null
@@ -116,23 +121,28 @@ export async function getScanHealth(tenantId: string): Promise<ScanHealthRecord 
 export async function upsertScanHealth(
   tenantId: string,
   fields: Partial<{
-    lastScanAt:      string
-    lastScanStatus:  string
-    lastPostsFound:  number
-    lastScanSource:  string
-    lastError:       string
-    lockToken:       string | null
-    lockExpiresAt:   string | null
+    lastScanAt:             string
+    lastScanStatus:         string
+    lastPostsFound:         number
+    lastScanSource:         string
+    lastError:              string
+    lockToken:              string | null
+    lockExpiresAt:          string | null
+    // Degraded UX signals (April 2026)
+    lastScanDegraded:       boolean
+    consecutiveZeroScans:   number
   }>,
 ): Promise<void> {
   const atFields: Record<string, any> = {}
-  if (fields.lastScanAt     !== undefined) atFields['Last Scan At']        = fields.lastScanAt
-  if (fields.lastScanStatus !== undefined) atFields['Last Scan Status']    = fields.lastScanStatus
-  if (fields.lastPostsFound !== undefined) atFields['Last Posts Found']    = fields.lastPostsFound
-  if (fields.lastScanSource !== undefined) atFields['Last Scan Source']    = fields.lastScanSource
-  if (fields.lastError      !== undefined) atFields['Last Error']          = fields.lastError
-  if (fields.lockToken      !== undefined) atFields['Scan Lock Token']     = fields.lockToken ?? ''
-  if (fields.lockExpiresAt  !== undefined) atFields['Scan Lock Expires At'] = fields.lockExpiresAt ?? ''
+  if (fields.lastScanAt            !== undefined) atFields['Last Scan At']             = fields.lastScanAt
+  if (fields.lastScanStatus        !== undefined) atFields['Last Scan Status']         = fields.lastScanStatus
+  if (fields.lastPostsFound        !== undefined) atFields['Last Posts Found']         = fields.lastPostsFound
+  if (fields.lastScanSource        !== undefined) atFields['Last Scan Source']         = fields.lastScanSource
+  if (fields.lastError             !== undefined) atFields['Last Error']               = fields.lastError
+  if (fields.lockToken             !== undefined) atFields['Scan Lock Token']          = fields.lockToken ?? ''
+  if (fields.lockExpiresAt         !== undefined) atFields['Scan Lock Expires At']     = fields.lockExpiresAt ?? ''
+  if (fields.lastScanDegraded      !== undefined) atFields['Last Scan Degraded']       = fields.lastScanDegraded
+  if (fields.consecutiveZeroScans  !== undefined) atFields['Consecutive Zero Scans']   = fields.consecutiveZeroScans
 
   try {
     const existing = await getScanHealth(tenantId)

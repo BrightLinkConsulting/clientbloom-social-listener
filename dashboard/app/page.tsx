@@ -917,11 +917,13 @@ function NextScanCountdown({ scanStatus, lastScanAt, plan = '' }: NextScanCountd
 
 // ---- Nav ----
 interface ScanHealth {
-  lastScanAt:        string | null
-  lastScanStatus:    string | null
-  lastPostsFound:    number
-  fbPending:         boolean
-  lastScanBreakdown: Record<string, number> | null
+  lastScanAt:           string | null
+  lastScanStatus:       string | null
+  lastPostsFound:       number
+  fbPending:            boolean
+  lastScanBreakdown:    Record<string, number> | null
+  lastScanDegraded:     boolean
+  consecutiveZeroScans: number
 }
 
 // If status is 'scanning' but the previous scan completed more than this long
@@ -1014,6 +1016,21 @@ function ScanStatusPill({
         ? ' · 0 new posts'
         : ` · ${postsFound} new post${postsFound !== 1 ? 's' : ''}`
       : ''
+
+    // Degraded scan: actor returned data but field quality was poor (>30% blank text).
+    // Show amber instead of green. Only fire when lastScanAt exists (E13 fix).
+    if (health?.lastScanDegraded) {
+      return (
+        <span
+          className="text-xs text-amber-400 flex items-center gap-1"
+          title="Last scan had quality issues — some posts may have incomplete data. Scout will auto-correct on the next run."
+        >
+          <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+          Last scan: {timeAgo(scanAt)} · quality warning
+        </span>
+      )
+    }
+
     return (
       <span className="text-xs text-emerald-400 flex items-center gap-1">
         <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
@@ -2852,19 +2869,36 @@ function FeedPage() {
               }
 
               // Established user with inbox zero
+              // Show a nudge if several consecutive scans have found nothing (E13: gate on lastScanAt)
+              const zeroStreak = scanHealth?.consecutiveZeroScans ?? 0
+              const showZeroNudge = zeroStreak >= 3 && !!scanHealth?.lastScanAt
+
               return (
                 <>
-                  <div className="text-4xl">🎉</div>
-                  <p className="text-slate-300 text-sm font-medium">Inbox zero — all caught up</p>
-                  <p className="text-slate-600 text-xs max-w-xs">
-                    {(plan === 'Trial' || plan === 'Scout Starter')
-                      ? 'Scout scans once per day on your plan.'
-                      : 'Scout scans at 6 AM and 6 PM daily.'}
+                  <div className="text-4xl">{showZeroNudge ? '🔍' : '🎉'}</div>
+                  <p className="text-slate-300 text-sm font-medium">
+                    {showZeroNudge ? 'No new posts in a few scans' : 'Inbox zero — all caught up'}
                   </p>
+                  <p className="text-slate-600 text-xs max-w-xs">
+                    {showZeroNudge
+                      ? `Scout has run ${zeroStreak} scans without finding new relevant posts. Your ICP profiles or keywords may need a refresh.`
+                      : (plan === 'Trial' || plan === 'Scout Starter')
+                        ? 'Scout scans once per day on your plan.'
+                        : 'Scout scans at 6 AM and 6 PM daily.'}
+                  </p>
+                  {showZeroNudge && (
+                    <Link
+                      href="/settings?tab=linkedin"
+                      className="mt-1 px-4 py-2 rounded-xl bg-slate-700 hover:bg-slate-600 text-white text-xs font-semibold transition-colors"
+                    >
+                      Review ICP settings →
+                    </Link>
+                  )}
                   {(scanHealth?.lastScanAt || lastScannedAt) && (
-                    <p className="text-slate-700 text-xs">
+                    <p className="text-slate-700 text-xs mt-1">
                       Last scan: {timeAgo(scanHealth?.lastScanAt || lastScannedAt || '')}
                       {scanHealth?.lastScanStatus === 'failed' && ' · ⚠️ issue detected, retry scheduled'}
+                      {scanHealth?.lastScanDegraded && !showZeroNudge && ' · quality warning on last scan'}
                     </p>
                   )}
                 </>
@@ -2887,16 +2921,29 @@ function FeedPage() {
             {/* Zero-new-posts notice — Inbox tab only, shows breakdown when available */}
             {filter === 'New' &&
               scanHealth?.lastPostsFound === 0 &&
+              scanHealth?.lastScanAt &&
               scanHealth?.lastScanStatus !== 'scanning' &&
               scanHealth?.lastScanStatus !== 'pending_fb' && (
-              <div className="mb-4 px-3.5 py-3 rounded-xl bg-slate-800/40 border border-slate-700/30 space-y-2">
+              <div className={`mb-4 px-3.5 py-3 rounded-xl border space-y-2 ${
+                scanHealth?.lastScanDegraded
+                  ? 'bg-amber-900/10 border-amber-700/30'
+                  : 'bg-slate-800/40 border-slate-700/30'
+              }`}>
                 <div className="flex items-start gap-2">
-                  <svg className="w-3.5 h-3.5 mt-0.5 shrink-0 text-slate-500" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-                  </svg>
-                  <p className="text-sm text-slate-500 leading-relaxed">
-                    Last scan found no new posts — posts below are from previous scans.
-                    New results arrive automatically at the next scan.
+                  {scanHealth?.lastScanDegraded ? (
+                    <svg className="w-3.5 h-3.5 mt-0.5 shrink-0 text-amber-500" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                    </svg>
+                  ) : (
+                    <svg className="w-3.5 h-3.5 mt-0.5 shrink-0 text-slate-500" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                    </svg>
+                  )}
+                  <p className={`text-sm leading-relaxed ${scanHealth?.lastScanDegraded ? 'text-amber-400/80' : 'text-slate-500'}`}>
+                    {scanHealth?.lastScanDegraded
+                      ? 'Last scan had quality issues — some posts may have incomplete data. Scout will auto-correct on the next run.'
+                      : 'Last scan found no new posts — posts below are from previous scans. New results arrive automatically at the next scan.'
+                    }
                   </p>
                 </div>
                 {scanHealth?.lastScanBreakdown && (

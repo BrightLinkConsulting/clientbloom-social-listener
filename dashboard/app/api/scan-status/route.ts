@@ -29,20 +29,25 @@ export async function GET() {
   if (!health) {
     // Scan Health table may not be set up yet — return null state gracefully
     return NextResponse.json({
-      lastScanAt:     null,
-      lastScanStatus: null,
-      lastPostsFound: 0,
-      lastScanSource: null,
-      lastError:      null,
+      lastScanAt:           null,
+      lastScanStatus:       null,
+      lastPostsFound:       0,
+      lastScanSource:       null,
+      lastError:            null,
+      lastScanBreakdown:    null,
+      lastScanDegraded:     false,
+      consecutiveZeroScans: 0,
     })
   }
 
   return NextResponse.json({
-    lastScanAt:        health.lastScanAt,
-    lastScanStatus:    health.lastScanStatus,
-    lastPostsFound:    health.lastPostsFound,
-    lastScanSource:    health.lastScanSource,
-    lastError:         health.lastError,
-    lastScanBreakdown: health.lastScanBreakdown,
+    lastScanAt:           health.lastScanAt,
+    lastScanStatus:       health.lastScanStatus,
+    lastPostsFound:       health.lastPostsFound,
+    lastScanSource:       health.lastScanSource,
+    lastError:            health.lastError,
+    lastScanBreakdown:    health.lastScanBreakdown,
+    lastScanDegraded:     health.lastScanDegraded,
+    consecutiveZeroScans: health.consecutiveZeroScans,
   })
 }
