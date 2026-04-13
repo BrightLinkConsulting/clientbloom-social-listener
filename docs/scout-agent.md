@@ -1056,3 +1056,4 @@ All pre-existing security scenarios retained, plus new categories:
 | Session 5 | April 2026 | Scout Agent button redesign; adversarial validation of all behavioral rules |
 | Session 6 | April 2026 | Bulk Selection Mode knowledge block added to Section 2 |
 | Session 7 | April 2026 | Onboarding & First Scan knowledge block added to Section 2; Trial tier limits updated (keywords 3→6, scanSlots 3→5); feature limits table corrected in system prompt |
+| Session 8 | April 2026 | Trial keywords aligned back to 3 (matches Starter) to eliminate upgrade confusion; all downstream references updated |

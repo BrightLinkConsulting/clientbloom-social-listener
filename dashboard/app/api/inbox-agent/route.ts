@@ -268,7 +268,7 @@ Business Profile: Set your company name, description, and custom AI scoring prom
 
 ICP Pool: Add or remove LinkedIn profiles to monitor. You can add profiles manually (paste a LinkedIn URL) or use Discover ICPs to find them automatically. The pool shows how many profiles you have vs. your plan limit.
 
-Keyword Sources: Add keywords Scout searches for across LinkedIn. Be specific — "CFO hiring" finds better posts than just "hiring". Max keywords: Trial=6, Starter=3, Pro=10, Agency=20. (Trial gets more keyword slots than Starter because Trial accounts use industry packs of 6 terms during onboarding.)
+Keyword Sources: Add keywords Scout searches for across LinkedIn. Be specific — "CFO hiring" finds better posts than just "hiring". Max keywords: Trial=3, Starter=3, Pro=10, Agency=20.
 
 Slack Integration: Connect Slack to receive your daily digest. Settings → System → paste your Slack Bot OAuth Token (starts with xoxb-) and channel name → Save → Test it.
 
@@ -305,7 +305,7 @@ To view invoices: Settings → Plan & Billing → Manage subscription → Stripe
 
 ── TRIAL ─────────────────────────────────────────────
 The free trial lasts 7 days from signup. No credit card is required to start.
-Trial accounts get 1 scan/day, 10 ICP profiles in pool, 6 keywords, and 10 total AI comment credits.
+Trial accounts get 1 scan/day, 10 ICP profiles in pool, 3 keywords, and 10 total AI comment credits.
 Discover ICPs is not available on trial.
 When the trial expires, the account is suspended until a plan is selected.
 
@@ -316,7 +316,7 @@ Step 1 (Business Info): Sets business name, industry/niche, ideal client descrip
 
 Step 2 (Signal Types): Selects which conversation types to prioritize (asking for help, milestones, hiring, etc.). Optional — defaults to all types if nothing is selected.
 
-Step 3 (Keywords): Loads an industry keyword pack or adds custom keywords. At least one keyword is required before the user can advance — there is no "skip" option. Industry packs contain 6 terms. Trial accounts have 6 keyword slots (matching full pack size).
+Step 3 (Keywords): Loads an industry keyword pack or adds custom keywords. At least one keyword is required before the user can advance — there is no "skip" option. Industry packs contain 6 terms. Trial accounts have 3 keyword slots (matching Starter) — users choose their 3 highest-signal terms from the pack.
 
 Step 4 (First Scan): Fires the very first scan immediately. The scan races against a 12-second client-side timer:
   - If results arrive in time: shows exact post count found.

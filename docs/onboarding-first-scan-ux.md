@@ -10,7 +10,7 @@
 
 New Trial users were landing on an empty inbox after completing onboarding. Root causes:
 
-1. Only 3 keyword slots on Trial (too narrow a search net) — fixed in v1.0: raised to 6
+1. Only 3 keyword slots on Trial (too narrow a search net) — raised to 6 in v1.0, then reduced back to 3 in April 2026 to match Starter and eliminate upgrade confusion
 2. "Skip for now" on keyword setup → zero keywords → scan finds nothing — fixed in v1.0: keyword gate
 3. No ICP profiles on a fresh account → scan is keyword-only with generic coverage — fixed in v2.0: Discover ICPs embedded in wizard
 4. Passive empty state ("posts will be waiting at 6 AM") gave no feedback — fixed in both versions
@@ -63,7 +63,7 @@ The most important step for first-scan quality.
 
 **Keyword gate:** Continue button is disabled (`disabled={terms.length === 0}`) until at least one keyword is active. No "Skip for now" option. Button label changes: `"Load a keyword pack to continue"` (0 keywords) → `"Continue with N keyword(s) →"` (≥1 keyword).
 
-**Trial tier limits:** Trial = 6 keyword slots (up from 3). Every industry pack has exactly 6 terms, so one pack load fills all Trial slots cleanly.
+**Trial tier limits:** Trial = 3 keyword slots (matches Starter). Industry packs contain 6 terms — users loading a full pack will be capped at 3; they can choose the 3 most relevant terms for their industry.
 
 **Keyword count propagated:** `onNext(terms.length)` passes the count to the parent `OnboardingPage`, which passes it to Step 4 for the summary card.
 
@@ -198,6 +198,7 @@ All 18 issues were identified and resolved before production push:
 | Date | Change |
 |---|---|
 | April 2026 | First-scan UX overhaul (v1.0): 4-step wizard, keyword gate, fire-and-redirect scan, `?firstScan` feed states |
-| April 2026 | Trial tier: keywords 3→6, scanSlots 3→5 |
+| April 2026 | Trial tier: keywords 3→6, scanSlots 3→5 (v1.0 change) |
+| April 2026 | Trial tier: keywords 6→3 (aligned to Starter to eliminate upgrade confusion) |
 | April 2026 | 18 adversarial issues identified and resolved; build confirmed clean |
 | April 11, 2026 | v2.0: Discover ICPs panel embedded in Step 3; ClientBloom violet brand colors; helper text on Steps 0 and 2; textarea sizing fix; dead "Refresh feed" button removed from feed empty state; race condition fix (scan locked during discovery). Production confirmed: 14 posts in inbox on first run. |

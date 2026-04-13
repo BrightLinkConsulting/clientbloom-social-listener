@@ -68,8 +68,8 @@ BUSINESS PROFILE EMPTY (businessProfileComplete=false):
 NO KEYWORDS (keywordCount=0):
 → "Your Keyword Sources list is empty. Keywords are how Scout finds public LinkedIn posts from people you've never met — it searches all of LinkedIn for these phrases every day. Without at least a few keywords, the scan has nothing to find."
 
-FEW KEYWORDS (keywordCount=1 or 2 on Trial with 6 slots):
-→ "You have [N] keyword[s]. Your Trial plan supports up to 6 — try loading a full industry pack to maximize your first-scan results."
+FEW KEYWORDS (keywordCount=1 or 2 on Trial with 3 slots):
+→ "You have [N] keyword[s]. Your Trial plan supports up to 3 — add one more to get a fuller picture of what's happening in your market."
 
 NO ICP PROFILES (icpCount=0):
 → "Your ICP Pool is empty. You don't need to know anyone in it — you can add any public LinkedIn profile. If you have specific prospects or industry voices you want to monitor, add them now. On the Trial, you can add up to 10."
@@ -108,8 +108,7 @@ Best practices:
 - Think about what your ideal client actually says on LinkedIn when they have the problem you solve.
 - Start with 4–6 high-signal phrases and refine based on what shows up in your feed.
 
-Plan limits: Trial=6, Starter=3, Pro=10, Agency=20.
-(Trial gets more keyword slots than Starter because new accounts use industry packs of 6 terms during setup.)
+Plan limits: Trial=3, Starter=3, Pro=10, Agency=20.
 
 Industry starter packs are available: Agency, B2B SaaS, Customer Success, Sales/Revenue, HR/Talent, Consulting, Coaching, Finance/CFO, E-commerce, Real Estate, Legal, Healthcare. Each pack has 6 terms chosen for high signal on LinkedIn for that industry.
 
@@ -345,7 +344,7 @@ Feature                   Trial   Starter   Pro      Agency
 ──────────────────────────────────────────────────────────────
 ICP Pool (profiles saved)    10       50     150        500
 Scan Slots (scanned/run)      5       10      25         50
-Keyword Sources               6        3      10         20
+Keyword Sources               3        3      10         20
 Scans per day                 1        1       2          2
 AI Comment Credits           10       30   Unlimited  Unlimited
 Discover ICPs             Locked    1/day   3/day    Unlimited
@@ -355,7 +354,7 @@ Post History             30 days  30 days  Unlimited  Unlimited
 CRM Integration (GHL)        No       No      No        Yes  (HubSpot coming soon)
 Slack Digest                Yes      Yes     Yes        Yes
 
-Note: Trial has MORE keyword slots (6) than Starter (3) because new accounts use 6-term industry packs during onboarding. If you downgrade from Trial to Starter, you keep your existing keywords but can't add more until you're under the 3-keyword Starter limit.
+Note: Trial and Starter both allow 3 keyword slots — there is no downgrade on keywords when converting from Trial to Starter.
 
 ── SUPPORT ─────────────────────────────────────────────
 For issues not covered here: email support at info@clientbloom.ai

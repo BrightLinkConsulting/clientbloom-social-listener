@@ -68,10 +68,10 @@ export function getTierLimits(plan: string): TierLimits {
       }
     case 'Trial':
       return {
-        keywords:           6,    // 6 keyword slots — full industry pack fits in one load (was 3)
+        keywords:           3,    // matches Starter — no keyword downgrade on conversion
         profiles:           5,    // legacy alias for scanSlots
         poolSize:           10,
-        scanSlots:          5,    // 5 ICP profiles per scan run (was 3) — wider net for first scan
+        scanSlots:          5,    // 5 profiles per scan run — genuine preview, Starter doubles this on upgrade
         discoverRunsPerDay: 1,    // 1 run/day — fills the 10-profile trial pool in one session
         discoverMaxPerRun:  10,   // matches poolSize — one run fills the pool
         scansPerDay:        1,

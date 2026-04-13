@@ -96,7 +96,7 @@ Step 1: Signal Types (Screen 2)
 Step 2: Keywords (Screen 3)
   → User loads an industry starter pack and/or adds custom keywords manually
   → Minimum 1 keyword required to advance (Continue disabled if empty)
-  → Plan limit enforced: Trial = 6 keywords max
+  → Plan limit enforced: Trial = 3 keywords max (matches Starter — no keyword downgrade on conversion)
   → Helper text makes manual entry path explicit
 
 Step 3: You're Almost Live (Screen 4)
@@ -137,7 +137,7 @@ This directly addresses the pattern where new users completed the wizard and saw
 
 | Plan | Pool Size | Scan Slots/Run | Discover Runs/Day | Max Discovered/Run | Keywords |
 |------|-----------|----------------|-------------------|--------------------|----------|
-| Trial | 10 | 5 | 1 | 10 | 6 |
+| Trial | 10 | 5 | 1 | 10 | 3 |
 | Starter | 50 | 10 | 1 | 10 | 3 |
 | Pro | 150 | 25 | 3 | 25 | 10 |
 | Agency | 500 | 50 | Unlimited | 50 | 20 |
