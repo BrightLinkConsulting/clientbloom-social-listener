@@ -1,6 +1,6 @@
 # Proposal B — Per-Tenant Apify Key Admin UI
 
-**Status:** Proposal — pending review  
+**Status:** ✅ Implemented — April 2026 (merged to main, revised to Scout-owned multi-pool architecture)  
 **Urgency:** Ship before 20 active tenants  
 **Scope:** Admin panel UI to assign per-tenant Apify API keys; isolates each tenant's
 scraping quota from the shared pool

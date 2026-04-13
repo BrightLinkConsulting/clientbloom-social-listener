@@ -126,9 +126,48 @@ After each scan, the `Scan Health` table is updated. Airtable enforces a 5 req/s
 
 ---
 
-## Own Apify Key (Tenant-Supplied)
+## Scout Multi-Pool Architecture (April 2026)
 
-Tenants on Scout Agency can optionally supply their own Apify API key. This is stored in `Apify API Key` field on the Tenants table and takes precedence over the shared platform key.
+Scout supports multiple Apify accounts to distribute concurrent scan load and avoid hitting the Starter plan's 32-run ceiling as the tenant count grows.
+
+### Pool assignment
+
+Each tenant has an `Apify Pool` field (number) on the Tenants table:
+
+| Pool | Value | Env var used |
+|---|---|---|
+| Default (shared) | 0 | `APIFY_API_TOKEN` |
+| Pool 1 | 1 | `APIFY_TOKEN_POOL_1` |
+| Pool 2 | 2 | `APIFY_TOKEN_POOL_2` |
+
+Additional pools follow the same naming convention. New env vars are added to Vercel as new Apify accounts are purchased.
+
+### Token resolution priority
+
+`resolveApifyToken(pool, customKey)` in `cron/scan/route.ts` and `cron/scan-retry/route.ts`:
+
+1. **Custom key** — if the tenant has their own Apify key set, it always wins
+2. **Pool key** — if pool >= 1, uses the corresponding `APIFY_TOKEN_POOL_N` env var
+3. **Default** — `undefined` returned, scan-tenant falls back to its own `APIFY_API_TOKEN` env var
+
+### Admin pool assignment
+
+The admin panel ApifyPanel shows a pool selector dropdown for tenants without a custom key. Select a pool and click "Assign" — this PATCHes `Apify Pool` on the Tenants table.
+
+### Right-now capacity planning (April 2026)
+
+- **< 15 tenants**: Default shared pool is fine. Starter plan = 32 concurrent runs; soft ceiling = 24. 15 tenants at most = 15 concurrent runs.
+- **15–30 tenants**: Begin moving heavier users to Pool 1. Purchase a second Apify account.
+- **30–60 tenants**: Pool 0 + Pool 1 + Pool 2. Assign roughly 20 tenants per pool.
+- **60+ tenants**: Expand pool numbering. No code changes needed — just add `APIFY_TOKEN_POOL_3`, `_4`, etc. and update `resolveApifyToken()` accordingly.
+
+### Upgrade path to self-service (future)
+
+Agency-tier tenants can supply their own Apify key in the admin panel. Self-service in Settings is deferred — it's an admin-only operation until you have a reason to hand it to customers.
+
+## Own Apify Key (Tenant-Supplied, Agency)
+
+Tenants on Scout Agency can optionally supply their own Apify API key. This is stored in `Apify API Key` field on the Tenants table and takes precedence over any pool assignment.
 
 When a tenant has their own key:
 - Their scans use their Apify account entirely — zero shared pool consumption

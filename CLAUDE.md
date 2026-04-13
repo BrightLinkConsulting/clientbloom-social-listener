@@ -11,7 +11,7 @@ Production quality is non-negotiable. The founder (Mike Walker) directs work in 
 - Backend: Next.js API routes
 - Database: Airtable (single shared base — all tenant data, row-level isolation via Tenant ID)
 - Auth: NextAuth.js v4, credentials provider, JWT, 24h session
-- Cron: Vercel Cron (6 active jobs defined in dashboard/vercel.json)
+- Cron: Vercel Cron (12 active jobs defined in dashboard/vercel.json)
 - Email: Resend (sender: info@clientbloom.ai)
 - Scraping: Apify — LinkedIn ONLY
   - ICP profiles: harvestapi/linkedin-profile-posts
@@ -173,6 +173,22 @@ Completed (April 2026):
   "No new posts in a few scans" nudge with link to ICP settings when consecutiveZeroScans >= 3.
   14 adversarial edge cases identified and addressed. TypeScript clean. 16/16 suite PASS.
   See: docs/degraded-scan-ux.md
+- ✅ Zero-streak reengagement system (April 2026) — Proposal A:
+  Phase 1: ZeroStreakBanner in settings LinkedIn tab — self-contained component, fetches
+  /api/scan-status, shows diagnostic callout at streak >= 3 with specific remediation guidance.
+  Phase 2: buildZeroStreakEmail() template in lib/emails.ts (logoHeader + CAN-SPAM compliant).
+  /api/cron/zero-streak-check route sends one email per 14-day cooldown at streak >= 5.
+  New Airtable field: "Zero Streak Email Sent At" (fldbHbRNyohhn5cCi) on Tenants table.
+  Daily cron at 10:00 UTC. Full-table Scan Health fetch avoids OR formula URL limit issue.
+  See: docs/proposals/proposal-a-no-posts-reengagement.md
+- ✅ Scout multi-pool Apify architecture (April 2026) — Proposal B:
+  Adds Apify Pool field (fldYzleoOnzlNQlGW) to Tenants table: 0=default, 1=Pool1, 2=Pool2.
+  resolveApifyToken() in cron/scan and scan-retry: priority custom key > pool key > default.
+  Pool env vars: APIFY_TOKEN_POOL_1, APIFY_TOKEN_POOL_2 (add to Vercel as needed).
+  Admin panel: ApifyPanel pool selector dropdown; ApifyPoolBadge shows pool assignment;
+  admin GET returns apifyPool; admin PATCH accepts apifyPool.
+  scan-retry updated to pass Apify Pool through same token resolution path.
+  See: docs/proposals/proposal-b-per-tenant-apify-keys.md, docs/apify-integration.md
 
 Still open:
 - Security headers in next.config.js (X-Frame-Options, CSP, etc.)

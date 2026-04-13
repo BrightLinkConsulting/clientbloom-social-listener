@@ -1,6 +1,6 @@
 # Proposal A — No-Posts-Found User Reengagement System
 
-**Status:** Proposal — pending review  
+**Status:** ✅ Implemented — April 2026 (merged to main)  
 **Scope:** Email + dashboard guidance when consecutive zero scans trigger  
 **Prerequisite:** Degraded scan UX (ee4c44c) — `consecutiveZeroScans` field already live
 
