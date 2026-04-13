@@ -482,6 +482,52 @@ function validateLinkedInPostItem(item: any): boolean {
 
 ---
 
+---
+
+## Part 7 — Lessons Learned: April 2026 Resilience Build
+
+These lessons were learned during the `feature/apify-resilience` build and Gate 3 live validation. They are recorded here because they would have saved ~2 hours if known in advance.
+
+### L1 — URLSearchParams.set() silently overwrites duplicate keys
+
+`url.searchParams.set('fields[]', 'Apify API Key')` followed by `url.searchParams.set('fields[]', 'Last Manual Scan At')` results in only the second value being sent. Use `.append()` whenever sending the same key name more than once — which is exactly how Airtable's `fields[]` param works.
+
+**Affected file:** `dashboard/app/api/trigger-scan/route.ts` — `getTenantRow()`.  
+**Detection signal:** A specific Airtable field is consistently `undefined` in the response despite being in the Airtable record. Check whether its URL param is being overwritten before sending.
+
+### L2 — Vercel env vars: Production scope ≠ Preview scope
+
+A variable set for Production is not available in Preview deployments. This is by design and easy to miss.
+
+**What broke:** `AIRTABLE_PROVISIONING_TOKEN` was Production-only. All Preview scans returned `scanSource: "none"` and `fetched: 0` because `atGet()` in `scan.ts` made unauthenticated Airtable requests — empty token = 401, caught silently = empty results. The scan returned HTTP 200 with no error, which looked like "no relevant posts found" rather than "Airtable auth is broken."
+
+**Detection signal:** `[scan] Failed to fetch existing post URLs, skipping dedup: 401` in Vercel function logs. Also: `scanSource: "none"` + `deduped: 0` for a tenant with known prior scan history.
+
+**Rule going forward:** Before testing any Preview deployment feature that touches Airtable, verify `AIRTABLE_PROVISIONING_TOKEN`, `PLATFORM_AIRTABLE_BASE_ID`, and `AIRTABLE_PLATFORM_TOKEN` are all scoped to Preview — not just Production. Same applies to `APIFY_API_TOKEN` (see L3).
+
+### L3 — APIFY_API_TOKEN is also Production-only
+
+Preview scans will fail with a 500 unless either: (a) `APIFY_API_TOKEN` is added to Preview scope, or (b) a per-tenant Apify API Key is set on the tenant record in Airtable (field `fld37tNIB5YHvFecP`, Tenants table). The code falls back to the per-tenant key first, so option (b) is a clean workaround for any specific test tenant.
+
+### L4 — Vercel UI button proximity issue (automation-specific)
+
+The "Link Shared Variable" and "Add Environment Variable" buttons sit adjacent in the Vercel UI. Coordinate-based automation clicks reliably hit the wrong one. Workaround: use the Chrome MCP `find()` tool to get a stable element ref — or bypass the UI entirely by calling the Vercel REST API directly (`POST /api/v10/projects/{projectId}/env` with browser session cookies). The API is faster and more reliable.
+
+### L5 — HTTP 200 does not mean the scan did anything
+
+A scan that returns HTTP 200 with `postsFound: 0` could mean: (a) no posts cleared the relevance threshold, (b) no new posts were found, or (c) Airtable auth is broken and no data loaded at all. These three outcomes are indistinguishable from the HTTP status alone.
+
+**More useful diagnostic fields in the scan response:**
+- `scanSource` — `"none"` means Sources table returned empty (Airtable auth issue or no active sources)
+- `breakdown.deduped` — should be > 0 for any tenant with prior scans; 0 means Captured Posts was unreadable
+- `breakdown.fetched` — should be > 0 if any actor ran; 0 means no Apify actor executed
+
+### L6 — Scan cooldown can be reset via Airtable for testing
+
+The 30-minute manual scan cooldown is enforced by comparing current time to `Last Manual Scan At` (field `fldwD423KT7zFOJjt` on Tenants table, Airtable base `appZWp7QdPptIOUYB`). Setting it to a past date via the Airtable MCP instantly resets the cooldown without a code deploy or redeploy.
+
+---
+
 *This document should be reviewed and updated whenever:*
 - *Apify announces a pricing change*
 - *Either primary actor is updated, deprecated, or starts showing elevated failure rates*
