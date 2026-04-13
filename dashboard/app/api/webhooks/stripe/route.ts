@@ -25,6 +25,11 @@ import Stripe from 'stripe'
 import crypto from 'crypto'
 import { provisionNewTenant } from '@/lib/provision'
 import { planFromPriceId, escapeAirtableString } from '@/lib/tier'
+import {
+  buildPurchaseWelcomeEmail,
+  buildAdminNewPurchaseEmail,
+  buildAdminPaymentFailedEmail,
+} from '@/lib/emails'
 
 // Tier → plan name mapping (duplicated from lib/tier for use without process.env at module scope)
 const TIER_TO_PLAN: Record<string, string> = {
@@ -103,58 +108,32 @@ async function updateTenantRecord(recordId: string, fields: Record<string, any>)
 }
 
 // ── Email helpers ──────────────────────────────────────────────────────────
-async function sendWelcomeEmail(email: string, companyName: string, password: string) {
+async function sendWelcomeEmail(
+  email:       string,
+  companyName: string,
+  password:    string,
+  plan:        string,
+) {
   const resendKey = process.env.RESEND_API_KEY
   if (!resendKey) {
     console.log(`[webhook] Would send welcome email to ${email} (RESEND_API_KEY not set)`)
     return
   }
-
-  const html = `
-    <div style="font-family:sans-serif;max-width:520px;margin:0 auto;color:#1a1a1a">
-      <div style="background:#4F6BFF;padding:24px 32px;border-radius:12px 12px 0 0">
-        <p style="color:#fff;font-size:18px;font-weight:700;margin:0">Scout by ClientBloom</p>
-      </div>
-      <div style="background:#f9f9f9;padding:32px;border-radius:0 0 12px 12px;border:1px solid #e5e5e5;border-top:none">
-        <h2 style="margin:0 0 12px">Welcome, ${companyName || email.split('@')[0]}.</h2>
-        <p style="color:#444;line-height:1.6">
-          Your Scout account is live and ready. Here are your login credentials:
-        </p>
-        <div style="background:#fff;border:1px solid #e0e0e0;border-radius:8px;padding:20px;margin:20px 0">
-          <p style="margin:0 0 8px;font-size:13px;color:#888">Email</p>
-          <p style="margin:0 0 16px;font-weight:600">${email}</p>
-          <p style="margin:0 0 8px;font-size:13px;color:#888">Temporary password</p>
-          <p style="margin:0;font-family:monospace;font-size:15px;background:#f5f5f5;padding:8px 12px;border-radius:6px;letter-spacing:0.05em">${password}</p>
-        </div>
-        <p style="color:#444;line-height:1.6;font-size:14px">
-          Sign in and complete your quick setup — tell Scout about your business and
-          the kinds of leads you're looking for. Then hit <strong>Scan Now</strong>
-          to pull your first batch of leads immediately.
-        </p>
-        <a href="${BASE_URL}/sign-in"
-           style="display:inline-block;background:#4F6BFF;color:#fff;font-weight:600;padding:12px 24px;border-radius:8px;text-decoration:none;margin-top:8px">
-          Sign in to Scout →
-        </a>
-        <hr style="border:none;border-top:1px solid #e5e5e5;margin:28px 0" />
-        <p style="font-size:12px;color:#999;margin:0">
-          Questions? Reply to this email — we're real people and we read every message.
-        </p>
-      </div>
-    </div>
-  `
-
+  const { subject, html } = buildPurchaseWelcomeEmail({
+    companyName,
+    email,
+    password,
+    plan,
+    appUrl: BASE_URL,
+  })
   await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: { Authorization: `Bearer ${resendKey}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      from: 'Scout by ClientBloom <info@clientbloom.ai>',
-      to: [email],
-      subject: 'Your Scout account is ready',
-      html,
-    }),
+    body: JSON.stringify({ from: 'Scout by ClientBloom <info@clientbloom.ai>', to: [email], subject, html }),
   })
 }
 
+/** General admin notification for cases without a dedicated template (e.g. cancellation). */
 async function sendAdminNotification(event: string, email: string, details: string) {
   const resendKey  = process.env.RESEND_API_KEY
   const adminEmail = process.env.ADMIN_EMAIL || ''
@@ -164,11 +143,23 @@ async function sendAdminNotification(event: string, email: string, details: stri
     method: 'POST',
     headers: { Authorization: `Bearer ${resendKey}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      from: 'Scout Alerts <info@clientbloom.ai>',
-      to: [adminEmail],
+      from:    'Scout Alerts <info@clientbloom.ai>',
+      to:      [adminEmail],
       subject: `[Scout] ${event} — ${email}`,
-      html: `<p><strong>${event}</strong></p><p>${email}</p><p>${details}</p>`,
+      html:    `<p><strong>${event}</strong></p><p>${email}</p><p>${details}</p>`,
     }),
+  })
+}
+
+/** Typed admin notification using a lib/emails.ts template. */
+async function sendAdminEmail(subject: string, html: string) {
+  const resendKey  = process.env.RESEND_API_KEY
+  const adminEmail = process.env.ADMIN_EMAIL || ''
+  if (!resendKey || !adminEmail) return
+  await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${resendKey}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ from: 'Scout Alerts <info@clientbloom.ai>', to: [adminEmail], subject, html }),
   })
 }
 
@@ -275,12 +266,11 @@ export async function POST(req: NextRequest) {
         }
 
         // 3. Send welcome email + admin notification
-        await sendWelcomeEmail(email, companyName, password)
-        await sendAdminNotification(
-          `New direct purchase — ${planName}`,
-          email,
-          `Company: ${companyName} | Plan: ${planName} | Subscription: ${subId}`
-        )
+        await sendWelcomeEmail(email, companyName, password, planName)
+        const purchaseAlert = buildAdminNewPurchaseEmail({
+          email, name: companyName, plan: planName, subId: subId || '',
+        })
+        await sendAdminEmail(purchaseAlert.subject, purchaseAlert.html)
 
         console.log(`[webhook] Provisioned new tenant: ${email}`)
         break
@@ -299,11 +289,13 @@ export async function POST(req: NextRequest) {
         }
 
         await updateTenantRecord(tenant.id, { 'Status': 'Suspended' })
-        await sendAdminNotification(
-          'Payment failed — tenant suspended',
-          tenant.fields['Email'] || customerId,
-          `Invoice: ${invoice.id} | Amount due: $${(invoice.amount_due / 100).toFixed(2)}`
-        )
+        const tenantEmail = (tenant.fields['Email'] || customerId) as string
+        const failedAlert = buildAdminPaymentFailedEmail({
+          email:     tenantEmail,
+          invoiceId: invoice.id || '',
+          amount:    `$${(invoice.amount_due / 100).toFixed(2)}`,
+        })
+        await sendAdminEmail(failedAlert.subject, failedAlert.html)
         console.log(`[webhook] Suspended tenant due to payment failure: ${customerId}`)
         break
       }

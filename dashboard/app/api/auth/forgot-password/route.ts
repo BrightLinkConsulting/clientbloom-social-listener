@@ -13,6 +13,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
+import { buildPasswordResetEmail }   from '@/lib/emails'
 import crypto from 'crypto'
 
 const PLATFORM_TOKEN = process.env.PLATFORM_AIRTABLE_TOKEN  || ''
@@ -73,48 +74,13 @@ async function sendPasswordResetEmail(email: string, resetToken: string): Promis
 
   const resetLink = `${BASE_URL}/reset-password?token=${encodeURIComponent(resetToken)}&email=${encodeURIComponent(email)}`
 
-  const html = `
-    <div style="font-family:sans-serif;max-width:540px;margin:0 auto;color:#1a1a1a">
-      <div style="background:#4F6BFF;padding:20px 28px;border-radius:12px 12px 0 0">
-        <p style="color:#fff;font-size:16px;font-weight:700;margin:0">Reset Your Scout Password</p>
-      </div>
-      <div style="background:#f9f9f9;padding:28px 32px;border-radius:0 0 12px 12px;border:1px solid #e5e5e5;border-top:none">
-        <p style="margin:0 0 20px;color:#555;font-size:14px">
-          We received a request to reset your password. If you didn't make this request, you can ignore this email.
-        </p>
-
-        <a href="${resetLink}"
-           style="display:inline-block;background:#4F6BFF;color:#fff;font-weight:600;padding:12px 28px;border-radius:8px;text-decoration:none;font-size:14px;margin-bottom:20px">
-          Reset Your Password
-        </a>
-
-        <p style="font-size:13px;color:#888;margin:0 0 10px;line-height:1.6">
-          Or copy this link if the button doesn't work:<br/>
-          <code style="background:#f0f0f0;padding:4px 8px;border-radius:4px;word-break:break-all;font-size:12px">${resetLink}</code>
-        </p>
-
-        <p style="font-size:13px;color:#999;margin:0">
-          This link expires in 1 hour. If you need a new reset link, visit the login page and select "Forgot password?"
-        </p>
-
-        <hr style="border:none;border-top:1px solid #e5e5e5;margin:24px 0 16px" />
-        <p style="font-size:12px;color:#aaa;margin:0">
-          Scout by ClientBloom — AI-Powered LinkedIn Relationship Intelligence
-        </p>
-      </div>
-    </div>
-  `
+  const { subject, html } = buildPasswordResetEmail({ resetLink })
 
   try {
     const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: { Authorization: `Bearer ${RESEND_KEY}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        from: 'Scout Support <info@clientbloom.ai>',
-        to: [email],
-        subject: 'Reset Your Scout Password',
-        html,
-      }),
+      body: JSON.stringify({ from: 'Scout Support <info@clientbloom.ai>', to: [email], subject, html }),
     })
     return res.ok
   } catch (e) {

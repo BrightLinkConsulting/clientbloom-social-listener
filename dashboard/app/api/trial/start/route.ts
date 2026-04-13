@@ -20,7 +20,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { provisionNewTenant }        from '@/lib/provision'
 import { escapeAirtableString }      from '@/lib/tier'
-import { buildTrialDay1Email }       from '@/lib/emails'
+import { buildTrialDay1Email, buildAdminNewTrialEmail } from '@/lib/emails'
 
 const PLATFORM_TOKEN = process.env.PLATFORM_AIRTABLE_TOKEN   || ''
 const PLATFORM_BASE  = process.env.PLATFORM_AIRTABLE_BASE_ID || ''
@@ -139,23 +139,16 @@ async function sendTrialDay1Email(email: string): Promise<void> {
   })
 }
 
-function escapeHtml(str: string): string {
-  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')
-}
-
-async function sendAdminNotification(email: string, name: string): Promise<void> {
+async function sendAdminNotification(email: string, name: string, trialEndsAt: Date): Promise<void> {
   if (!RESEND_KEY) return
-  const safeName  = escapeHtml(name)
-  const safeEmail = escapeHtml(email)
+  const trialEnds = trialEndsAt.toLocaleDateString('en-US', {
+    month: 'long', day: 'numeric', year: 'numeric', timeZone: 'America/Los_Angeles',
+  })
+  const { subject, html } = buildAdminNewTrialEmail({ email, name, trialEnds })
   await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: { Authorization: `Bearer ${RESEND_KEY}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      from:    'Scout Alerts <info@clientbloom.ai>',
-      to:      [ADMIN_EMAIL],
-      subject: `[Scout] New trial signup — ${email}`,
-      html:    `<p><strong>New no-CC trial signup</strong></p><p><strong>Name:</strong> ${safeName}</p><p><strong>Email:</strong> ${safeEmail}</p><p><strong>Trial ends:</strong> 7 days from now</p>`,
-    }),
+    body: JSON.stringify({ from: 'Scout Alerts <info@clientbloom.ai>', to: [ADMIN_EMAIL], subject, html }),
   })
 }
 
@@ -249,7 +242,7 @@ export async function POST(req: NextRequest) {
   await sendTrialDay1Email(email).catch(e =>
     console.error('[trial/start] Day 1 email failed:', e.message)
   )
-  await sendAdminNotification(email, name.trim()).catch(e =>
+  await sendAdminNotification(email, name.trim(), trialEndsAt).catch(e =>
     console.error('[trial/start] Admin notification failed:', e.message)
   )
 

@@ -30,12 +30,15 @@ import {
   buildTrialDay6Email,
   buildTrialDay7Email,
   buildTrialExpiredEmail,
+  buildTrialWinBackEmail,
+  buildAdminTrialExpiredEmail,
 } from '@/lib/emails'
 
 const PLATFORM_TOKEN = process.env.PLATFORM_AIRTABLE_TOKEN   || ''
 const PLATFORM_BASE  = process.env.PLATFORM_AIRTABLE_BASE_ID || ''
 const RESEND_KEY     = process.env.RESEND_API_KEY             || ''
 const BASE_URL       = (process.env.NEXT_PUBLIC_BASE_URL || 'https://scout.clientbloom.ai').replace(/\/$/, '')
+const ADMIN_EMAIL    = process.env.ADMIN_EMAIL || 'twp1996@gmail.com'
 
 export const maxDuration = 60
 
@@ -67,6 +70,23 @@ async function fetchTrialTenants() {
   url.searchParams.append('fields[]', 'Trial Ends At')
   url.searchParams.append('fields[]', 'Trial Email Day')
   url.searchParams.append('fields[]', 'Trial Last Email Sent At')
+  url.searchParams.append('fields[]', 'Email Opted Out')
+  url.searchParams.set('pageSize', '100')
+  return fetchAllPages(url)
+}
+
+/** Fetch trial_expired tenants eligible for the win-back email (day ~10).
+ *  Criteria: status=trial_expired, Trial Ends At <= 3 days ago, Trial Email Day < 10.
+ *  Trial Email Day < 10 is the sentinel that the win-back hasn't been sent yet.
+ */
+async function fetchWinBackCandidates(threeDaysAgoIso: string) {
+  const url = new URL(`https://api.airtable.com/v0/${PLATFORM_BASE}/Tenants`)
+  url.searchParams.set(
+    'filterByFormula',
+    `AND({Status}='trial_expired',{Trial Ends At}<'${threeDaysAgoIso}',{Trial Email Day}<10)`
+  )
+  url.searchParams.set('fields[]', 'Email')
+  url.searchParams.append('fields[]', 'Company Name')
   url.searchParams.append('fields[]', 'Email Opted Out')
   url.searchParams.set('pageSize', '100')
   return fetchAllPages(url)
@@ -157,12 +177,19 @@ export async function GET(req: Request) {
     emailsSkipped: 0,
     expired:       0,
     optedOut:      0,
+    winBack:       0,
     errors:        0,
   }
 
   try {
-    const activeTrials = await fetchTrialTenants()
-    console.log(`[trial-check] Found ${activeTrials.length} active trial tenants`)
+    const threeDaysAgo    = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000)
+    const threeDaysAgoIso = threeDaysAgo.toISOString().split('T')[0]
+
+    const [activeTrials, winBackCandidates] = await Promise.all([
+      fetchTrialTenants(),
+      fetchWinBackCandidates(threeDaysAgoIso),
+    ])
+    console.log(`[trial-check] Found ${activeTrials.length} active trial tenants, ${winBackCandidates.length} win-back candidates`)
 
     for (const record of activeTrials) {
       try {
@@ -200,6 +227,13 @@ export async function GET(req: Request) {
             const expired  = buildTrialExpiredEmail({ upgradeUrl, unsubUrl })
             await sendEmail(email, expired.subject, expired.html)
             results.emailsSent++
+          }
+
+          // Admin alert — fires on every trial expiry
+          if (ADMIN_EMAIL && RESEND_KEY) {
+            const companyName = ((record.fields['Company Name'] || email) as string)
+            const adminAlert  = buildAdminTrialExpiredEmail({ email, name: companyName })
+            await sendEmail(ADMIN_EMAIL, adminAlert.subject, adminAlert.html)
           }
 
           results.expired++
@@ -253,6 +287,32 @@ export async function GET(req: Request) {
       }
     }
 
+    // ── JOB 3: Win-back emails (~3 days post-expiry) ─────────────────────────
+    for (const record of winBackCandidates) {
+      try {
+        const email    = (record.fields['Email'] || '').trim()
+        const optedOut = !!record.fields['Email Opted Out']
+
+        if (!email) continue
+        if (optedOut) { results.optedOut++; continue }
+
+        const unsubUrl = `${BASE_URL}/api/unsubscribe?email=${encodeURIComponent(email)}`
+        const winBack  = buildTrialWinBackEmail({ upgradeUrl, unsubUrl })
+        const sent     = await sendEmail(email, winBack.subject, winBack.html)
+
+        if (sent) {
+          await updateTenant(record.id, { 'Trial Email Day': 10 })
+          results.winBack++
+          console.log(`[trial-check] Sent win-back email to ${email}`)
+        } else {
+          results.errors++
+        }
+      } catch (e: any) {
+        console.error('[trial-check] Error sending win-back email:', e.message)
+        results.errors++
+      }
+    }
+
   } catch (e: any) {
     console.error('[trial-check] Fatal error:', e)
     return NextResponse.json({ error: e.message }, { status: 500 })
@@ -261,6 +321,6 @@ export async function GET(req: Request) {
   return NextResponse.json({
     ok: true,
     ...results,
-    message: `Trial check complete: ${results.emailsSent} emails sent, ${results.expired} trials expired, ${results.optedOut} opted out.`,
+    message: `Trial check complete: ${results.emailsSent} emails sent, ${results.expired} trials expired, ${results.winBack} win-backs, ${results.optedOut} opted out.`,
   })
 }
