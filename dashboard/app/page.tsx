@@ -2570,8 +2570,9 @@ function FeedPage() {
                   )}
                 </div>
 
-                {/* Right: action buttons + Cancel + Refresh */}
-                <div className="flex items-center gap-2 shrink-0">
+                {/* Right: action buttons + Cancel + Refresh — overflow-x-auto so
+                    Skip N + Archive N + Cancel + Refresh never clip on mobile */}
+                <div className="flex items-center gap-2 shrink-0 overflow-x-auto max-w-[55vw] sm:max-w-none pb-px">
                   {/* Skip / Restore — only when posts are selected and not mid-flight */}
                   {selectedIds.size > 0 && !bulkLoading && filter !== 'Skipped' && (
                     <button
@@ -2666,8 +2667,11 @@ function FeedPage() {
             Controls are client-side view transforms on displayedPosts; they never
             affect actionCounts, momentum data, or server-side totals.
         ── */}
-        <div className={`sticky top-[105px] z-10 -mx-5 px-5 border-b border-slate-800/50 bg-[#0a0c10]/95 backdrop-blur-md transition-all duration-300 overflow-hidden ${selectionMode ? 'max-h-0 py-0 opacity-0 border-transparent' : 'max-h-[100px] opacity-100 py-2.5'}`}>
-          <div className="flex items-center gap-2">
+        {/* max-h bumped to 200px to accommodate 2-row mobile layout */}
+        <div className={`sticky top-[105px] z-10 -mx-5 px-5 border-b border-slate-800/50 bg-[#0a0c10]/95 backdrop-blur-md transition-all duration-300 overflow-hidden ${selectionMode ? 'max-h-0 py-0 opacity-0 border-transparent' : 'max-h-[200px] opacity-100 py-2.5'}`}>
+          {/* Mobile: search on its own full-width row; controls below.
+              sm+: single row with search flex-1 and controls inline. */}
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2">
 
             {/* Search — author name + post text */}
             <div className="relative flex-1 min-w-0">
@@ -2694,66 +2698,71 @@ function FeedPage() {
               )}
             </div>
 
-            {/* Sort dropdown */}
-            <div className="relative shrink-0">
-              <select
-                value={sortBy}
-                onChange={e => setSortBy(e.target.value as typeof sortBy)}
-                className="text-xs bg-slate-800/70 border border-slate-700/40 text-slate-300 rounded-lg pl-2.5 pr-6 py-1.5 focus:outline-none focus:border-slate-600 cursor-pointer appearance-none"
-              >
-                <option value="score-desc">Score: High → Low</option>
-                <option value="score-asc">Score: Low → High</option>
-                <option value="date-desc">Date: Newest first</option>
-                <option value="date-asc">Date: Oldest first</option>
-              </select>
-              <svg className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-500" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                <path d="M19 9l-7 7-7-7" />
-              </svg>
-            </div>
+            {/* Controls row — dropdowns + action buttons */}
+            <div className="flex items-center gap-2 shrink-0">
 
-            {/* Score filter dropdown */}
-            <div className="relative shrink-0">
-              <select
-                value={scoreFilter}
-                onChange={e => setScoreFilter(e.target.value as typeof scoreFilter)}
-                className="text-xs bg-slate-800/70 border border-slate-700/40 text-slate-300 rounded-lg pl-2.5 pr-6 py-1.5 focus:outline-none focus:border-slate-600 cursor-pointer appearance-none"
-              >
-                <option value="all">All scores</option>
-                <option value="high">High (8–10)</option>
-                <option value="mid">Medium (6–7)</option>
-                <option value="low">Low (5 and below)</option>
-              </select>
-              <svg className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-500" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                <path d="M19 9l-7 7-7-7" />
-              </svg>
-            </div>
+              {/* Sort dropdown */}
+              <div className="relative flex-1 sm:flex-none">
+                <select
+                  value={sortBy}
+                  onChange={e => setSortBy(e.target.value as typeof sortBy)}
+                  className="w-full text-xs bg-slate-800/70 border border-slate-700/40 text-slate-300 rounded-lg pl-2.5 pr-6 py-1.5 focus:outline-none focus:border-slate-600 cursor-pointer appearance-none"
+                >
+                  <option value="score-desc">Score: High → Low</option>
+                  <option value="score-asc">Score: Low → High</option>
+                  <option value="date-desc">Date: Newest first</option>
+                  <option value="date-asc">Date: Oldest first</option>
+                </select>
+                <svg className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-500" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <path d="M19 9l-7 7-7-7" />
+                </svg>
+              </div>
 
-            {/* Select button (moved from tab strip header) */}
-            {posts.length > 0 && (
+              {/* Score filter dropdown */}
+              <div className="relative flex-1 sm:flex-none">
+                <select
+                  value={scoreFilter}
+                  onChange={e => setScoreFilter(e.target.value as typeof scoreFilter)}
+                  className="w-full text-xs bg-slate-800/70 border border-slate-700/40 text-slate-300 rounded-lg pl-2.5 pr-6 py-1.5 focus:outline-none focus:border-slate-600 cursor-pointer appearance-none"
+                >
+                  <option value="all">All scores</option>
+                  <option value="high">High (8–10)</option>
+                  <option value="mid">Medium (6–7)</option>
+                  <option value="low">Low (5 and below)</option>
+                </select>
+                <svg className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-500" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <path d="M19 9l-7 7-7-7" />
+                </svg>
+              </div>
+
+              {/* Select — icon + label on sm+, icon-only on mobile */}
+              {posts.length > 0 && (
+                <button
+                  onClick={() => { setSelectionMode(true); setBulkResult(null) }}
+                  title="Select posts for bulk actions"
+                  className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border bg-slate-800/70 border-slate-700/40 text-slate-400 hover:text-slate-300 hover:border-slate-600/60 transition-colors shrink-0"
+                >
+                  <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <rect x="3" y="3" width="18" height="18" rx="3" />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4" />
+                  </svg>
+                  <span className="hidden sm:inline">Select</span>
+                </button>
+              )}
+
+              {/* Refresh — icon-only on mobile, icon + text on sm+ */}
               <button
-                onClick={() => { setSelectionMode(true); setBulkResult(null) }}
-                title="Select posts for bulk actions"
-                className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border bg-slate-800/70 border-slate-700/40 text-slate-400 hover:text-slate-300 hover:border-slate-600/60 transition-colors shrink-0 whitespace-nowrap"
+                onClick={() => fetchPosts()}
+                title="Refresh posts"
+                className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg bg-slate-800/70 border border-slate-700/40 text-slate-400 hover:text-slate-300 transition-colors shrink-0"
               >
                 <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                  <rect x="3" y="3" width="18" height="18" rx="3" />
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                 </svg>
-                Select
+                <span className="hidden sm:inline">Refresh</span>
               </button>
-            )}
 
-            {/* Refresh — icon on mobile, icon + text on desktop */}
-            <button
-              onClick={() => fetchPosts()}
-              title="Refresh posts"
-              className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-slate-800/70 border border-slate-700/40 text-slate-400 hover:text-slate-300 transition-colors shrink-0 whitespace-nowrap"
-            >
-              <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-              </svg>
-              <span className="hidden sm:inline">Refresh</span>
-            </button>
+            </div>
           </div>
 
           {/* Filter active indicator */}
