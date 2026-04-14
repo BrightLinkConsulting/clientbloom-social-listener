@@ -2038,7 +2038,7 @@ function FeedPage() {
 
   const clearFilters = useCallback(() => {
     setSearchQuery('')
-    setSortBy('score-desc')
+    setSortBy('date-desc')
     setScoreFilter('all')
   }, [])
 
@@ -2130,7 +2130,7 @@ function FeedPage() {
     setBulkResult(null)
     setAgentOpen(false)
     setSearchQuery('')
-    setSortBy('score-desc')
+    setSortBy('date-desc')
     setScoreFilter('all')
   }, [filter])
 
