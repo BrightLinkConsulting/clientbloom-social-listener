@@ -1576,8 +1576,24 @@ interface AgentAction {
 }
 
 interface AgentResponse {
-  reply:   string
-  action?: AgentAction
+  reply:         string
+  action?:       AgentAction
+  nextTourStep?: number | null
+}
+
+interface TourState {
+  active:         boolean
+  currentStep:    number
+  completedSteps: number[]
+}
+
+const TOUR_STEP_NAMES: Record<number, string> = {
+  1: 'What Scout does',
+  2: 'Scoring and the feed',
+  3: 'Sources (ICPs and keywords)',
+  4: 'Engaging with posts',
+  5: 'Engagement Momentum',
+  6: 'Optimizing results',
 }
 
 // ── Scout Agent Panel ────────────────────────────────────────────────────────
@@ -1607,6 +1623,7 @@ function ScoutAgentPanel({
   const [input,          setInput]          = useState('')
   const [loading,        setLoading]        = useState(false)
   const [pendingAction,  setPendingAction]  = useState<AgentAction | null>(null)
+  const [tourState,      setTourState]      = useState<TourState | null>(null)
   const [pendingReply,   setPendingReply]   = useState('')
   const [executing,      setExecuting]      = useState(false)
   const [execResult,     setExecResult]     = useState<string | null>(null)
@@ -1623,16 +1640,23 @@ function ScoutAgentPanel({
     if (open) setTimeout(() => inputRef.current?.focus(), 150)
   }, [open])
 
-  const sendMessage = async () => {
-    const text = input.trim()
+  const sendMessage = async (textOverride?: string) => {
+    const text = (textOverride ?? input).trim()
     if (!text || loading) return
     // E1: Enforce client-side message length cap (server validates at 1000 chars)
     if (text.length > 1000) {
       setExecResult('Message is too long — please keep it under 1000 characters.')
       return
     }
-    setInput('')
+    if (!textOverride) setInput('')
     setExecResult(null)
+
+    // Tour trigger: "Walk me through Scout" always restarts from Step 1
+    const isTourTrigger = text === 'Walk me through Scout'
+    const activeTourState = isTourTrigger
+      ? { active: true, currentStep: 1, completedSteps: [] }
+      : tourState
+    if (isTourTrigger) setTourState({ active: true, currentStep: 1, completedSteps: [] })
 
     const userMsg: AgentChatMessage = { role: 'user', content: text }
     const newMessages = [...messages, userMsg]
@@ -1651,6 +1675,7 @@ function ScoutAgentPanel({
             trialDay: trialEndsAt
               ? Math.max(1, Math.min(7, 8 - Math.ceil((new Date(trialEndsAt).getTime() - Date.now()) / (24 * 60 * 60 * 1000))))
               : undefined,
+            tourState: activeTourState,
           },
           history: messages.slice(-6),
         }),
@@ -1659,6 +1684,26 @@ function ScoutAgentPanel({
       const data: AgentResponse = await res.json()
       const assistantMsg: AgentChatMessage = { role: 'assistant', content: data.reply }
       setMessages(prev => [...prev, assistantMsg])
+
+      // Update tour state based on agent's nextTourStep signal
+      if (data.nextTourStep === 0) {
+        // Agent signalled tour exit
+        setTourState(null)
+      } else if (typeof data.nextTourStep === 'number' && data.nextTourStep > 0) {
+        // Advance to next step, recording the completed one
+        setTourState(prev => {
+          if (!prev) return null
+          const justCompleted = prev.currentStep
+          return {
+            active: true,
+            currentStep: data.nextTourStep as number,
+            completedSteps: prev.completedSteps.includes(justCompleted)
+              ? prev.completedSteps
+              : [...prev.completedSteps, justCompleted],
+          }
+        })
+      }
+      // nextTourStep === null → off-topic answer, stay on current step (no state change)
 
       if (data.action && data.action.type !== 'none') {
         if (data.action.confirm) {
@@ -1717,6 +1762,7 @@ function ScoutAgentPanel({
   const resetConversation = () => {
     setMessages([])
     setInput('')
+    setTourState(null)
     setPendingAction(null)
     setPendingReply('')
     setExecResult(null)
@@ -1770,15 +1816,15 @@ function ScoutAgentPanel({
           {messages.length === 0 && !loading && (
             <div className="text-center py-6">
               <p className="text-sm text-slate-500 leading-relaxed mb-3">
-                I can help you manage your inbox, understand your stats, and answer any question about how Scout works — features, plans, settings, or what any number means.
+                Manage your inbox, understand your stats, and get answers about Scout — features, plans, settings, or what any number means.
               </p>
               <div className="flex flex-col gap-1.5">
                 {[
+                  'Walk me through Scout',
                   'What should I engage with today?',
-                  'Skip posts scoring 5 or below',
                   'What does the Engagement Rate mean?',
                 ].map(s => (
-                  <button key={s} onClick={() => { setInput(s) }} className="text-left text-xs px-3 py-2 rounded-lg bg-slate-800/60 border border-slate-700/40 text-slate-400 hover:text-slate-200 hover:border-slate-600/60 transition-colors">
+                  <button key={s} onClick={() => sendMessage(s)} className="text-left text-xs px-3 py-2 rounded-lg bg-slate-800/60 border border-slate-700/40 text-slate-400 hover:text-slate-200 hover:border-slate-600/60 transition-colors">
                     {s}
                   </button>
                 ))}
