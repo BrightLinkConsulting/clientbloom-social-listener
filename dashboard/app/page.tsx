@@ -1978,8 +1978,13 @@ function FeedPage() {
   const searchParams = useSearchParams()
   const [firstScanBanner, setFirstScanBanner]   = useState(false)
   const [firstScanZero,   setFirstScanZero]     = useState(false)
-  const firstScanPollRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const firstScanMaxMs   = 120_000  // auto-dismiss banner after 2 minutes
+  // firstScanMode: set once on mount from ?firstScan param; persists across banner
+  // dismissal and navigation so the new-user fallback polling can take over.
+  const [firstScanMode,   setFirstScanMode]     = useState(false)
+  const firstScanPollRef    = useRef<ReturnType<typeof setInterval> | null>(null)
+  const firstScanZeroPollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const firstScanFallbackPollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const firstScanMaxMs   = 300_000  // auto-dismiss banner after 5 minutes
 
   // FIX #3 + FIX #5: Read the firstScan URL param client-side (avoids hydration
   // mismatch) and immediately clean the URL so back-navigation or a hard reload
@@ -1988,9 +1993,11 @@ function FeedPage() {
     const param = searchParams?.get('firstScan')
     if (param === '1') {
       setFirstScanBanner(true)
+      setFirstScanMode(true)
       router.replace('/', { scroll: false })
     } else if (param === '0') {
       setFirstScanZero(true)
+      setFirstScanMode(true)
       router.replace('/', { scroll: false })
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -2038,6 +2045,75 @@ function FeedPage() {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [firstScanBanner])
+
+  // Poll when ?firstScan=0 (scan completed with 0 posts server-side, but the
+  // Vercel function may still be writing posts for another 60-90 seconds).
+  // Stops when posts appear OR after 5 minutes.
+  useEffect(() => {
+    if (!firstScanZero) return
+    let active = true
+    const started = Date.now()
+    firstScanZeroPollRef.current = setInterval(async () => {
+      if (!active) return
+      if (Date.now() - started > firstScanMaxMs) {
+        if (firstScanZeroPollRef.current) clearInterval(firstScanZeroPollRef.current)
+        return
+      }
+      try {
+        const res = await fetch('/api/posts?action=New&limit=5')
+        if (!active) return
+        if (res.ok) {
+          const data = await res.json()
+          if (!active) return
+          if ((data.records || []).length > 0) {
+            if (firstScanZeroPollRef.current) clearInterval(firstScanZeroPollRef.current)
+            setFirstScanZero(false)
+            fetchPosts(true)
+          }
+        }
+      } catch { /* non-fatal — keep polling */ }
+    }, 5_000)
+    return () => {
+      active = false
+      if (firstScanZeroPollRef.current) clearInterval(firstScanZeroPollRef.current)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [firstScanZero])
+
+  // Fallback poll: covers the case where the user navigated away (to Settings)
+  // and returned — firstScanBanner and firstScanZero are both reset on unmount,
+  // but firstScanMode persists within the React session.
+  // Guards: !firstScanBanner (banner polling takes priority) and !firstScanZero
+  // (zero-poll takes priority) — only one interval runs at a time.
+  useEffect(() => {
+    if (!firstScanMode || firstScanBanner || firstScanZero || posts.length > 0) return
+    let active = true
+    const started = Date.now()
+    firstScanFallbackPollRef.current = setInterval(async () => {
+      if (!active) return
+      if (Date.now() - started > firstScanMaxMs) {
+        if (firstScanFallbackPollRef.current) clearInterval(firstScanFallbackPollRef.current)
+        return
+      }
+      try {
+        const res = await fetch('/api/posts?action=New&limit=5')
+        if (!active) return
+        if (res.ok) {
+          const data = await res.json()
+          if (!active) return
+          if ((data.records || []).length > 0) {
+            if (firstScanFallbackPollRef.current) clearInterval(firstScanFallbackPollRef.current)
+            fetchPosts(true)
+          }
+        }
+      } catch { /* non-fatal — keep polling */ }
+    }, 5_000)
+    return () => {
+      active = false
+      if (firstScanFallbackPollRef.current) clearInterval(firstScanFallbackPollRef.current)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [firstScanMode, firstScanBanner, firstScanZero, posts.length])
 
   // ── Feed control bar state (search / sort / score filter) ────────────────
   // All three are client-side view transforms on the fetched posts[] array.
@@ -2546,8 +2622,8 @@ function FeedPage() {
           <div className="max-w-3xl mx-auto px-5 py-3 flex items-center gap-3">
             <div className="w-4 h-4 border-2 border-blue-400/40 border-t-blue-400 rounded-full animate-spin shrink-0" />
             <div className="flex-1 min-w-0">
-              <p className="text-sm text-blue-300 font-medium">First scan in progress</p>
-              <p className="text-xs text-blue-400/70">Searching LinkedIn for conversations worth joining — posts will appear here automatically in 30–60 seconds.</p>
+              <p className="text-sm text-blue-300 font-medium">Scan in progress — usually 2–3 minutes</p>
+              <p className="text-xs text-blue-400/70">Scout is scanning LinkedIn. While it runs, use the time below to make it smarter for your business.</p>
             </div>
             <button
               onClick={() => {
@@ -2890,9 +2966,13 @@ function FeedPage() {
             ) : (() => {
               // Inbox tab empty — detect brand-new vs established user with inbox zero
               const isNewUser = !scanHealth?.lastScanAt && !lastScannedAt
-              const scanRunning = scanHealth?.lastScanStatus === 'scanning' || scanHealth?.lastScanStatus === 'pending_fb' || firstScanBanner
+              // firstScanRunning: only the initial onboarding scan — not recurring cron scans.
+              // Recurring cron scans (scanHealth status) get the generic spinner below.
+              const firstScanRunning = firstScanBanner
+              const recurringCronRunning = (scanHealth?.lastScanStatus === 'scanning' || scanHealth?.lastScanStatus === 'pending_fb') && !firstScanBanner
 
-              if (scanRunning) {
+              if (recurringCronRunning) {
+                // Established user with a scheduled scan running — keep existing behaviour
                 return (
                   <>
                     <div className="w-12 h-12 border-2 border-slate-700 border-t-blue-400 rounded-full animate-spin" />
@@ -2902,31 +2982,43 @@ function FeedPage() {
                 )
               }
 
-              if (isNewUser || firstScanZero) {
-                // Brand-new user: never had a successful scan yet
+              if (firstScanRunning || isNewUser || firstScanZero) {
+                // Brand-new user in their first-scan window — Option B: direct to Settings
+                // while the scan runs, so they return to a populated feed.
                 return (
                   <div className="w-full max-w-sm text-center">
-                    <div className="text-3xl mb-4">🎯</div>
-                    <p className="text-slate-200 text-base font-semibold mb-2">Your feed is live — posts are on the way</p>
-                    <p className="text-slate-500 text-sm leading-relaxed mb-6">
-                      Scout is actively monitoring your ICP pool and keywords. Your next scan runs at 6 AM or 6 PM PST and will populate your inbox with posts ready to engage. If you added ICP profiles during setup, those will be the first ones in.
-                    </p>
-                    <div className="text-left space-y-3 mb-6">
-                      <div className="bg-slate-800/50 border border-slate-700/40 rounded-xl p-4">
-                        <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3">While you wait</p>
-                        <div className="flex items-start gap-3">
-                          <span className="w-5 h-5 rounded-full bg-violet-600/20 border border-violet-500/30 text-violet-400 text-xs flex items-center justify-center shrink-0 mt-0.5 font-semibold">1</span>
-                          <div>
-                            <p className="text-sm text-slate-200 font-medium">Add more LinkedIn profiles to track</p>
-                            <p className="text-xs text-slate-500 mt-0.5">The more specific people you monitor, the faster your inbox fills with relevant conversations.</p>
-                            <Link href="/settings?tab=linkedin" className="text-xs text-violet-400 hover:text-violet-300 mt-1 inline-block transition-colors">
-                              Go to ICP Profiles →
-                            </Link>
-                          </div>
-                        </div>
-                      </div>
+                    {/* Subtle scan-in-progress indicator */}
+                    <div className="flex items-center justify-center gap-2 mb-5">
+                      <div className="w-2 h-2 rounded-full bg-violet-500 animate-pulse" />
+                      <span className="text-xs text-violet-400 font-medium tracking-wide">Scan in progress</span>
                     </div>
-                    <p className="text-slate-700 text-xs">Next automatic scan at 6 AM or 6 PM PST.</p>
+
+                    <p className="text-slate-200 text-base font-semibold mb-2">Your first scan is running</p>
+                    <p className="text-slate-400 text-sm leading-relaxed mb-6">
+                      Scout is gathering posts from your ICP profiles and keywords right now — usually takes 2–3 minutes. While it runs, take a moment to make Scout smarter.
+                    </p>
+
+                    {/* Primary action */}
+                    <div className="bg-slate-800/60 border border-violet-500/20 rounded-xl p-4 mb-3 text-left">
+                      <p className="text-xs font-semibold text-violet-400 uppercase tracking-wide mb-1">Next step</p>
+                      <p className="text-sm text-slate-200 font-medium mb-1">Fine-tune your AI scoring</p>
+                      <p className="text-xs text-slate-500 mb-3">Tell Scout exactly what kinds of posts matter for your business. This directly improves every future scan.</p>
+                      <Link
+                        href="/settings?tab=ai"
+                        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-xs font-semibold transition-colors"
+                      >
+                        Set up AI Scoring →
+                      </Link>
+                    </div>
+
+                    {/* Secondary action */}
+                    <div className="text-left px-1 mb-5">
+                      <Link href="/settings?tab=linkedin" className="text-xs text-slate-500 hover:text-violet-400 transition-colors">
+                        Review ICP profiles &amp; keywords →
+                      </Link>
+                    </div>
+
+                    <p className="text-slate-600 text-xs">When you&apos;re done, come back here — your posts will be ready.</p>
                   </div>
                 )
               }
