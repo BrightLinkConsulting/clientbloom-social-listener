@@ -2,7 +2,7 @@
 
 ## READ THIS FIRST — BEFORE TOUCHING ANY CODE
 
-This document is the complete, authoritative orientation for Scout as of April 14, 2026 (HEAD commit de4e514). It supersedes the original knowledge pack (which was accurate through bd63e93). The overrides for trial mechanics, pricing, domain, and pre-production checklist status were all confirmed in session 5. Session 6 additions: cascade delete fix for legacy 'owner' tenantId accounts, upgrade confirmation email for trial-to-paid conversions. Session 7 additions: GHL Scout pipeline integration (Airtable-backed ID persistence), Slack admin alerts for trial signup + purchase. Sessions 8-14: GHL monetary value on opportunities, inbox score floor fix (min inbox score=5, scores 1-4 pre-filtered at scan time, never in Airtable), server-side floor clamp, agent context/prompt corrections propagated to settings-agent and CSM agent. Session 15: Guided Tour Mode in inbox agent — 6-module conversational onboarding tour triggered by "Walk me through Scout" chip, tourState tracked in React + sent in API context, nextTourStep response field drives step advancement and exit, 13 adversarial edge cases addressed.
+This document is the complete, authoritative orientation for Scout as of April 14, 2026 (HEAD commit fe0a0e6). It supersedes the original knowledge pack (which was accurate through bd63e93). The overrides for trial mechanics, pricing, domain, and pre-production checklist status were all confirmed in session 5. Session 6 additions: cascade delete fix for legacy 'owner' tenantId accounts, upgrade confirmation email for trial-to-paid conversions. Session 7 additions: GHL Scout pipeline integration (Airtable-backed ID persistence), Slack admin alerts for trial signup + purchase. Sessions 8-14: GHL monetary value on opportunities, inbox score floor fix (min inbox score=5, scores 1-4 pre-filtered at scan time, never in Airtable), server-side floor clamp, agent context/prompt corrections propagated to settings-agent and CSM agent. Session 15: Guided Tour Mode in inbox agent — 6-module conversational onboarding tour triggered by "Walk me through Scout" chip, tourState tracked in React + sent in API context, nextTourStep response field drives step advancement and exit, 13 adversarial edge cases addressed. Session 16: Suggested comment regression fix — system prompt rewritten with explicit WRONG examples from production ("Extend the insight:", "Possible angle:", "Deepen the insight:"), CORRECT OUTPUT EXAMPLE added as positive anchor, META_PREFIX_RE runtime backstop strips known meta-coaching prefixes at string level.
 
 ---
 
@@ -197,6 +197,9 @@ Before writing any new field to Airtable, verify it exists. Airtable returns `UN
 
 | Hash | Description |
 |---|---|
+| `fe0a0e6` | Fix: suggested comment meta-coaching prefix regression — WRONG examples + META_PREFIX_RE backstop |
+| `8c295f7` | Docs: session 15 guided tour mode documentation |
+| `de4e514` | Feat: guided tour mode with persistent step tracking |
 | `a25de39` | Feat: GHL + Slack integration — Airtable-backed ID persistence, all call sites wired |
 | `021a124` | Feat: Slack alerts + GHL Scout pipeline wiring for trial and purchase events |
 | `874aca2` | Feat: send upgrade confirmation email on trial-to-paid conversion |

@@ -822,26 +822,27 @@ The comment suggestion feature generates a ready-to-paste LinkedIn comment for a
 2. The route checks the tenant's `commentCredits` limit (plan-gated; unlimited on Pro and Agency).
 3. Fetches the post text and author name from Airtable.
 4. Fetches the user's business profile (name, industry, ideal client, problem solved) for context.
-5. Calls Claude Haiku with a **system prompt** containing 10 hard behavioral rules and a user message containing the post and business context.
-6. Post-processes the output: strips any residual leading/trailing quotes Claude might still return.
+5. Calls Claude Haiku with a **system prompt** in ghostwriter mode (with explicit WRONG examples and a CORRECT OUTPUT EXAMPLE) and a user message containing the post and business context.
+6. Post-processes the output: strips known meta-coaching prefixes via `META_PREFIX_RE` backstop, then strips any residual leading/trailing quotes, and re-capitalizes the first letter.
 7. Saves the result back to the `Comment Approach` field in Airtable.
 8. Increments the tenant's `Suggestions Used` counter.
 9. Returns `{ commentApproach, creditsUsed, creditsLimit }`.
 
-### The system prompt (10 hard rules)
+### The system prompt
 
-The system prompt enforces human-sounding output. Key design decisions:
+The system prompt enforces ghostwriter mode. Key design decisions:
 
 | Rule | Rationale |
 |------|-----------|
-| Write the comment itself — never coaching instructions | "Comment approach" framing caused Claude to output directions like "Share a specific insight…" instead of the actual comment text |
+| Ghostwriter identity framing | Opening line establishes the model's role as someone who writes finished copy, not a coach or advisor |
+| Explicit WRONG examples from production | Enumerates the exact meta-prefix patterns observed ("Extend the insight:", "Possible angle:", "Deepen the insight:") so the model can't misclassify them as acceptable |
+| CORRECT OUTPUT EXAMPLE | Positive anchor; demonstrated format is followed more reliably by Haiku than abstract prohibition rules alone |
 | First-person voice | The user pastes this directly — it must be written as them |
 | 2–3 sentences maximum | LinkedIn comments that run longer read as AI-generated |
 | Never open with a compliment | "Great post", "This resonates", "Well said" are immediate AI signals |
 | No em dashes (—) | Claude Haiku's most common AI tell; replace with comma or period |
 | Banned vocabulary | "certainly", "absolutely", "I'd love to", "fantastic", "delve", "leverage" as a verb, "game-changer", "paradigm shift", "groundbreaking", "transformative", "kudos" |
 | Business context is perspective-only | Context informs the comment's angle — must never appear in the comment as a mention of the user's company |
-| No meta-labels | No "Comment:", "Here's the comment:", "Suggested comment:" prefixes |
 | Raw text output | No surrounding quotes, no asterisks, no markdown |
 | Sound like a real person | The test: would a real B2B professional write this? |
 
@@ -849,29 +850,28 @@ The system prompt enforces human-sounding output. Key design decisions:
 
 Behavioral rules enforced via the `system` parameter are more reliably followed than rules buried inside a long user message. Post content from LinkedIn (which could contain prompt injection attempts) is isolated in the user message and cannot override the system rules.
 
-### Adversarial failure modes (pre-fix catalogue)
+### Adversarial failure modes
 
-These were the documented failure patterns before the Session 13 rewrite. All are resolved by the current system prompt:
-
-| Failure | Root cause |
-|---------|-----------|
-| Coaching instructions instead of comment text | "comment approach" framing signalled Claude to describe HOW to comment |
-| Em dashes throughout | No prohibition; Claude Haiku uses them by default |
-| Compliment openers ("Great post…") | No rule against them |
-| AI hollow phrases ("this really resonates") | No vocabulary constraint |
-| Business pitch bleed | Business context not isolated; "no pitching" rule too vague |
-| Run-on single sentence | No length constraint |
-| "Comment:" label prepended | Claude sometimes labels output despite instructions |
-| Outer quotes wrapping the text | UI displays in quotes already; Claude also quoting = double-wrapped |
-| AI-isms (leverage, paradigm shift) | No explicit blacklist |
+| Failure | Root cause | Fix |
+|---------|-----------|-----|
+| Coaching instructions instead of comment text | "comment approach" framing signalled Claude to describe HOW to comment | Session 13: reframed as ghostwriter writing the comment itself |
+| Meta-coaching prefixes ("Extend the insight:", "Possible angle:", "Deepen the insight:") | Abstract Rule 1 prohibition didn't enumerate these specific patterns; Haiku didn't classify them as banned | Session 16: added explicit WRONG examples from production + `META_PREFIX_RE` runtime strip |
+| Em dashes throughout | No prohibition; Claude Haiku uses them by default | Session 13: explicit prohibition |
+| Compliment openers ("Great post…") | No rule against them | Session 13: banned |
+| AI hollow phrases ("this really resonates") | No vocabulary constraint | Session 13: banned |
+| Business pitch bleed | Business context not isolated; "no pitching" rule too vague | Session 13: context isolated with explicit "never mention" rule |
+| Run-on single sentence | No length constraint | Session 13: 2–3 sentence maximum |
+| "Comment:" label prepended | Claude sometimes labels output despite instructions | Session 13: banned; Session 16: also covered by META_PREFIX_RE |
+| Outer quotes wrapping the text | UI displays in quotes already; Claude also quoting = double-wrapped | Session 13: post-processing strip |
+| AI-isms (leverage, paradigm shift) | No explicit blacklist | Session 13: blacklist added |
 
 ### Updating the comment prompt
 
 When updating the system prompt:
 1. Edit `SYSTEM_PROMPT` in `app/api/posts/[id]/suggest/route.ts`
 2. Do not change the credit gating logic or Airtable field name (`Comment Approach`)
-3. Test against the 10 failure mode checks listed above before deploying
-4. Update this document's adversarial table if new failure modes are discovered
+3. If a new meta-prefix failure is observed in production, add it to both the WRONG examples list in the system prompt AND the `META_PREFIX_RE` regex
+4. Update this document's adversarial table when new failure modes are discovered
 
 ### UI display
 
@@ -942,6 +942,31 @@ To add a new inbox action type (e.g., `bulk_engage`):
 **Agent knowledge updated (`app/api/inbox-agent/route.ts`):**
 - Added "Feed Control Bar" section explaining search, sort, score filter, Select, and Refresh with example Q&A pairs
 - Updated "Bulk Selection Mode" section: corrected Select button location, removed pill reference, updated action button location description, added "power move" tip (filter → Select all → Skip N), added example answer for "Where did the bottom pill go?"
+
+---
+
+### Session 16 — April 2026 (Comment suggestion regression fix — meta-coaching prefixes)
+
+**Bug:** Production suggested comments were still outputting ghostwriter meta-prefixes despite the Session 13 rewrite. Screenshots confirmed outputs like "Extend the insight: In your experience...", "Possible angle: Ask about the offer mechanics...", "Deepen the insight: If ownership is the lever...". These are coaching directions to the user, not first-person comments ready to post.
+
+**Root cause:** The Session 13 Rule 1 prohibition ("never write instructions such as 'Share a specific insight...'") was too abstract. Haiku does not map "Extend the insight:" to that description — it categorizes these as structural labels, not instructions. Rule 8 only banned "Comment:", "Here's the comment:", "Suggested comment:" (output-labeling patterns), not strategic-framing patterns. The model had no concrete negative examples of the actual bad outputs.
+
+**Fix: two layers**
+
+1. **System prompt rewrite (`SYSTEM_PROMPT`)** — Replaced abstract rules with explicit WRONG examples using the exact strings from production screenshots. Added a CORRECT OUTPUT EXAMPLE as a positive anchor (demonstrated format is more reliably followed than prohibition lists alone). Reinforced ghostwriter identity in the opening line.
+
+2. **Runtime backstop (`META_PREFIX_RE`)** — Regex strips known meta-coaching prefixes at the string level after generation, then re-capitalizes the first letter. Catches any variant that survives the prompt, without requiring a new deploy for each new pattern.
+
+**Changes (`app/api/posts/[id]/suggest/route.ts`):**
+- `SYSTEM_PROMPT` rewritten: explicit WRONG examples list (10 bad-output patterns), CORRECT OUTPUT EXAMPLE, ghostwriter identity framing
+- `META_PREFIX_RE` added to post-processing block covering: "extend the insight", "possible angle", "deepen the insight", "build on this", "challenge the premise", "add context", "try this", "here's a comment", "suggested comment", "comment", "approach", "angle", "option N"
+- Re-capitalization added after prefix strip
+
+**Changes (`docs/scout-agent.md`):**
+- System prompt table updated to reflect new ghostwriter-mode design
+- How-it-works step 6 updated to describe META_PREFIX_RE backstop
+- Adversarial failure modes table updated with Session 16 entries and fix column
+- Update guide updated: add to both WRONG examples list AND META_PREFIX_RE when new patterns emerge
 
 ---
 
