@@ -62,6 +62,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getTenantConfig, tenantError } from '@/lib/tenant'
 import { writeAuditLog } from '@/lib/audit-log'
 import { buildTrialReactivationEmail } from '@/lib/emails'
+import { ghlMoveToArchived, ghlRestoreFromArchived } from '@/lib/ghl-platform'
 
 const ANTHROPIC_KEY      = process.env.ANTHROPIC_API_KEY        || ''
 const PLATFORM_TOKEN     = process.env.PLATFORM_AIRTABLE_TOKEN  || ''
@@ -85,7 +86,7 @@ Your job: help Mike manage his customer base efficiently, surface risks before t
 
 ## Platform architecture (full reference)
 
-**Stack:** Next.js 14 App Router · Vercel Pro · Airtable (single base: appZWp7QdPptIOUYB) · Apify (LinkedIn/Facebook scraping) · Claude (AI scoring + agent) · Stripe (billing) · Resend (transactional email) · Slack (admin alerts)
+**Stack:** Next.js 14 App Router · Vercel Pro · Airtable (single base: appZWp7QdPptIOUYB) · Apify (LinkedIn/Facebook scraping) · Claude (AI scoring + agent) · Stripe (billing) · Resend (transactional email) · Slack (admin alerts) · GoHighLevel (user lifecycle pipeline)
 
 **Repository:** BrightLinkConsulting/clientbloom-social-listener (GitHub) → Vercel project: cb-dashboard (prj_ST1V7wsPjRbwhnRwIwJ6hJ5z2blK)
 
@@ -236,6 +237,34 @@ Sub-accounts share the primary's Tenant ID. They have their own login credential
 
 ---
 
+## GHL Pipeline (SCOUT by ClientBloom)
+
+Scout maintains a parallel CRM pipeline in Mike's GHL account (ClientBloom sub-account, location hz6swxxqV8ZMTuyTG0hP). Every Scout user lifecycle event is mirrored to GHL automatically.
+
+**Pipeline:** SCOUT by ClientBloom (pipeline ID: 5xyEuDU0n5Fgq5n6BoKf)
+**Integration key:** SCOUT_GHL_API_KEY env var (GHL Private Integration token)
+
+Stage mapping:
+| Stage | Trigger |
+|-------|---------|
+| Trial User | Trial signup (/api/trial/start) |
+| Paid Subscriber | Purchase or trial-to-paid conversion (Stripe webhook) |
+| Expired Trial | Trial expiry (trial-check cron) |
+| Archived | Admin archive (admin panel PATCH or CSM agent) |
+
+When you archive a tenant via the CSM agent, the GHL opportunity automatically moves to Archived. When you unarchive, it moves back to Paid Subscriber (for paid plans) or Trial User (for Trial plan).
+
+**Slack admin alerts** (channel C0866581X1S, using SLACK_WEBHOOK_URL):
+- New trial signup → 🎉 alert fires immediately
+- Purchase/conversion → 💰 alert fires immediately
+- Scan errors, watchdog alerts, service flag digests → existing scan health alerts
+
+The GHL integration is always non-fatal — if GHL is unreachable, Scout operations are not affected. But if GHL contacts are missing (e.g., a user who signed up before this integration was deployed), stage moves will silently no-op and log a warning in Vercel function logs.
+
+Note: This is the PLATFORM-LEVEL GHL integration (Mike's Scout management account). It is separate from the per-tenant Agency GHL integration that Agency-tier customers can configure via their own GHL keys in Settings.
+
+---
+
 ## Rollback and safety
 
 **Current production commit (main branch):** e4f5191
@@ -351,6 +380,12 @@ async function executeAction(
       })
       if (!r.ok) return { ok: false, message: `Archive failed: ${await r.text()}` }
       await writeAuditLog({ eventType: 'archive_tenant', adminEmail, targetEmail: action.tenantEmail, targetRecordId: action.tenantRecordId, notes: { source: 'csm_agent', archivedAt: now } })
+      // GHL: move to Archived stage (non-fatal)
+      if (action.tenantEmail && action.tenantRecordId) {
+        await ghlMoveToArchived(action.tenantEmail, action.tenantRecordId).catch(e =>
+          console.error('[csm-agent] GHL archive move failed:', e.message)
+        )
+      }
       return { ok: true, message: `Archived ${action.tenantEmail}.` }
     }
 
@@ -362,6 +397,13 @@ async function executeAction(
       })
       if (!r.ok) return { ok: false, message: `Unarchive failed: ${await r.text()}` }
       await writeAuditLog({ eventType: 'unarchive_tenant', adminEmail, targetEmail: action.tenantEmail, targetRecordId: action.tenantRecordId, notes: { source: 'csm_agent' } })
+      // GHL: restore to appropriate active stage based on plan (non-fatal)
+      if (action.tenantEmail && action.tenantRecordId) {
+        const plan = action.payload?.plan || 'Trial'
+        await ghlRestoreFromArchived(action.tenantEmail, plan, action.tenantRecordId).catch(e =>
+          console.error('[csm-agent] GHL restore from archived failed:', e.message)
+        )
+      }
       return { ok: true, message: `Unarchived ${action.tenantEmail}.` }
     }
 

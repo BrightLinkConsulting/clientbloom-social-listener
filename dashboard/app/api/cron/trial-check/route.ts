@@ -237,8 +237,8 @@ export async function GET(req: Request) {
             await sendEmail(ADMIN_EMAIL, adminAlert.subject, adminAlert.html)
           }
 
-          // GHL: move to Expired Trial stage (non-fatal)
-          ghlMoveToExpired(email).catch(e =>
+          // GHL: move to Expired Trial stage — awaited so it completes before cron loop continues
+          await ghlMoveToExpired(email, record.id).catch(e =>
             console.error(`[trial-check] GHL move to expired failed for ${email}:`, e.message)
           )
 

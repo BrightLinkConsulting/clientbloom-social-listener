@@ -8,20 +8,25 @@
  * Pipeline: "SCOUT by ClientBloom"  (id: 5xyEuDU0n5Fgq5n6BoKf)
  * Location: ClientBloom sub-account (id: hz6swxxqV8ZMTuyTG0hP)
  *
- * Stage IDs (hardcoded — these are fixed for the Scout lifecycle pipeline):
- *   Trial User     → df3a8ce5-b1b9-458e-8dc6-29a5171e529b
- *   Paid Subscriber→ acdbc33a-3a44-4e57-84bb-2406b848f930
- *   Expired Trial  → 69aef152-bd86-4b54-9d73-8e29cc2fa03f
- *   Archived       → 652e9e98-c9f9-4cc8-85a5-bdf9ec650c7c
+ * Stage IDs (hardcoded — fixed for the Scout lifecycle pipeline):
+ *   Trial User      → df3a8ce5-b1b9-458e-8dc6-29a5171e529b
+ *   Paid Subscriber → acdbc33a-3a44-4e57-84bb-2406b848f930
+ *   Expired Trial   → 69aef152-bd86-4b54-9d73-8e29cc2fa03f
+ *   Archived        → 652e9e98-c9f9-4cc8-85a5-bdf9ec650c7c
+ *
+ * GHL ID persistence:
+ *   GHL Opportunity ID and GHL Contact ID are stored in the Tenants Airtable
+ *   record on creation. All subsequent stage moves read the stored opportunity ID
+ *   directly — no GHL search queries are used. This avoids a bug in GHL's search
+ *   API where contact_id filtering returns 0 results for newly created pipelines.
  *
  * Required env vars:
- *   SCOUT_GHL_API_KEY  — Private Integration token for the ClientBloom sub-account.
- *                        Create at: GHL > Settings > Private Integrations > Create
- *                        Scope required: contacts.write, contacts.readonly,
- *                                        opportunities.write, opportunities.readonly
+ *   SCOUT_GHL_API_KEY            — Private Integration token (ClientBloom sub-account)
+ *   PLATFORM_AIRTABLE_TOKEN      — to read/write GHL IDs in the Tenants table
+ *   PLATFORM_AIRTABLE_BASE_ID    — appZWp7QdPptIOUYB
  *
- * If SCOUT_GHL_API_KEY is not set, all functions no-op silently so Vercel
- * deploys without the key will not error.
+ * If SCOUT_GHL_API_KEY is not set, all functions no-op silently.
+ * All public functions must be awaited at call sites — never fire-and-forget.
  */
 
 const GHL_BASE    = 'https://services.leadconnectorhq.com'
@@ -37,7 +42,12 @@ export const GHL_STAGE = {
   archived: '652e9e98-c9f9-4cc8-85a5-bdf9ec650c7c',
 } as const
 
-type ScoutStage = keyof typeof GHL_STAGE
+// Paid plan names that map to the "Paid Subscriber" stage on restore/unarchive
+const PAID_PLANS = new Set([
+  'Scout Starter', 'Scout Pro', 'Scout Agency',
+  'Complimentary', 'Owner',
+  'Scout $79', 'Scout $49',  // legacy grandfathered plans
+])
 
 function ghlHeaders(apiKey: string) {
   return {
@@ -53,48 +63,49 @@ function parseName(fullName: string): { firstName: string; lastName: string } {
   return { firstName: parts[0], lastName: parts.slice(1).join(' ') }
 }
 
-// ── Contact lookup ─────────────────────────────────────────────────────────────
+// ── Airtable helpers (for persisting GHL IDs) ──────────────────────────────────
 
-async function findContactByEmail(apiKey: string, email: string): Promise<string | null> {
+async function readGhlIds(airtableRecordId: string): Promise<{ contactId: string | null; oppId: string | null }> {
+  const token = process.env.PLATFORM_AIRTABLE_TOKEN   || ''
+  const base  = process.env.PLATFORM_AIRTABLE_BASE_ID || ''
+  if (!token || !base) return { contactId: null, oppId: null }
+
   try {
-    const url =
-      `${GHL_BASE}/contacts/?locationId=${encodeURIComponent(GHL_LOCATION_ID)}` +
-      `&query=${encodeURIComponent(email)}&limit=5`
-    const res  = await fetch(url, { headers: ghlHeaders(apiKey) })
-    if (!res.ok) return null
+    const res  = await fetch(`https://api.airtable.com/v0/${base}/Tenants/${airtableRecordId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    if (!res.ok) return { contactId: null, oppId: null }
     const data = await res.json()
-    const contacts: any[] = data.contacts || []
-    // Match on email field specifically (GHL query also searches name/phone)
-    const match = contacts.find(
-      c => (c.email || '').toLowerCase() === email.toLowerCase()
-    )
-    return match?.id || null
+    return {
+      contactId: (data.fields?.['GHL Contact ID'] as string) || null,
+      oppId:     (data.fields?.['GHL Opportunity ID'] as string) || null,
+    }
   } catch (e: any) {
-    console.error('[ghl-platform] findContactByEmail error:', e.message)
-    return null
+    console.error('[ghl-platform] readGhlIds error:', e.message)
+    return { contactId: null, oppId: null }
   }
 }
 
-// ── Opportunity lookup ─────────────────────────────────────────────────────────
+async function storeGhlIds(airtableRecordId: string, contactId: string, oppId: string): Promise<void> {
+  const token = process.env.PLATFORM_AIRTABLE_TOKEN   || ''
+  const base  = process.env.PLATFORM_AIRTABLE_BASE_ID || ''
+  if (!token || !base) return
 
-async function findOpportunityByContact(apiKey: string, contactId: string): Promise<string | null> {
   try {
-    const url =
-      `${GHL_BASE}/opportunities/search?location_id=${encodeURIComponent(GHL_LOCATION_ID)}` +
-      `&pipeline_id=${encodeURIComponent(GHL_PIPELINE_ID)}` +
-      `&contact_id=${encodeURIComponent(contactId)}&limit=5`
-    const res  = await fetch(url, { headers: ghlHeaders(apiKey) })
-    if (!res.ok) return null
-    const data = await res.json()
-    const opps: any[] = data.opportunities || []
-    return opps[0]?.id || null
+    const res = await fetch(`https://api.airtable.com/v0/${base}/Tenants/${airtableRecordId}`, {
+      method:  'PATCH',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ fields: { 'GHL Contact ID': contactId, 'GHL Opportunity ID': oppId } }),
+    })
+    if (!res.ok) {
+      console.error('[ghl-platform] storeGhlIds failed:', res.status, await res.text().catch(() => ''))
+    }
   } catch (e: any) {
-    console.error('[ghl-platform] findOpportunityByContact error:', e.message)
-    return null
+    console.error('[ghl-platform] storeGhlIds error:', e.message)
   }
 }
 
-// ── Upsert contact + create opportunity ───────────────────────────────────────
+// ── GHL API helpers ────────────────────────────────────────────────────────────
 
 async function upsertContact(apiKey: string, email: string, name: string): Promise<string | null> {
   try {
@@ -104,7 +115,7 @@ async function upsertContact(apiKey: string, email: string, name: string): Promi
       headers: ghlHeaders(apiKey),
       body: JSON.stringify({
         locationId: GHL_LOCATION_ID,
-        email,
+        email:      email.toLowerCase(),
         firstName,
         lastName,
         name,
@@ -117,7 +128,9 @@ async function upsertContact(apiKey: string, email: string, name: string): Promi
       return null
     }
     const data = await res.json()
-    return data?.contact?.id || data?.id || null
+    const id = data?.contact?.id || data?.id || null
+    if (!id) console.error('[ghl-platform] upsertContact: unexpected response shape:', JSON.stringify(data).slice(0, 300))
+    return id
   } catch (e: any) {
     console.error('[ghl-platform] upsertContact error:', e.message)
     return null
@@ -125,10 +138,10 @@ async function upsertContact(apiKey: string, email: string, name: string): Promi
 }
 
 async function createOpportunity(
-  apiKey:      string,
-  contactId:   string,
-  stageId:     string,
-  name:        string,
+  apiKey:    string,
+  contactId: string,
+  stageId:   string,
+  name:      string,
 ): Promise<string | null> {
   try {
     const res = await fetch(`${GHL_BASE}/opportunities/`, {
@@ -148,23 +161,21 @@ async function createOpportunity(
       return null
     }
     const data = await res.json()
-    return data?.opportunity?.id || data?.id || null
+    const id = data?.opportunity?.id || data?.id || null
+    if (!id) console.error('[ghl-platform] createOpportunity: unexpected response shape:', JSON.stringify(data).slice(0, 300))
+    return id
   } catch (e: any) {
     console.error('[ghl-platform] createOpportunity error:', e.message)
     return null
   }
 }
 
-async function updateOpportunityStage(
-  apiKey:        string,
-  opportunityId: string,
-  stageId:       string,
-): Promise<boolean> {
+async function updateOpportunityStage(apiKey: string, oppId: string, stageId: string): Promise<boolean> {
   try {
-    const res = await fetch(`${GHL_BASE}/opportunities/${opportunityId}`, {
+    const res = await fetch(`${GHL_BASE}/opportunities/${oppId}`, {
       method:  'PUT',
       headers: ghlHeaders(apiKey),
-      body: JSON.stringify({ pipelineStageId: stageId }),
+      body:    JSON.stringify({ pipelineStageId: stageId }),
     })
     if (!res.ok) {
       console.error('[ghl-platform] updateOpportunityStage failed:', res.status, await res.text().catch(() => ''))
@@ -177,77 +188,136 @@ async function updateOpportunityStage(
   }
 }
 
+// ── Internal: move stage using stored Airtable IDs ────────────────────────────
+
+async function moveStage(
+  apiKey:            string,
+  email:             string,
+  stageId:           string,
+  airtableRecordId:  string,
+  fallbackPlan?:     string,
+): Promise<void> {
+  const { contactId: storedContactId, oppId: storedOppId } = await readGhlIds(airtableRecordId)
+
+  if (storedOppId) {
+    // Fast path: use stored opportunity ID directly
+    await updateOpportunityStage(apiKey, storedOppId, stageId)
+    console.log(`[ghl-platform] Moved stage for ${email} → ${stageId.slice(0, 8)}... (stored ID)`)
+    return
+  }
+
+  // Slow path: stored ID missing (legacy tenant or Airtable write failed at creation).
+  // Upsert contact and create a new opportunity at the target stage.
+  console.warn(`[ghl-platform] No stored GHL opp ID for ${email} (${airtableRecordId}) — creating new`)
+  const contactId = storedContactId || await upsertContact(apiKey, email, fallbackPlan || 'Scout User')
+  if (!contactId) return
+
+  const oppName = fallbackPlan ? `${fallbackPlan} — ${email}` : `Scout — ${email}`
+  const newOppId = await createOpportunity(apiKey, contactId, stageId, oppName)
+  if (newOppId && contactId) {
+    await storeGhlIds(airtableRecordId, contactId, newOppId)
+  }
+}
+
 // ── Public API ─────────────────────────────────────────────────────────────────
 
 /**
- * Called on trial signup. Creates a contact in GHL and places them in the
- * "Trial User" stage of the Scout pipeline. Non-fatal — errors are logged only.
+ * Called on trial signup.
+ * Creates GHL contact + opportunity, stores both IDs in Airtable.
+ * Guards against duplicates — safe to retry.
+ * Must be awaited at the call site.
  */
-export async function ghlAddTrialUser(email: string, name: string): Promise<void> {
+export async function ghlAddTrialUser(
+  email:            string,
+  name:             string,
+  airtableRecordId: string,
+): Promise<void> {
   const apiKey = process.env.SCOUT_GHL_API_KEY || ''
   if (!apiKey) return
+
+  // Duplicate guard: if IDs already stored (retry), skip creation
+  const existing = await readGhlIds(airtableRecordId)
+  if (existing.oppId) {
+    console.log(`[ghl-platform] Trial opportunity already exists for ${email} — skipping create`)
+    return
+  }
 
   const contactId = await upsertContact(apiKey, email, name)
   if (!contactId) return
 
-  await createOpportunity(apiKey, contactId, GHL_STAGE.trial, `Scout Trial — ${name || email}`)
-  console.log(`[ghl-platform] Added trial user to GHL: ${email}`)
+  const oppId = await createOpportunity(apiKey, contactId, GHL_STAGE.trial, `Scout Trial — ${name || email}`)
+  if (oppId) {
+    await storeGhlIds(airtableRecordId, contactId, oppId)
+    console.log(`[ghl-platform] Added trial user to GHL: ${email}`)
+  }
 }
 
 /**
  * Called on paid conversion (trial → paid, or direct purchase).
- * Upserts contact, then moves or creates the Scout pipeline opportunity to
- * the "Paid Subscriber" stage. Non-fatal.
+ * Upserts contact, stores GHL IDs if missing, moves or creates opportunity at Paid stage.
+ * Must be awaited at the call site.
  */
-export async function ghlMoveToPaid(email: string, name: string, plan: string): Promise<void> {
+export async function ghlMoveToPaid(
+  email:            string,
+  name:             string,
+  plan:             string,
+  airtableRecordId: string,
+): Promise<void> {
   const apiKey = process.env.SCOUT_GHL_API_KEY || ''
   if (!apiKey) return
 
-  const contactId = await upsertContact(apiKey, email, name)
-  if (!contactId) return
+  const { oppId: storedOppId, contactId: storedContactId } = await readGhlIds(airtableRecordId)
 
-  const oppId = await findOpportunityByContact(apiKey, contactId)
-  if (oppId) {
-    await updateOpportunityStage(apiKey, oppId, GHL_STAGE.paid)
-  } else {
-    // Direct purchase — no prior trial opportunity. Create at paid stage.
-    await createOpportunity(apiKey, contactId, GHL_STAGE.paid, `Scout ${plan} — ${name || email}`)
+  if (storedOppId) {
+    // Move existing opportunity (trial conversion)
+    await updateOpportunityStage(apiKey, storedOppId, GHL_STAGE.paid)
+    console.log(`[ghl-platform] Moved to Paid Subscriber in GHL: ${email} (${plan})`)
+    return
   }
-  console.log(`[ghl-platform] Moved to Paid Subscriber in GHL: ${email} (${plan})`)
+
+  // No stored opp — direct purchase (no prior trial) or first time.
+  const contactId = storedContactId || await upsertContact(apiKey, email, name)
+  if (!contactId) return
+
+  const oppId = await createOpportunity(apiKey, contactId, GHL_STAGE.paid, `Scout ${plan} — ${name || email}`)
+  if (oppId) {
+    await storeGhlIds(airtableRecordId, contactId, oppId)
+    console.log(`[ghl-platform] Created Paid Subscriber in GHL: ${email} (${plan})`)
+  }
 }
 
 /**
- * Called by trial-check cron when a trial expires.
- * Moves the Scout pipeline opportunity to "Expired Trial". Non-fatal.
+ * Called by trial-check cron on trial expiry.
+ * Must be awaited at the call site.
  */
-export async function ghlMoveToExpired(email: string): Promise<void> {
+export async function ghlMoveToExpired(email: string, airtableRecordId: string): Promise<void> {
   const apiKey = process.env.SCOUT_GHL_API_KEY || ''
   if (!apiKey) return
-
-  const contactId = await findContactByEmail(apiKey, email)
-  if (!contactId) return
-
-  const oppId = await findOpportunityByContact(apiKey, contactId)
-  if (!oppId) return
-
-  await updateOpportunityStage(apiKey, oppId, GHL_STAGE.expired)
-  console.log(`[ghl-platform] Moved to Expired Trial in GHL: ${email}`)
+  await moveStage(apiKey, email, GHL_STAGE.expired, airtableRecordId, 'Trial Expired')
 }
 
 /**
- * Called when a tenant is archived via the admin panel.
- * Moves the Scout pipeline opportunity to "Archived". Non-fatal.
+ * Called when a tenant is archived via admin panel or CSM agent.
+ * Must be awaited at the call site.
  */
-export async function ghlMoveToArchived(email: string): Promise<void> {
+export async function ghlMoveToArchived(email: string, airtableRecordId: string): Promise<void> {
   const apiKey = process.env.SCOUT_GHL_API_KEY || ''
   if (!apiKey) return
+  await moveStage(apiKey, email, GHL_STAGE.archived, airtableRecordId)
+}
 
-  const contactId = await findContactByEmail(apiKey, email)
-  if (!contactId) return
-
-  const oppId = await findOpportunityByContact(apiKey, contactId)
-  if (!oppId) return
-
-  await updateOpportunityStage(apiKey, oppId, GHL_STAGE.archived)
-  console.log(`[ghl-platform] Moved to Archived in GHL: ${email}`)
+/**
+ * Called when a tenant is unarchived.
+ * Moves to Paid Subscriber for paid plans, Trial User for trial plan.
+ * Must be awaited at the call site.
+ */
+export async function ghlRestoreFromArchived(
+  email:            string,
+  plan:             string,
+  airtableRecordId: string,
+): Promise<void> {
+  const apiKey = process.env.SCOUT_GHL_API_KEY || ''
+  if (!apiKey) return
+  const targetStage = PAID_PLANS.has(plan) ? GHL_STAGE.paid : GHL_STAGE.trial
+  await moveStage(apiKey, email, targetStage, airtableRecordId, plan)
 }

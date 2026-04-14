@@ -21,6 +21,7 @@ import { NextResponse } from 'next/server'
 import { getTenantConfig, tenantError } from '@/lib/tenant'
 import { cascadeDeleteTenant }          from '@/lib/cascade-delete'
 import { writeAuditLog }                from '@/lib/audit-log'
+import { ghlMoveToArchived, ghlRestoreFromArchived } from '@/lib/ghl-platform'
 import bcrypt from 'bcryptjs'
 
 const PLATFORM_TOKEN    = process.env.PLATFORM_AIRTABLE_TOKEN  || ''
@@ -321,6 +322,13 @@ export async function PATCH(req: Request) {
         notes:           { archivedAt: now },
       })
 
+      // GHL pipeline: move to Archived stage (non-fatal)
+      if (targetEmail) {
+        await ghlMoveToArchived(targetEmail, id).catch(e =>
+          console.error('[admin/tenants] GHL archive move failed:', e.message)
+        )
+      }
+
       return NextResponse.json({ ok: true, archivedAt: now })
     }
 
@@ -346,6 +354,14 @@ export async function PATCH(req: Request) {
         targetTenantId: targetTenantId || undefined,
         targetRecordId: id,
       })
+
+      // GHL pipeline: restore to appropriate active stage based on plan (non-fatal)
+      if (targetEmail) {
+        const currentPlan = body.plan || plan || 'Trial'
+        await ghlRestoreFromArchived(targetEmail, currentPlan, id).catch(e =>
+          console.error('[admin/tenants] GHL restore from archived failed:', e.message)
+        )
+      }
 
       return NextResponse.json({ ok: true })
     }

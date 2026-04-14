@@ -248,13 +248,13 @@ export async function POST(req: NextRequest) {
     console.error('[trial/start] Admin notification failed:', e.message)
   )
 
-  // Slack alert + GHL pipeline entry (non-fatal, fire-and-forget)
-  sendTrialSignupAlert(email, name.trim()).catch(e =>
-    console.error('[trial/start] Slack trial alert failed:', e.message)
-  )
-  ghlAddTrialUser(email, name.trim()).catch(e =>
-    console.error('[trial/start] GHL add trial user failed:', e.message)
-  )
+  // Slack alert + GHL pipeline entry — awaited to ensure completion before Vercel
+  // terminates the function after response is sent. Promise.allSettled so neither
+  // can block or crash the other.
+  await Promise.allSettled([
+    sendTrialSignupAlert(email, name.trim()),
+    ghlAddTrialUser(email, name.trim(), tenantRecord.id),
+  ])
 
   console.log(`[trial/start] New trial account created: ${email}, expires: ${trialEndsAt.toISOString()}`)
 
