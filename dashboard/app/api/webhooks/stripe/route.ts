@@ -32,6 +32,8 @@ import {
   buildAdminPaymentFailedEmail,
   buildCancellationEmail,
 } from '@/lib/emails'
+import { sendPurchaseAlert } from '@/lib/notify'
+import { ghlMoveToPaid }     from '@/lib/ghl-platform'
 
 // Tier → plan name mapping (duplicated from lib/tier for use without process.env at module scope)
 const TIER_TO_PLAN: Record<string, string> = {
@@ -265,6 +267,13 @@ export async function POST(req: NextRequest) {
               })
             }
           }
+          // Slack alert + GHL pipeline move (trial → paid)
+          sendPurchaseAlert(email, companyName, planName).catch(e =>
+            console.error('[webhook] Slack purchase alert (trial conversion) failed:', e.message)
+          )
+          ghlMoveToPaid(email, companyName, planName).catch(e =>
+            console.error('[webhook] GHL move to paid (trial conversion) failed:', e.message)
+          )
           break
         }
 
@@ -301,6 +310,14 @@ export async function POST(req: NextRequest) {
           email, name: companyName, plan: planName, subId: subId || '',
         })
         await sendAdminEmail(purchaseAlert.subject, purchaseAlert.html)
+
+        // Slack alert + GHL pipeline entry (direct purchase, no prior trial)
+        sendPurchaseAlert(email, companyName, planName).catch(e =>
+          console.error('[webhook] Slack purchase alert (direct purchase) failed:', e.message)
+        )
+        ghlMoveToPaid(email, companyName, planName).catch(e =>
+          console.error('[webhook] GHL add paid user (direct purchase) failed:', e.message)
+        )
 
         console.log(`[webhook] Provisioned new tenant: ${email}`)
         break

@@ -33,6 +33,7 @@ import {
   buildTrialWinBackEmail,
   buildAdminTrialExpiredEmail,
 } from '@/lib/emails'
+import { ghlMoveToExpired } from '@/lib/ghl-platform'
 
 const PLATFORM_TOKEN = process.env.PLATFORM_AIRTABLE_TOKEN   || ''
 const PLATFORM_BASE  = process.env.PLATFORM_AIRTABLE_BASE_ID || ''
@@ -235,6 +236,11 @@ export async function GET(req: Request) {
             const adminAlert  = buildAdminTrialExpiredEmail({ email, name: companyName })
             await sendEmail(ADMIN_EMAIL, adminAlert.subject, adminAlert.html)
           }
+
+          // GHL: move to Expired Trial stage (non-fatal)
+          ghlMoveToExpired(email).catch(e =>
+            console.error(`[trial-check] GHL move to expired failed for ${email}:`, e.message)
+          )
 
           results.expired++
           console.log(`[trial-check] Marked ${email} as trial_expired`)

@@ -418,3 +418,31 @@ export async function sendLingeringAccountsDigest(
 
   await postToSlack(text)
 }
+
+// ── sendTrialSignupAlert ───────────────────────────────────────────────────────
+
+/**
+ * Fire a Slack alert every time a new trial account is created.
+ * Only fires if SLACK_WEBHOOK_URL is set.
+ */
+export async function sendTrialSignupAlert(email: string, name: string): Promise<void> {
+  await postToSlack(
+    `:tada: *New Scout Trial* — ${name || email}\n` +
+    `Email: \`${email}\`\n` +
+    `<${BASE_URL}|Open Scout Admin>`,
+  )
+}
+
+// ── sendPurchaseAlert ─────────────────────────────────────────────────────────
+
+/**
+ * Fire a Slack alert every time a paid subscription is created or a trial converts.
+ * Only fires if SLACK_WEBHOOK_URL is set.
+ */
+export async function sendPurchaseAlert(email: string, name: string, plan: string): Promise<void> {
+  await postToSlack(
+    `:moneybag: *New Scout Subscriber* — ${name || email} on *${plan}*\n` +
+    `Email: \`${email}\`\n` +
+    `<${BASE_URL}|Open Scout Admin>`,
+  )
+}

@@ -21,6 +21,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { provisionNewTenant }        from '@/lib/provision'
 import { escapeAirtableString }      from '@/lib/tier'
 import { buildTrialDay1Email, buildAdminNewTrialEmail } from '@/lib/emails'
+import { sendTrialSignupAlert }                         from '@/lib/notify'
+import { ghlAddTrialUser }                              from '@/lib/ghl-platform'
 
 const PLATFORM_TOKEN = process.env.PLATFORM_AIRTABLE_TOKEN   || ''
 const PLATFORM_BASE  = process.env.PLATFORM_AIRTABLE_BASE_ID || ''
@@ -244,6 +246,14 @@ export async function POST(req: NextRequest) {
   )
   await sendAdminNotification(email, name.trim(), trialEndsAt).catch(e =>
     console.error('[trial/start] Admin notification failed:', e.message)
+  )
+
+  // Slack alert + GHL pipeline entry (non-fatal, fire-and-forget)
+  sendTrialSignupAlert(email, name.trim()).catch(e =>
+    console.error('[trial/start] Slack trial alert failed:', e.message)
+  )
+  ghlAddTrialUser(email, name.trim()).catch(e =>
+    console.error('[trial/start] GHL add trial user failed:', e.message)
   )
 
   console.log(`[trial/start] New trial account created: ${email}, expires: ${trialEndsAt.toISOString()}`)
