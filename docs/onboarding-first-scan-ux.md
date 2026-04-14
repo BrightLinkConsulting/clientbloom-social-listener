@@ -109,23 +109,32 @@ The function:
 
 ### `?firstScan=1` — Scan in progress
 
-Shown when the 12s timeout fires first. The user arrives at the feed with a blue banner:
+Shown when the 12s timeout fires first. The user arrives at the feed with a slim blue banner:
 
-> **First scan in progress**  
-> Searching LinkedIn for conversations worth joining — posts will appear here automatically in 30–60 seconds.
+> **Scan in progress — usually 2–3 minutes**  
+> Scout is scanning LinkedIn. While it runs, use the time below to make it smarter for your business.
 
-The banner polls `GET /api/posts?action=New&limit=5` every 5 seconds. When posts appear, the banner dismisses itself and `fetchPosts(true)` is called to load the full list. Auto-dismisses after 2 minutes.
+The banner polls `GET /api/posts?action=New&limit=5` every 5 seconds. When posts appear, the banner dismisses itself and `fetchPosts(true)` is called to load the full list. Auto-dismisses after **5 minutes** (extended from 2 minutes — Apify + scoring can take 3–4 min).
+
+The feed body shows the **Option B directed empty state** (see below) — not a generic spinner.
 
 ### `?firstScan=0` — Scan done, zero posts
 
-Shown when the scan completed but found nothing. The Inbox tab shows a rich empty state:
+Shown when the scan completed but found nothing. The Inbox tab shows the **Option B directed empty state** (see below). A dedicated polling effect also starts (`firstScanZero` polling) because the Vercel serverless function may still be writing posts to Airtable for 60–90 seconds after the `?firstScan=0` redirect.
 
-> **Scout is getting started**  
-> Your first scan searched LinkedIn for relevant conversations. Posts matching your keywords will appear here as Scout continues scanning — usually by end of day.
+### Option B directed empty state (new in Session 17)
 
-Two CTAs:
-- "Add LinkedIn profiles to track" → `/settings?tab=linkedin`
-- "Try scanning again" → triggers another manual scan
+Shown for: `firstScanBanner === true`, `isNewUser === true`, or `firstScanZero === true`.
+
+**Visual:** Small pulsing violet dot + "Scan in progress" label at top. Heading: "Your first scan is running." Body copy explains the 2–3 minute window and frames the wait as an opportunity. 
+
+**Primary CTA:** "Set up AI Scoring →" → `/settings?tab=ai` — the highest-impact thing a new user can do. Configuring the AI Scoring Prompt directly improves every future scan.
+
+**Secondary CTA:** "Review ICP profiles & keywords →" → `/settings?tab=linkedin`
+
+**Footer:** "When you're done, come back here — your posts will be ready."
+
+**Why Option B over an animation/reveal:** Option B turns passive waiting into productive setup. The user returns from Settings to find posts already populated — the reveal happens naturally and is more satisfying because they did something meaningful first. An animation-only approach risks losing users who navigate away before it completes.
 
 ### URL cleanup
 
@@ -205,3 +214,4 @@ All 18 issues were identified and resolved before production push:
 | April 2026 | 18 adversarial issues identified and resolved; build confirmed clean |
 | April 11, 2026 | v2.0: Discover ICPs panel embedded in Step 3; ClientBloom violet brand colors; helper text on Steps 0 and 2; textarea sizing fix; dead "Refresh feed" button removed from feed empty state; race condition fix (scan locked during discovery). Production confirmed: 14 posts in inbox on first run. |
 | April 13, 2026 | Adversarial keyword audit (9 bugs): pack truncation now explained with dropped-term list + upgrade link; preview text shows "X of Y from this pack"; packs synced to 7 terms in both onboarding and settings; settings empty state copy made plan-aware; settings pack loader now shows feedback; Browse suggestions/Starter packs buttons hidden when at cap; upgrade nudge clarifies Starter = same 3-keyword limit; default planLimit fixed to 3. |
+| April 14, 2026 | Session 17 — Option B first-scan empty state. Replaced passive "WHILE YOU WAIT / Go to ICP Profiles" with active directed UX. 3-layer polling added (firstScanZero polling, fallback polling for navigation-away-and-back). firstScanMaxMs extended 2→5 min. firstScanMode state persists across banner dismissal. Banner copy aligned to Option B. recurringCronRunning guard prevents Option B showing during scheduled scans. 15-issue adversarial stress test run; 9 bugs fixed before deploy. Rollback tag: pre-option-b-empty-state. |
