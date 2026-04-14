@@ -237,6 +237,7 @@ export async function POST(req: NextRequest) {
           fields['Status']          = 'Active'
           fields['Trial Ends At']   = null  // clear trial expiry on paid conversion
           fields['Trial Email Day'] = 0     // stop trial email sequence
+          fields['Service Flags']   = '[]'  // clear stale trial_expiring_48h flag immediately
           await updateTenantRecord(existing.id, fields)
           console.log(`[webhook] Trial user ${email} upgraded to ${planName}`)
 

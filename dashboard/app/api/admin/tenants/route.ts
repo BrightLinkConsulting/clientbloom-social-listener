@@ -387,6 +387,14 @@ export async function PATCH(req: Request) {
         )
       }
       fields['Plan'] = plan
+      // Clear stale trial service flags immediately when upgrading from Trial to any paid plan.
+      // Service-check cron will re-evaluate within 4h and restore legitimate paid flags.
+      const PAID_PLANS_SET = new Set(['Scout Starter', 'Scout Pro', 'Scout Agency', 'Owner', 'Complimentary'])
+      if (plan && PAID_PLANS_SET.has(plan)) {
+        fields['Service Flags'] = '[]'
+        fields['Trial Ends At'] = null
+        fields['Trial Email Day'] = 0
+      }
     }
 
     if (apifyPool !== undefined) {

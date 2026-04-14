@@ -427,10 +427,20 @@ async function executeAction(
       const VALID_PLANS = new Set(['Trial', 'Scout Starter', 'Scout Pro', 'Scout Agency', 'Owner', 'Complimentary'])
       if (!VALID_PLANS.has(plan)) return { ok: false, message: `Invalid plan: ${plan}` }
 
+      // Clear trial artifacts when upgrading to a paid plan so stale service flags
+      // don't persist in the Usage tab until the next service-check cron run.
+      const PAID_PLANS_CSM = new Set(['Scout Starter', 'Scout Pro', 'Scout Agency', 'Owner', 'Complimentary'])
+      const planFields: Record<string, any> = { 'Plan': plan }
+      if (PAID_PLANS_CSM.has(plan)) {
+        planFields['Service Flags']   = '[]'
+        planFields['Trial Ends At']   = null
+        planFields['Trial Email Day'] = 0
+      }
+
       const r = await fetch(`${baseTenantsUrl}/${action.tenantRecordId}`, {
         method: 'PATCH',
         headers,
-        body:   JSON.stringify({ fields: { 'Plan': plan } }),
+        body:   JSON.stringify({ fields: planFields }),
       })
       if (!r.ok) return { ok: false, message: `Plan update failed: ${await r.text()}` }
       await writeAuditLog({ eventType: 'plan_change', adminEmail, targetEmail: action.tenantEmail, targetRecordId: action.tenantRecordId, notes: { source: 'csm_agent', newPlan: plan } })

@@ -2237,7 +2237,7 @@ export default function AdminPage() {
                                     ) : t.isFeedOnly ? (
                                       <span className="text-[11px] bg-amber-900/30 text-amber-400 px-1.5 py-0.5 rounded-md font-semibold border border-amber-800/30">Feed only</span>
                                     ) : null}
-                                    {trialBadge(t.trialEndsAt)}
+                                    {trialBadge(t.plan === 'Trial' ? t.trialEndsAt : null)}
                                   </div>
                                 </div>
                               )}

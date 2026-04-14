@@ -69,13 +69,27 @@ function WelcomeContent() {
     if (status === 'loading') return   // wait for session to resolve
 
     async function refreshPlan() {
+      // Poll until Airtable reflects the upgraded plan — the Stripe webhook is
+      // async and may not have fired by the time Stripe redirects here.
+      // Retry up to 5 times with 1.5s gaps (max ~7.5s) before giving up.
+      const MAX_ATTEMPTS = 5
+      let attempts = 0
       try {
-        const res  = await fetch('/api/session/refresh')
-        const data = res.ok ? await res.json() : null
+        while (attempts < MAX_ATTEMPTS) {
+          const res  = await fetch('/api/session/refresh')
+          const data = res.ok ? await res.json() : null
 
-        if (data?.plan) {
-          // Immediately update the JWT so the main feed shows the new plan
-          await updateSession({ plan: data.plan, trialEndsAt: data.trialEndsAt })
+          if (data?.plan && data.plan !== 'Trial') {
+            // Webhook has fired — update JWT immediately so the feed is correct
+            await updateSession({ plan: data.plan, trialEndsAt: data.trialEndsAt })
+            break
+          }
+
+          attempts++
+          if (attempts < MAX_ATTEMPTS) {
+            // Webhook hasn't propagated yet — wait and retry
+            await new Promise(r => setTimeout(r, 1500))
+          }
         }
       } catch {
         // Non-fatal — user can still navigate to the feed manually
