@@ -814,7 +814,7 @@ export async function POST(req: NextRequest) {
     // Parse agent response — extract JSON.
     // The regex handles the case where Claude wraps its output in ```json ... ``` fences,
     // because /\{[\s\S]*\}/ matches the JSON object regardless of surrounding markdown.
-    let agentResponse: { reply?: string; action?: any } = {}
+    let agentResponse: { reply?: string; action?: any; nextTourStep?: number | null } = {}
     try {
       const jsonMatch = rawText.match(/\{[\s\S]*\}/)
       if (jsonMatch) agentResponse = JSON.parse(jsonMatch[0])

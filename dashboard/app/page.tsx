@@ -1907,7 +1907,7 @@ function ScoutAgentPanel({
               style={{ minHeight: '36px', maxHeight: '80px' }}
             />
             <button
-              onClick={sendMessage}
+              onClick={() => sendMessage()}
               disabled={!input.trim() || loading}
               className="shrink-0 w-8 h-8 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
             >
