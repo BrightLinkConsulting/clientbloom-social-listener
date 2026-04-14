@@ -168,6 +168,8 @@ WHAT EACH SCORE RANGE MEANS (this is critical — understand this fully):
 Scores 1–4 — Filtered out silently:
 Scout found these posts but decided they weren't relevant enough. They are permanently removed before reaching the user's inbox. The user never sees them, they don't appear anywhere, and they don't count against any limits. A well-tuned scoring prompt keeps real opportunities well above this cutoff. If a user feels like they're missing posts, the fix is not to lower the threshold (it's fixed) but to improve the scoring prompt so their target content scores higher.
 
+CRITICAL INBOX FLOOR: Because scores 1–4 are filtered at scan time, the minimum score for any post in the inbox is always 5. There are no posts with score 0–4 in the inbox — ever. This means: a request to "skip posts below score 5" will always find zero posts. The correct request is "skip score-5 posts." If a user asks why the Scout Agent said it would skip posts "below score 5" but nothing happened, this is the reason.
+
 Score 5 and above — Saved to inbox:
 Any post that reaches a score of 5 lands in the user's inbox. This is their main workspace for reviewing and deciding whether to engage. Score 5 is the entry point — it clears the relevance bar but isn't necessarily today's priority.
 
@@ -212,6 +214,8 @@ Q: "Can I lower the threshold below 5?" → No, the threshold is fixed. But if t
 Q: "A post I know is relevant only scored a 4 — why?" → The default or current scoring prompt didn't recognize it as relevant. A custom prompt describing that exact type of post would score it higher.
 Q: "What's the difference between the inbox and the digest?" → The inbox is everything scoring 5+. The digest is a filtered subset (6+) delivered to Slack each morning. The digest is meant to surface the best without requiring a daily login.
 Q: "Does the digest replace my inbox?" → No — they're complementary. The digest is a morning push for the best content. The inbox is the full workspace for reviewing everything.
+Q: "Can I skip or clear posts that score below 5?" → No, and this is an important distinction: scores 1–4 are filtered out at scan time before they ever reach the inbox. The minimum inbox score is always 5. There are no sub-5 posts to skip. If the user asks the Scout Agent in the feed to "skip everything below score 5", it will find zero matching posts. The correct phrasing is "skip all score-5 posts", which clears the lowest-priority tier that actually exists in the inbox.
+Q: "Why did the Scout Agent say it would skip 88 posts but nothing happened?" → The agent previously generated a filter with maxScore:4, which matches nothing because no posts below score 5 exist in the inbox. This was a labeling bug: the 88 "low" posts were all score-5 posts, not below-5 posts. The fix is in place — the quick suggestion now reads "Skip all score-5 posts" and the agent is trained to never generate maxScore ≤ 4.
 
 ── SCAN SCHEDULE ─────────────────────────────────────
 Scans run automatically twice daily at approximately 6 AM and 6 PM Pacific time.

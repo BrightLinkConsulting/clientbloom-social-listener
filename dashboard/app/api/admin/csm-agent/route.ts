@@ -169,6 +169,26 @@ Stripe price env vars: STRIPE_PRICE_STARTER, STRIPE_PRICE_PRO, STRIPE_PRICE_AGEN
 
 ---
 
+## Inbox scoring model (product knowledge for customer issue diagnosis)
+
+Scout scores every LinkedIn post 1–10 using Claude AI. The scoring model is critical to understand when diagnosing customer complaints about their inbox.
+
+**Score thresholds (additive/cumulative):**
+- Score 1–4: Filtered out at scan time — permanently removed before writing to Airtable. Never appear in the inbox, Skipped tab, or anywhere visible to the user.
+- Score 5+: Saved to inbox. This is the floor. Every post visible to a user has score ≥ 5.
+- Score 6+: Included in daily Slack digest (3 PM UTC / ~8 AM Pacific).
+- Score 8+: Priority badge in inbox, sorts to top.
+
+**CRITICAL — inbox floor:** The minimum score for any post in any tenant's inbox is always 5. No tenant has posts with score 1–4 in their Airtable Captured Posts records (those are dropped at scan time). If a tenant reports "I can't skip posts below score 5" or "Scout Agent said it would skip posts but nothing happened", the cause is: the agent generated a filter with maxScore ≤ 4, which returns zero results. The fix is in place (commit 68ba794) — the agent now correctly treats "below score 5" requests as maxScore:5.
+
+**Inbox Scout Agent bulk actions:**
+- bulk_skip: moves posts to Skipped (Action='Skipped') — requires confirmation, always reversible
+- bulk_archive: hides posts permanently — requires confirmation, not recoverable via UI
+- bulk_restore: returns Skipped posts to inbox
+- Filter uses maxScore + currentAction ('New', 'Skipped', 'Engaged')
+
+---
+
 ## Tenant statuses
 
 - **Active** — fully operational, all cron jobs run, can log in
@@ -267,7 +287,7 @@ Note: This is the PLATFORM-LEVEL GHL integration (Mike's Scout management accoun
 
 ## Rollback and safety
 
-**Current production commit (main branch):** e4f5191
+**Current production commit (main branch):** 68ba794
 **Admin hardening feature commits:** ceb7580, bc9e4b8 (merged April 2026)
 **Vercel instant rollback:** available from Vercel dashboard — previous deployments are always retained
 **Git rollback command:** git revert bc9e4b8 ceb7580 (creates new reverting commits, no force-push needed)

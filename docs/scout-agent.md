@@ -9,7 +9,7 @@
 
 Scout Agent is a conversational AI assistant embedded in the Scout inbox. It serves two purposes:
 
-1. **Inbox management** — interprets natural-language commands (e.g. "clear everything below score 5") and translates them into structured actions executed via `/api/posts/bulk`.
+1. **Inbox management** — interprets natural-language commands (e.g. "skip all score-5 posts") and translates them into structured actions executed via `/api/posts/bulk`. Note: score 5 is the inbox floor — scores 1–4 are filtered at scan time and never reach the inbox, so commands phrased as "below score 5" always match zero posts.
 2. **Platform guide** — answers questions about how Scout works: plans, pricing, features, settings, limits, scans, scoring, billing, and more. Answers are always personalized to the user's actual plan.
 
 The agent is powered by Claude Haiku (claude-haiku-4-5-20251001) via the Anthropic Messages API and runs entirely server-side. The user's API key and all Airtable access happen inside Next.js API routes — never in the browser.
@@ -379,7 +379,7 @@ USER TRIAL DAY: Day 4 of 7 (57% of 30-day challenge complete)
 INBOX STATE:
 - 148 posts in inbox
 - 12 posts in skipped tab
-- Score breakdown: 14 high (8-10), 28 mid (6-7), 106 low (0-5)
+- Score breakdown: 14 high (8-10), 28 mid (6-7), 106 score-5 (inbox minimum — scores 1-4 are pre-filtered at scan time and never appear in the inbox)
 - NOTE: Score breakdown above is estimated from 100 loaded posts out of 148 total. [only shown when partial]
 
 TOP POSTS:
@@ -736,6 +736,8 @@ Changing the display name is a cosmetic operation — it has no effect on the we
 | "Does score 5 go in the digest?" | No. Digest starts at 6. Score 5 goes to the inbox only. |
 | "What time does the digest go out?" | ~3 PM UTC / ~8 AM Pacific daily. |
 | "Is the digest available on my Trial plan?" | Yes — on all plans, as long as Slack is connected. |
+| "Can I skip/clear posts scoring below 5?" | No — score 5 is the inbox floor. Scores 1–4 are filtered at scan time before reaching Airtable; they never appear in the inbox. A bulk-skip with maxScore ≤ 4 will always match zero posts. The correct request is "skip score-5 posts" (maxScore:5). |
+| "Why did Scout Agent say it would skip 88 posts but nothing happened?" | The agent saw 88 posts in the "low" bracket (score 5), misinterpreted a 'below 5' command as maxScore:4, and found no matching records. The fix: use "Skip all score-5 posts" as the request or the quick suggestion chip, which generates maxScore:5. |
 
 ### Keeping both agents in sync
 
@@ -787,7 +789,7 @@ Example agent responses for common selection mode questions:
 > Tap the Select button at the top right of your feed (next to Refresh). Once you're in selection mode, checkboxes appear on every post. Select individual posts by tapping them, or use "Select all" to grab everything visible. A pill at the bottom of the screen will appear with Skip and Archive options once you've selected at least one post.
 
 **"How do I bulk skip posts?"**
-> You can use my Skip command (e.g., "skip all posts below score 5") or use the manual Select button in your feed to pick specific posts and tap Skip. The Select flow gives you post-by-post control; my commands let you filter by score across your whole inbox.
+> You can use my Skip command (e.g., "skip all score-5 posts") or use the manual Select button in your feed to pick specific posts and tap Skip. The Select flow gives you post-by-post control; my commands let you filter by score across your whole inbox. Note: score 5 is the lowest score that reaches the inbox — "below score 5" will never match anything.
 
 **"What is the Select button for?"**
 > The Select button activates bulk selection mode, which lets you pick specific posts and skip, archive, or restore them in one action. It's useful when you want to manually curate which posts get actioned rather than using a score threshold filter.
@@ -1022,6 +1024,29 @@ To add a new inbox action type (e.g., `bulk_engage`):
 - "Can I change the thresholds?" → answered directly in section description
 - Score 5 inbox-only edge case → cumulative note spells it out
 - Mobile layout cramping → responsive grid added
+
+### Session 14 — April 2026 (Inbox score floor bug fixed)
+
+**Root cause diagnosed and fixed: "No matching posts found" when skipping "below score 5"**
+- Scores 1–4 are filtered at scan time before writing to Airtable — the inbox floor is always score 5.
+- The `scoreDistribution.low` bracket was labelled "low (0-5)" in agent context, causing the agent to count score-5 posts as "below 5" and generate `maxScore:4` — which matches zero Airtable records.
+- The quick suggestion chip read "Clear everything below score 5" — identical misframing.
+
+**Three-layer fix (commit 68ba794):**
+1. **Quick suggestion label** (`app/page.tsx`): "Clear everything below score 5" → "Skip all score-5 posts"
+2. **Agent context block** (`app/api/inbox-agent/route.ts`): low bracket label changed from `"low (0-5)"` to `"score-5 (inbox minimum — scores 1-4 are pre-filtered at scan time and never appear in the inbox)"`
+3. **System prompt rule 10** (`app/api/inbox-agent/route.ts`): added CRITICAL SCORING FLOOR block — agent must never generate `maxScore ≤ 4`, and must interpret "below score 5" / "low priority" requests as `maxScore:5`
+
+**Documentation updated (`docs/scout-agent.md`):**
+- Context block example updated to reflect new label format
+- Two new Q&A entries in "Common user questions both agents must answer consistently" table
+- Intro summary and bulk-skip example phrasing updated to use "score-5 posts" terminology
+
+**Settings Agent and CSM Agent updated:**
+- Settings Agent Q&A section: added "Can I skip posts below score 5?" answer with full explanation
+- CSM Agent product knowledge: added inbox scoring floor note for customer issue diagnosis
+
+---
 
 ### Session 12 — April 2026 (Agent JSON parsing hardened)
 
