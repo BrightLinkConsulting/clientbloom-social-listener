@@ -1,6 +1,6 @@
 # Memory Index
 
-- [SCOUT_PROJECT_PRIMER.md](SCOUT_PROJECT_PRIMER.md) — READ THIS FIRST. Fully current as of HEAD 29b9bef (April 14 2026). Supersedes original knowledge pack on pricing, trial, domain, and checklist status.
+- [SCOUT_PROJECT_PRIMER.md](SCOUT_PROJECT_PRIMER.md) — READ THIS FIRST. Fully current as of HEAD a25de39 (April 14 2026 session 7). GHL pipeline + Slack alerts added. Supersedes original knowledge pack.
 - [Scout by ClientBloom — Social Listener Project](project_social_listener.md) — Full architecture, routes, features, credentials, commit history. Current as of 29b9bef.
 - [Scout — Cost Model and Viability Analysis](project_scout_economics.md) — Multi-tier pricing economics. ~98% gross margin at scale. LinkedIn-only COGS ~$0.83-1.03/tenant/month.
 - [Scout — Pre-Production Checklist](project_scout_preprod_checklist.md) — 7 items: 5 done, 1 partial (Apify shared pool), 1 open (dead FB code). Status verified April 14 2026.

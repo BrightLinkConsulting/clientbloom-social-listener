@@ -2,7 +2,7 @@
 
 ## READ THIS FIRST — BEFORE TOUCHING ANY CODE
 
-This document is the complete, authoritative orientation for Scout as of April 14, 2026 (HEAD commit 874aca2). It supersedes the original knowledge pack (which was accurate through bd63e93). The overrides for trial mechanics, pricing, domain, and pre-production checklist status were all confirmed in session 5. Session 6 additions: cascade delete fix for legacy 'owner' tenantId accounts, upgrade confirmation email for trial-to-paid conversions.
+This document is the complete, authoritative orientation for Scout as of April 14, 2026 (HEAD commit a25de39). It supersedes the original knowledge pack (which was accurate through bd63e93). The overrides for trial mechanics, pricing, domain, and pre-production checklist status were all confirmed in session 5. Session 6 additions: cascade delete fix for legacy 'owner' tenantId accounts, upgrade confirmation email for trial-to-paid conversions. Session 7 additions: GHL Scout pipeline integration (Airtable-backed ID persistence), Slack admin alerts for trial signup + purchase.
 
 ---
 
@@ -117,6 +117,8 @@ As of HEAD commit `874aca2`:
 - **Admin hardening** — cascade delete, archive/reactivate, CSM agent, audit log, super admin protection (twp1996@gmail.com)
 - **Default sort** — date-desc (newest first), confirmed in commit 29b9bef
 - **Agency Apify isolation** — resolveApifyToken() uses per-tenant key for Agency tier
+- **GHL Scout pipeline** — every lifecycle event (trial signup, purchase, expiry, archive, unarchive) mirrored to "SCOUT by ClientBloom" pipeline in GHL (lib/ghl-platform.ts). Airtable-backed ID persistence: GHL Contact ID + GHL Opportunity ID stored in Tenants table at creation, used for all stage moves via direct PUT. No GHL search API used (it's broken for newly created pipelines).
+- **Slack admin alerts** — 🎉 trial signup and 💰 purchase/conversion alerts to #AIOS channel (lib/notify.ts sendTrialSignupAlert / sendPurchaseAlert)
 
 ---
 
@@ -125,6 +127,23 @@ As of HEAD commit `874aca2`:
 1. Stripe webhook secret — live payments processing, but a human should manually verify STRIPE_WEBHOOK_SECRET in Vercel matches the Stripe dashboard signing secret for the Scout endpoint
 2. Shared Apify pool for Trial/Starter/Pro — Agency is isolated; others share. Monitor Scan Health for RATE_LIMIT errors at ~40 active tenants
 3. Dead Facebook code still in lib/scan.ts, lib/cascade-delete.ts, lib/scan-health.ts — no functional impact, cosmetic cleanup only
+
+## Fixes / Features in Session 7 (April 14, 2026)
+
+**GHL Scout pipeline + Slack admin alerts (commit a25de39)**
+
+Full lifecycle mirroring to GHL "SCOUT by ClientBloom" pipeline (pipeline ID 5xyEuDU0n5Fgq5n6BoKf, location hz6swxxqV8ZMTuyTG0hP). Stage IDs: Trial User df3a8ce5, Paid Subscriber acdbc33a, Expired Trial 69aef152, Archived 652e9e98. Auth: SCOUT_GHL_API_KEY env var.
+
+Critical architecture note: GHL's /opportunities/search?contact_id=... is broken for newly created pipelines (always returns 0 results). Solution: store GHL Contact ID (fldWIqRlFMggKxUUH) and GHL Opportunity ID (fldvHqFL3aIWHzQGI) in Airtable at creation; all stage moves use stored opp ID via direct PUT. Implemented in lib/ghl-platform.ts with Airtable read/write helpers.
+
+All 8 call sites updated to pass airtableRecordId (3rd or 4th param): trial/start, stripe webhook (×2 — existing.id and tenantRecord.id), trial-check cron, admin/tenants archive/unarchive, csm-agent archive/unarchive (guarded with && action.tenantRecordId check for TypeScript narrowing).
+
+Slack alerts: sendTrialSignupAlert and sendPurchaseAlert in lib/notify.ts. Both paired with GHL calls inside Promise.allSettled to prevent Vercel fire-and-forget termination.
+
+Documentation: docs/ghl-slack-integration.md added to repo.
+Mem0: 4 memories added under userId mike-walker.
+
+---
 
 ## Fixes Applied in Session 6 (April 14, 2026)
 
@@ -154,6 +173,8 @@ Before writing any new field to Airtable, verify it exists. Airtable returns `UN
 - `Trial Last Email Sent At` (datetime)
 - `Trial Email Day` (number)
 - `Archived At` (date)
+- `GHL Contact ID` (singleLineText) — field ID fldWIqRlFMggKxUUH
+- `GHL Opportunity ID` (singleLineText) — field ID fldvHqFL3aIWHzQGI
 
 **Tenants — Plan values:** Trial, Scout Starter, Scout Pro, Scout Agency, Owner
 **Tenants — Status values:** Active, trial_expired, Suspended, Archived
@@ -176,6 +197,8 @@ Before writing any new field to Airtable, verify it exists. Airtable returns `UN
 
 | Hash | Description |
 |---|---|
+| `a25de39` | Feat: GHL + Slack integration — Airtable-backed ID persistence, all call sites wired |
+| `021a124` | Feat: Slack alerts + GHL Scout pipeline wiring for trial and purchase events |
 | `874aca2` | Feat: send upgrade confirmation email on trial-to-paid conversion |
 | `f794816` | Fix: cascade delete fails for old accounts with Tenant ID = 'owner' |
 | `d481e03` | Add knowledge-pack: fully current Claude session context files (April 14 2026) |
@@ -202,13 +225,13 @@ Before writing any new field to Airtable, verify it exists. Airtable returns `UN
 | Auth | NextAuth JWT strategy (maxAge: 86400) |
 | Billing | Stripe multi-tier (Starter $49, Pro $99, Agency $249) |
 | Email | Resend (from info@clientbloom.ai) |
-| Notifications | Slack (per-tenant webhook + SLACK_WEBHOOK_URL for #AIOS alerts) |
+| Notifications | Slack (per-tenant webhook + SLACK_WEBHOOK_URL for #AIOS alerts); GHL CRM pipeline (SCOUT_GHL_API_KEY) |
 | Style | Tailwind CSS, dark theme |
 
 ---
 
 ## Environment Variables (All Set in Vercel)
 
-`PLATFORM_AIRTABLE_TOKEN`, `PLATFORM_AIRTABLE_BASE_ID`, `AIRTABLE_PROVISIONING_TOKEN`, `STRIPE_SECRET_KEY`, `STRIPE_PRICE_STARTER`, `STRIPE_PRICE_PRO`, `STRIPE_PRICE_AGENCY`, `STRIPE_WEBHOOK_SECRET` (verify LIVE key), `RESEND_API_KEY`, `NEXTAUTH_SECRET`, `NEXTAUTH_URL`, `CRON_SECRET`, `APIFY_API_TOKEN`, `APIFY_WEBHOOK_SECRET`, `ANTHROPIC_API_KEY`, `SLACK_WEBHOOK_URL`, `ADMIN_EMAIL` (confirmed set — receives purchase + payment failure notifications), `SUPER_ADMIN_EMAIL`, `ADMIN_PASSWORD`
+`PLATFORM_AIRTABLE_TOKEN`, `PLATFORM_AIRTABLE_BASE_ID`, `AIRTABLE_PROVISIONING_TOKEN`, `STRIPE_SECRET_KEY`, `STRIPE_PRICE_STARTER`, `STRIPE_PRICE_PRO`, `STRIPE_PRICE_AGENCY`, `STRIPE_WEBHOOK_SECRET` (verify LIVE key), `RESEND_API_KEY`, `NEXTAUTH_SECRET`, `NEXTAUTH_URL`, `CRON_SECRET`, `APIFY_API_TOKEN`, `APIFY_WEBHOOK_SECRET`, `ANTHROPIC_API_KEY`, `SLACK_WEBHOOK_URL`, `ADMIN_EMAIL` (confirmed set — receives purchase + payment failure notifications), `SUPER_ADMIN_EMAIL`, `ADMIN_PASSWORD`, `SCOUT_GHL_API_KEY` (GHL Private Integration token — set April 2026)
 
 Dead env vars (do not reference): `STRIPE_TRIAL_DAYS`, `STRIPE_PRICE_ID`
