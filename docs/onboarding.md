@@ -270,6 +270,18 @@ Key changes:
 
 ---
 
+### v2.1 — Post-deploy polish (April 14, 2026)
+**Status:** Production — confirmed working
+**Commits:** `89c3d06`, `237bea5`
+
+Three targeted fixes applied after live user testing:
+
+- **Keyword pack truncation message**: removed dead "Upgrade to add all 7 terms" CTA (upgrade isn't available mid-wizard). Replaced with: "To swap in one of these, remove an active keyword above first." Gives users an actionable path instead of a dead end.
+- **Run Discovery button disabled after success**: after a successful discovery run (green banner appears), the "Run Discovery" button now disables itself (`disabled={... || !!discResult}`). "Run my first scan" is already the only active CTA at that point. Also adds `disabled:cursor-not-allowed` to the discovery button.
+- **First-click bounce from Option B "Set up AI Scoring" link**: `router.replace('/', {scroll:false})` was called synchronously in a `useEffect` which could fire while a concurrent link-click navigation was in progress, overriding it and returning the user to `/`. Fixed by wrapping in `setTimeout(500ms)` with cleanup — if user navigates away before timer fires, cleanup cancels the replace so `?firstScan` stays in the URL and the redirect-guard bypass remains active.
+
+---
+
 ### v3.0 — Planned
 **Status:** Ideas / backlog
 

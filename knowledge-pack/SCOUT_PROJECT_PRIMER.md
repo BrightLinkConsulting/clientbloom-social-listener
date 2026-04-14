@@ -2,7 +2,7 @@
 
 ## READ THIS FIRST — BEFORE TOUCHING ANY CODE
 
-This document is the complete, authoritative orientation for Scout as of April 14, 2026 (HEAD commit fe0a0e6). It supersedes the original knowledge pack (which was accurate through bd63e93). The overrides for trial mechanics, pricing, domain, and pre-production checklist status were all confirmed in session 5. Session 6 additions: cascade delete fix for legacy 'owner' tenantId accounts, upgrade confirmation email for trial-to-paid conversions. Session 7 additions: GHL Scout pipeline integration (Airtable-backed ID persistence), Slack admin alerts for trial signup + purchase. Sessions 8-14: GHL monetary value on opportunities, inbox score floor fix (min inbox score=5, scores 1-4 pre-filtered at scan time, never in Airtable), server-side floor clamp, agent context/prompt corrections propagated to settings-agent and CSM agent. Session 15: Guided Tour Mode in inbox agent — 6-module conversational onboarding tour triggered by "Walk me through Scout" chip, tourState tracked in React + sent in API context, nextTourStep response field drives step advancement and exit, 13 adversarial edge cases addressed. Session 16: Suggested comment regression fix — system prompt rewritten with explicit WRONG examples from production ("Extend the insight:", "Possible angle:", "Deepen the insight:"), CORRECT OUTPUT EXAMPLE added as positive anchor, META_PREFIX_RE runtime backstop strips known meta-coaching prefixes at string level.
+This document is the complete, authoritative orientation for Scout as of April 14, 2026 (HEAD commit 237bea5). It supersedes the original knowledge pack (which was accurate through bd63e93). The overrides for trial mechanics, pricing, domain, and pre-production checklist status were all confirmed in session 5. Session 6 additions: cascade delete fix for legacy 'owner' tenantId accounts, upgrade confirmation email for trial-to-paid conversions. Session 7 additions: GHL Scout pipeline integration (Airtable-backed ID persistence), Slack admin alerts for trial signup + purchase. Sessions 8-14: GHL monetary value on opportunities, inbox score floor fix (min inbox score=5, scores 1-4 pre-filtered at scan time, never in Airtable), server-side floor clamp, agent context/prompt corrections propagated to settings-agent and CSM agent. Session 15: Guided Tour Mode in inbox agent — 6-module conversational onboarding tour triggered by "Walk me through Scout" chip, tourState tracked in React + sent in API context, nextTourStep response field drives step advancement and exit, 13 adversarial edge cases addressed. Session 16: Suggested comment regression fix — system prompt rewritten with explicit WRONG examples from production ("Extend the insight:", "Possible angle:", "Deepen the insight:"), CORRECT OUTPUT EXAMPLE added as positive anchor, META_PREFIX_RE runtime backstop strips known meta-coaching prefixes at string level. Session 17: Option B first-scan empty state (guides new users to AI Scoring settings while scan runs, 3-layer polling); first-click bounce fix (router.replace deferred 500ms to avoid conflicting with link navigation); keyword pack truncation message updated (removed dead 'Upgrade' CTA, replaced with swap instruction); Run Discovery button now disables after successful discovery.
 
 ---
 
@@ -197,6 +197,13 @@ Before writing any new field to Airtable, verify it exists. Airtable returns `UN
 
 | Hash | Description |
 |---|---|
+| `237bea5` | Fix: gray out Run Discovery button after successful discovery |
+| `89c3d06` | Fix: keyword pack truncation message — swap instruction replaces dead Upgrade CTA |
+| `00945f8` | Fix: first-click bounce from Option B 'Set up AI Scoring' link — defer router.replace 500ms |
+| `dcbecf8` | Docs: session 17 Option B empty state documentation |
+| `dee7c9d` | Feat: Option B first-scan empty state — guided Settings directive + 3-layer polling |
+| `322eec3` | Fix: two TypeScript build errors from session 15 guided tour (nextTourStep type, onClick handler) |
+| `bf92f31` | Docs: session 16 scout-agent.md and PRIMER updates |
 | `fe0a0e6` | Fix: suggested comment meta-coaching prefix regression — WRONG examples + META_PREFIX_RE backstop |
 | `8c295f7` | Docs: session 15 guided tour mode documentation |
 | `de4e514` | Feat: guided tour mode with persistent step tracking |
