@@ -1586,6 +1586,7 @@ function ScoutAgentPanel({
   open,
   onClose,
   plan,
+  trialEndsAt,
   inboxCount,
   skippedCount,
   topPosts,
@@ -1595,6 +1596,7 @@ function ScoutAgentPanel({
   open:              boolean
   onClose:           () => void
   plan:              string
+  trialEndsAt:       string | null
   inboxCount:        number
   skippedCount:      number
   topPosts:          { id: string; author: string; score: number; text: string }[]
@@ -1644,7 +1646,12 @@ function ScoutAgentPanel({
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({
           message: text,
-          context: { plan, inboxCount, skippedCount, topPosts, scoreDistribution },
+          context: {
+            plan, inboxCount, skippedCount, topPosts, scoreDistribution,
+            trialDay: trialEndsAt
+              ? Math.max(1, Math.min(7, 8 - Math.ceil((new Date(trialEndsAt).getTime() - Date.now()) / (24 * 60 * 60 * 1000))))
+              : undefined,
+          },
           history: messages.slice(-6),
         }),
       })
@@ -1891,6 +1898,7 @@ function FeedPage() {
   const { data: session, status } = useSession()
   const userEmail   = (session?.user as any)?.email || ''
   const plan        = (session?.user as any)?.plan  || ''
+  const trialEndsAt = (session?.user as any)?.trialEndsAt || null
   const crmUnlocked = plan === 'Scout Agency' || plan === 'Owner'
   const [posts, setPosts] = useState<Post[]>([])
   const [loading, setLoading] = useState(true)
@@ -3089,6 +3097,7 @@ function FeedPage() {
         open={agentOpen}
         onClose={() => setAgentOpen(false)}
         plan={plan}
+        trialEndsAt={trialEndsAt}
         inboxCount={actionCounts['New'] || 0}
         skippedCount={actionCounts['Skipped'] || 0}
         topPosts={posts

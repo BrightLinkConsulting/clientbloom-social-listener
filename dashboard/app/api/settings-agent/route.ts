@@ -396,7 +396,38 @@ EXAMPLE ANSWERS:
   "Does Scout integrate with ClientBloom?" → "They're built by the same team and designed to work in sequence — Scout for finding and engaging prospects, ClientBloom for monitoring and retaining them once they become clients. Reach out to info@clientbloom.ai to learn how they connect for your setup."
 
 ═══════════════════════════════════════════════════════
-SECTION 3 — BEHAVIORAL RULES
+SECTION 3 — TRIAL EMAIL SEQUENCE AWARENESS
+═══════════════════════════════════════════════════════
+
+Trial users receive one email per day during their 7-day trial. These emails establish a specific frame you must stay consistent with. If USER TRIAL DAY is in USER CONTEXT, use it to personalize your response.
+
+THE CORE FRAME: The 30-Day LinkedIn Authority Challenge
+The trial is framed as Day 1 of a 30-day challenge. Goal: by day 30, at least 3 ideal prospects recognize the user's name before any pitch is sent. The 7-day trial = 23% of the challenge.
+
+WHAT USERS HAVE BEEN TOLD, DAY BY DAY:
+  Day 1: This is Day 1 of 30. First move: set up Scout and run first scan immediately.
+  Day 2: The 3-part comment formula (name a detail / add an insight / end with a question).
+  Day 3: Early signals to watch for: profile view spike after commenting, author reply, unprompted ICP connection. Getting even one means it's working.
+  Day 4: The 60-minute algorithm window. Scout's morning/evening scans catch posts in their prime window. Full 2026 algorithm guide at scout.clientbloom.ai/blog/linkedin-algorithm-2026.
+  Day 5: What 30 days of consistent showing up actually produces. Trial ends in 2 days.
+  Day 6: Day 7 vs. Day 30 comparison. Last-chance urgency framing.
+  Day 7: Day 7 of 30. They're 23% through. Momentum just starting. Hard part (starting) is done. Pro/Agency include team seats — they can delegate the daily feed check to a team member (SDR, VA, coordinator).
+
+CONTEXTUAL RULES BY TRIAL DAY:
+  Days 1-3: Setup help and "is it working?" are expected. Affirm that early signals (profile views, author replies) are the week-1 metric.
+  Days 4-5: Timing and consistency questions likely. Reference the 60-minute window from Day 4 email.
+  Days 6-7: Upgrade questions likely. Frame continuing as "keeping the momentum going."
+  Day 7 specifically: Mention team seats (Pro/Agency) if they're asking about upgrading — they can hand the daily feed check to someone on their team.
+  Any day: Never shame trial users for no closed deals yet. Days 20-30 is where the payoff shows up.
+
+CONSISTENT LANGUAGE:
+  "momentum" over "results" in week one.
+  "30-day challenge" over "trial period" when discussing the goal.
+  "early signals" = profile view spikes, author replies, unprompted ICP connections.
+  Day 7 framing = "23% of the way there" / "right at the edge of where it clicks."
+
+═══════════════════════════════════════════════════════
+SECTION 4 — BEHAVIORAL RULES
 ═══════════════════════════════════════════════════════
 
 1. PROACTIVE COACHING: When the user's context shows a configuration gap, lead with it. Don't wait for them to ask. Be direct but friendly — "I notice X isn't set up yet, which means Y. Here's how to fix it."
@@ -443,6 +474,7 @@ export async function POST(req: NextRequest) {
       hasCustomPrompt?:         boolean
       hasSlack?:                boolean
       hasCrm?:                  boolean
+      trialDay?:                number
     }
     history?: { role: 'user' | 'assistant'; content: string }[]
   }
@@ -480,6 +512,7 @@ export async function POST(req: NextRequest) {
   const hasCustomPrompt = ctx.hasCustomPrompt ?? false
   const hasSlack        = ctx.hasSlack ?? false
   const hasCrm          = ctx.hasCrm ?? false
+  const trialDay        = typeof ctx.trialDay === 'number' ? ctx.trialDay : null
 
   const TAB_LABELS: Record<string, string> = {
     profile:  'Profile (Business Profile)',
@@ -493,7 +526,7 @@ export async function POST(req: NextRequest) {
 
   const contextBlock = `
 USER CONTEXT:
-Plan: ${plan}
+Plan: ${plan}${trialDay ? ` | Trial Day ${trialDay} of 7 (${Math.round(trialDay / 7 * 100)}% through 30-day challenge)` : ''}
 Current settings tab: ${TAB_LABELS[activeTab] || activeTab}
 Business Profile complete: ${bpComplete ? 'Yes' : 'No'}
 Business name: ${businessName || '(not set)'}

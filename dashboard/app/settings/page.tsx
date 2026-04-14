@@ -3403,12 +3403,14 @@ function SettingsAgentPanel({
   open,
   onClose,
   plan,
+  trialEndsAt,
   activeTab,
   keywordCount,
 }: {
   open:         boolean
   onClose:      () => void
   plan:         string
+  trialEndsAt:  string | null
   activeTab:    string
   keywordCount: number
 }) {
@@ -3504,6 +3506,10 @@ function SettingsAgentPanel({
     setMessages(newMessages)
     setLoading(true)
 
+    const trialDay = trialEndsAt
+      ? Math.max(1, Math.min(7, 8 - Math.ceil((new Date(trialEndsAt).getTime() - Date.now()) / (24 * 60 * 60 * 1000))))
+      : undefined
+
     const effectiveCtx = ctx ?? {
       plan, activeTab,
       businessProfileComplete: false, businessName: '', industry: '',
@@ -3517,7 +3523,7 @@ function SettingsAgentPanel({
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({
           message: text,
-          context: effectiveCtx,
+          context: { ...effectiveCtx, trialDay },
           history: messages.slice(-6),
         }),
       })
@@ -3899,6 +3905,7 @@ export default function SettingsPage() {
         open={agentOpen}
         onClose={() => setAgentOpen(false)}
         plan={(session?.user as any)?.plan || 'Trial'}
+        trialEndsAt={(session?.user as any)?.trialEndsAt || null}
         activeTab={activeTab}
         keywordCount={sources.length}
       />
