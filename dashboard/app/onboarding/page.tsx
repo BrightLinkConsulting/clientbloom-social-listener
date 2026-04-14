@@ -376,7 +376,7 @@ function StepKeywords({
       if (wasTruncated) {
         setPackInfo(
           `Added ${added.length} of ${pack.terms.length} terms from the ${pack.label} pack (plan limit: ${planLimit}). ` +
-          `Not loaded: ${dropped.join(', ')}. Upgrade to add all ${pack.terms.length} terms.`
+          `Not loaded: ${dropped.join(', ')}. To swap in one of these, remove an active keyword above first.`
         )
       } else {
         setPackInfo(`Added ${added.length} keyword${added.length !== 1 ? 's' : ''} from the ${pack.label} pack.`)
