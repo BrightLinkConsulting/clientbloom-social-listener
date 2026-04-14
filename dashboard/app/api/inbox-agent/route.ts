@@ -752,10 +752,26 @@ export async function POST(req: NextRequest) {
 
     // C4: Require a filter for bulk actions; default safely if missing
     const isBulkAction = actionType === 'bulk_skip' || actionType === 'bulk_archive' || actionType === 'bulk_restore'
-    const hasFilter    = maxScore !== undefined || isBulkAction
+
+    // C6: Inbox scoring floor — min inbox score is always 5 (scores 1-4 are filtered at
+    // scan time and never written to Airtable). A maxScore < 5 on a New-tab bulk action
+    // will always match 0 posts. Clamp to 5 as a server-side backstop so a prompt
+    // regression can't produce a silent no-op.
+    let effectiveMaxScore = maxScore
+    if (
+      isBulkAction &&
+      effectiveMaxScore !== undefined &&
+      effectiveMaxScore < 5 &&
+      currentAction === 'New'
+    ) {
+      console.warn(`[inbox-agent] maxScore ${effectiveMaxScore} below inbox floor — clamped to 5`)
+      effectiveMaxScore = 5
+    }
+
+    const hasFilter    = effectiveMaxScore !== undefined || isBulkAction
     const safeFilter   = isBulkAction
-      ? { maxScore, currentAction }
-      : (rawAction.filter ? { maxScore, currentAction } : undefined)
+      ? { maxScore: effectiveMaxScore, currentAction }
+      : (rawAction.filter ? { maxScore: effectiveMaxScore, currentAction } : undefined)
 
     // C5: Force confirm:true for all destructive bulk actions regardless of agent output
     const confirm: boolean = ALWAYS_CONFIRM_TYPES.has(actionType)
