@@ -42,6 +42,13 @@ export default function BlogPage() {
 
   const articles = [
     {
+      title: 'The LinkedIn Algorithm in 2026: Timing, Frequency, Consistency, and Comment Structure',
+      excerpt: 'Organic reach dropped 34% in 2025. Here\'s exactly what the 2026 algorithm rewards — saves, comment velocity, the 60-minute window, and why 4 links beats 1.',
+      url: '/blog/linkedin-algorithm-2026',
+      date: '2026-04-13',
+      readTime: '12 min read'
+    },
+    {
       title: 'How to Warm Up LinkedIn Prospects Before You Pitch (The Relationship-First Method)',
       excerpt: 'The relationship-first outreach method that gets 2-3x higher reply rates than cold LinkedIn messages — and how to scale it with AI monitoring.',
       url: '/blog/warm-up-linkedin-prospects',
