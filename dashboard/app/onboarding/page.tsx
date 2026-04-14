@@ -1045,8 +1045,8 @@ function Step4({
         <div className="flex gap-2 items-center flex-wrap">
           <button
             onClick={handleDiscover}
-            disabled={discovering || !discTitles.length}
-            className="flex items-center gap-1.5 text-xs px-4 py-2 rounded-lg bg-violet-600 hover:bg-violet-500 text-white font-medium transition-colors disabled:opacity-50"
+            disabled={discovering || !discTitles.length || !!discResult}
+            className="flex items-center gap-1.5 text-xs px-4 py-2 rounded-lg bg-violet-600 hover:bg-violet-500 text-white font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {discovering ? (
               <>
