@@ -1987,18 +1987,27 @@ function FeedPage() {
   const firstScanMaxMs   = 300_000  // auto-dismiss banner after 5 minutes
 
   // FIX #3 + FIX #5: Read the firstScan URL param client-side (avoids hydration
-  // mismatch) and immediately clean the URL so back-navigation or a hard reload
-  // doesn't re-trigger the banner/zero state.
+  // mismatch) and clean the URL so back-navigation or a hard reload doesn't
+  // re-trigger the banner/zero state.
+  //
+  // FIX: router.replace is deferred 500ms via setTimeout so that a user who
+  // clicks a link (e.g. "Set up AI Scoring →") immediately after the page
+  // paints doesn't get bounced back by a conflicting replace. If the component
+  // unmounts before the timer fires (because the user navigated away), the
+  // cleanup cancels the replace — the ?firstScan param stays in the URL, so
+  // the redirect-guard bypass remains active when the feed remounts.
   useEffect(() => {
     const param = searchParams?.get('firstScan')
     if (param === '1') {
       setFirstScanBanner(true)
       setFirstScanMode(true)
-      router.replace('/', { scroll: false })
+      const t = setTimeout(() => router.replace('/', { scroll: false }), 500)
+      return () => clearTimeout(t)
     } else if (param === '0') {
       setFirstScanZero(true)
       setFirstScanMode(true)
-      router.replace('/', { scroll: false })
+      const t = setTimeout(() => router.replace('/', { scroll: false }), 500)
+      return () => clearTimeout(t)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])   // run once on mount — searchParams is stable at this point
