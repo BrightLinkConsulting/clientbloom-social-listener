@@ -315,16 +315,19 @@ export function buildTrialDay7Email(
 ): EmailTemplate {
   const plan     = opts.plan || 'pro'
   const planCopy = PLAN_COPY[plan]
-  const subject  = `Your Scout trial ends tonight — you're 23% of the way there`
+  const subject  = `Your Scout trial ends tonight. You're 23% of the way there.`
 
   const body = `
-    ${h2(`You started something. Don't leave it at 23%.`)}
-    ${p(`On Day 1 I mentioned the 30-Day LinkedIn Authority Challenge. Today is day 7 — you're 23% through it.`)}
-    ${p(`The results people talk about — the moment a prospect messages you first, mentions your name in a conversation, asks you for help unprompted — those happen between days 20 and 30. Not day 7.`)}
+    ${h2(`Day 7 of 30. The momentum is just starting to build.`)}
+    ${p(`On Day 1, I framed this as the 30-Day LinkedIn Authority Challenge. Today is day 7, which puts you at 23% through it.`)}
+    ${p(`That's a real foundation. You've been showing up in conversations your competitors aren't even watching. You've built the habit. The hard part — starting — is done.`)}
+    ${p(`What happens between now and day 30 is where it gets interesting. Around day 10, people who keep seeing your name start to recognize it. Around day 20, the first inbound signals appear. By day 30, prospects who've seen you consistently will feel like they already know you — before you ever pitch them.`)}
     ${infoBox(`
-      <p style="margin:0;font-size:13px;color:#333;line-height:1.6">The people who get results from this approach are the ones who don't stop at day 7. You're 23% of the way to something real. Your trial ends tonight.</p>
+      <p style="margin:0 0 6px;font-size:13px;color:#333;line-height:1.6">The moments people talk about — a prospect reaching out first, being mentioned in a conversation unprompted, someone asking for your help before you pitched them — those start showing up between days 20 and 30.</p>
+      <p style="margin:0;font-size:13px;color:#555;line-height:1.6">You're on day 7. You're right at the edge of where it starts to click.</p>
     `, planCopy.color)}
-    <p style="margin:20px 0 4px">${cta(`Finish what you started →`, opts.upgradeUrl, planCopy.color)}</p>
+    ${p(`One more thing worth knowing: Pro and Agency plans include team seats. If you have someone on your team who could own the daily feed check — an SDR, a VA, a coordinator — this stops being a tool you have to remember to use and becomes a system that runs without you. Hand them the Inbox every morning. They engage. The relationships build. You close.`)}
+    <p style="margin:20px 0 4px">${cta(`Keep the momentum going →`, opts.upgradeUrl, planCopy.color)}</p>
     ${p(`Starter $49 · Pro $99 · Agency $249 · Cancel anytime`, 'color:#999;font-size:12px;margin:6px 0 16px')}
     ${footer(opts.unsubUrl)}`
 
