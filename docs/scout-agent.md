@@ -856,6 +856,7 @@ Behavioral rules enforced via the `system` parameter are more reliably followed 
 |---------|-----------|-----|
 | Coaching instructions instead of comment text | "comment approach" framing signalled Claude to describe HOW to comment | Session 13: reframed as ghostwriter writing the comment itself |
 | Meta-coaching prefixes ("Extend the insight:", "Possible angle:", "Deepen the insight:") | Abstract Rule 1 prohibition didn't enumerate these specific patterns; Haiku didn't classify them as banned | Session 16: added explicit WRONG examples from production + `META_PREFIX_RE` runtime strip |
+| Imperative-sentence prefixes ("Validate the tension and offer a counterintuitive take:", "Lean into the vulnerability:", "Flip the script:") | New variant not covered by original META_PREFIX_RE patterns; `.*?` lazy quantifier stopped at first space leaving partial directive unstripped; `[:\s]+` matched spaces in legitimate comments causing false-positive strips | Session 18: 3 new WRONG examples added to system prompt; `META_PREFIX_RE` extended with `[^:]*` (greedy-up-to-colon) + `:\s*` (require actual colon). 47-case adversarial test, 0 failures. |
 | Em dashes throughout | No prohibition; Claude Haiku uses them by default | Session 13: explicit prohibition |
 | Compliment openers ("Great post…") | No rule against them | Session 13: banned |
 | AI hollow phrases ("this really resonates") | No vocabulary constraint | Session 13: banned |
@@ -942,6 +943,26 @@ To add a new inbox action type (e.g., `bulk_engage`):
 **Agent knowledge updated (`app/api/inbox-agent/route.ts`):**
 - Added "Feed Control Bar" section explaining search, sort, score filter, Select, and Refresh with example Q&A pairs
 - Updated "Bulk Selection Mode" section: corrected Select button location, removed pill reference, updated action button location description, added "power move" tip (filter → Select all → Skip N), added example answer for "Where did the bottom pill go?"
+
+---
+
+### Session 18 — April 2026 (Score contamination fix + META_PREFIX_RE hardening)
+
+**Bug 1 — Cross-post Score Reason contamination:** A live user (joseph@clientbloom.ai) reported "About this post" on Wendy Church's card showing Katie Ryan's ICP context. Airtable confirmed: `recoPYJhZ1qkFlGVr` has Author Name = "Wendy Church" but Score Reason = "Strong ICP match (Katie Ryan)...". Same contamination in `rec4rB9IdjKUE4beW`.
+
+**Root cause (`lib/scan.ts` `scorePosts()`):** The fallback `scores.find(x => x.post_id === (p.id || p.postId)) || scores[idx]` failed when Claude Haiku returned numeric post IDs for posts whose IDs were strings in the input (strict `===` type mismatch). The positional fallback `scores[idx]` then assigned the score at the same array index — but Haiku does not guarantee output order matches input order. When Haiku returned scores sorted differently, Katie Ryan's reason landed on Wendy Church's Airtable record.
+
+**Fix:** String-coerce both sides: `String(x.post_id) === String(p.id || p.postId)`. Removed `|| scores[idx]` entirely — a missed match now falls back to `score: 5, reason: ''` (safe defaults), not a contaminated score from another post.
+
+**Bug 2 — New meta-coaching prefix variant:** Suggested comment for Wendy Church's post read "Validate the tension and offer a counterintuitive take: Agency leaders often find their voice faster..." — the content before the colon is a directive, not the comment.
+
+**Root cause (`app/api/posts/[id]/suggest/route.ts`):** `META_PREFIX_RE` used `.*?` (lazy quantifier) for the new patterns, which stopped at the first space, leaving "and offer a counterintuitive take:" unstripped. Also, `[:\s]+` at the end matched spaces between words in legitimate comments (false positives: "Flip the script on your onboarding process and you'll see churn drop." was stripped at the space before "drop").
+
+**Fix:** `.*?` → `[^:]*` (greedy-up-to-colon, stops before the separator). `[:\s]+` → `:\s*` (require an actual colon — always present in meta-prefixes, eliminates space-matching false positives). 3 new WRONG examples added to system prompt from production screenshots.
+
+**Adversarial test results:** 47 cases total — 25 should-strip (25/25 pass), 16 should-not-strip (16/16 pass), 6 edge cases (6/6 pass). 0 failures.
+
+**Note:** The two corrupted Airtable records for joseph@clientbloom.ai (`recoPYJhZ1qkFlGVr`, `rec4rB9IdjKUE4beW`) retain the wrong Score Reason — already written and not auto-correctable. All future scans write clean data.
 
 ---
 
