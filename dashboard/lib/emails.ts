@@ -217,19 +217,21 @@ export function buildTrialDay3Email(
 // ── Trial Day 4: Timing tip ───────────────────────────────────────────────────
 
 export function buildTrialDay4Email(
-  opts: { appUrl: string; unsubUrl: string },
+  opts: { appUrl: string; unsubUrl: string; blogUrl?: string },
 ): EmailTemplate {
   const subject = `Day 4: When you comment matters more than what you say`
+  const blogLink = opts.blogUrl || 'https://scout.clientbloom.ai/blog/linkedin-algorithm-2026'
 
   const body = `
     ${h2('The timing advantage most people ignore')}
-    ${p(`LinkedIn's algorithm rewards early engagement. A comment in the first 60–90 minutes of a post's life gets meaningfully more visibility than the same comment posted 6 hours later.`)}
+    ${p(`LinkedIn's algorithm rewards early engagement. A comment in the first 60 to 90 minutes of a post's life gets meaningfully more visibility than the same comment posted 6 hours later.`)}
     ${p(`Most people open LinkedIn twice a day and scroll what's already popular. By then, the algorithm window is closed. You're commenting into a conversation that's already moved on.`)}
     ${infoBox(`
       <p style="margin:0 0 8px;font-weight:700;font-size:13px;color:#1a1a1a">Scout's morning and evening scans (6 AM + 6 PM) put fresh posts in your feed every day.</p>
-      <p style="margin:0;font-size:13px;color:#555;line-height:1.6">Check your feed in the morning and again in early evening. That's when you're catching posts in their first hour — the window where your comment gets seen.</p>
+      <p style="margin:0;font-size:13px;color:#555;line-height:1.6">Check your inbox in the morning and again in early evening. That's when you're catching posts in their first hour — the window where your comment gets seen.</p>
     `)}
     ${p(`You don't need to be first. You need to be early and have something worth saying. The combination is rare enough that people notice.`)}
+    ${p(`Timing is one layer. The 2026 algorithm also has opinions about saves vs. likes, comment depth, content format, and how links affect distribution. If you want the full picture, <a href="${blogLink}" style="color:${BRAND_PURPLE};text-decoration:underline">we broke it all down here</a>.`)}
     <p style="margin:16px 0 8px">${cta('See today\'s posts →', opts.appUrl, BRAND_PURPLE)}</p>
     ${footer(opts.unsubUrl)}`
 
