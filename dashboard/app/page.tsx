@@ -1998,7 +1998,7 @@ function FeedPage() {
   // They NEVER affect actionCounts, momentum data, or what the agent sees —
   // those always derive from the raw posts[] or from server-side totals.
   const [searchQuery,  setSearchQuery]  = useState('')
-  const [sortBy,       setSortBy]       = useState<'score-desc'|'score-asc'|'date-desc'|'date-asc'>('score-desc')
+  const [sortBy,       setSortBy]       = useState<'score-desc'|'score-asc'|'date-desc'|'date-asc'>('date-desc')
   const [scoreFilter,  setScoreFilter]  = useState<'all'|'high'|'mid'|'low'>('all')
 
   // Derived view — this is what the post list renders. The agent and bulk
@@ -2034,7 +2034,7 @@ function FeedPage() {
     return result
   }, [posts, scoreFilter, searchQuery, sortBy])
 
-  const isFiltered = searchQuery.trim() !== '' || scoreFilter !== 'all' || sortBy !== 'score-desc'
+  const isFiltered = searchQuery.trim() !== '' || scoreFilter !== 'all' || sortBy !== 'date-desc'
 
   const clearFilters = useCallback(() => {
     setSearchQuery('')
