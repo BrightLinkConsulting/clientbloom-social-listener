@@ -61,7 +61,7 @@ always `logoHeader()` regardless of plan.
 | Helper | Signature | Purpose |
 |--------|-----------|---------|
 | `header(text, color?)` | `string → string` | Standard colored header bar with text |
-| `logoHeader(color?)` | `string → string` | All trial day headers (Days 1–7) — ClientBloom mark + "Scout / by ClientBloom" stacked text. Default color: `BRAND_PURPLE`. |
+| `logoHeader(color?)` | `string → string` | All trial day headers (Days 1–7) — text-only "Scout / by ClientBloom". Default color: `BRAND_PURPLE`. |
 | `footer(unsubUrl)` | `string → string` | CAN-SPAM footer with physical address and unsubscribe link |
 | `wrap(header, body, footerHtml)` | `string → string` | Outer container div (max-width 540px) |
 | `cta(label, href, color?)` | `string → string` | Styled call-to-action button |
@@ -72,35 +72,18 @@ always `logoHeader()` regardless of plan.
 
 ### `logoHeader()` implementation note
 
-The Day 1 header includes the ClientBloom mark (three-ellipse SVG in yellow, pink, and
-green) alongside stacked "Scout / by ClientBloom" text. It uses a `<table>` layout
-instead of flexbox for maximum email-client compatibility (Outlook and some mobile clients
-ignore CSS flexbox):
+SVG is intentionally omitted. Gmail, Outlook, and most mobile clients strip inline SVG
+entirely, leaving a broken gap. The current implementation is text-only and renders
+identically across all email clients:
 
 ```typescript
 function logoHeader(color: string = BRAND_PURPLE): string {
-  return `<div style="background:${color};padding:18px 28px;border-radius:12px 12px 0 0">
-    <table cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse">
-      <tr>
-        <td style="vertical-align:middle;padding-right:10px">
-          <svg width="28" height="28" viewBox="0 0 100 100" fill="none" ...>
-            <ellipse cx="50" cy="21" rx="24" ry="13" fill="#F7B731"/>
-            <ellipse cx="20" cy="52" rx="13" ry="25" fill="#E91E8C"/>
-            <ellipse cx="80" cy="52" rx="13" ry="25" fill="#00B96B"/>
-          </svg>
-        </td>
-        <td style="vertical-align:middle">
-          <p style="color:#fff;font-size:16px;font-weight:700;margin:0;line-height:1.2">Scout</p>
-          <p style="color:rgba(255,255,255,0.65);font-size:11px;...">by ClientBloom</p>
-        </td>
-      </tr>
-    </table>
+  return `<div style="background:${color};padding:20px 28px;border-radius:12px 12px 0 0">
+    <p style="color:#fff;font-size:16px;font-weight:700;margin:0;line-height:1.2">Scout</p>
+    <p style="color:rgba(255,255,255,0.65);font-size:11px;...;letter-spacing:0.04em">by ClientBloom</p>
   </div>`
 }
 ```
-
-The SVG uses the same three ellipses as the `ClientBloomMark` React component in
-`app/sign-in/page.tsx` — inline because email clients cannot load external SVG files.
 
 ---
 
@@ -127,11 +110,6 @@ Day 2: The one comment framework that works on LinkedIn
 Most people comment the same three ways: "Great point!" · "So true!" · ...
 ```
 
-Day 1 uses a declarative statement for the headline:
-```
-Your 30-Day LinkedIn Authority Challenge starts today.
-```
-
 **Do not add personalization back** unless the sign-up form is explicitly updated to
 collect a validated first name field.
 
@@ -147,7 +125,7 @@ are exempt from the unsubscribe requirement.
 
 ```
 You're receiving this because you signed up for a Scout by ClientBloom trial.
-ClientBloom · 1234 Innovation Way · San Bernardino, CA 92401
+ClientBloom · 30 N Gould St. Ste R · Sheridan, WY 82801
 [Unsubscribe from trial emails]
 ```
 
@@ -174,32 +152,48 @@ if (optedOut) { results.optedOut++; continue }
 This check happens before any send attempt. The `'Email Opted Out'` field must be
 included in `fetchTrialTenants()` field list — it is.
 
-### Footer signature
-
-```typescript
-function footer(unsubUrl: string): string
-```
-
-The footer does **not** accept a `recipientEmail` parameter. Earlier versions passed
-`firstName` as the email argument by mistake, producing nonsensical output in the footer
-text. The current version says "because you signed up" without naming the address.
-
 ---
 
 ## 6. Trial Email Sequence
 
+### The 30-Day LinkedIn Authority Challenge
+
+Every email in the trial sequence reinforces a single frame established in Email 1:
+**the trial is 7 days, but the challenge is 30 days.** The stated goal is 3 ideal
+prospects who recognize the user's name before ever being pitched.
+
+This framing is load-bearing. Day 7 copy references it explicitly ("You're 23% of the
+way there"). The post-expiry and win-back emails also reference the momentum already
+built. **Do not remove or contradict this frame without updating all downstream emails.**
+
+### Subject lines and builder functions
+
 | Day | Builder function | Sent by | Subject |
 |-----|-----------------|---------|---------|
-| 1 | `buildTrialDay1Email(opts)` | `app/api/trial/start/route.ts` (on signup) | "Welcome — your 30-Day LinkedIn Authority Challenge starts today" |
+| 1 | `buildTrialDay1Email(opts)` | `app/api/trial/start/route.ts` (on signup) | "Welcome: your 30-Day LinkedIn Authority Challenge starts today" |
 | 2 | `buildTrialDay2Email(opts)` | `app/api/cron/trial-check/route.ts` | "Day 2: The comment that gets you remembered (copy-paste ready)" |
 | 3 | `buildTrialDay3Email(opts)` | trial-check cron | "Day 3: How to tell if it's working (look for these 3 things)" |
 | 4 | `buildTrialDay4Email(opts)` | trial-check cron | "Day 4: When you comment matters more than what you say" |
 | 5 | `buildTrialDay5Email(opts)` | trial-check cron | "Day 5: What 30 days of this actually looks like (your trial ends in 2 days)" |
-| 6 | `buildTrialDay6Email(opts)` | trial-check cron | "Day 6: Tomorrow your trial ends — here's exactly what stops at day 7" |
-| 7 | `buildTrialDay7Email(opts)` | trial-check cron | "Your Scout trial ends tonight — you're 23% of the way there" |
-| Expiry | `buildTrialExpiredEmail(opts)` | trial-check cron | "Your Scout trial has ended — your leads are waiting" |
-| Win-back (3-day) | `buildTrialWinBackEmail(opts)` | (manual / future cron) | "One last thing about your Scout trial" |
-| Reactivation (30-day) | `buildTrialReactivationEmail(opts)` | Admin panel — POST /api/admin/send-reactivation | "Your Scout account is still here, {name}" |
+| 6 | `buildTrialDay6Email(opts)` | trial-check cron | "Day 6: Tomorrow your trial ends: here's exactly what stops at day 7" |
+| 7 | `buildTrialDay7Email(opts)` | trial-check cron | "Your Scout trial ends tonight. You're 23% of the way there." |
+| Expiry | `buildTrialExpiredEmail(opts)` | trial-check cron | "Your Scout trial has ended. Your leads are waiting." |
+| Win-back (~3 days) | `buildTrialWinBackEmail(opts)` | trial-check cron (automated) | "One last thing about your Scout trial" |
+| Reactivation (~30 days) | `buildTrialReactivationEmail(opts)` | Admin panel — POST /api/admin/send-reactivation | "Your Scout account is still here, {name}" |
+
+### Day-by-day content summary
+
+| Day | Core message | Key copy element |
+|-----|-------------|-----------------|
+| 1 | Start the challenge. First scan now. | Opens with Day 1/30 frame. 7-day urgency is a footnote, not the headline. CTA: "Start Day 1 now →" |
+| 2 | 3-part comment framework | Name a detail / Add observation / End with a question |
+| 3 | Early signals to watch for | Profile view spike, author reply, ICP connection. Troubleshooting: are you commenting on LinkedIn itself (not Scout)? Are posts <24h old? |
+| 4 | Timing advantage | 60-90 min algorithm window. Links to `/blog/linkedin-algorithm-2026` for full picture |
+| 5 | 30-day proof + trial urgency | "People who run this approach..." (broad TAM language, not "Consultants"). Trial ends in 2 days. |
+| 6 | Day 7 vs Day 30 comparison table | What stops vs what builds |
+| 7 | Encouraging close — you're 23% there | Day 10/20/30 arc. Team seats upsell: Pro/Agency users can hand the daily feed check to an SDR, VA, or coordinator. CTA: "Keep the momentum going →" |
+| Expiry | Feed is paused. Leads are waiting. | Darker tone, urgency without shame |
+| Win-back | Direct voice, low pressure | Everything you set up is still there |
 
 ### `opts` shape by email type
 
@@ -208,16 +202,24 @@ text. The current version says "because you signed up" without naming the addres
 buildTrialDay1Email({ appUrl: string; unsubUrl: string })
 ```
 
-**Days 2–4** (no upgrade CTA):
+**Days 2–3** (no upgrade CTA):
 ```typescript
 buildTrialDay2Email({ appUrl: string; unsubUrl: string })
-// same shape for Days 3 and 4
+buildTrialDay3Email({ appUrl: string; unsubUrl: string })
+```
+
+**Day 4** (optional blog link):
+```typescript
+buildTrialDay4Email({
+  appUrl:   string
+  unsubUrl: string
+  blogUrl?: string  // defaults to https://scout.clientbloom.ai/blog/linkedin-algorithm-2026
+})
 ```
 
 **Days 5–7** (upgrade CTA, plan-aware color):
 ```typescript
 buildTrialDay5Email({ appUrl: string; upgradeUrl: string; unsubUrl: string; plan?: RecommendedPlan })
-// Day 6 and 7 don't have appUrl (no "open feed" CTA at this stage)
 buildTrialDay6Email({ upgradeUrl: string; unsubUrl: string; plan?: RecommendedPlan })
 buildTrialDay7Email({ upgradeUrl: string; unsubUrl: string; plan?: RecommendedPlan })
 ```
@@ -228,15 +230,16 @@ buildTrialExpiredEmail({ upgradeUrl: string; unsubUrl: string })
 buildTrialWinBackEmail({ upgradeUrl: string; unsubUrl: string })
 ```
 
-**30-day reactivation** (admin-triggered from `/admin` → send-reactivation button):
+**30-day reactivation** (admin-triggered from `/admin` send-reactivation button):
 ```typescript
 buildTrialReactivationEmail({
   companyName: string  // HTML-escaped via safe() — may be an email address
-  email:       string  // used in subject line fallback and unsubscribe URL
-  upgradeUrl:  string  // /upgrade
-  unsubUrl:    string  // /api/unsubscribe?email=...
+  email:       string
+  upgradeUrl:  string
+  unsubUrl:    string
 })
 ```
+
 Note: `companyName` is always run through `safe()` inside the builder — XSS-safe even if the field contains user-supplied HTML.
 
 ### Day dispatcher (for cron use)
@@ -257,8 +260,8 @@ is always sent at signup time.
 
 Days 5, 6, and 7 include a plan recommendation based on `opts.plan`:
 
-| Value | Label | Price | Body accent color | ICP highlight copy |
-|-------|-------|-------|-------------------|--------------------|
+| Value | Label | Price | Body accent color | Highlight copy |
+|-------|-------|-------|-------------------|----------------|
 | `'starter'` | "Continue with Starter →" | $49/month | `BRAND_PURPLE` | "3 keyword searches, 10 ICP profiles scanned (50-profile pool), 1 daily scan" |
 | `'pro'` | "Continue with Pro →" | $99/month | `BRAND_PURPLE` | "10 keyword searches, 25 ICP profiles scanned (150-profile pool), 2 daily scans, Slack digest" |
 | `'agency'` | "Continue with Agency →" | $249/month | `BRAND_PINK` | "20 keyword searches, 50 ICP profiles scanned (500-profile pool), 2 daily scans, up to 5 user seats" |
@@ -290,8 +293,8 @@ Deployed April 2026. These are customer-facing transactional alerts sent by the
 
 **Builder:** `buildServiceFlagEmail(opts: ServiceFlagEmailOpts)`
 
-**From:** `Scout <info@clientbloom.ai>`
-**To:** Tenant's email address (from Airtable)
+**From:** `Scout <info@clientbloom.ai>`  
+**To:** Tenant's email address (from Airtable)  
 **Sent by:** `lib/notify.ts` → `sendServiceFlagEmail()` → called from `app/api/cron/service-check/route.ts`
 
 ### Flag email content map
@@ -305,7 +308,7 @@ Deployed April 2026. These are customer-facing transactional alerts sent by the
 | `trial_no_setup` | "get more from your Scout trial" | amber | /settings |
 | `paid_no_scan_ever` | "let's run your first scan" | amber | /dashboard |
 
-Single-flag emails: subject is `"Scout alert: {subjectFragment}"`.
+Single-flag emails: subject is `"Scout: {subjectFragment}"`.  
 Multi-flag emails: subject is `"Action needed on your Scout account (N issues)"` for 3+ flags, or `"A quick note about your Scout account"` for 2. Header color is red if any critical flag is present, amber otherwise.
 
 ### `ServiceFlagEmailOpts` shape
@@ -318,8 +321,8 @@ interface ServiceFlagEmailFlag {
 }
 
 interface ServiceFlagEmailOpts {
-  appUrl:   string               // e.g. 'https://scout.clientbloom.ai'
-  flags:    ServiceFlagEmailFlag[]
+  appUrl: string               // e.g. 'https://scout.clientbloom.ai'
+  flags:  ServiceFlagEmailFlag[]
 }
 ```
 
@@ -385,32 +388,116 @@ if (incomingPlan !== undefined && VALID_PAID_PLANS.has(incomingPlan)) {
 
 **Why this matters:** Without the whitelist, a trial user could call
 `session.update({ plan: 'Scout Agency' })` from the browser console and bypass
-`isPaidPlan()` checks and `getTierLimits()` comment credit limits. The whitelist
-rejects any plan string that isn't a known paid plan — a trial user's `plan === 'Trial'`
-would never pass the `VALID_PAID_PLANS.has()` check.
+`isPaidPlan()` checks and `getTierLimits()` comment credit limits.
 
 ---
 
-## 10. Adding a New Email Template
+## 10. Agent Context: Trial Email Awareness (April 2026)
+
+Both the inbox agent (`ScoutAgentPanel`) and the settings agent (`SettingsAgentPanel`)
+are wired to receive the user's current trial day. This lets the agent speak consistently
+with the email sequence — reinforcing the same frame, the same vocabulary, and the same
+emotional arc the user has been receiving by email.
+
+### How `trialDay` is computed
+
+`trialEndsAt` is already present in the session JWT. `trialDay` is derived from it on
+the frontend — no additional Airtable reads required:
+
+```typescript
+const trialDay = trialEndsAt
+  ? Math.max(1, Math.min(7, 8 - Math.ceil(
+      (new Date(trialEndsAt).getTime() - Date.now()) / (24 * 60 * 60 * 1000)
+    )))
+  : undefined
+```
+
+This is clamped to 1–7. Values below 1 or above 7 indicate the trial hasn't started
+yet or has already expired — in both cases the prop is omitted.
+
+### Wiring in `app/page.tsx` (inbox)
+
+```typescript
+const trialEndsAt = (session?.user as any)?.trialEndsAt || null
+
+// Passed to ScoutAgentPanel as a prop:
+<ScoutAgentPanel ... trialEndsAt={trialEndsAt} ... />
+
+// Inside ScoutAgentPanel, trialDay is computed and injected into the agent context:
+context: {
+  plan, inboxCount, skippedCount, topPosts, scoreDistribution,
+  trialDay: trialEndsAt
+    ? Math.max(1, Math.min(7, 8 - Math.ceil(
+        (new Date(trialEndsAt).getTime() - Date.now()) / (24 * 60 * 60 * 1000)
+      )))
+    : undefined,
+},
+```
+
+### Wiring in `app/settings/page.tsx`
+
+Same pattern. `SettingsAgentPanel` receives `trialEndsAt` as a prop and computes
+`trialDay` internally before merging it into `effectiveCtx`.
+
+### Agent system prompt sections
+
+Both agent routes (`app/api/inbox-agent/route.ts` and `app/api/settings-agent/route.ts`)
+include **SECTION 3: TRIAL EMAIL SEQUENCE AWARENESS** in their system prompts.
+
+This section contains:
+- The 30-Day LinkedIn Authority Challenge framing
+- A day-by-day summary of what the user has been told (Days 1–7)
+- Contextual behavior rules: Days 1–3 orient to the challenge and celebrate starting; Days 4–5 reinforce strategy depth and introduce the upgrade conversation; Days 6–7 use continuity language and reference the team seats angle
+
+The goal: if a user types a question to the agent during their trial, the response should feel like a natural extension of the email they received that morning — not a disconnected support reply.
+
+---
+
+## 11. Email Copy Guidelines (April 2026)
+
+These rules apply to all copy written for `lib/emails.ts`:
+
+**No em-dashes in email copy.** Em-dashes in email body text read as AI-generated and
+should be replaced with periods, commas, colons, or parentheses depending on context.
+Em-dashes are acceptable only in the `— Mike` and `— Mike Walker, Scout by ClientBloom`
+signature lines.
+
+**Broad TAM language.** Scout is for anyone who needs to build LinkedIn authority —
+consultants, agency owners, founders, sales reps, recruiters, coaches. Do not use
+"consultants" as a stand-in for the full user base. Use "people who run this approach"
+or similar neutral language.
+
+**30-day frame is always present.** Every email that references the trial period must
+also reference the 30-day challenge. The 7-day trial is the vehicle; the 30-day outcome
+is the destination. Day 7 is 23% complete, not the finish line.
+
+**Team seats angle belongs in Day 7 (and later).** The Pro/Agency team seat feature
+(delegating the daily feed check to an SDR, VA, or coordinator) is introduced in Day 7.
+It should not appear in earlier emails where the user hasn't yet built the solo habit.
+
+---
+
+## 12. Adding a New Email Template
 
 1. Add a builder function to `lib/emails.ts` following the existing pattern:
    - Accept `opts` (no `firstName` — see section 4)
    - Call `wrap(header(...), body, '')` where `body` includes `${footer(opts.unsubUrl)}`
      for any marketing email
    - Return `{ subject: string, html: string }`
+   - No em-dashes in copy (see section 11)
 2. Export it
 3. Import in the route that sends it
-4. Test locally with `RESEND_API_KEY` unset — the cron routes log "would send" instead
+4. Update this doc and the email library Word doc (`scout-email-library.docx`)
+5. Test locally with `RESEND_API_KEY` unset — the cron routes log "would send" instead
    of actually sending
 
 ---
 
-## 11. Known Gaps / Future Work
+## 13. Known Gaps / Future Work
 
 | Gap | Priority | Notes |
 |-----|----------|-------|
-| Win-back email (3-day) has no automated trigger — must be sent manually | P2 | Needs a win-back cron (e.g. runs 3 days after trial_expired status is set) |
-| Reactivation email (30-day) has no automated trigger — admin clicks manually | P3 | Could be automated: cron fires 30d after trialEndsAt when plan is still Trial and no Stripe subscription exists |
 | Days 5–7 don't receive a plan recommendation — all default to 'pro' | P3 | Could key off usage (keyword count, ICP count) to recommend starter vs. pro |
 | No open/click tracking on trial emails | P3 | Resend supports webhooks for open/click events |
 | `buildPurchaseWelcomeEmail` still uses `companyName.split(' ')[0]` for greeting | P2 | Same name-extraction risk as the trial emails — revisit when purchase flow adds a name field |
+| `trialDay` prop is only passed during the 7-day trial window | P3 | Post-trial users (expired, paid) could receive agent context about their conversion state instead |
