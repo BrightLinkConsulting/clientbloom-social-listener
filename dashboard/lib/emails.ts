@@ -149,19 +149,19 @@ const PLAN_COPY: Record<RecommendedPlan, PlanCopy> = {
 export function buildTrialDay1Email(
   opts: { appUrl: string; unsubUrl: string },
 ): EmailTemplate {
-  const subject = `Welcome — your 30-Day LinkedIn Authority Challenge starts today`
+  const subject = `Welcome: your 30-Day LinkedIn Authority Challenge starts today`
   const onboardUrl = `${opts.appUrl}/onboarding`
 
   const body = `
     ${h2('Your 30-Day LinkedIn Authority Challenge starts today.')}
-    ${p(`You have 7 days to experience what it feels like when your ideal clients are coming to <em>you</em>.`)}
+    ${p(`This is Day 1. The destination: 30 days from now, at least 3 of your ideal prospects will recognize your name before you ever pitch them.`)}
     ${infoBox(`
       <p style="margin:0 0 6px;font-weight:700;font-size:13px;color:#1a1a1a">The challenge: 30 days, 3 prospects who know your name before you pitch them.</p>
       <p style="margin:0;font-size:13px;color:#555;line-height:1.6">Scout finds the conversations your buyers are having on LinkedIn every single day. You show up. Add something real. Over 30 days, they start to recognize you.</p>
     `, BRAND_PURPLE)}
-    ${p(`<strong>Your first move:</strong> Complete your quick setup — tell Scout who your ideal client is and add 1–2 LinkedIn profiles you want to monitor. Then hit <strong>Scan Now</strong> to see your first batch of posts.`)}
-    <p style="margin:16px 0 8px">${cta('Set up Scout now →', onboardUrl, BRAND_PURPLE)}</p>
-    ${p(`You'll get one email per day this week — specific, actionable, zero filler. Day 2 lands tomorrow with the comment framework that makes you memorable.`, 'color:#666;font-size:13px')}
+    ${p(`<strong>Your first move:</strong> Set up Scout right now. Tell it who your ideal client is, add 1-2 LinkedIn profiles to monitor, and hit <strong>Scan Now</strong> to see your first batch of posts immediately.`)}
+    <p style="margin:16px 0 8px">${cta('Start Day 1 now →', onboardUrl, BRAND_PURPLE)}</p>
+    ${p(`You have 7 days to experience the full system before deciding whether to continue. One email per day this week: specific, actionable, zero filler. Day 2 lands tomorrow with the comment framework that makes you memorable.`, 'color:#666;font-size:13px')}
     ${footer(opts.unsubUrl)}`
 
   return { subject, html: wrap(logoHeader(), body, '') }
@@ -182,7 +182,7 @@ export function buildTrialDay2Email(
       '<strong>2. Add one concrete observation or contrasting data point.</strong> Builds your authority without pitching.',
       '<strong>3. End with one genuine question.</strong> Creates a dialogue, not a broadcast.',
     ])}
-    ${p(`Scout's AI comment suggestions follow this exact structure. Open your feed, find a post scored 7 or above, and read the <em>Comment Angle</em> — that's your starting point.`)}
+    ${p(`Scout's AI comment suggestions follow this exact structure. Open your feed, find a post scored 7 or above, and read the <em>Comment Angle</em>. That's your starting point.`)}
     ${p(`The goal isn't to sell anything. It's to be someone they remember when the time comes.`)}
     <p style="margin:16px 0 8px">${cta('Open your Scout feed →', opts.appUrl, BRAND_PURPLE)}</p>
     ${footer(opts.unsubUrl)}`
@@ -202,12 +202,14 @@ export function buildTrialDay3Email(
     ${p(`You should have your first comments live by now. Here's how to tell whether they're building anything yet.`)}
     ${calloutBox('WEEK 1 SIGNALS TO WATCH FOR', [
       '✓ <strong>Profile view spike</strong> after you comment (check LinkedIn notifications).',
-      '✓ <strong>Reply from the post author</strong> — even a brief one counts. It means they noticed.',
-      '✓ <strong>New connection request</strong> from someone matching your ICP — unprompted.',
+      '✓ <strong>Reply from the post author</strong>, even a brief one counts. It means they noticed.',
+      '✓ <strong>New connection request</strong> from someone matching your ICP, unprompted.',
     ])}
     ${p(`You won't get all three this week. Getting even one is the signal that you're doing it right.`)}
     ${infoBox(`<p style="margin:0;font-size:13px;color:#333;line-height:1.6">When you get a positive response, mark that post as <strong>Engaged</strong> in Scout. You'll build a list of warm contacts without a spreadsheet.</p>`)}
-    ${p(`If you're getting zero responses, two things to check: (1) Are you posting comments on the actual LinkedIn post, not just saving it in Scout? (2) Are the posts you're commenting on less than 24 hours old? Timing matters more than quality in week one.`)}
+    ${p(`If you're getting zero responses, two things to check.`)}
+    ${p(`(1) Are you posting comments on the actual LinkedIn post, not just saving it in Scout? Scout shows you the post; the comment has to happen on LinkedIn itself.`)}
+    ${p(`(2) Are the posts you're commenting on less than 24 hours old? Timing matters more than quality in week one.`)}
     <p style="margin:16px 0 8px">${cta('Check today\'s feed →', opts.appUrl, BRAND_PURPLE)}</p>
     ${footer(opts.unsubUrl)}`
 
@@ -228,7 +230,7 @@ export function buildTrialDay4Email(
     ${p(`Most people open LinkedIn twice a day and scroll what's already popular. By then, the algorithm window is closed. You're commenting into a conversation that's already moved on.`)}
     ${infoBox(`
       <p style="margin:0 0 8px;font-weight:700;font-size:13px;color:#1a1a1a">Scout's morning and evening scans (6 AM + 6 PM) put fresh posts in your feed every day.</p>
-      <p style="margin:0;font-size:13px;color:#555;line-height:1.6">Check your inbox in the morning and again in early evening. That's when you're catching posts in their first hour — the window where your comment gets seen.</p>
+      <p style="margin:0;font-size:13px;color:#555;line-height:1.6">Check your inbox in the morning and again in early evening. That's when you're catching posts in their first hour, the window where your comment gets seen.</p>
     `)}
     ${p(`You don't need to be first. You need to be early and have something worth saying. The combination is rare enough that people notice.`)}
     ${p(`Timing is one layer. The 2026 algorithm also has opinions about saves vs. likes, comment depth, content format, and how links affect distribution. If you want the full picture, <a href="${blogLink}" style="color:${BRAND_PURPLE};text-decoration:underline">we broke it all down here</a>.`)}
@@ -270,10 +272,10 @@ export function buildTrialDay6Email(
 ): EmailTemplate {
   const plan     = opts.plan || 'pro'
   const planCopy = PLAN_COPY[plan]
-  const subject  = `Day 6: Tomorrow your trial ends — here's exactly what stops at day 7`
+  const subject  = `Day 6: Tomorrow your trial ends: here's exactly what stops at day 7`
 
   const body = `
-    ${h2('Day 7 vs. Day 30 — two very different outcomes')}
+    ${h2('Day 7 vs. Day 30: two very different outcomes')}
     <table style="width:100%;border-collapse:collapse;font-size:13px;margin:16px 0;border-radius:8px;overflow:hidden;border:1px solid #e5e5e5">
       <thead>
         <tr style="background:#f5f5f5">
@@ -320,13 +322,13 @@ export function buildTrialDay7Email(
   const body = `
     ${h2(`Day 7 of 30. The momentum is just starting to build.`)}
     ${p(`On Day 1, I framed this as the 30-Day LinkedIn Authority Challenge. Today is day 7, which puts you at 23% through it.`)}
-    ${p(`That's a real foundation. You've been showing up in conversations your competitors aren't even watching. You've built the habit. The hard part — starting — is done.`)}
-    ${p(`What happens between now and day 30 is where it gets interesting. Around day 10, people who keep seeing your name start to recognize it. Around day 20, the first inbound signals appear. By day 30, prospects who've seen you consistently will feel like they already know you — before you ever pitch them.`)}
+    ${p(`That's a real foundation. You've been showing up in conversations your competitors aren't even watching. You've built the habit. The hard part is done. Starting was the hardest step.`)}
+    ${p(`What happens between now and day 30 is where it gets interesting. Around day 10, people who keep seeing your name start to recognize it. Around day 20, the first inbound signals appear. By day 30, prospects who've seen you consistently will feel like they already know you, before you ever pitch them.`)}
     ${infoBox(`
-      <p style="margin:0 0 6px;font-size:13px;color:#333;line-height:1.6">The moments people talk about — a prospect reaching out first, being mentioned in a conversation unprompted, someone asking for your help before you pitched them — those start showing up between days 20 and 30.</p>
+      <p style="margin:0 0 6px;font-size:13px;color:#333;line-height:1.6">The moments people talk about: a prospect reaching out first, being mentioned in a conversation unprompted, someone asking for your help before you pitched them. Those start showing up between days 20 and 30.</p>
       <p style="margin:0;font-size:13px;color:#555;line-height:1.6">You're on day 7. You're right at the edge of where it starts to click.</p>
     `, planCopy.color)}
-    ${p(`One more thing worth knowing: Pro and Agency plans include team seats. If you have someone on your team who could own the daily feed check — an SDR, a VA, a coordinator — this stops being a tool you have to remember to use and becomes a system that runs without you. Hand them the Inbox every morning. They engage. The relationships build. You close.`)}
+    ${p(`One more thing worth knowing: Pro and Agency plans include team seats. If you have someone on your team who could own the daily feed check (an SDR, a VA, a coordinator) this stops being a tool you have to remember to use and becomes a system that runs without you. Hand them the Inbox every morning. They engage. The relationships build. You close.`)}
     <p style="margin:20px 0 4px">${cta(`Keep the momentum going →`, opts.upgradeUrl, planCopy.color)}</p>
     ${p(`Starter $49 · Pro $99 · Agency $249 · Cancel anytime`, 'color:#999;font-size:12px;margin:6px 0 16px')}
     ${footer(opts.unsubUrl)}`
@@ -339,11 +341,11 @@ export function buildTrialDay7Email(
 export function buildTrialExpiredEmail(
   opts: { upgradeUrl: string; unsubUrl: string },
 ): EmailTemplate {
-  const subject = `Your Scout trial has ended — your leads are waiting`
+  const subject = `Your Scout trial has ended. Your leads are waiting.`
 
   const body = `
     ${h2(`Your trial has ended`)}
-    ${p(`Your 7-day Scout trial is over. Your feed is paused — the posts Scout found and the contacts you engaged are still there, locked until you subscribe.`)}
+    ${p(`Your 7-day Scout trial is over. Your feed is paused. The posts Scout found and the contacts you engaged are still there, locked until you subscribe.`)}
     ${p(`The LinkedIn conversations you were showing up in are still happening. The question is whether someone else is filling the space you were in.`)}
     <p style="margin:20px 0 4px">${cta(`Unlock my leads →`, opts.upgradeUrl)}</p>
     ${p(`Starter $49 · Pro $99 · Agency $249 · Cancel anytime`, 'color:#999;font-size:12px;margin:6px 0 16px')}
@@ -364,7 +366,7 @@ export function buildTrialWinBackEmail(
     ${p(`Your trial ended a few days ago. I want to be direct with you.`)}
     ${p(`The window for those LinkedIn conversations doesn't stay open. The people whose posts you were showing up in will move on. Some of them are probably seeing someone else's name in their feed right now.`)}
     ${p(`I'm not saying that to pressure you. I'm saying it because I've watched consultants lose the early-mover position in their niche by waiting two more weeks to decide.`)}
-    ${p(`If the timing genuinely isn't right, I get it. But if it's just hesitation — Scout is $49/month, cancel anytime, and everything you set up during your trial is still there.`)}
+    ${p(`If the timing genuinely isn't right, I get it. But if it's just hesitation, Scout is $49/month, cancel anytime, and everything you set up during your trial is still there.`)}
     <p style="margin:20px 0 4px">${cta(`Pick up where you left off →`, opts.upgradeUrl)}</p>
     ${p(`Starter $49 · Pro $99 · Agency $249`, 'color:#999;font-size:12px;margin:6px 0 16px')}
     ${p(`— Mike`, 'color:#666;font-size:13px;margin-top:20px')}
@@ -406,11 +408,11 @@ export function buildPurchaseWelcomeEmail(
         </tr>
       </table>
     </div>
-    ${p(`Sign in and complete your 2-minute setup — tell Scout who your ideal client is and add the LinkedIn profiles or keywords you want to monitor. Then hit <strong>Scan Now</strong> to see your first posts.`)}
+    ${p(`Sign in and complete your 2-minute setup: tell Scout who your ideal client is and add the LinkedIn profiles or keywords you want to monitor. Then hit <strong>Scan Now</strong> to see your first posts.`)}
     <p style="margin:16px 0 8px">${cta(`Sign in to Scout →`, `${opts.appUrl}/sign-in`)}</p>
-    ${p(`Questions? Reply directly to this email — we read every one.`, 'color:#888;font-size:12px;margin-top:20px')}`
+    ${p(`Questions? Reply directly to this email; we read every one.`, 'color:#888;font-size:12px;margin-top:20px')}`
 
-  return { subject, html: wrap(header(`Scout by ClientBloom — ${opts.plan}`), body, '') }
+  return { subject, html: wrap(header(`Scout by ClientBloom: ${opts.plan}`), body, '') }
 }
 
 // ── Team Invite ───────────────────────────────────────────────────────────────
@@ -424,7 +426,7 @@ export function buildTeamInviteEmail(opts: {
 
   const body = `
     ${h2(`Your team access is ready`)}
-    ${p(`A teammate has added you to their Scout account. You can view and act on incoming ICP posts, copy AI-generated comment starters, and mark leads as Engaged or Skipped — all without touching account settings.`)}
+    ${p(`A teammate has added you to their Scout account. You can view and act on incoming ICP posts, copy AI-generated comment starters, and mark leads as Engaged or Skipped, without touching account settings.`)}
     <div style="background:#fff;border:1px solid #e0e0e0;border-radius:8px;padding:18px 20px;margin:16px 0">
       <table style="width:100%;font-size:13px;border-collapse:collapse">
         <tr style="border-bottom:1px solid #f0f0f0">
@@ -448,7 +450,7 @@ export function buildTeamInviteEmail(opts: {
       'Refresh the feed to pull the latest scans',
     ])}
     <p style="margin:16px 0 8px">${cta(`Open Scout Feed →`, `${opts.loginUrl}/sign-in`)}</p>
-    ${p(`Your access is limited to the feed — billing and settings are managed by the account owner. If you didn't expect this invite, you can safely ignore this email.`, 'color:#888;font-size:12px;margin-top:20px')}`
+    ${p(`Your access is limited to the feed; billing and settings are managed by the account owner. If you didn't expect this invite, you can safely ignore this email.`, 'color:#888;font-size:12px;margin-top:20px')}`
 
   return { subject, html: wrap(header(`You've been invited to Scout`), body, '') }
 }
@@ -462,7 +464,7 @@ export function buildPasswordResetEmail(opts: {
   const subject = `Reset your Scout password`
 
   const body = `
-    ${p(`We received a request to reset your password. If you didn't make this request, you can ignore this email — nothing will change.`)}
+    ${p(`We received a request to reset your password. If you didn't make this request, you can ignore this email. Nothing will change.`)}
     <p style="margin:20px 0 8px">${cta(`Reset my password →`, opts.resetLink)}</p>
     <p style="margin:12px 0 8px;font-size:13px;color:#888">Or copy this link:</p>
     <p style="font-family:monospace;font-size:11px;background:#f0f0f0;padding:8px 12px;border-radius:6px;word-break:break-all;color:#555;margin:0 0 16px">${opts.resetLink}</p>
@@ -481,7 +483,7 @@ export function buildAdminNewTrialEmail(opts: {
   trialEnds: string
 }): EmailTemplate {
   const safe = (s: string) => s.replace(/</g, '&lt;').replace(/>/g, '&gt;')
-  const subject = `[Scout] New trial signup — ${opts.email}`
+  const subject = `[Scout] New trial signup: ${opts.email}`
   const html = `
     <div style="font-family:sans-serif;max-width:520px;margin:0 auto;color:#1a1a1a">
       <div style="background:#4F6BFF;padding:16px 22px;border-radius:10px 10px 0 0">
@@ -508,7 +510,7 @@ export function buildAdminNewPurchaseEmail(opts: {
   subId:  string
 }): EmailTemplate {
   const safe = (s: string) => s.replace(/</g, '&lt;').replace(/>/g, '&gt;')
-  const subject = `[Scout] 💰 New purchase — ${opts.plan} · ${opts.email}`
+  const subject = `[Scout] New purchase: ${opts.plan} · ${opts.email}`
   const html = `
     <div style="font-family:sans-serif;max-width:520px;margin:0 auto;color:#1a1a1a">
       <div style="background:#00B96B;padding:16px 22px;border-radius:10px 10px 0 0">
@@ -536,11 +538,11 @@ export function buildAdminPaymentFailedEmail(opts: {
   amount:    string
 }): EmailTemplate {
   const safe = (s: string) => s.replace(/</g, '&lt;').replace(/>/g, '&gt;')
-  const subject = `[Scout] ⚠️ Payment failed — ${opts.email}`
+  const subject = `[Scout] Payment failed: ${opts.email}`
   const html = `
     <div style="font-family:sans-serif;max-width:520px;margin:0 auto;color:#1a1a1a">
       <div style="background:#ef4444;padding:16px 22px;border-radius:10px 10px 0 0">
-        <p style="color:#fff;font-size:14px;font-weight:700;margin:0">Scout · Payment Failed — Tenant Suspended</p>
+        <p style="color:#fff;font-size:14px;font-weight:700;margin:0">Scout · Payment Failed: Tenant Suspended</p>
       </div>
       <div style="background:#f9f9f9;padding:22px 24px;border-radius:0 0 10px 10px;border:1px solid #e5e5e5;border-top:none">
         <p style="margin:0 0 4px;font-size:13px;color:#888">Email</p>
@@ -561,7 +563,7 @@ export function buildAdminTrialExpiredEmail(opts: {
   name:  string
 }): EmailTemplate {
   const safe = (s: string) => s.replace(/</g, '&lt;').replace(/>/g, '&gt;')
-  const subject = `[Scout] Trial expired — ${opts.email}`
+  const subject = `[Scout] Trial expired: ${opts.email}`
   const html = `
     <div style="font-family:sans-serif;max-width:520px;margin:0 auto;color:#1a1a1a">
       <div style="background:#7C3AED;padding:16px 22px;border-radius:10px 10px 0 0">
@@ -598,9 +600,9 @@ export function buildZeroStreakEmail(
     ${h2("Scout has been scanning, but hasn't found new posts recently.")}
     ${p(`Your account has run <strong>${consecutiveZeroScans} scans</strong> without surfacing relevant new LinkedIn posts. This usually means one of a few things:`)}
     <ol style="color:#444;line-height:1.8;font-size:14px;margin:12px 0 12px 20px;padding:0">
-      <li style="margin-bottom:6px"><strong>Your ICP profiles are quiet</strong> — check if they've posted on LinkedIn recently. If not, they may need rotating out.</li>
-      <li style="margin-bottom:6px"><strong>Your keywords need a refresh</strong> — LinkedIn trends shift; terms that fired last month may return fewer results now.</li>
-      <li style="margin-bottom:6px"><strong>You're fully caught up</strong> — all recent content may have already been captured in previous scans. That's a good sign.</li>
+      <li style="margin-bottom:6px"><strong>Your ICP profiles are quiet</strong>: check if they've posted on LinkedIn recently. If not, they may need rotating out.</li>
+      <li style="margin-bottom:6px"><strong>Your keywords need a refresh</strong>: LinkedIn trends shift; terms that fired last month may return fewer results now.</li>
+      <li style="margin-bottom:6px"><strong>You're fully caught up</strong>: all recent content may have already been captured in previous scans. That's a good sign.</li>
     </ol>
     ${infoBox(`
       <p style="margin:0 0 4px;font-weight:700;font-size:13px;color:#1a1a1a">Fastest fix</p>
@@ -628,7 +630,7 @@ export async function sendEmail(opts: {
   html:      string
 }): Promise<boolean> {
   if (!opts.resendKey) {
-    console.log(`[emails] Would send "${opts.subject}" to ${opts.to} — RESEND_API_KEY not set`)
+    console.log(`[emails] Would send "${opts.subject}" to ${opts.to} : RESEND_API_KEY not set`)
     return false
   }
   try {
@@ -678,7 +680,7 @@ export function buildAdminSentResetEmail(opts: {
     <div style="margin:20px 0">${cta('Sign in to Scout →', opts.loginUrl)}</div>
     ${p('This password was generated by your Scout administrator. If you didn\'t expect this email, please contact support.', 'font-size:12px;color:#aaa')}
   `
-  const html = wrap(header('Scout — Login Reset'), body, '')
+  const html = wrap(header('Scout: Login Reset'), body, '')
   return { subject, html }
 }
 
@@ -699,7 +701,7 @@ export function buildAdminGrantAccessEmail(opts: {
     : ''
   const body = `
     ${h2('Your Scout trial is ready')}
-    ${p(`Hey ${safe(opts.displayName !== opts.email ? opts.displayName : '')}, you have full Scout access for the next 14 days — completely free. Sign in, complete the 2-minute setup, and Scout will start finding high-intent LinkedIn leads automatically.`)}
+    ${p(`Hey ${safe(opts.displayName !== opts.email ? opts.displayName : '')}, you have full Scout access for the next 14 days, completely free. Sign in, complete the 2-minute setup, and Scout will start finding high-intent LinkedIn leads automatically.`)}
     ${noteBlock}
     <table style="width:100%;border-collapse:collapse;font-size:14px;margin:16px 0 20px">
       <tr style="border-bottom:1px solid #eee">
@@ -722,12 +724,12 @@ export function buildAdminGrantAccessEmail(opts: {
     ${calloutBox('What happens next', [
       'Sign in and complete the 2-minute ICP setup',
       'Scout runs your first scan automatically',
-      'Check back daily — new opportunities arrive twice a day',
+      'Check back daily; new opportunities arrive twice a day',
       `Subscribe before ${safe(opts.trialEndLabel)} to keep your data and feed running`,
     ])}
     <div style="margin:20px 0">${cta('Start my free trial →', opts.loginUrl)}</div>
   `
-  const html = wrap(header('Welcome to Scout — 14-Day Free Trial'), body, '')
+  const html = wrap(header('Welcome to Scout: 14-Day Free Trial'), body, '')
   return { subject, html }
 }
 
@@ -747,7 +749,7 @@ export function buildCancellationEmail(opts: {
     ${p(`Your Scout subscription is canceled and will remain active until <strong>${safe(opts.periodEndDate)}</strong>. You keep full access until that date.`)}
     ${p(`Changed your mind? You can resubscribe any time before that date and nothing will change.`)}
     <div style="margin:20px 0">${cta('Resubscribe →', opts.resubscribeUrl)}</div>
-    ${p('Questions? Reply to this email — we read every one.', 'font-size:13px;color:#888')}
+    ${p('Questions? Reply to this email; we read every one.', 'font-size:13px;color:#888')}
   `
   const html = wrap(header('Scout by ClientBloom', BRAND_DARK), body, '')
   return { subject, html }
@@ -771,11 +773,11 @@ export function buildTrialReactivationEmail(opts: {
   const body = `
     ${h2(`Still here when you're ready.`)}
     ${p(`Hi ${name},`)}
-    ${p(`I noticed you tried Scout a little while back. I wanted to reach out — not to pitch you, but because I'm genuinely curious what got in the way.`)}
+    ${p(`I noticed you tried Scout a little while back. I wanted to reach out, not to pitch you, but because I'm genuinely curious what got in the way.`)}
     ${p(`Most people who don't convert fall into one of three camps: the timing wasn't right, the trial moved too fast to get real results, or they just got busy. All of those make sense.`)}
-    ${p(`Here's what I want you to know: everything you set up during your trial is still there. Your feed configuration, your ICP profiles, your scan settings — none of it went anywhere. If you wanted to pick back up today, you'd be running in minutes, not hours.`)}
-    ${infoBox(`<strong>Scout starts at $49/month</strong> — cancel anytime, no contracts. The LinkedIn conversations your prospects are having right now are happening with or without you in them.`, BRAND_BLUE)}
-    ${p(`If you're ready to give it a real run — or if you want to talk through whether it's a fit — just reply to this email. I read every one.`)}
+    ${p(`Here's what I want you to know: everything you set up during your trial is still there. Your feed configuration, your ICP profiles, your scan settings. None of it went anywhere. If you wanted to pick back up today, you'd be running in minutes, not hours.`)}
+    ${infoBox(`<strong>Scout starts at $49/month</strong> , cancel anytime, no contracts. The LinkedIn conversations your prospects are having right now are happening with or without you in them.`, BRAND_BLUE)}
+    ${p(`If you're ready to give it a real run, or if you want to talk through whether it's a fit. Just reply to this email. I read every one.`)}
     <div style="margin:24px 0">${cta(`Resume where you left off →`, opts.upgradeUrl)}</div>
     ${p(`Starter $49 · Pro $99 · Agency $249`, 'color:#999;font-size:12px;margin:4px 0 16px')}
     ${p(`— Mike Walker, Scout by ClientBloom`, 'color:#666;font-size:13px;margin-top:20px')}
@@ -856,7 +858,7 @@ const FLAG_CONTENT: Record<string, {
   },
   trial_no_setup: {
     subjectFragment: 'get more from your Scout trial',
-    heading:         'Your trial is running — but Scout isn\'t scanning anything yet',
+    heading:         'Your trial is running, but Scout isn\'t scanning anything yet',
     body:            'Your trial account has been active for over a day, but you haven\'t added any LinkedIn profiles or keywords to monitor. Your trial window is short and we\'d hate for you to reach day 7 without having seen what Scout can actually do. Setup takes about two minutes.',
     ctaLabel:        'Set up Scout now →',
     ctaPath:         '/settings',
@@ -864,7 +866,7 @@ const FLAG_CONTENT: Record<string, {
   },
   paid_no_scan_ever: {
     subjectFragment: 'let\'s run your first scan',
-    heading:         'Your account is ready — let\'s run your first scan',
+    heading:         'Your account is ready. Let\'s run your first scan',
     body:            'Your subscription is active but we haven\'t run a scan for your account yet. If you\'ve already added your ICP profiles and keywords, your first scan should trigger within the next scheduled window. If you haven\'t set up your sources yet, it takes about two minutes.',
     ctaLabel:        'Go to your dashboard →',
     ctaPath:         '/dashboard',
@@ -916,7 +918,7 @@ export function buildServiceFlagEmail(opts: ServiceFlagEmailOpts): EmailTemplate
   // Subject: specific for single flag, general for multiple
   const hasCritical = rendered.some(f => f.severity === 'critical')
   const subject = rendered.length === 1
-    ? `Scout — ${FLAG_CONTENT[rendered[0].code].subjectFragment}`
+    ? `Scout: ${FLAG_CONTENT[rendered[0].code].subjectFragment}`
     : hasCritical
       ? `Action needed on your Scout account (${rendered.length} issues)`
       : `A quick note about your Scout account`
@@ -951,7 +953,7 @@ export function buildServiceFlagEmail(opts: ServiceFlagEmailOpts): EmailTemplate
     ${h2(rendered.length === 1 ? FLAG_CONTENT[rendered[0].code].heading : 'Your account needs attention')}
     ${intro}
     ${sections}
-    ${p('Questions? Reply directly to this email — a real person reads every one.', 'color:#888;font-size:12px;margin-top:20px')}`
+    ${p('Questions? Reply directly to this email; a real person reads every one.', 'color:#888;font-size:12px;margin-top:20px')}`
 
   const footerHtml = `
     <hr style="border:none;border-top:1px solid #e5e5e5;margin:28px 0 16px" />
@@ -962,8 +964,8 @@ export function buildServiceFlagEmail(opts: ServiceFlagEmailOpts): EmailTemplate
     </p>`
 
   const headerHtml = rendered.length === 1
-    ? header(`Scout — ${rendered[0].severity === 'critical' ? '⚠ Action required' : 'Account notice'}`, headerColor)
-    : header(`Scout — Account notice (${rendered.length} items)`, headerColor)
+    ? header(`Scout: ${rendered[0].severity === 'critical' ? '⚠ Action required' : 'Account notice'}`, headerColor)
+    : header(`Scout: Account notice (${rendered.length} items)`, headerColor)
 
   return { subject, html: wrap(headerHtml, body, footerHtml) }
 }
