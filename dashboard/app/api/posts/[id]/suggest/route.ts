@@ -171,6 +171,9 @@ HARD RULES:
    WRONG: "Comment: ..."
    WRONG: "You could ask about..."
    WRONG: "Share a specific insight..."
+   WRONG: "Validate the tension and offer a counterintuitive take: Agency leaders often find their voice faster..."
+   WRONG: "Offer a reframe: The ownership gap usually shows up..."
+   WRONG: "Lean into the vulnerability: Most founders feel this..."
    Your output starts with the first word of the comment — nothing before it.
 
 2. First-person voice. Write as the user. "I've noticed...", "In my experience...", "Curious whether...", "Have you found that..."
@@ -248,7 +251,7 @@ Write a short 2-sentence LinkedIn comment in first person, ready to copy and pas
   // system prompt. Pattern: "Label word(s): rest of text" where the label is a
   // ghostwriting direction rather than the start of the actual comment.
   // This is a safety net — the system prompt is the primary control.
-  const META_PREFIX_RE = /^(extend the insight|possible angle|deepen the insight|build on this|challenge the premise|add context|try this|here'?s? (a |an )?comment|suggested comment|comment|approach|angle|option \d+)[:\s]+/i
+  const META_PREFIX_RE = /^(extend the insight|possible angle|deepen the insight|build on this|challenge the premise|add context|try this|here'?s? (a |an )?comment|suggested comment|comment|approach|angle|option \d+|validate the tension.*?|offer a (reframe|counterintuitive|perspective).*?|lean into the.*?|acknowledge the.*?|push back on.*?|reframe the.*?|flip the.*?|challenge this.*?)[:\s]+/i
   if (commentApproach) {
     commentApproach = commentApproach
       .replace(META_PREFIX_RE, '')          // strip ghostwriter meta-prefix

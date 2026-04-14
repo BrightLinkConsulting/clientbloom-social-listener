@@ -540,8 +540,13 @@ export async function scorePosts(
   try {
     const jsonMatch = text.match(/\[[\s\S]*\]/)
     const scores: any[] = jsonMatch ? JSON.parse(jsonMatch[0]) : []
-    return posts.map((p, idx) => {
-      const s = scores.find(x => x.post_id === (p.id || p.postId)) || scores[idx]
+    return posts.map((p) => {
+      // String-coerce both sides: Haiku sometimes returns numeric IDs even when
+      // the input post_id was a string, causing strict === to miss. The || scores[idx]
+      // positional fallback is intentionally removed — if post_id matching fails,
+      // using index order (which Haiku does not guarantee) produces cross-post
+      // contamination where one author's score reason bleeds into another's record.
+      const s = scores.find(x => String(x.post_id) === String(p.id || p.postId))
       return { ...p, score: s?.score ?? 5, reason: s?.reason ?? '', comment_approach: s?.comment_approach ?? '' }
     })
   } catch { return posts.map(p => ({ ...p, score: 5, reason: '' })) }
