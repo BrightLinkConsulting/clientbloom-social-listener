@@ -488,9 +488,10 @@ export async function DELETE(req: Request) {
     }
 
     // ── Cascade delete ────────────────────────────────────────────────────
-    if (!tenantId) {
-      // No Tenant ID means the account was never fully provisioned.
-      // Only the Tenants row needs to be removed.
+    if (!tenantId || tenantId === 'owner') {
+      // No valid Tenant ID means the account was never fully provisioned (or is an
+      // old seed/test account with a non-UUID placeholder like 'owner').
+      // Only the Tenants row needs to be removed — no cascade into shared data.
       const resp = await fetch(`${BASE_URL()}/${id}`, {
         method:  'DELETE',
         headers: { Authorization: `Bearer ${PLATFORM_TOKEN}` },
@@ -502,7 +503,7 @@ export async function DELETE(req: Request) {
         adminEmail:      caller.email || 'admin',
         targetEmail:     email,
         targetRecordId:  id,
-        notes:           { reason: 'No tenantId — only Tenants row removed', stripeCancelled },
+        notes:           { reason: `tenantId "${tenantId || '(empty)'}" — only Tenants row removed`, stripeCancelled },
       })
 
       return NextResponse.json({ ok: true, cascade: null, stripeCancelled })
