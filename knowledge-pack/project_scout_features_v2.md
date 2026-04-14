@@ -91,12 +91,21 @@ Full 7-email trial nurture sequence plus post-trial emails. All templates in `li
 - **Trial expired** — sent when `Status` is set to `trial_expired`
 - **Win-back** — configurable re-engagement (admin-triggered or cron)
 
+### Transactional Emails (triggered by Stripe webhook)
+
+- **Purchase welcome** (`buildPurchaseWelcomeEmail`) — sent to brand new users who purchase without going through trial. Includes temp credentials (email + generated password + sign-in URL).
+- **Upgrade confirmation** (`buildUpgradeConfirmationEmail`) — sent to trial users who convert to a paid plan. No credentials (they already have them). Subject: "You're now on Scout [Plan] — welcome aboard." Wired into `checkout.session.completed` webhook path for existing tenants (commit 874aca2).
+- **Cancellation** (`buildCancellationEmail`) — sent on `customer.subscription.deleted`. Confirms access period end date and includes resubscribe CTA.
+- **Admin: New Purchase** (`buildAdminNewPurchaseEmail`) — sent to `ADMIN_EMAIL` on every new purchase, including trial-to-paid conversions (wired in 874aca2).
+- **Admin: Payment Failed** (`buildAdminPaymentFailedEmail`) — sent to `ADMIN_EMAIL` on `invoice.payment_failed`.
+
 ### Key Rules
 
 - All emails from `info@clientbloom.ai` via Resend
 - 20-hour gap enforced via `Trial Last Email Sent At` field (prevents duplicate sends if cron runs during a slow Airtable response)
 - `Trial Email Day` field tracks which day's email was last sent
 - Email 4 links to the LinkedIn algorithm 2026 blog article — do not remove that article
+- `ADMIN_EMAIL` env var must be set in Vercel for admin notifications to fire — confirmed set as of April 14, 2026
 
 ---
 

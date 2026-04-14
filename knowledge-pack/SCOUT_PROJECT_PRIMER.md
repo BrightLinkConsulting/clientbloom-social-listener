@@ -2,7 +2,7 @@
 
 ## READ THIS FIRST — BEFORE TOUCHING ANY CODE
 
-This document is the complete, authoritative orientation for Scout as of April 14, 2026 (HEAD commit 29b9bef). It supersedes the original knowledge pack (which was accurate through bd63e93). The overrides for trial mechanics, pricing, domain, and pre-production checklist status were all confirmed in session 5.
+This document is the complete, authoritative orientation for Scout as of April 14, 2026 (HEAD commit 874aca2). It supersedes the original knowledge pack (which was accurate through bd63e93). The overrides for trial mechanics, pricing, domain, and pre-production checklist status were all confirmed in session 5. Session 6 additions: cascade delete fix for legacy 'owner' tenantId accounts, upgrade confirmation email for trial-to-paid conversions.
 
 ---
 
@@ -87,7 +87,7 @@ Required env vars: `STRIPE_PRICE_STARTER`, `STRIPE_PRICE_PRO`, `STRIPE_PRICE_AGE
 
 ## What Is Currently Working (Do Not Break)
 
-As of HEAD commit `29b9bef`:
+As of HEAD commit `874aca2`:
 
 - **Engage button** — posts move to Engaged tab (fixed bd63e93)
 - **Reply flow** — posts move to Replied tab
@@ -125,6 +125,17 @@ As of HEAD commit `29b9bef`:
 1. Stripe webhook secret — live payments processing, but a human should manually verify STRIPE_WEBHOOK_SECRET in Vercel matches the Stripe dashboard signing secret for the Scout endpoint
 2. Shared Apify pool for Trial/Starter/Pro — Agency is isolated; others share. Monitor Scan Health for RATE_LIMIT errors at ~40 active tenants
 3. Dead Facebook code still in lib/scan.ts, lib/cascade-delete.ts, lib/scan-health.ts — no functional impact, cosmetic cleanup only
+
+## Fixes Applied in Session 6 (April 14, 2026)
+
+**Cascade delete for legacy 'owner' tenantId accounts (commit f794816)**
+Old seed/test accounts provisioned with `Tenant ID = 'owner'` (a non-UUID placeholder) would throw "Invalid tenantId" when deleted from the admin panel. The API route's early-exit guard only caught empty tenantId, not the string `'owner'`. Fixed in `/api/admin/tenants` DELETE handler — `!tenantId || tenantId === 'owner'` now bypasses cascade and deletes only the Tenants row, which is correct since these accounts have no shared data.
+
+**Upgrade confirmation email for trial-to-paid conversions (commit 874aca2)**
+Trial users who upgraded via Stripe checkout received no Scout email — only Stripe's generic receipt. The `checkout.session.completed` webhook handler had two paths: existing tenant (trial upgrade) hit `break` with no email; brand new user got a welcome email. Fixed by adding `buildUpgradeConfirmationEmail` to `lib/emails.ts` and wiring it into the trial upgrade path of the webhook. Now sends:
+- Upgrade confirmation to the subscriber (subject: "You're now on Scout [Plan] — welcome aboard")
+- Admin purchase notification to ADMIN_EMAIL (same template as direct purchases)
+`ADMIN_EMAIL` env var confirmed set in Vercel (Production + Preview).
 
 ---
 
@@ -165,6 +176,9 @@ Before writing any new field to Airtable, verify it exists. Airtable returns `UN
 
 | Hash | Description |
 |---|---|
+| `874aca2` | Feat: send upgrade confirmation email on trial-to-paid conversion |
+| `f794816` | Fix: cascade delete fails for old accounts with Tenant ID = 'owner' |
+| `d481e03` | Add knowledge-pack: fully current Claude session context files (April 14 2026) |
 | `29b9bef` | Update sort default references to date-desc across agent prompt and docs |
 | `9cbb9c3` | Admin hardening sprint merge: cascade delete, audit log, CSM agent, super admin, bug fixes |
 | `bd63e93` | Fix: remove Engaged By field write — field does not exist in Airtable |
@@ -195,6 +209,6 @@ Before writing any new field to Airtable, verify it exists. Airtable returns `UN
 
 ## Environment Variables (All Set in Vercel)
 
-`PLATFORM_AIRTABLE_TOKEN`, `PLATFORM_AIRTABLE_BASE_ID`, `AIRTABLE_PROVISIONING_TOKEN`, `STRIPE_SECRET_KEY`, `STRIPE_PRICE_STARTER`, `STRIPE_PRICE_PRO`, `STRIPE_PRICE_AGENCY`, `STRIPE_WEBHOOK_SECRET` (verify LIVE key), `RESEND_API_KEY`, `NEXTAUTH_SECRET`, `NEXTAUTH_URL`, `CRON_SECRET`, `APIFY_API_TOKEN`, `APIFY_WEBHOOK_SECRET`, `ANTHROPIC_API_KEY`, `SLACK_WEBHOOK_URL`
+`PLATFORM_AIRTABLE_TOKEN`, `PLATFORM_AIRTABLE_BASE_ID`, `AIRTABLE_PROVISIONING_TOKEN`, `STRIPE_SECRET_KEY`, `STRIPE_PRICE_STARTER`, `STRIPE_PRICE_PRO`, `STRIPE_PRICE_AGENCY`, `STRIPE_WEBHOOK_SECRET` (verify LIVE key), `RESEND_API_KEY`, `NEXTAUTH_SECRET`, `NEXTAUTH_URL`, `CRON_SECRET`, `APIFY_API_TOKEN`, `APIFY_WEBHOOK_SECRET`, `ANTHROPIC_API_KEY`, `SLACK_WEBHOOK_URL`, `ADMIN_EMAIL` (confirmed set — receives purchase + payment failure notifications), `SUPER_ADMIN_EMAIL`, `ADMIN_PASSWORD`
 
 Dead env vars (do not reference): `STRIPE_TRIAL_DAYS`, `STRIPE_PRICE_ID`
