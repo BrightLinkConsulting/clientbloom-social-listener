@@ -1025,6 +1025,49 @@ To add a new inbox action type (e.g., `bulk_engage`):
 - Score 5 inbox-only edge case → cumulative note spells it out
 - Mobile layout cramping → responsive grid added
 
+### Session 15 — April 2026 (Guided Tour Mode)
+
+**Guided Tour Mode added to Inbox Scout Agent (`app/api/inbox-agent/route.ts`, `app/page.tsx`)**
+
+A full conversational product tour, triggered by the "Walk me through Scout" chip. Designed to onboard new users and improve retention by sequencing platform knowledge across 6 modules rather than dumping everything at once.
+
+**Architecture:**
+- `tourState: { active, currentStep, completedSteps }` tracked in React state and sent in every API request as part of `context`.
+- Agent receives `TOUR STATE` block in context — survives 6-turn history truncation because step position is explicit, not inferred from history.
+- Agent returns `nextTourStep` in JSON response: `0` = exit, `null` = off-topic/don't advance, `2-7` = advance to step N.
+- Frontend updates `tourState` based on `nextTourStep` and records completed steps for future context.
+
+**Tour curriculum (6 modules):**
+1. What Scout does
+2. Scoring and the feed (5/6/8 thresholds)
+3. Sources: ICP Profiles + Keywords
+4. Engaging with posts (suggest comment, mark engaged/replied)
+5. Engagement Momentum (surfaced, rate, bar chart)
+6. Optimizing results (custom scoring prompt) → open exploration
+
+**Adversarial stress test — 13 scenarios tested, all addressed:**
+- History truncation: solved by tourState context block
+- Blank yes chain: solved by explicit currentStep tracking
+- Off-topic mid-tour: `nextTourStep:null` keeps position, ends with "pick up where we left off?"
+- Unrelated history on trigger: "Walk me through Scout" always resets to step 1
+- Deep follow-up requests: stay on current step, redirect to tour
+- Action requests mid-tour: execute + stay in tour mode
+- Empty inbox: Step 1/2 describe abstractly, not "check your feed"
+- Step skip requests: agent jumps to requested step
+- Full tour completion: open exploration mode, `nextTourStep:null`
+- JSON format compliance: Section 5 explicitly requires standard JSON + nextTourStep
+- Progress recap: auto-fires after 4+ completed steps
+- Graceful exit: `nextTourStep:0` clears tourState
+
+**Other changes (same session):**
+- Intro text shortened: "Manage your inbox, understand your stats, and get answers about Scout — features, plans, settings, or what any number means." No orphaned word on narrow viewports.
+- Chips auto-send: `onClick={() => sendMessage(s)}` — no extra click required.
+- Chips updated: "Walk me through Scout" / "What should I engage with today?" / "What does the Engagement Rate mean?" (skip chip removed — too situational).
+- `sendMessage` refactored to accept optional `textOverride` parameter for programmatic sends.
+- `resetConversation` clears `tourState`.
+
+---
+
 ### Session 14 — April 2026 (Inbox score floor bug fixed)
 
 **Root cause diagnosed and fixed: "No matching posts found" when skipping "below score 5"**

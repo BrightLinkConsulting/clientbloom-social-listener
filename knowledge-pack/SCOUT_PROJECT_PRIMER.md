@@ -2,7 +2,7 @@
 
 ## READ THIS FIRST — BEFORE TOUCHING ANY CODE
 
-This document is the complete, authoritative orientation for Scout as of April 14, 2026 (HEAD commit a25de39). It supersedes the original knowledge pack (which was accurate through bd63e93). The overrides for trial mechanics, pricing, domain, and pre-production checklist status were all confirmed in session 5. Session 6 additions: cascade delete fix for legacy 'owner' tenantId accounts, upgrade confirmation email for trial-to-paid conversions. Session 7 additions: GHL Scout pipeline integration (Airtable-backed ID persistence), Slack admin alerts for trial signup + purchase.
+This document is the complete, authoritative orientation for Scout as of April 14, 2026 (HEAD commit de4e514). It supersedes the original knowledge pack (which was accurate through bd63e93). The overrides for trial mechanics, pricing, domain, and pre-production checklist status were all confirmed in session 5. Session 6 additions: cascade delete fix for legacy 'owner' tenantId accounts, upgrade confirmation email for trial-to-paid conversions. Session 7 additions: GHL Scout pipeline integration (Airtable-backed ID persistence), Slack admin alerts for trial signup + purchase. Sessions 8-14: GHL monetary value on opportunities, inbox score floor fix (min inbox score=5, scores 1-4 pre-filtered at scan time, never in Airtable), server-side floor clamp, agent context/prompt corrections propagated to settings-agent and CSM agent. Session 15: Guided Tour Mode in inbox agent — 6-module conversational onboarding tour triggered by "Walk me through Scout" chip, tourState tracked in React + sent in API context, nextTourStep response field drives step advancement and exit, 13 adversarial edge cases addressed.
 
 ---
 
