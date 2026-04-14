@@ -27,6 +27,7 @@ import { provisionNewTenant } from '@/lib/provision'
 import { planFromPriceId, escapeAirtableString } from '@/lib/tier'
 import {
   buildPurchaseWelcomeEmail,
+  buildUpgradeConfirmationEmail,
   buildAdminNewPurchaseEmail,
   buildAdminPaymentFailedEmail,
   buildCancellationEmail,
@@ -232,10 +233,38 @@ export async function POST(req: NextRequest) {
           if (planName)    fields['Plan']                   = planName
           if (priceId)     fields['Stripe Price ID']        = priceId
           fields['Status']          = 'Active'
-          fields['Trial Ends At']   = null  // clear trial expiry on paid conversion (null = empty date)
+          fields['Trial Ends At']   = null  // clear trial expiry on paid conversion
           fields['Trial Email Day'] = 0     // stop trial email sequence
           await updateTenantRecord(existing.id, fields)
           console.log(`[webhook] Trial user ${email} upgraded to ${planName}`)
+
+          // Send upgrade confirmation to user and admin notification
+          const resendKey  = process.env.RESEND_API_KEY
+          const adminEmail = process.env.ADMIN_EMAIL || ''
+          const companyName = (existing.fields['Company Name'] as string) || email
+          if (resendKey) {
+            const { subject, html } = buildUpgradeConfirmationEmail({
+              companyName,
+              email,
+              plan: planName,
+              appUrl: BASE_URL,
+            })
+            await fetch('https://api.resend.com/emails', {
+              method: 'POST',
+              headers: { Authorization: `Bearer ${resendKey}`, 'Content-Type': 'application/json' },
+              body: JSON.stringify({ from: 'Scout by ClientBloom <info@clientbloom.ai>', to: [email], subject, html }),
+            })
+            if (adminEmail) {
+              const purchaseAlert = buildAdminNewPurchaseEmail({
+                email, name: companyName, plan: planName, subId: subId || '',
+              })
+              await fetch('https://api.resend.com/emails', {
+                method: 'POST',
+                headers: { Authorization: `Bearer ${resendKey}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ from: 'Scout Alerts <info@clientbloom.ai>', to: [adminEmail], subject: purchaseAlert.subject, html: purchaseAlert.html }),
+              })
+            }
+          }
           break
         }
 

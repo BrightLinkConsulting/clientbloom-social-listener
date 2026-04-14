@@ -415,6 +415,28 @@ export function buildPurchaseWelcomeEmail(
   return { subject, html: wrap(header(`Scout by ClientBloom: ${opts.plan}`), body, '') }
 }
 
+// ── Upgrade Confirmation (trial → paid) ───────────────────────────────────────
+// Sent when an existing trial user completes Stripe checkout.
+// Does NOT include credentials — the user already has them.
+
+export function buildUpgradeConfirmationEmail(opts: {
+  companyName: string
+  email:       string
+  plan:        string
+  appUrl:      string
+}): EmailTemplate {
+  const firstName = opts.companyName.split(' ')[0] || opts.companyName
+  const subject   = `You're now on Scout ${opts.plan} — welcome aboard`
+
+  const body = `
+    ${h2(`You're in, ${firstName}.`)}
+    ${p(`Your Scout ${opts.plan} subscription is active. Your feed is live, your data is intact, and your next scan will run on schedule.`)}
+    <p style="margin:16px 0 8px">${cta(`Go to your feed →`, `${opts.appUrl}`)}</p>
+    ${p(`If you have any questions about your plan or want to make the most of Scout, just reply to this email.`, 'color:#888;font-size:12px;margin-top:20px')}`
+
+  return { subject, html: wrap(header(`Scout by ClientBloom: ${opts.plan}`), body, '') }
+}
+
 // ── Team Invite ───────────────────────────────────────────────────────────────
 
 export function buildTeamInviteEmail(opts: {
