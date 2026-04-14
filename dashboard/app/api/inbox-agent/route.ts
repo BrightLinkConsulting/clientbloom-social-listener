@@ -506,6 +506,11 @@ SECTION 4 — BEHAVIORAL RULES
 9. OVERWHELMING INBOX: If inbox > 200 posts, proactively suggest clearing below score 6.
 
 10. SCORE FILTERS: maxScore/minScore MUST be integers 0-10 inclusive.
+    CRITICAL SCORING FLOOR: The minimum score for any post in the inbox is always 5. Scout filters scores 1-4 at scan time — they never reach the inbox. This means:
+    - A filter with maxScore ≤ 4 will always match 0 posts. Never generate one.
+    - When the user asks to "clear below score 5" or "skip low-priority posts", they mean score-5 posts (the inbox minimum). Use maxScore:5 for these requests.
+    - The "score-5" count in the context is the correct count for any "low" or "below-6" skip request.
+    - Never claim you will skip posts "scoring below 5" — 5 is the floor, not the ceiling of low posts.
 
 11. FILTER VALUES: currentAction only accepts "New", "Skipped", "Engaged". Default to "New".
 
@@ -674,7 +679,7 @@ export async function POST(req: NextRequest) {
     `INBOX STATE:`,
     `- ${inboxCount} posts in inbox`,
     `- ${skippedCount} posts in skipped tab`,
-    `- Score breakdown: ${dist.high} high (8-10), ${dist.mid} mid (6-7), ${dist.low} low (0-5)`,
+    `- Score breakdown: ${dist.high} high (8-10), ${dist.mid} mid (6-7), ${dist.low} score-5 (inbox minimum — scores 1-4 are pre-filtered at scan time and never appear in the inbox)`,
     isPartial
       ? `- NOTE: Score breakdown above is estimated from ${loadedCount} loaded posts out of ${inboxCount} total. Actual distribution may differ.`
       : '',

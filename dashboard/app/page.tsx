@@ -1775,7 +1775,7 @@ function ScoutAgentPanel({
               <div className="flex flex-col gap-1.5">
                 {[
                   'What should I engage with today?',
-                  'Clear everything below score 5',
+                  'Skip all score-5 posts',
                   'What does the Engagement Rate mean?',
                 ].map(s => (
                   <button key={s} onClick={() => { setInput(s) }} className="text-left text-xs px-3 py-2 rounded-lg bg-slate-800/60 border border-slate-700/40 text-slate-400 hover:text-slate-200 hover:border-slate-600/60 transition-colors">
