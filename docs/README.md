@@ -37,7 +37,8 @@ This folder is the developer knowledge base for Scout. Start here.
 |----------|----------------|
 | [`scout-agent.md`](./scout-agent.md) | Scout Agent architecture — dual-agent pattern (inbox + settings), system prompts, security model, action types, conversation state, proactive coaching logic |
 | [`admin-panel.md`](./admin-panel.md) | Super admin panel — tenant management, trial grants, action semantics |
-| [`email-system.md`](./email-system.md) | Centralized email architecture, all templates, brand constants, CAN-SPAM |
+| [`email-system.md`](./email-system.md) | Centralized email architecture, all templates, brand constants, CAN-SPAM, agent trial-day wiring |
+| [`blog-system.md`](./blog-system.md) | Blog architecture, how to add a new article, SEO/GEO requirements, dual CTA rule, current article index |
 | [`stripe-billing.md`](./stripe-billing.md) | Checkout flow, webhook handler, cancellation, billing portal |
 | [`scan-health-and-watchdog.md`](./scan-health-and-watchdog.md) | Scan state machine, watchdog cron, stuck-scan detection |
 | [`linkedin-icp-pool.md`](./linkedin-icp-pool.md) | Two-layer ICP pool model (poolSize vs scanSlots), Discover ICPs, prioritization |
@@ -80,6 +81,8 @@ This folder is the developer knowledge base for Scout. Start here.
 | How do billing plan upgrades work? | [`stripe-billing.md`](./stripe-billing.md) |
 | What does a cron job need? | [`/SETUP.md`](../SETUP.md) → "Cron jobs" |
 | What email does a trial user receive on day 3? | [`email-system.md`](./email-system.md) |
+| How do I add a new blog post? | [`blog-system.md`](./blog-system.md) |
+| How does the agent adapt its tone during a trial? | [`scout-agent.md`](./scout-agent.md) → "Section 3 — Trial Email Sequence Awareness" |
 | What happens when a trial expires? | [`scan-health-and-watchdog.md`](./scan-health-and-watchdog.md) + [`stripe-billing.md`](./stripe-billing.md) |
 | How do I grant a trial from the admin panel? | [`admin-panel.md`](./admin-panel.md) → "Grant 7-Day Trial" |
 | Why is Airtable returning 429 errors? | [`airtable-rate-limit-resilience.md`](./airtable-rate-limit-resilience.md) |
@@ -127,4 +130,4 @@ Created At fields    → new Date().toISOString() — never date-only split('T')
 
 ---
 
-*Last updated: April 2026 — Scout Phase 2 (Session 8: Settings Agent, dual-agent pattern documented)*
+*Last updated: April 2026 — Session 14+ (trial email sequence awareness wired to both agents; blog-system.md added; email-system.md updated with 30-day challenge frame, agent wiring, and copy guidelines)*

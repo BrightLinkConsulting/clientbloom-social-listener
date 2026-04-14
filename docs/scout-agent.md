@@ -1,7 +1,7 @@
 # Scout Agent — Architecture & Operations Guide
 
 > **Audience:** Engineers maintaining or extending the Scout codebase.
-> **Last updated:** April 2026 (Session 14 — Feed Control Bar: search, sort, score filter, Select, Refresh; Skipped density warnings)
+> **Last updated:** April 2026 (Session 14 — Feed Control Bar: search, sort, score filter, Select, Refresh; Skipped density warnings; trial email sequence awareness wired to both agents)
 
 ---
 
@@ -24,7 +24,7 @@ The agent operates strictly from its built-in knowledge base. It does not query 
 Browser (page.tsx)
   │
   │  POST /api/inbox-agent
-  │  { message, context: { plan, inboxCount, skippedCount, topPosts, scoreDistribution }, history }
+  │  { message, context: { plan, inboxCount, skippedCount, topPosts, scoreDistribution, trialDay? }, history }
   ▼
 inbox-agent/route.ts                 ← Validates input, builds prompt, calls Claude
   │
@@ -132,11 +132,11 @@ Clicking "New" in the panel header regenerates a fresh proactive opener using th
 
 ## System Prompt Structure
 
-The system prompt has three clearly labeled sections. When updating Scout's features, plans, or limits, **only Section 2 needs to change** — the other two sections govern behavior, not knowledge.
+Both the Inbox Agent and Settings Agent system prompts follow the same section structure (4 sections as of April 2026). When updating Scout's features, plans, or limits, **only Section 2 needs to change** — the other sections govern behavior and context awareness, not knowledge.
 
 ### Section 1 — Role & Actions
 
-Defines Scout Agent's two purposes and the five inbox action types it can propose (`bulk_skip`, `bulk_archive`, `bulk_restore`, `set_min_score`, `none`).
+Defines the agent's purpose and the action types it can propose. For the Inbox Agent: `bulk_skip`, `bulk_archive`, `bulk_restore`, `set_min_score`, `none`. For the Settings Agent: `none` only (advisory, no execution).
 
 ### Section 2 — Platform Knowledge Base
 
@@ -161,7 +161,32 @@ The complete factual ground truth the agent draws from when answering platform q
 
 Note: Section 2 is maintained as natural language text separately from `lib/tier.ts` (the server-side enforcement source of truth), because Claude cannot import TypeScript. When limits change, **both** must be updated.
 
-### Section 3 — Behavioral Rules
+### Section 3 — Trial Email Sequence Awareness (added April 2026)
+
+This section gives both agents awareness of the 7-email trial nurture sequence the user has been receiving. The goal: if a user talks to the agent during their trial, the agent's response feels like a natural continuation of the emails — same vocabulary, same frame, same emotional arc — rather than a disconnected support reply.
+
+**The core frame:** The trial is 7 days, but the challenge is 30 days. The stated destination is 3 ideal prospects who recognize the user's name before ever being pitched. Every email references this frame. The agents must reinforce it, never contradict it.
+
+**Day-by-day awareness baked into the system prompt:**
+
+| Trial Day | What the user was told | Agent behavior |
+|-----------|----------------------|----------------|
+| 1 | Day 1 of 30. Set up Scout, hit Scan Now immediately. | Orient to the challenge frame. Celebrate that they started. Drive the first scan. |
+| 2 | 3-part comment framework (Name detail / Add observation / Ask question) | Reinforce the framework. Encourage them to act on posts. |
+| 3 | Early signals to watch for. Troubleshooting timing and platform. | Normalize "no results yet". Direct to LinkedIn (not Scout) for commenting. |
+| 4 | Timing advantage: 60-90 min window. Morning + evening check-in habit. | Emphasize consistency over perfection. Reference the timing edge. |
+| 5 | 30-day proof. "People who run this consistently..." Trial ends in 2 days. | Introduce upgrade conversation naturally. Reference what day 30 looks like. |
+| 6 | Day 7 vs Day 30 comparison. Trial ends tomorrow. | Reinforce what they're about to lose momentum on. Upgrade CTA is urgent but not shaming. |
+| 7 | "You're 23% of the way there." Team seats upsell. Keep the momentum. | Encouraging close. Never "you're a quitter" framing. Reference team delegation angle. |
+
+**Consistent language guide** (from the system prompt):
+- Always "30-Day LinkedIn Authority Challenge" for the frame
+- "Day X of 30" not "Day X of 7"
+- "momentum" not "deadline"
+- "23% of the way there" on Day 7
+- For upgrade: reference the team seats angle — "If you have a VA or SDR, they can own this daily"
+
+### Section 4 — Behavioral Rules
 
 15 explicit rules covering:
 
@@ -200,6 +225,7 @@ Rules 12–15 are the hallucination guardrail and plan-awareness layer added in 
   - `skippedCount` — posts in the Skipped tab
   - `topPosts` — up to 10 posts sorted by score descending
   - `scoreDistribution` — `{ high, mid, low }` counts by score bracket
+  - `trialDay` *(optional)* — integer 1–7, computed from `trialEndsAt` in the session JWT. Only present for active trial users. See "Trial Day Wiring" section below.
 - `history` — last 6 message turns from the current session
 
 ### 2. Server validates and sanitizes input
@@ -216,7 +242,8 @@ Rules 12–15 are the hallucination guardrail and plan-awareness layer added in 
 The server assembles a `contextBlock` with the user's plan as the **very first line**, pinned above inbox state and above post data. This ensures the agent knows the user's plan before it reads anything else:
 
 ```
-USER PLAN: Scout Pro ($99/mo)
+USER PLAN: Free Trial (7-day)
+USER TRIAL DAY: Day 4 of 7 (57% of 30-day challenge complete)
 
 INBOX STATE:
 - 148 posts in inbox
@@ -231,6 +258,8 @@ TOP POSTS:
 USER MESSAGE: How many keywords can I add?
 ```
 
+The `USER TRIAL DAY` line is only injected when `trialDay` is present in the context. Paid users and expired trial users do not receive this line.
+
 The `PLAN_LABELS` map translates internal plan strings to human-readable labels with prices:
 
 ```typescript
@@ -243,6 +272,72 @@ const PLAN_LABELS: Record<string, string> = {
   'Complimentary':  'Complimentary (gifted)',
 }
 ```
+
+### 3a. Trial Day Wiring (April 2026)
+
+For trial users, both the Inbox Agent and Settings Agent receive an additional context field: `trialDay` (integer 1–7). This enables the agent to adapt its tone and framing to match the email the user received that morning.
+
+**How `trialDay` is computed (frontend):**
+
+`trialEndsAt` is already present in the session JWT as an ISO string. `trialDay` is derived from it on the client — no extra Airtable reads required:
+
+```typescript
+// In app/page.tsx (Inbox) and app/settings/page.tsx (Settings)
+const trialEndsAt = (session?.user as any)?.trialEndsAt || null
+
+const trialDay = trialEndsAt
+  ? Math.max(1, Math.min(7, 8 - Math.ceil(
+      (new Date(trialEndsAt).getTime() - Date.now()) / (24 * 60 * 60 * 1000)
+    )))
+  : undefined
+```
+
+The formula: a trial that ends in exactly 7 days = Day 1. A trial that ends in 1 day = Day 7. Values are clamped to 1–7. If `trialEndsAt` is null (paid user, admin, no trial), `trialDay` is `undefined` and the field is omitted from the context object entirely.
+
+**How it flows to the agent route:**
+
+```typescript
+// ScoutAgentPanel receives trialEndsAt as a prop
+// and computes trialDay before passing it as context:
+context: {
+  plan,
+  inboxCount,
+  skippedCount,
+  topPosts,
+  scoreDistribution,
+  trialDay: trialEndsAt
+    ? Math.max(1, Math.min(7, 8 - Math.ceil(
+        (new Date(trialEndsAt).getTime() - Date.now()) / (24 * 60 * 60 * 1000)
+      )))
+    : undefined,
+}
+```
+
+**How the route injects it:**
+
+```typescript
+// inbox-agent/route.ts
+const trialDay = typeof context.trialDay === 'number' ? context.trialDay : null
+
+// In the contextBlock string:
+trialDay
+  ? `USER TRIAL DAY: Day ${trialDay} of 7 (${Math.round(trialDay / 7 * 100)}% of 30-day challenge complete)`
+  : ''
+```
+
+**Result:** On Day 4, the context block opens with:
+```
+USER PLAN: Free Trial (7-day)
+USER TRIAL DAY: Day 4 of 7 (57% of 30-day challenge complete)
+```
+
+The agent then uses SECTION 3 of the system prompt to calibrate its response to what the user has already been told — reinforcing the timing advantage message from Email 4 rather than repeating Day 1 setup instructions.
+
+**Files modified (April 2026):**
+- `app/api/inbox-agent/route.ts` — added `trialDay?` to context type; added SECTION 3 to system prompt; injects trial day line into contextBlock
+- `app/api/settings-agent/route.ts` — same changes
+- `app/page.tsx` — computes `trialDay` from `trialEndsAt`, passes as `trialEndsAt` prop to `ScoutAgentPanel`
+- `app/settings/page.tsx` — same pattern for `SettingsAgentPanel`
 
 ### 4. Claude Haiku response
 
