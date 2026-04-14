@@ -251,7 +251,14 @@ Write a short 2-sentence LinkedIn comment in first person, ready to copy and pas
   // system prompt. Pattern: "Label word(s): rest of text" where the label is a
   // ghostwriting direction rather than the start of the actual comment.
   // This is a safety net — the system prompt is the primary control.
-  const META_PREFIX_RE = /^(extend the insight|possible angle|deepen the insight|build on this|challenge the premise|add context|try this|here'?s? (a |an )?comment|suggested comment|comment|approach|angle|option \d+|validate the tension.*?|offer a (reframe|counterintuitive|perspective).*?|lean into the.*?|acknowledge the.*?|push back on.*?|reframe the.*?|flip the.*?|challenge this.*?)[:\s]+/i
+  // [^:]* (not .*?) — greedy-up-to-colon so the full directive phrase is captured
+  // before the ": " separator. .*? stops at the first whitespace, leaving partial
+  // phrases like "and offer a counterintuitive take:" unstripped.
+  // Require an actual colon (:\s*) not [:\s]+ — the latter matches spaces
+  // between words in legitimate comments (e.g. "Flip the script on X and see results"
+  // would be falsely stripped at the space before a word). The colon is always
+  // present in meta-coaching prefix patterns and is the correct separator to require.
+  const META_PREFIX_RE = /^(extend the insight|possible angle|deepen the insight|build on this|challenge the premise|add context|try this|here'?s? (a |an )?comment|suggested comment|comment|approach|angle|option \d+|validate the tension[^:]*|offer a (reframe|counterintuitive|perspective)[^:]*|lean into the[^:]*|acknowledge the[^:]*|push back on[^:]*|reframe the[^:]*|flip the[^:]*|challenge this[^:]*):\s*/i
   if (commentApproach) {
     commentApproach = commentApproach
       .replace(META_PREFIX_RE, '')          // strip ghostwriter meta-prefix
