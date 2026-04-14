@@ -249,7 +249,7 @@ export function buildTrialDay5Email(
 
   const body = `
     ${h2('What 30 days of consistent showing up actually produces')}
-    ${p(`Consultants who run this approach for 30 days consistently describe the same experience: prospects start reaching out first, before any cold pitch. Not because of a lucky post. Because they showed up in the right conversations enough times that they became a familiar, credible name.`)}
+    ${p(`People who run this approach for 30 days consistently describe the same experience: prospects start reaching out first, before any cold pitch. Not because of a lucky post. Because they showed up in the right conversations enough times that they became a familiar, credible name.`)}
     ${infoBox(`
       <p style="margin:0 0 4px;font-weight:700;font-size:13px;color:#1a1a1a">By day 30: at least 3 of your ideal prospects recognize your name before you ever pitch them.</p>
       <p style="margin:0;font-size:13px;color:#555;line-height:1.6">That's the bar. It's achievable in 30 days with 15 minutes a day. You're on day 5 of 30.</p>
