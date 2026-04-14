@@ -130,4 +130,4 @@ Created At fields    → new Date().toISOString() — never date-only split('T')
 
 ---
 
-*Last updated: April 2026 — Session 14+ (trial email sequence awareness wired to both agents; blog-system.md added; email-system.md updated with 30-day challenge frame, agent wiring, and copy guidelines)*
+*Last updated: April 2026 — Session 15 (Agent Behavior Framework added to both agent routes and documented in scout-agent.md: Rule 0 status review, confidence tiers, clarifying questions, scope management, hostile/misuse protocol, usage-aware upgrade logic)*
