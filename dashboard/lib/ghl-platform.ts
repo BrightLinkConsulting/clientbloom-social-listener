@@ -49,6 +49,23 @@ const PAID_PLANS = new Set([
   'Scout $79', 'Scout $49',  // legacy grandfathered plans
 ])
 
+// Monthly price per plan — shown as monetary value on GHL opportunities.
+// Stripe is the source of truth for billing; this is display-only.
+const PLAN_MONTHLY_VALUE: Record<string, number> = {
+  'Scout Starter': 49,
+  'Scout Pro':     99,
+  'Scout Agency':  249,
+  'Starter':       49,   // short-form names from some webhook paths
+  'Pro':           99,
+  'Agency':        249,
+  'Scout $49':     49,   // legacy grandfathered
+  'Scout $79':     79,
+}
+
+function planPrice(plan: string): number | undefined {
+  return PLAN_MONTHLY_VALUE[plan] ?? undefined
+}
+
 function ghlHeaders(apiKey: string) {
   return {
     'Authorization': `Bearer ${apiKey}`,
@@ -138,23 +155,27 @@ async function upsertContact(apiKey: string, email: string, name: string): Promi
 }
 
 async function createOpportunity(
-  apiKey:    string,
-  contactId: string,
-  stageId:   string,
-  name:      string,
+  apiKey:         string,
+  contactId:      string,
+  stageId:        string,
+  name:           string,
+  monetaryValue?: number,
 ): Promise<string | null> {
   try {
+    const body: Record<string, unknown> = {
+      locationId:      GHL_LOCATION_ID,
+      pipelineId:      GHL_PIPELINE_ID,
+      pipelineStageId: stageId,
+      name,
+      contactId,
+      status: 'open',
+    }
+    if (monetaryValue !== undefined) body.monetaryValue = monetaryValue
+
     const res = await fetch(`${GHL_BASE}/opportunities/`, {
       method:  'POST',
       headers: ghlHeaders(apiKey),
-      body: JSON.stringify({
-        locationId:      GHL_LOCATION_ID,
-        pipelineId:      GHL_PIPELINE_ID,
-        pipelineStageId: stageId,
-        name,
-        contactId,
-        status: 'open',
-      }),
+      body:    JSON.stringify(body),
     })
     if (!res.ok) {
       console.error('[ghl-platform] createOpportunity failed:', res.status, await res.text().catch(() => ''))
@@ -170,12 +191,20 @@ async function createOpportunity(
   }
 }
 
-async function updateOpportunityStage(apiKey: string, oppId: string, stageId: string): Promise<boolean> {
+async function updateOpportunityStage(
+  apiKey:         string,
+  oppId:          string,
+  stageId:        string,
+  monetaryValue?: number,
+): Promise<boolean> {
   try {
+    const body: Record<string, unknown> = { pipelineStageId: stageId }
+    if (monetaryValue !== undefined) body.monetaryValue = monetaryValue
+
     const res = await fetch(`${GHL_BASE}/opportunities/${oppId}`, {
       method:  'PUT',
       headers: ghlHeaders(apiKey),
-      body:    JSON.stringify({ pipelineStageId: stageId }),
+      body:    JSON.stringify(body),
     })
     if (!res.ok) {
       console.error('[ghl-platform] updateOpportunityStage failed:', res.status, await res.text().catch(() => ''))
@@ -267,11 +296,12 @@ export async function ghlMoveToPaid(
   if (!apiKey) return
 
   const { oppId: storedOppId, contactId: storedContactId } = await readGhlIds(airtableRecordId)
+  const price = planPrice(plan)
 
   if (storedOppId) {
-    // Move existing opportunity (trial conversion)
-    await updateOpportunityStage(apiKey, storedOppId, GHL_STAGE.paid)
-    console.log(`[ghl-platform] Moved to Paid Subscriber in GHL: ${email} (${plan})`)
+    // Move existing opportunity (trial conversion) — also stamp monetary value
+    await updateOpportunityStage(apiKey, storedOppId, GHL_STAGE.paid, price)
+    console.log(`[ghl-platform] Moved to Paid Subscriber in GHL: ${email} (${plan}${price !== undefined ? `, $${price}` : ''})`)
     return
   }
 
@@ -279,10 +309,10 @@ export async function ghlMoveToPaid(
   const contactId = storedContactId || await upsertContact(apiKey, email, name)
   if (!contactId) return
 
-  const oppId = await createOpportunity(apiKey, contactId, GHL_STAGE.paid, `Scout ${plan} — ${name || email}`)
+  const oppId = await createOpportunity(apiKey, contactId, GHL_STAGE.paid, `Scout ${plan} — ${name || email}`, price)
   if (oppId) {
     await storeGhlIds(airtableRecordId, contactId, oppId)
-    console.log(`[ghl-platform] Created Paid Subscriber in GHL: ${email} (${plan})`)
+    console.log(`[ghl-platform] Created Paid Subscriber in GHL: ${email} (${plan}${price !== undefined ? `, $${price}` : ''})`)
   }
 }
 
