@@ -909,7 +909,7 @@ To add a new inbox action type (e.g., `bulk_engage`):
 - `displayedPosts` is a `useMemo` derivation: filter by score tier → filter by search query → sort. All three states (`searchQuery`, `sortBy`, `scoreFilter`) reset on tab switch to prevent phantom filters carrying over between inbox tabs.
 - `toggleSelectAll` and all tri-state checkbox logic updated to reference `displayedPosts` instead of raw `posts[]` — ensures "Select all (N)" selects only what the user can see, not hidden posts.
 
-**Sort options:** Score: High → Low (default), Score: Low → High, Date: Newest first, Date: Oldest first.
+**Sort options:** Date: Newest first (default), Score: High → Low, Score: Low → High, Date: Oldest first.
 
 **Score filter options:** All scores, High (8–10), Medium (6–7), Low (5 and below).
 

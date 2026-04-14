@@ -212,7 +212,7 @@ Posts you skip go to Skipped and can be restored at any time. Archived posts are
 Below the Engagement Momentum widget, above the post list, there is a sticky control bar with four tools:
 
   SEARCH — filters posts by author name or post text in real time. Tap X to clear.
-  SORT — changes the order of posts. Options: Score: High → Low (default), Score: Low → High, Date: Newest first, Date: Oldest first.
+  SORT — changes the order of posts. Options: Date: Newest first (default), Score: High → Low, Score: Low → High, Date: Oldest first.
   SCORE FILTER — narrows posts by score tier. Options: All scores (default), High (8–10), Medium (6–7), Low (5 and below).
   SELECT — activates bulk selection mode (see below).
   REFRESH — re-fetches posts from the database (does not trigger a new LinkedIn scan).
