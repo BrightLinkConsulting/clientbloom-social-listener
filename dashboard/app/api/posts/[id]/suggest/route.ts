@@ -150,29 +150,49 @@ export async function POST(
 
   // ── Generate LinkedIn comment via Claude ──────────────────────────────────
   //
-  // System prompt enforces hard behavioral rules that must not be overridden
-  // by post content (prompt injection) or business context bleed-through.
-  // User message provides the post and context only.
-  //
-  // Key design decisions:
-  //   - "Write the comment itself" framing prevents coaching-instruction output
-  //   - Em-dash prohibition is explicit — Claude Haiku's top AI tell on LinkedIn
-  //   - AI-isms blacklist prevents hollow vocabulary
-  //   - Business context is framed as perspective-only, not to be mentioned
-  //   - No surrounding quotes in output — UI already wraps in display quotes
-  const SYSTEM_PROMPT = `You write LinkedIn comments for B2B professionals. Every output must be the actual comment text — copy-paste ready, not coaching instructions or directions.
+  // GHOSTWRITER MODE — every rule is anchored to prevent the specific failure
+  // pattern observed in production: Haiku outputting meta-coaching prefixes
+  // ("Extend the insight:", "Possible angle:", "Deepen the insight:") instead
+  // of writing the comment itself. Positive example at the end acts as the
+  // strongest anchor — LLMs follow demonstrated format more reliably than
+  // abstract rules alone.
+  const SYSTEM_PROMPT = `You are a ghostwriter for LinkedIn comments. Your output is the finished comment text — the exact words the user will paste into LinkedIn and post as their own. You never output anything other than the comment itself.
 
-HARD RULES — never break these:
-1. Write the comment itself. Never write instructions such as "Share a specific insight..." or describe what angle to take or how to respond. The text you return IS the comment the user will paste into LinkedIn.
-2. First-person voice. The user pastes this directly as their own comment.
-3. 2 to 3 sentences maximum. Keep each sentence short enough to read comfortably on a phone.
+HARD RULES:
+
+1. Output ONLY the comment text. Never prepend a label, direction, or meta-commentary. The following are ALL wrong — never produce output that starts like any of these:
+   WRONG: "Extend the insight: In your experience..."
+   WRONG: "Possible angle: Ask about..."
+   WRONG: "Deepen the insight: If ownership is..."
+   WRONG: "Build on this: ..."
+   WRONG: "Challenge the premise: ..."
+   WRONG: "Here's a comment: ..."
+   WRONG: "Suggested comment: ..."
+   WRONG: "Comment: ..."
+   WRONG: "You could ask about..."
+   WRONG: "Share a specific insight..."
+   Your output starts with the first word of the comment — nothing before it.
+
+2. First-person voice. Write as the user. "I've noticed...", "In my experience...", "Curious whether...", "Have you found that..."
+
+3. 2 to 3 sentences maximum. Short sentences that read on a phone.
+
 4. Never open with a compliment: no "Great post", "Love this", "This is so true", "This resonates", "Well said", "Spot on", "Brilliant", "Powerful".
-5. Never use em dashes (—). Replace with a comma, a period, or rewrite the sentence.
-6. Never use these words or phrases: "certainly", "absolutely", "I'd love to", "fantastic", "delve", "leverage" as a verb, "game-changer", "paradigm shift", "in conclusion", "at the end of the day", "it's important to note", "I completely agree", "groundbreaking", "transformative", "kudos".
-7. Never mention the user's business, company name, or services in the comment — use the business context only to understand their perspective.
-8. Do not prepend any label: no "Comment:", "Here's the comment:", "Suggested comment:", or similar.
-9. Return raw text only — no surrounding quotes, no asterisks, no markdown formatting.
-10. Sound like a real professional who read the post carefully and has something genuine to contribute.`
+
+5. No em dashes (—). Use a comma, a period, or rewrite.
+
+6. Never use: "certainly", "absolutely", "I'd love to", "fantastic", "delve", "leverage" as a verb, "game-changer", "paradigm shift", "in conclusion", "at the end of the day", "it's important to note", "I completely agree", "groundbreaking", "transformative", "kudos".
+
+7. Never mention the user's business, company name, or services. Business context is background perspective only.
+
+8. No surrounding quotes, asterisks, or markdown.
+
+9. Sound like a real professional who read this post and has something genuine to say.
+
+CORRECT OUTPUT EXAMPLE:
+The ownership gap usually shows up fastest in handoff moments, when marketing throws leads over the fence and nobody tracks what happens next. Have you seen that pattern get worse at a certain team size?
+
+That is the format. Write the comment. Start immediately with the first word.`
 
   const userMessage = `${authorName || 'Someone'} posted this on LinkedIn:
 
@@ -224,13 +244,21 @@ Write a short 2-sentence LinkedIn comment in first person, ready to copy and pas
     console.error('[suggest] Claude API fetch exception:', err?.message)
   }
 
-  // Post-process: strip any residual outer quotes Claude might still return
-  // and trim whitespace
+  // Post-process: runtime backstop for meta-coaching prefixes that survive the
+  // system prompt. Pattern: "Label word(s): rest of text" where the label is a
+  // ghostwriting direction rather than the start of the actual comment.
+  // This is a safety net — the system prompt is the primary control.
+  const META_PREFIX_RE = /^(extend the insight|possible angle|deepen the insight|build on this|challenge the premise|add context|try this|here'?s? (a |an )?comment|suggested comment|comment|approach|angle|option \d+)[:\s]+/i
   if (commentApproach) {
     commentApproach = commentApproach
-      .replace(/^["'\u201C\u2018]+/, '')  // strip leading quotes
-      .replace(/["'\u201D\u2019]+$/, '')  // strip trailing quotes
+      .replace(META_PREFIX_RE, '')          // strip ghostwriter meta-prefix
+      .replace(/^["'\u201C\u2018]+/, '')    // strip leading quotes
+      .replace(/["'\u201D\u2019]+$/, '')    // strip trailing quotes
       .trim()
+    // Re-capitalize after strip
+    if (commentApproach.length > 0) {
+      commentApproach = commentApproach[0].toUpperCase() + commentApproach.slice(1)
+    }
   }
 
   if (!commentApproach) {
