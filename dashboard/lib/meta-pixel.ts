@@ -20,17 +20,40 @@ export const META_PIXEL_ID = '1499602704618597'
 type EventParams = Record<string, unknown>
 
 /**
+ * Attempt to fire a pixel call now. Retry with a short polling loop if
+ * window.fbq isn't yet defined — covers the race between React hydration
+ * and the Pixel base script initialization. Gives up after ~3 seconds
+ * so we never leak intervals.
+ */
+function fireWithRetry(callArgs: unknown[]) {
+  if (typeof window === 'undefined') return
+
+  const attempt = () => {
+    if (!window.fbq) return false
+    window.fbq(...callArgs)
+    return true
+  }
+
+  if (attempt()) return
+
+  let attempts = 0
+  const interval = setInterval(() => {
+    attempts++
+    if (attempt() || attempts >= 30) {
+      clearInterval(interval)
+    }
+  }, 100)
+}
+
+/**
  * Fire a Meta standard event (SubmitApplication, CompleteRegistration,
  * Purchase, Lead, etc). See https://developers.facebook.com/docs/meta-pixel/reference
  */
 export function trackStandardEvent(eventName: string, params?: EventParams) {
-  if (typeof window === 'undefined') return
-  if (!window.fbq) return
-  if (params) {
-    window.fbq('track', eventName, params)
-  } else {
-    window.fbq('track', eventName)
-  }
+  const args: unknown[] = params
+    ? ['track', eventName, params]
+    : ['track', eventName]
+  fireWithRetry(args)
 }
 
 /**
@@ -38,11 +61,8 @@ export function trackStandardEvent(eventName: string, params?: EventParams) {
  * taxonomy. Custom Conversions in Ads Manager can target these by name.
  */
 export function trackCustomEvent(eventName: string, params?: EventParams) {
-  if (typeof window === 'undefined') return
-  if (!window.fbq) return
-  if (params) {
-    window.fbq('trackCustom', eventName, params)
-  } else {
-    window.fbq('trackCustom', eventName)
-  }
+  const args: unknown[] = params
+    ? ['trackCustom', eventName, params]
+    : ['trackCustom', eventName]
+  fireWithRetry(args)
 }
