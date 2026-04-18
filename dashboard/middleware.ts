@@ -20,6 +20,7 @@
  *   /api/cron/**         — cron jobs (secured by CRON_SECRET)
  *   /api/debug           — debug endpoints
  *   /api/health          — health check endpoint (monitoring)
+ *   /api/meta/**         — Meta CAPI bridge (handles its own session-based auth)
  *   /_next/**            — Next.js internal assets
  *   /favicon.ico         — browser default request
  *   /robots.txt          — SEO crawler
@@ -37,6 +38,6 @@ export { default } from 'next-auth/middleware'
 
 export const config = {
   matcher: [
-    '/((?!$|welcome|sign-in|sign-up|about|blog|compare|terms|privacy-policy|forgot-password|reset-password|api/auth|api/checkout|api/trial|api/webhooks|api/cron|api/debug|api/health|_next/static|_next/image|favicon\\.ico|robots\\.txt|sitemap\\.xml|.*\\.png|.*\\.jpg|.*\\.jpeg|.*\\.gif|.*\\.svg|.*\\.ico|.*\\.webp).*)',
+    '/((?!$|welcome|sign-in|sign-up|about|blog|compare|terms|privacy-policy|forgot-password|reset-password|api/auth|api/checkout|api/trial|api/webhooks|api/cron|api/debug|api/health|api/meta|_next/static|_next/image|favicon\\.ico|robots\\.txt|sitemap\\.xml|.*\\.png|.*\\.jpg|.*\\.jpeg|.*\\.gif|.*\\.svg|.*\\.ico|.*\\.webp).*)',
   ],
 }

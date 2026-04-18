@@ -48,11 +48,16 @@ function fireWithRetry(callArgs: unknown[]) {
 /**
  * Fire a Meta standard event (SubmitApplication, CompleteRegistration,
  * Purchase, Lead, etc). See https://developers.facebook.com/docs/meta-pixel/reference
+ *
+ * Pass `eventId` to de-duplicate with a matching server-side CAPI event.
+ * Meta recommends a UUID shared between the browser fbq call and the
+ * server-to-server CAPI POST for the same user action.
  */
-export function trackStandardEvent(eventName: string, params?: EventParams) {
+export function trackStandardEvent(eventName: string, params?: EventParams, eventId?: string) {
   const args: unknown[] = params
     ? ['track', eventName, params]
     : ['track', eventName]
+  if (eventId) args.push({ eventID: eventId })
   fireWithRetry(args)
 }
 
@@ -60,9 +65,10 @@ export function trackStandardEvent(eventName: string, params?: EventParams) {
  * Fire a Meta custom event. Use this for events outside Meta's standard
  * taxonomy. Custom Conversions in Ads Manager can target these by name.
  */
-export function trackCustomEvent(eventName: string, params?: EventParams) {
+export function trackCustomEvent(eventName: string, params?: EventParams, eventId?: string) {
   const args: unknown[] = params
     ? ['trackCustom', eventName, params]
     : ['trackCustom', eventName]
+  if (eventId) args.push({ eventID: eventId })
   fireWithRetry(args)
 }

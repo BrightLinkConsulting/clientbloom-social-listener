@@ -1121,24 +1121,50 @@ export default function OnboardingPage() {
     if (onboarded) router.replace('/')
   }, [status, session, router])
 
-  // Meta Pixel: fire conversion events once on mount. middleware guards
-  // this route so anyone reaching here is authenticated. Two standard
-  // events plus one custom event so the same user signal can be
-  // optimized against either Lead (stronger Meta-wide training data)
-  // or the SCOUT Trial Signup Custom Conversion (event=SubmitApplication
-  // + URL contains 'onboarding'). The custom event ScoutOnboardingReached
-  // is a probe for any future custom conversions we want to define.
+  // Meta Pixel + CAPI: fire conversion events once on mount. middleware
+  // guards this route so anyone reaching here is authenticated. For each
+  // event we generate a UUID eventId, fire the client Pixel with that ID,
+  // and also POST to /api/meta/capi-event with the same ID. Meta
+  // de-duplicates events with matching IDs across the two streams — so
+  // we capture conversions blocked by ad blockers / iOS without double-
+  // counting when both channels succeed.
+  //   - SubmitApplication: feeds the SCOUT Trial Signup Custom Conversion
+  //   - Lead: stronger Meta optimization signal for new trial campaigns
+  //   - ScoutOnboardingReached: custom event probe, client-only
   const hasFiredSignupPixelRef = useRef(false)
   useEffect(() => {
     if (hasFiredSignupPixelRef.current) return
     hasFiredSignupPixelRef.current = true
+
+    const uuid = () =>
+      (typeof crypto !== 'undefined' && 'randomUUID' in crypto)
+        ? (crypto as any).randomUUID()
+        : `${Date.now()}-${Math.random().toString(36).slice(2)}`
+
+    const submitAppId = uuid()
+    const leadId = uuid()
+
+    // Client-side Pixel (browser → facebook.com/tr)
     trackStandardEvent('SubmitApplication', {
       content_name: 'Scout 7-Day Free Trial',
-    })
+    }, submitAppId)
     trackStandardEvent('Lead', {
       content_name: 'Scout 7-Day Free Trial',
-    })
+    }, leadId)
     trackCustomEvent('ScoutOnboardingReached')
+
+    // Server-side CAPI mirror (browser → /api/meta/capi-event → graph.facebook.com)
+    // Fire-and-forget: a failure here never blocks the user flow.
+    const postCapi = (eventName: string, eventId: string, customData?: Record<string, unknown>) =>
+      fetch('/api/meta/capi-event', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ eventName, eventId, customData }),
+        keepalive: true,
+      }).catch(() => {})
+
+    postCapi('SubmitApplication', submitAppId, { content_name: 'Scout 7-Day Free Trial' })
+    postCapi('Lead', leadId, { content_name: 'Scout 7-Day Free Trial' })
   }, [])
 
   const updateProfile = (key: string, value: string) =>
