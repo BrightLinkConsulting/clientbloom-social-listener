@@ -1,25 +1,28 @@
 # Scout — Meta Pixel & Conversion Tracking
 
-## Last updated: April 18, 2026 (Session 19 — Pixel install + CSP fix)
+## Last updated: April 18, 2026 (Session 19 — Pixel install + CSP fix + CAPI wired)
 
 ---
 
 ## 1. What is wired
 
-Scout has the Meta (Facebook) Pixel installed for ad attribution and conversion
-tracking on Meta ad campaigns driving traffic to `scout.clientbloom.ai`. The
-install is **client-side only** as of Session 19. Server-side CAPI
-(Conversions API) is **not yet wired** — that's a future enhancement.
+Scout has the Meta (Facebook) Pixel + Conversions API (CAPI) installed for
+ad attribution on Meta ad campaigns driving traffic to `scout.clientbloom.ai`.
+Client-side Pixel and server-side CAPI fire matched events with shared
+event IDs so Meta de-duplicates them — recovering the ~20-40% of
+conversions normally lost to ad blockers and iOS tracking restrictions.
 
 | Component | Status | Notes |
 |---|---|---|
 | Client Pixel base code | ✅ Live | In `app/layout.tsx` head, `beforeInteractive` strategy |
 | `PageView` event | ✅ Auto on every route | Including Next.js client-side navigations |
-| `SubmitApplication` event | ✅ Fires on `/onboarding` mount | Feeds the SCOUT Trial Signup Custom Conversion |
-| `Lead` event | ✅ Fires on `/onboarding` mount | Stronger Meta optimization signal |
-| `ScoutOnboardingReached` custom event | ✅ Fires on `/onboarding` mount | Probe for future custom conversions |
+| `SubmitApplication` event | ✅ Pixel + CAPI on `/onboarding` mount | Feeds SCOUT Trial Signup Custom Conversion |
+| `Lead` event | ✅ Pixel + CAPI on `/onboarding` mount | Stronger Meta optimization signal |
+| `ScoutOnboardingReached` custom event | ✅ Pixel-only on `/onboarding` mount | Probe for future custom conversions |
 | CSP whitelist | ✅ `connect.facebook.net` + `www.facebook.com` | In `next.config.js` |
-| Server-side CAPI | ❌ Not yet wired | Token stored, route not built |
+| Server-side CAPI | ✅ Live | `lib/meta-capi.ts` + `app/api/meta/capi-event/route.ts` |
+| `META_CAPI_ACCESS_TOKEN` env var | ✅ Set in Vercel (all envs) | Required for CAPI to fire |
+| Event ID dedup | ✅ Shared UUID per event | fbq `eventID` ↔ CAPI `event_id` |
 | Meta Pixel Helper extension | ✅ Verified working | `scout.clientbloom.ai` shows the pixel as Active |
 
 ---
@@ -272,30 +275,72 @@ a campaign will be able to optimize against it.
 
 ---
 
-## 9. Future enhancements — not yet built
+## 9. Server-side CAPI architecture (live as of commit 953db20)
 
-### Server-side CAPI (Conversions API)
+### What's wired
 
-Pixel-only tracking loses 20-40% of conversions to ad blockers, ITP,
-and iOS opt-outs. The standard fix is server-side CAPI: Scout's API
-sends the same conversion events directly to Meta's `graph.facebook.com`
-endpoint with a shared `event_id` for de-duplication.
+Server-to-server Conversions API runs alongside the client Pixel. Every
+event fired from `/onboarding` now sends in two channels with a matched
+UUID for de-duplication:
 
-Implementation sketch when we wire this:
+1. **Client Pixel** — browser → `facebook.com/tr` (existing).
+2. **CAPI** — browser POSTs to `/api/meta/capi-event` → Scout server →
+   `graph.facebook.com/v19.0/{PIXEL_ID}/events`.
 
-1. Add `META_CAPI_ACCESS_TOKEN` env var in Vercel.
-2. New file `lib/meta-capi.ts` with a `sendCapiEvent(event, params, eventId)`
-   helper that POSTs to
-   `https://graph.facebook.com/v19.0/{PIXEL_ID}/events`.
-3. In each client-side `trackStandardEvent` call site, generate a UUID
-   `event_id`, pass it both to the client `fbq` call (as the `eventID`
-   parameter) and to a server-side API route that calls `sendCapiEvent`.
-4. Meta de-duplicates events with matching `event_id` across the two
-   streams.
+Meta de-duplicates events that share `event_id`. When the Pixel succeeds
+the duplicate CAPI event is silently dropped; when the Pixel is blocked
+(ad blocker, ITP, iOS) only CAPI gets through and the conversion still
+counts.
 
-Fire CAPI events for at minimum: `Lead` and `SubmitApplication` on
-onboarding completion, `Purchase` on Stripe webhook for trial-to-paid
-upgrades.
+### Files
+
+| File | Role |
+|---|---|
+| `lib/meta-capi.ts` | `sendCapiEvent(input)` — POSTs to Meta. SHA256-hashes email. Adds IP + UA + fbp/fbc cookies for matching quality. Silently no-ops if `META_CAPI_ACCESS_TOKEN` env var isn't set. Never throws. |
+| `app/api/meta/capi-event/route.ts` | Auth-gated POST endpoint. Pulls email from server-side NextAuth session (client cannot spoof). Returns 401 unauthorized, 400 on malformed body, 200 on success. |
+| `lib/meta-pixel.ts` | `trackStandardEvent(name, params, eventId)` and `trackCustomEvent(name, params, eventId)` accept an optional third arg passed through to fbq as `eventID`. |
+| `app/onboarding/page.tsx` | Generates UUID per event, fires Pixel + CAPI in parallel. Fire-and-forget on the CAPI fetch — failure never blocks the user. |
+| `middleware.ts` | `/api/meta/**` added to passthrough list so the route handler can return proper 401 JSON instead of redirecting fetch calls. |
+
+### Env var
+
+`META_CAPI_ACCESS_TOKEN` must be set in Vercel for all environments
+(Production, Preview, Development). Generated from Meta Events Manager
+→ Settings → Conversions API → Generate access token. Long-lived system
+user token, begins with `EAA...`.
+
+If the env var is missing, `sendCapiEvent` logs a warning and returns
+without firing — the client Pixel still works, only the server-side
+mirror is skipped. So forgetting to set it doesn't break the app, just
+silently disables CAPI.
+
+### Adding CAPI to a new event
+
+To wire CAPI for any new client-side Pixel event:
+
+1. Generate a UUID at the call site (e.g., `crypto.randomUUID()`).
+2. Pass it as the third arg to `trackStandardEvent` or `trackCustomEvent`.
+3. Fire-and-forget POST to `/api/meta/capi-event` with `{ eventName, eventId, customData? }`.
+
+The route handles authentication, header parsing, and Meta's payload
+shape — call sites stay short.
+
+### Verifying it's working
+
+In Meta Events Manager → your dataset → **Overview** tab:
+- Look for the event row in the last 24 hours
+- Click into it → see "Connection method" — should show **both**
+  "Browser" AND "Server" with a dedup percentage
+- A healthy install shows ~70-90% dedup (most events arrive via both
+  channels and get merged); the gap above 0% is the conversions CAPI
+  recovered that the Pixel alone would have missed
+
+If you see 0% from Server, the env var is missing or the route is
+erroring — check Vercel runtime logs for `[Meta CAPI]` warnings.
+
+---
+
+## 10. Future enhancements
 
 ### `Purchase` event on trial-to-paid upgrade
 
@@ -308,7 +353,9 @@ The Stripe webhook in `app/api/webhooks/...` is the natural place. Fire
 both client-side (if user is still on `/welcome`) and server-side via
 CAPI for redundancy.
 
-### GHL Meta CAPI integration — explicitly NOT relevant for Scout
+---
+
+## 11. GHL Meta CAPI integration — explicitly NOT relevant for Scout
 
 GoHighLevel has a built-in Meta CAPI integration in its settings. It only
 fires for events that happen **inside GHL** — form submissions on GHL-hosted
@@ -324,7 +371,7 @@ for those — but configure it in GHL, not in this repo.
 
 ---
 
-## 10. Compliance footer
+## 12. Compliance footer
 
 The landing page footer contains both LinkedIn and Meta trademark
 disclaimers as required by Meta's ad policies. Combined into a single
@@ -341,7 +388,7 @@ Required for Meta ad approval. Do not remove without legal review.
 
 ---
 
-## 11. Commit history (Session 19)
+## 13. Commit history (Session 19)
 
 | Commit | Change |
 |---|---|
@@ -353,3 +400,5 @@ Required for Meta ad approval. Do not remove without legal review.
 | `7d70d13` | Pixel: diagnostic build (Lead, ScoutOnboardingReached, console logs) |
 | `57f40bf` | **CSP fix — root cause** — allow Meta domains in `next.config.js` |
 | `3a958f8` | Pixel: remove diagnostic console logs |
+| `c977802` | Docs: session 19 Pixel install reference + knowledge pack updates |
+| `953db20` | **CAPI wired** — server-side event mirror with client Pixel dedup |

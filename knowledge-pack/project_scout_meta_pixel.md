@@ -10,25 +10,28 @@ touching anything Pixel-related.
 
 ## What's wired
 
-Client-side Meta Pixel installed on `scout.clientbloom.ai`. Pixel ID
-`1499602704618597` (ClientBloom dataset in Meta Events Manager).
+Meta Pixel **and** Conversions API (CAPI) installed on
+`scout.clientbloom.ai`. Pixel ID `1499602704618597` (ClientBloom dataset
+in Meta Events Manager).
 
-Events firing:
-- `PageView` — automatic on every route, including Next.js client-side nav
-- `SubmitApplication` — on `/onboarding` mount (feeds SCOUT Trial Signup Custom Conversion)
-- `Lead` — on `/onboarding` mount (stronger Meta optimization signal)
-- `ScoutOnboardingReached` — custom event probe on `/onboarding` mount
+Events firing on `/onboarding` mount:
+- `PageView` — automatic on every route, including Next.js client-side nav (Pixel only)
+- `SubmitApplication` — Pixel + CAPI with shared event_id (feeds SCOUT Trial Signup Custom Conversion)
+- `Lead` — Pixel + CAPI with shared event_id (stronger Meta optimization signal)
+- `ScoutOnboardingReached` — custom event, Pixel only
 
-**Server-side CAPI is NOT yet wired.** CAPI access token is stored outside
-the repo. Wiring CAPI is a future enhancement documented in
-`docs/meta-pixel-tracking.md` Section 9.
+CAPI access token in Vercel env var `META_CAPI_ACCESS_TOKEN`. If missing,
+CAPI silently disables (logs warning) but client Pixel still works.
 
 ## Files that matter
 
 - `app/layout.tsx` — Pixel base code, `beforeInteractive` strategy
 - `app/components/MetaPixelTracker.tsx` — route-change PageView tracker
-- `lib/meta-pixel.ts` — `trackStandardEvent`/`trackCustomEvent` helpers with retry
-- `app/onboarding/page.tsx` — fires the three conversion events on mount
+- `lib/meta-pixel.ts` — `trackStandardEvent`/`trackCustomEvent` helpers with retry + optional `eventId` for dedup
+- `lib/meta-capi.ts` — `sendCapiEvent` server helper (SHA256 email, IP/UA/fbp/fbc, POST to graph.facebook.com)
+- `app/api/meta/capi-event/route.ts` — auth-gated bridge that browser POSTs to
+- `app/onboarding/page.tsx` — generates UUIDs, fires Pixel + CAPI for SubmitApplication and Lead
+- `middleware.ts` — `/api/meta/**` in passthrough list so route returns 401 JSON instead of redirecting fetch
 - `next.config.js` — CSP with Meta domains allowed (CRITICAL)
 
 ## CSP is load-bearing — do not tighten without updating
@@ -78,3 +81,8 @@ counter is the source of truth.
 
 Footer on landing page has both LinkedIn AND Meta trademark disclaimers
 (commit `e4de62d`). Required for Meta ad policy. Do not remove.
+
+## Future work still open
+
+- `Purchase` event on Stripe trial-to-paid webhook (highest-value optimization signal)
+- Second Custom Conversion "SCOUT Lead" (event = Lead, URL contains = onboarding) for Phase 1 ad optimization
