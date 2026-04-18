@@ -1,9 +1,10 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import { getTierLimits } from '@/lib/tier'
+import { trackStandardEvent } from '@/lib/meta-pixel'
 
 // ---- Industry starter packs (keep in sync with settings/page.tsx — 7 terms per pack) ----
 const INDUSTRY_PACKS: { label: string; value: string; terms: string[] }[] = [
@@ -1119,6 +1120,22 @@ export default function OnboardingPage() {
     const onboarded = (session?.user as any)?.onboarded ?? false
     if (onboarded) router.replace('/')
   }, [status, session, router])
+
+  // Meta Pixel: fire SubmitApplication once, only for users who just signed
+  // up and landed here for the first time. Meta Custom Conversion 'SCOUT
+  // Trial Signup' requires both the event AND URL contains 'onboarding',
+  // so this has to fire on this page, not on /sign-up.
+  const hasFiredSignupPixelRef = useRef(false)
+  useEffect(() => {
+    if (hasFiredSignupPixelRef.current) return
+    if (status !== 'authenticated') return
+    const onboarded = (session?.user as any)?.onboarded ?? false
+    if (onboarded) return // they'll be redirected out by the guard above
+    hasFiredSignupPixelRef.current = true
+    trackStandardEvent('SubmitApplication', {
+      content_name: 'Scout 7-Day Free Trial',
+    })
+  }, [status, session])
 
   const updateProfile = (key: string, value: string) =>
     setProfile(prev => ({ ...prev, [key]: value }))
