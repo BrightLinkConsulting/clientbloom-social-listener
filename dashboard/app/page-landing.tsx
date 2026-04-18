@@ -305,7 +305,7 @@ export default function LandingPage() {
         <div className="max-w-4xl mx-auto">
           <div className="text-center mb-16">
             <h2 className="text-xl sm:text-3xl md:text-4xl font-bold text-white mb-4">The conversation is happening.<br />You're just not in it.</h2>
-            <p className="text-slate-400 text-lg max-w-2xl mx-auto">Your ideal clients are on LinkedIn every day — posting, discussing, asking questions, sharing opinions. The people who build the deepest relationships show up in those moments consistently. You can't do that manually.</p>
+            <p className="text-slate-400 text-base sm:text-lg max-w-2xl mx-auto" style={{ textWrap: 'pretty' }}>Your ideal clients are on LinkedIn every day — posting, discussing, asking questions, sharing opinions. The people who build the deepest relationships show up in those moments consistently. You can't do that manually.</p>
           </div>
 
           <div className="grid md:grid-cols-3 gap-6">
