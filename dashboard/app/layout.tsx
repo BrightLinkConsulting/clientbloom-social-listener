@@ -3,6 +3,7 @@ import Script from 'next/script'
 import './globals.css'
 import Providers from './components/providers'
 import TrialBanner from './components/TrialBanner'
+import { MetaPixelTracker } from './components/MetaPixelTracker'
 
 const META_PIXEL_ID = '1499602704618597'
 
@@ -121,7 +122,10 @@ export default function RootLayout({
         </noscript>
       </head>
       <body className="min-h-screen antialiased">
-        <Providers>{children}</Providers>
+        <Providers>
+          <MetaPixelTracker />
+          {children}
+        </Providers>
       </body>
     </html>
   )
