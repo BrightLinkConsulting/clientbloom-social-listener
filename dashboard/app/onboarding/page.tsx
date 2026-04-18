@@ -1121,23 +1121,17 @@ export default function OnboardingPage() {
     if (onboarded) router.replace('/')
   }, [status, session, router])
 
-  // Meta Pixel: fire conversion events on mount. middleware guards this
-  // route so anyone reaching here is authenticated. No session/onboarded
-  // check — false positives from already-onboarded users hitting this
-  // route briefly before redirect are acceptable; under-firing the event
-  // is not. Three events fire so we have probes:
-  //   - SubmitApplication: feeds the existing 'SCOUT Trial Signup'
-  //     Custom Conversion (event + URL contains 'onboarding')
-  //   - Lead: stronger Meta optimization signal for trial signups
-  //   - ScoutOnboardingReached: custom event probe for diagnostic
-  // Console logs are temporary diagnostics — confirm in DevTools that
-  // the useEffect fires and trackStandardEvent runs.
+  // Meta Pixel: fire conversion events once on mount. middleware guards
+  // this route so anyone reaching here is authenticated. Two standard
+  // events plus one custom event so the same user signal can be
+  // optimized against either Lead (stronger Meta-wide training data)
+  // or the SCOUT Trial Signup Custom Conversion (event=SubmitApplication
+  // + URL contains 'onboarding'). The custom event ScoutOnboardingReached
+  // is a probe for any future custom conversions we want to define.
   const hasFiredSignupPixelRef = useRef(false)
   useEffect(() => {
     if (hasFiredSignupPixelRef.current) return
     hasFiredSignupPixelRef.current = true
-    // eslint-disable-next-line no-console
-    console.log('[Meta Pixel] OnboardingPage mounted, firing conversion events. fbq=', typeof window !== 'undefined' && !!(window as any).fbq)
     trackStandardEvent('SubmitApplication', {
       content_name: 'Scout 7-Day Free Trial',
     })
