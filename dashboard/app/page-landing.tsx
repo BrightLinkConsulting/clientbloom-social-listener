@@ -279,7 +279,7 @@ export default function LandingPage() {
             className="text-slate-400 max-w-4xl mx-auto leading-relaxed mb-10"
             style={{ fontSize: 'clamp(13px, 2.1vw, 20px)' }}
           >
-            <em className="font-semibold text-white">Social listening assistant</em> that helps you show up in the <em className="font-semibold text-white">conversations your ideal clients are already having</em> when it matters most and <em className="font-semibold text-white">hands you the perfect thing to say</em>
+            <em className="font-semibold">Social listening assistant</em> that helps you show up in the <em className="font-semibold">conversations your ideal clients are already having</em> when it matters most and <em className="font-semibold">hands you the perfect thing to say</em>
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
