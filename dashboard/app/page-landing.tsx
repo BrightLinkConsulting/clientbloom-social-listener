@@ -276,8 +276,8 @@ export default function LandingPage() {
           </h1>
 
           <p
-            className="text-slate-400 max-w-4xl mx-auto leading-relaxed mb-10"
-            style={{ fontSize: 'clamp(13px, 2.1vw, 20px)' }}
+            className="text-slate-400 max-w-4xl mx-auto leading-snug mb-10"
+            style={{ fontSize: 'clamp(13px, 2.7vw, 28px)' }}
           >
             <em className="font-semibold">Social listening assistant</em> that helps you show up in the <em className="font-semibold">conversations your ideal clients are already having</em> when it matters most and <em className="font-semibold">hands you the perfect thing to say</em>
           </p>
