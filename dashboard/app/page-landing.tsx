@@ -290,7 +290,7 @@ export default function LandingPage() {
             </a>
           </div>
 
-          <p className="text-slate-600 text-sm mt-6">No contracts. No setup fees. Cancel anytime.</p>
+          <p className="text-slate-600 text-sm mt-6">Instant Access. No Credit Card Required</p>
 
           {/* Animated feed preview */}
           <AnimatedFeed />
