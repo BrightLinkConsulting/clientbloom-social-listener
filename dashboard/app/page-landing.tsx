@@ -238,7 +238,7 @@ export default function LandingPage() {
             />
           </div>
 
-          <p className="text-slate-500 text-base sm:text-xl mb-3">Prospecting Just Got a Whole Lot Easier...</p>
+          <p className="text-slate-500 text-sm sm:text-xl mb-3">Prospecting Just Got a Whole Lot Easier...</p>
 
           <h1 className="font-bold tracking-tight mb-4">
             <span
