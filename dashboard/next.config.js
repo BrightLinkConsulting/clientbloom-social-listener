@@ -13,9 +13,9 @@ const nextConfig = {
             key: 'Content-Security-Policy',
             value: [
               "default-src 'self'",
-              "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.stripe.com https://vercel.live",
-              "frame-src https://js.stripe.com",
-              "connect-src 'self' https://api.stripe.com https://vitals.vercel-insights.com",
+              "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.stripe.com https://vercel.live https://connect.facebook.net",
+              "frame-src https://js.stripe.com https://www.facebook.com",
+              "connect-src 'self' https://api.stripe.com https://vitals.vercel-insights.com https://www.facebook.com",
               "style-src 'self' 'unsafe-inline'",
               "img-src 'self' data: https: blob:",
               "font-src 'self' data:",
