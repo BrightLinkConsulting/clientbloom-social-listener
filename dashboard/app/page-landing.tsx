@@ -229,7 +229,7 @@ export default function LandingPage() {
       <section className="pt-32 pb-24 px-6">
         <div className="max-w-5xl mx-auto text-center">
 
-          <div className="inline-flex items-center gap-2 bg-[#4F6BFF]/10 border border-[#4F6BFF]/20 rounded-full px-4 py-1.5 mb-5">
+          <div className="inline-flex items-center gap-2 bg-[#4F6BFF]/10 border border-[#4F6BFF]/20 rounded-full px-4 py-1.5 mb-10">
             <span className="w-1.5 h-1.5 rounded-full bg-[#4F6BFF] animate-pulse" />
             <AnimatedTextCycle
               words={['Profile Monitoring', 'Comment Generation', 'Prospect Intelligence']}
@@ -238,7 +238,7 @@ export default function LandingPage() {
             />
           </div>
 
-          <p className="text-slate-500 text-sm sm:text-base mb-8">Prospecting Just Got a Whole Lot Easier...</p>
+          <p className="text-slate-500 text-base sm:text-xl mb-3">Prospecting Just Got a Whole Lot Easier...</p>
 
           <h1 className="font-bold tracking-tight mb-4">
             <span
