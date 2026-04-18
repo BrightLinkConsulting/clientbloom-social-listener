@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import { getTierLimits } from '@/lib/tier'
-import { trackStandardEvent } from '@/lib/meta-pixel'
+import { trackStandardEvent, trackCustomEvent } from '@/lib/meta-pixel'
 
 // ---- Industry starter packs (keep in sync with settings/page.tsx — 7 terms per pack) ----
 const INDUSTRY_PACKS: { label: string; value: string; terms: string[] }[] = [
@@ -1121,21 +1121,31 @@ export default function OnboardingPage() {
     if (onboarded) router.replace('/')
   }, [status, session, router])
 
-  // Meta Pixel: fire SubmitApplication once, only for users who just signed
-  // up and landed here for the first time. Meta Custom Conversion 'SCOUT
-  // Trial Signup' requires both the event AND URL contains 'onboarding',
-  // so this has to fire on this page, not on /sign-up.
+  // Meta Pixel: fire conversion events on mount. middleware guards this
+  // route so anyone reaching here is authenticated. No session/onboarded
+  // check — false positives from already-onboarded users hitting this
+  // route briefly before redirect are acceptable; under-firing the event
+  // is not. Three events fire so we have probes:
+  //   - SubmitApplication: feeds the existing 'SCOUT Trial Signup'
+  //     Custom Conversion (event + URL contains 'onboarding')
+  //   - Lead: stronger Meta optimization signal for trial signups
+  //   - ScoutOnboardingReached: custom event probe for diagnostic
+  // Console logs are temporary diagnostics — confirm in DevTools that
+  // the useEffect fires and trackStandardEvent runs.
   const hasFiredSignupPixelRef = useRef(false)
   useEffect(() => {
     if (hasFiredSignupPixelRef.current) return
-    if (status !== 'authenticated') return
-    const onboarded = (session?.user as any)?.onboarded ?? false
-    if (onboarded) return // they'll be redirected out by the guard above
     hasFiredSignupPixelRef.current = true
+    // eslint-disable-next-line no-console
+    console.log('[Meta Pixel] OnboardingPage mounted, firing conversion events. fbq=', typeof window !== 'undefined' && !!(window as any).fbq)
     trackStandardEvent('SubmitApplication', {
       content_name: 'Scout 7-Day Free Trial',
     })
-  }, [status, session])
+    trackStandardEvent('Lead', {
+      content_name: 'Scout 7-Day Free Trial',
+    })
+    trackCustomEvent('ScoutOnboardingReached')
+  }, [])
 
   const updateProfile = (key: string, value: string) =>
     setProfile(prev => ({ ...prev, [key]: value }))

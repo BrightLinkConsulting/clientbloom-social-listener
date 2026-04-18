@@ -31,16 +31,24 @@ function fireWithRetry(callArgs: unknown[]) {
   const attempt = () => {
     if (!window.fbq) return false
     window.fbq(...callArgs)
+    // eslint-disable-next-line no-console
+    console.log('[Meta Pixel] fbq called with', callArgs)
     return true
   }
 
   if (attempt()) return
 
+  // eslint-disable-next-line no-console
+  console.log('[Meta Pixel] fbq not ready, starting retry loop for', callArgs)
   let attempts = 0
   const interval = setInterval(() => {
     attempts++
     if (attempt() || attempts >= 30) {
       clearInterval(interval)
+      if (attempts >= 30) {
+        // eslint-disable-next-line no-console
+        console.warn('[Meta Pixel] fbq never became available, giving up on', callArgs)
+      }
     }
   }, 100)
 }
