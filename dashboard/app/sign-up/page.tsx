@@ -4,6 +4,7 @@ import { useState, FormEvent, useEffect, useRef } from 'react'
 import { signIn } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { trackStandardEvent } from '../../lib/meta-pixel'
 
 /* ─────────────────────────────────────────────
    Animated canvas dot-grid background
@@ -268,6 +269,12 @@ export default function SignUpPage() {
         setError('Account created but sign-in failed. Please go to the sign-in page.')
         return
       }
+
+      // Fire Meta Pixel SubmitApplication event — ties this signup to the
+      // Meta ad that drove the visit. Safe no-op when Pixel hasn't loaded.
+      trackStandardEvent('SubmitApplication', {
+        content_name: 'Scout 7-Day Free Trial',
+      })
 
       router.replace('/onboarding')
     } catch {
