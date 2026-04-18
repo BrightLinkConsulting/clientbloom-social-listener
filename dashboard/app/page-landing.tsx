@@ -819,7 +819,7 @@ export default function LandingPage() {
                 <span className="text-slate-500 text-sm font-medium">Scout by ClientBloom</span>
               </div>
               <p className="text-slate-600 text-xs text-center sm:text-right max-w-lg leading-relaxed">
-                Scout is an independent product of BrightLink Consulting and is not affiliated with, endorsed by, or sponsored by LinkedIn Corporation. LinkedIn® is a registered trademark of LinkedIn Corporation.
+                Scout is an independent product of BrightLink Consulting and is not affiliated with, endorsed by, or sponsored by LinkedIn Corporation. LinkedIn® is a registered trademark of LinkedIn Corporation. This site is not part of the Facebook website or Facebook Inc. Additionally, this site is NOT endorsed by Facebook in any way, shape or form. FACEBOOK is a trademark of FACEBOOK, Inc.
               </p>
             </div>
             <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mt-5">
