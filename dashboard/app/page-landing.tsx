@@ -283,7 +283,7 @@ export default function LandingPage() {
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-            <NeonButton href={CHECKOUT_URL} variant="solid" size="lg" className="w-full sm:w-auto whitespace-nowrap">
+            <NeonButton href={CHECKOUT_URL} variant="solid" size="lg" className="w-11/12 sm:w-auto whitespace-nowrap">
               Start Your Free 7-Day Trial
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
             </NeonButton>
